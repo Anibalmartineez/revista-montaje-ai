@@ -13,17 +13,120 @@ output_pdf_path = "output/montado.pdf"
 
 HTML = """
 <!doctype html>
-<title>Montaje y Diagnóstico de PDF</title>
-<h2>Subí tu PDF</h2>
-<form method=post enctype=multipart/form-data>
-  <input type=file name=pdf required>
-  <button name='action' value='montar'>Montar Revista (4 páginas por cara)</button>
-  <button name='action' value='diagnostico'>Diagnóstico Técnico (IA)</button>
-</form>
-{% if mensaje %}<p style="color:red;">{{ mensaje }}</p>{% endif %}
-{% if output_pdf %}<p><a href="{{ url_for('descargar_pdf') }}">📥 Descargar PDF Montado</a></p>{% endif %}
-{% if diagnostico %}<h3>Diagnóstico IA:</h3><pre>{{ diagnostico }}</pre>{% endif %}
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <title>Creativa CTP – Diagnóstico y Montaje</title>
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600&display=swap" rel="stylesheet">
+  <style>
+    body {
+      font-family: 'Poppins', sans-serif;
+      background: linear-gradient(to right, #e0eafc, #cfdef3);
+      margin: 0;
+      padding: 0;
+    }
+
+    .container {
+      max-width: 700px;
+      margin: 60px auto;
+      background: #fff;
+      border-radius: 16px;
+      padding: 40px 30px;
+      box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+      animation: fadeIn 0.8s ease-in-out;
+    }
+
+    @keyframes fadeIn {
+      from {opacity: 0; transform: translateY(20px);}
+      to {opacity: 1; transform: translateY(0);}
+    }
+
+    h2 {
+      text-align: center;
+      color: #222;
+      font-size: 26px;
+      margin-bottom: 25px;
+    }
+
+    form {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+
+    input[type="file"] {
+      border: 2px dashed #ccc;
+      padding: 12px;
+      border-radius: 10px;
+      width: 100%;
+      margin-bottom: 20px;
+      background-color: #f9f9f9;
+    }
+
+    button {
+      margin: 8px 0;
+      padding: 12px 24px;
+      background-color: #007bff;
+      color: white;
+      border: none;
+      border-radius: 8px;
+      font-weight: bold;
+      font-size: 15px;
+      width: 100%;
+      max-width: 350px;
+      transition: background-color 0.3s;
+      cursor: pointer;
+    }
+
+    button:hover {
+      background-color: #0056b3;
+    }
+
+    .mensaje {
+      text-align: center;
+      color: red;
+      font-weight: bold;
+      margin-top: 20px;
+    }
+
+    pre {
+      background: #f1f1f1;
+      padding: 20px;
+      border-radius: 10px;
+      font-size: 14px;
+      overflow-x: auto;
+      margin-top: 30px;
+      white-space: pre-wrap;
+    }
+
+    .diagnostico-titulo {
+      font-size: 20px;
+      margin-top: 35px;
+      color: #333;
+      border-bottom: 2px solid #007bff;
+      padding-bottom: 8px;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h2>🧠 Diagnóstico & Montaje de Revista PDF</h2>
+    <form method="post" enctype="multipart/form-data">
+      <input type="file" name="pdf" required>
+      <button name='action' value='montar'>📄 Montar Revista (4 páginas por cara)</button>
+      <button name='action' value='diagnostico'>🔍 Diagnóstico Técnico (IA)</button>
+    </form>
+    {% if mensaje %}<p class="mensaje">{{ mensaje }}</p>{% endif %}
+    {% if output_pdf %}<p style="text-align:center;"><a href="{{ url_for('descargar_pdf') }}">📥 Descargar PDF Montado</a></p>{% endif %}
+    {% if diagnostico %}
+      <h3 class="diagnostico-titulo">📊 Diagnóstico IA:</h3>
+      <pre>{{ diagnostico }}</pre>
+    {% endif %}
+  </div>
+</body>
+</html>
 """
+
 
 @app.route('/', methods=['GET', 'POST'])
 def index():
