@@ -175,15 +175,27 @@ def diagnosticar_pdf(path):
     first_page = doc[0]
     info = doc.metadata
 
+    # CropBox (tamaño visible)
     crop = first_page.cropbox
     ancho_mm = round(crop.width * 25.4 / 72, 2)
     alto_mm = round(crop.height * 25.4 / 72, 2)
+
+    # TrimBox (corte final)
+    trim = first_page.trimbox
+    trim_ancho_mm = round(trim.width * 25.4 / 72, 2)
+    trim_alto_mm = round(trim.height * 25.4 / 72, 2)
+
+    # ArtBox (troquel o arte)
+    art = first_page.artbox
+    art_ancho_mm = round(art.width * 25.4 / 72, 2)
+    art_alto_mm = round(art.height * 25.4 / 72, 2)
 
     try:
         resolution = first_page.get_text("dict")["width"]
     except:
         resolution = "No se pudo detectar"
 
+    # DPI de la imagen (si existe)
     dpi_info = "No se detectaron imágenes rasterizadas en la primera página."
     image_list = first_page.get_images(full=True)
     if image_list:
@@ -197,14 +209,18 @@ def diagnosticar_pdf(path):
         dpi_y = round(img_height / height_inch, 1)
         dpi_info = f"{dpi_x} x {dpi_y} DPI (basado en la 1.ª imagen y cropbox)"
 
+    # Resumen para IA
     resumen = f"""
-1. Tamaño de página (desde cropbox): {ancho_mm} × {alto_mm} mm
-2. Resolución estimada (texto): {resolution}
-3. Resolución efectiva (imagen): {dpi_info}
-4. Cantidad de páginas: {len(doc)}
-5. Metadatos del documento: {info}
+1. Tamaño de página (desde CropBox): {ancho_mm} × {alto_mm} mm
+2. Área de corte final (TrimBox): {trim_ancho_mm} × {trim_alto_mm} mm
+3. Área artística o troquel (ArtBox): {art_ancho_mm} × {art_alto_mm} mm
+4. Resolución estimada (texto): {resolution}
+5. Resolución efectiva (imagen): {dpi_info}
+6. Cantidad de páginas: {len(doc)}
+7. Metadatos del documento: {info}
 """
 
+    # Prompt para OpenAI
     prompt = f"""Sos un experto en preprensa. Explicá de forma clara y profesional el siguiente diagnóstico técnico para que un operador gráfico lo entienda fácilmente. Usá un lenguaje humano claro, con consejos si detectás problemas:\n\n{resumen}"""
 
     try:
@@ -215,6 +231,7 @@ def diagnosticar_pdf(path):
         return response.choices[0].message.content
     except Exception as e:
         return f"[ERROR] No se pudo generar el diagnóstico con OpenAI: {e}"
+
 
 
 
