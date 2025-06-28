@@ -3,7 +3,7 @@ from reportlab.lib.pagesizes import A4
 from io import BytesIO
 from PIL import Image
 import fitz  # PyMuPDF
-from openai import OpenAI
+import openai
 import os
 
 openai.api_key = os.getenv("OPENAI_API_KEY")
@@ -232,14 +232,15 @@ def diagnosticar_pdf(path):
     prompt = f"""Sos un experto en preprensa. Explicá de forma clara y profesional el siguiente diagnóstico técnico para que un operador gráfico lo entienda fácilmente. Usá un lenguaje humano claro, con consejos si detectás problemas:\n\n{resumen}"""
 
     try:
-        client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
-        response = client.chat.completions.create(
+        response = openai.ChatCompletion.create(
             model="gpt-4",
             messages=[{"role": "user", "content": prompt}]
         )
-        return response.choices[0].message.content
+        return response.choices[0].message["content"]
     except Exception as e:
         return f"[ERROR] No se pudo generar el diagnóstico con OpenAI: {e}"
+
+
 
 def corregir_sangrado(input_path, output_path):
     doc = fitz.open(input_path)
