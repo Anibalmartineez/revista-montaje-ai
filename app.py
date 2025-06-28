@@ -3,11 +3,7 @@ from reportlab.lib.pagesizes import A4
 from io import BytesIO
 from PIL import Image
 import fitz  # PyMuPDF
-import openai
 import os
-
-# Usar la API key desde variables de entorno (Render ya la tiene)
-openai.api_key = os.getenv("OPENAI_API_KEY")
 
 
 app = Flask(__name__)
@@ -171,6 +167,10 @@ def montar_pdf(input_path, output_path):
 
     writer.save(output_path)
 
+from openai import OpenAI
+
+client = OpenAI()
+
 def diagnosticar_pdf(path):
     doc = fitz.open(path)
     first_page = doc[0]
@@ -206,20 +206,17 @@ def diagnosticar_pdf(path):
 5. Metadatos del documento: {info}
 """
 
-    prompt = f"""Sos un experto en preprensa. Explicá de forma clara y profesional el siguiente diagnóstico técnico para que un operador gráfico lo entienda fácilmente. Usá un lenguaje humano claro, con consejos si detectás problemas:
-
-{resumen}
-"""
+    prompt = f"""Sos un experto en preprensa. Explicá de forma clara y profesional el siguiente diagnóstico técnico para que un operador gráfico lo entienda fácilmente. Usá un lenguaje humano claro, con consejos si detectás problemas:\n\n{resumen}"""
 
     try:
-        response = openai.ChatCompletion.create(
+        response = client.chat.completions.create(
             model="gpt-4",
             messages=[{"role": "user", "content": prompt}]
         )
-        respuesta_ia = response.choices[0].message["content"]
-        return respuesta_ia
+        return response.choices[0].message.content
     except Exception as e:
         return f"[ERROR] No se pudo generar el diagnóstico con OpenAI: {e}"
+
 
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 5000))
