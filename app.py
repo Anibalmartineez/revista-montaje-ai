@@ -6,8 +6,8 @@ import fitz  # PyMuPDF
 import openai
 import os
 
-openai.api_key = os.getenv("OPENAI_API_KEY")
-
+# Cliente OpenAI moderno
+client = openai.OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
 app = Flask(__name__)
 UPLOAD_FOLDER = "uploads"
@@ -155,7 +155,6 @@ def index():
 
     return render_template_string(HTML, mensaje=mensaje, output_pdf=output_pdf, diagnostico=diagnostico)
 
-
 @app.route('/descargar')
 def descargar_pdf():
     return send_file(output_pdf_path, as_attachment=True)
@@ -185,17 +184,14 @@ def diagnosticar_pdf(path):
     first_page = doc[0]
     info = doc.metadata
 
-    # CropBox (tamaño visible)
     crop = first_page.cropbox
     ancho_mm = round(crop.width * 25.4 / 72, 2)
     alto_mm = round(crop.height * 25.4 / 72, 2)
 
-    # TrimBox (corte final)
     trim = first_page.trimbox
     trim_ancho_mm = round(trim.width * 25.4 / 72, 2)
     trim_alto_mm = round(trim.height * 25.4 / 72, 2)
 
-    # ArtBox (troquel o arte)
     art = first_page.artbox
     art_ancho_mm = round(art.width * 25.4 / 72, 2)
     art_alto_mm = round(art.height * 25.4 / 72, 2)
@@ -205,7 +201,6 @@ def diagnosticar_pdf(path):
     except:
         resolution = "No se pudo detectar"
 
-    # DPI de la imagen (si existe)
     dpi_info = "No se detectaron imágenes rasterizadas en la primera página."
     image_list = first_page.get_images(full=True)
     if image_list:
@@ -232,25 +227,23 @@ def diagnosticar_pdf(path):
     prompt = f"""Sos un experto en preprensa. Explicá de forma clara y profesional el siguiente diagnóstico técnico para que un operador gráfico lo entienda fácilmente. Usá un lenguaje humano claro, con consejos si detectás problemas:\n\n{resumen}"""
 
     try:
-        response = openai.ChatCompletion.create(
+        response = client.chat.completions.create(
             model="gpt-4",
             messages=[{"role": "user", "content": prompt}]
         )
-        return response.choices[0].message["content"]
+        return response.choices[0].message.content
+
     except Exception as e:
         return f"[ERROR] No se pudo generar el diagnóstico con OpenAI: {e}"
-
-
 
 def corregir_sangrado(input_path, output_path):
     doc = fitz.open(input_path)
     nuevo_doc = fitz.open()
 
     margen_mm = 3
-    margen_pts = margen_mm * 72 / 25.4  # mm → puntos
+    margen_pts = margen_mm * 72 / 25.4
 
     for pagina in doc:
-        # Obtener tamaño actual
         media_box = pagina.rect
         nuevo_rect = fitz.Rect(
             media_box.x0 - margen_pts,
@@ -258,14 +251,11 @@ def corregir_sangrado(input_path, output_path):
             media_box.x1 + margen_pts,
             media_box.y1 + margen_pts
         )
-
-        # Crear nueva página con tamaño extendido
         nueva_pagina = nuevo_doc.new_page(width=nuevo_rect.width, height=nuevo_rect.height)
-
-        # Dibujar contenido original ajustado al nuevo marco
         nueva_pagina.show_pdf_page(nueva_pagina.rect, doc, pagina.number)
 
     nuevo_doc.save(output_path)
 
-
-
+if __name__ == '__main__':
+    port = int(os.environ.get('PORT', 5000))
+    app.run(host='0.0.0.0', port=port)
