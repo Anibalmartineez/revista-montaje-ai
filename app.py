@@ -1,4 +1,3 @@
-
 from flask import Flask, request, send_file, render_template_string
 from reportlab.lib.pagesizes import A4
 from io import BytesIO
@@ -9,6 +8,7 @@ import os
 app = Flask(__name__)
 UPLOAD_FOLDER = "uploads"
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
+os.makedirs("output", exist_ok=True)
 output_pdf_path = "output/montado.pdf"
 
 HTML = """
@@ -79,12 +79,15 @@ def diagnosticar_pdf(path):
     first_page = doc[0]
     info = doc.metadata
     size = first_page.rect
-    resolution = first_page.get_text("dict")["width"]
+    try:
+        resolution = first_page.get_text("dict")["width"]
+    except:
+        resolution = "No se pudo detectar"
     diag = f"""
 ### Diagnóstico técnico
 
 1. Tamaño de página y área útil: {size}
-2. Resolución estimada: {resolution} px de ancho
+2. Resolución estimada: {resolution}
 3. Cantidad de páginas: {len(doc)}
 4. Metadatos del documento: {info}
 """
