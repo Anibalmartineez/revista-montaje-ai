@@ -109,6 +109,7 @@ HTML = """
       <input type="file" name="pdf" required>
       <button name='action' value='montar'>📄 Montar Revista (4 páginas por cara)</button>
       <button name='action' value='diagnostico'>🔍 Diagnóstico Técnico (IA)</button>
+      <button name='action' value='corregir_sangrado'>✂️ Corregir Márgenes y Sangrado</button>
     </form>
     {% if mensaje %}<p class="mensaje">{{ mensaje }}</p>{% endif %}
     {% if output_pdf %}<p style="text-align:center;"><a href="{{ url_for('descargar_pdf') }}">📥 Descargar PDF Montado</a></p>{% endif %}
@@ -141,10 +142,19 @@ def index():
                     output_pdf = True
                 except Exception as e:
                     mensaje = f"Error al procesar el archivo: {e}"
+
             elif request.form['action'] == 'diagnostico':
                 diagnostico = diagnosticar_pdf(path_pdf)
 
+            elif request.form['action'] == 'corregir_sangrado':
+                try:
+                    corregir_sangrado(path_pdf, output_pdf_path)
+                    output_pdf = True
+                except Exception as e:
+                    mensaje = f"Error al corregir márgenes: {e}"
+
     return render_template_string(HTML, mensaje=mensaje, output_pdf=output_pdf, diagnostico=diagnostico)
+
 
 @app.route('/descargar')
 def descargar_pdf():
@@ -231,6 +241,30 @@ def diagnosticar_pdf(path):
     except Exception as e:
         return f"[ERROR] No se pudo generar el diagnóstico con OpenAI: {e}"
 
+def corregir_sangrado(input_path, output_path):
+    doc = fitz.open(input_path)
+    nuevo_doc = fitz.open()
+
+    margen_mm = 3
+    margen_pts = margen_mm * 72 / 25.4  # mm → puntos
+
+    for pagina in doc:
+        # Obtener tamaño actual
+        media_box = pagina.rect
+        nuevo_rect = fitz.Rect(
+            media_box.x0 - margen_pts,
+            media_box.y0 - margen_pts,
+            media_box.x1 + margen_pts,
+            media_box.y1 + margen_pts
+        )
+
+        # Crear nueva página con tamaño extendido
+        nueva_pagina = nuevo_doc.new_page(width=nuevo_rect.width, height=nuevo_rect.height)
+
+        # Dibujar contenido original ajustado al nuevo marco
+        nueva_pagina.show_pdf_page(nueva_pagina.rect, doc, pagina.number)
+
+    nuevo_doc.save(output_path)
 
 
 
