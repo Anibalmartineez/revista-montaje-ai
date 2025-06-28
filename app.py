@@ -3,11 +3,12 @@ from reportlab.lib.pagesizes import A4
 from io import BytesIO
 from PIL import Image
 import fitz  # PyMuPDF
-import os
 import openai
+import os
 
-# Configurar API de OpenAI
-openai.api_key = "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"
+# Usar la API key desde variables de entorno (Render ya la tiene)
+openai.api_key = os.getenv("OPENAI_API_KEY")
+
 
 app = Flask(__name__)
 UPLOAD_FOLDER = "uploads"
