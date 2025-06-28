@@ -78,20 +78,49 @@ def diagnosticar_pdf(path):
     doc = fitz.open(path)
     first_page = doc[0]
     info = doc.metadata
-    size = first_page.rect
+
+    # Tamaño de página (cropbox) en mm
+    crop = first_page.cropbox
+    ancho_mm = round(crop.width * 25.4 / 72, 2)
+    alto_mm = round(crop.height * 25.4 / 72, 2)
+
+    # Estimar resolución textual si está disponible
     try:
         resolution = first_page.get_text("dict")["width"]
     except:
         resolution = "No se pudo detectar"
+
+    # Buscar imágenes y calcular resolución (DPI) de la primera
+    dpi_info = "No se detectaron imágenes rasterizadas en la primera página."
+    image_list = first_page.get_images(full=True)
+    if image_list:
+        xref = image_list[0][0]  # primer XREF de imagen
+        base_image = doc.extract_image(xref)
+        img_bytes = base_image["image"]
+        img_ext = base_image["ext"]
+        img_width = base_image["width"]
+        img_height = base_image["height"]
+
+        # Relación con cropbox (tamaño físico en pulgadas)
+        width_inch = crop.width / 72
+        height_inch = crop.height / 72
+
+        dpi_x = round(img_width / width_inch, 1)
+        dpi_y = round(img_height / height_inch, 1)
+        dpi_info = f"{dpi_x} x {dpi_y} DPI (basado en la 1.ª imagen y cropbox)"
+
     diag = f"""
 ### Diagnóstico técnico
 
-1. Tamaño de página y área útil: {size}
-2. Resolución estimada: {resolution}
-3. Cantidad de páginas: {len(doc)}
-4. Metadatos del documento: {info}
+1. Tamaño de página (desde cropbox): {ancho_mm} × {alto_mm} mm
+2. Resolución estimada (texto): {resolution}
+3. Resolución efectiva (imagen): {dpi_info}
+4. Cantidad de páginas: {len(doc)}
+5. Metadatos del documento: {info}
 """
     return diag
+
+
 
 import os
 
