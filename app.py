@@ -4,6 +4,10 @@ from io import BytesIO
 from PIL import Image
 import fitz  # PyMuPDF
 import os
+import openai
+
+# Configurar API de OpenAI
+openai.api_key = "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"
 
 app = Flask(__name__)
 UPLOAD_FOLDER = "uploads"
@@ -25,7 +29,6 @@ HTML = """
       margin: 0;
       padding: 0;
     }
-
     .container {
       max-width: 700px;
       margin: 60px auto;
@@ -35,25 +38,21 @@ HTML = """
       box-shadow: 0 10px 30px rgba(0,0,0,0.1);
       animation: fadeIn 0.8s ease-in-out;
     }
-
     @keyframes fadeIn {
       from {opacity: 0; transform: translateY(20px);}
       to {opacity: 1; transform: translateY(0);}
     }
-
     h2 {
       text-align: center;
       color: #222;
       font-size: 26px;
       margin-bottom: 25px;
     }
-
     form {
       display: flex;
       flex-direction: column;
       align-items: center;
     }
-
     input[type="file"] {
       border: 2px dashed #ccc;
       padding: 12px;
@@ -62,7 +61,6 @@ HTML = """
       margin-bottom: 20px;
       background-color: #f9f9f9;
     }
-
     button {
       margin: 8px 0;
       padding: 12px 24px;
@@ -77,18 +75,15 @@ HTML = """
       transition: background-color 0.3s;
       cursor: pointer;
     }
-
     button:hover {
       background-color: #0056b3;
     }
-
     .mensaje {
       text-align: center;
       color: red;
       font-weight: bold;
       margin-top: 20px;
     }
-
     pre {
       background: #f1f1f1;
       padding: 20px;
@@ -98,7 +93,6 @@ HTML = """
       margin-top: 30px;
       white-space: pre-wrap;
     }
-
     .diagnostico-titulo {
       font-size: 20px;
       margin-top: 35px;
@@ -126,7 +120,6 @@ HTML = """
 </body>
 </html>
 """
-
 
 @app.route('/', methods=['GET', 'POST'])
 def index():
@@ -182,52 +175,51 @@ def diagnosticar_pdf(path):
     first_page = doc[0]
     info = doc.metadata
 
-    # Tamaño de página (cropbox) en mm
     crop = first_page.cropbox
     ancho_mm = round(crop.width * 25.4 / 72, 2)
     alto_mm = round(crop.height * 25.4 / 72, 2)
 
-    # Estimar resolución textual si está disponible
     try:
         resolution = first_page.get_text("dict")["width"]
     except:
         resolution = "No se pudo detectar"
 
-    # Buscar imágenes y calcular resolución (DPI) de la primera
     dpi_info = "No se detectaron imágenes rasterizadas en la primera página."
     image_list = first_page.get_images(full=True)
     if image_list:
-        xref = image_list[0][0]  # primer XREF de imagen
+        xref = image_list[0][0]
         base_image = doc.extract_image(xref)
-        img_bytes = base_image["image"]
-        img_ext = base_image["ext"]
         img_width = base_image["width"]
         img_height = base_image["height"]
-
-        # Relación con cropbox (tamaño físico en pulgadas)
         width_inch = crop.width / 72
         height_inch = crop.height / 72
-
         dpi_x = round(img_width / width_inch, 1)
         dpi_y = round(img_height / height_inch, 1)
         dpi_info = f"{dpi_x} x {dpi_y} DPI (basado en la 1.ª imagen y cropbox)"
 
-    diag = f"""
-### Diagnóstico técnico
-
+    resumen = f"""
 1. Tamaño de página (desde cropbox): {ancho_mm} × {alto_mm} mm
 2. Resolución estimada (texto): {resolution}
 3. Resolución efectiva (imagen): {dpi_info}
 4. Cantidad de páginas: {len(doc)}
 5. Metadatos del documento: {info}
 """
-    return diag
 
+    prompt = f"""Sos un experto en preprensa. Explicá de forma clara y profesional el siguiente diagnóstico técnico para que un operador gráfico lo entienda fácilmente. Usá un lenguaje humano claro, con consejos si detectás problemas:
 
+{resumen}
+"""
 
-import os
+    try:
+        response = openai.ChatCompletion.create(
+            model="gpt-4",
+            messages=[{"role": "user", "content": prompt}]
+        )
+        respuesta_ia = response.choices[0].message["content"]
+        return respuesta_ia
+    except Exception as e:
+        return f"[ERROR] No se pudo generar el diagnóstico con OpenAI: {e}"
 
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 5000))
     app.run(host='0.0.0.0', port=port)
-
