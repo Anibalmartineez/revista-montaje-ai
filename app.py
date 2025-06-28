@@ -3,7 +3,7 @@ from reportlab.lib.pagesizes import A4
 from io import BytesIO
 from PIL import Image
 import fitz  # PyMuPDF
-import openai
+from openai import OpenAI
 import os
 
 openai.api_key = os.getenv("OPENAI_API_KEY")
@@ -209,7 +209,6 @@ def diagnosticar_pdf(path):
         dpi_y = round(img_height / height_inch, 1)
         dpi_info = f"{dpi_x} x {dpi_y} DPI (basado en la 1.ª imagen y cropbox)"
 
-    # Resumen para IA
     resumen = f"""
 1. Tamaño de página (desde CropBox): {ancho_mm} × {alto_mm} mm
 2. Área de corte final (TrimBox): {trim_ancho_mm} × {trim_alto_mm} mm
@@ -220,11 +219,9 @@ def diagnosticar_pdf(path):
 7. Metadatos del documento: {info}
 """
 
-    # Prompt para OpenAI
     prompt = f"""Sos un experto en preprensa. Explicá de forma clara y profesional el siguiente diagnóstico técnico para que un operador gráfico lo entienda fácilmente. Usá un lenguaje humano claro, con consejos si detectás problemas:\n\n{resumen}"""
 
     try:
-        from openai import OpenAI
         client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
         response = client.chat.completions.create(
             model="gpt-4",
@@ -233,6 +230,8 @@ def diagnosticar_pdf(path):
         return response.choices[0].message.content
     except Exception as e:
         return f"[ERROR] No se pudo generar el diagnóstico con OpenAI: {e}"
+
+
 
 
 
