@@ -3,5 +3,5 @@ services:
     name: revista-montaje-ai
     env: python
     plan: free
-    buildCommand: ""
-    startCommand: "python app.py"
+    buildCommand: "pip install -r requirements.txt"
+    startCommand: "gunicorn app:app"
