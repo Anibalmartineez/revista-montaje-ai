@@ -193,68 +193,69 @@ def descargar_pdf():
     return send_file(output_pdf_path, as_attachment=True)
 
 def montar_pdf(input_path, output_path):
-    import fitz
-    from io import BytesIO
-    from PIL import Image
     from reportlab.lib.pagesizes import A4
+    import fitz
+    from PIL import Image
+    from io import BytesIO
 
-    def compaginacion_caballo(paginas_totales):
-        paginas = list(range(1, paginas_totales + 1))
+    def generar_compaginacion_cosido(paginas_total):
+        paginas = list(range(1, paginas_total + 1))
         while len(paginas) % 4 != 0:
-            paginas.append(0)  # completar a múltiplos de 4 con blancos
+            paginas.append(0)  # Página en blanco
 
         hojas = []
-
-        while len(paginas) >= 8:
-            f = [paginas[-1], paginas[0], paginas[1], paginas[-2]]   # frente
-            d = [paginas[2], paginas[-3], paginas[-4], paginas[3]]   # dorso
-            hojas.append((f, d))
-            paginas = paginas[4:-4]
-
-        if len(paginas) == 4:
-            # hoja vuelta y vuelta
-            f = [paginas[-1], paginas[0], 0, 0]  # solo 2 útiles
-            d = [paginas[1], paginas[-2], 0, 0]
-            hojas.append((f, d))
-
+        while paginas:
+            if len(paginas) >= 8:
+                frente = [paginas[-1], paginas[0], paginas[1], paginas[-2]]
+                dorso  = [paginas[2], paginas[-3], paginas[-4], paginas[3]]
+                hojas.append((frente, dorso))
+                paginas = paginas[4:-4]
+            elif len(paginas) == 4:
+                # vuelta y vuelta final
+                frente = [paginas[3], paginas[0]]
+                dorso = [paginas[1], paginas[2]]
+                hojas.append((frente, dorso))
+                paginas = []
         return hojas
 
     doc = fitz.open(input_path)
     total_paginas = len(doc)
-    hojas = compaginacion_caballo(total_paginas)
+    hojas = generar_compaginacion_cosido(total_paginas)
     salida = fitz.open()
 
     for frente, dorso in hojas:
-        for cara in [frente, dorso]:
+        for i, cara in enumerate([frente, dorso]):
             nueva_pagina = salida.new_page(width=A4[0], height=A4[1])
             for j, idx in enumerate(cara):
                 if idx == 0:
                     continue
                 pagina = doc[idx - 1]
-
-                # 300 DPI
                 pix = pagina.get_pixmap(matrix=fitz.Matrix(3, 3), alpha=False)
                 img = Image.frombytes("RGB", [pix.width, pix.height], pix.samples)
+
                 buffer = BytesIO()
                 img.save(buffer, format="JPEG", quality=95)
                 buffer.seek(0)
 
-                # posición en pliego
                 x = (j % 2) * (A4[0] / 2)
                 y = (j // 2) * (A4[1] / 2)
                 rect = fitz.Rect(x, y, x + A4[0] / 2, y + A4[1] / 2)
 
-                # rotación cabeza con cabeza
-                if j in [0, 1]:
-                    nueva_pagina.insert_image(rect, stream=buffer, rotate=180)
+                rotar = 180 if j in [0, 1] else 0
+
+                # rotación espejo solo para hoja vuelta y vuelta dorso
+                if len(cara) == 2 and i == 1:
+                    nueva_pagina.insert_image(rect, stream=buffer, rotate=0,
+                                               transform=[-1, 0, 0, 1, rect.x1 + rect.x0, 0])
                 else:
-                    nueva_pagina.insert_image(rect, stream=buffer)
+                    nueva_pagina.insert_image(rect, stream=buffer, rotate=rotar)
 
                 buffer.close()
                 del pix
                 del img
 
     salida.save(output_path)
+
 
 
 
