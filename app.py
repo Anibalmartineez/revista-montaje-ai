@@ -100,6 +100,39 @@ HTML = """
       border-bottom: 2px solid #007bff;
       padding-bottom: 8px;
     }
+    @media (max-width: 600px) {
+  .container {
+    margin: 20px auto;
+    padding: 20px 15px;
+    border-radius: 12px;
+  }
+
+  h2 {
+    font-size: 22px;
+    margin-bottom: 20px;
+  }
+
+  input[type="file"] {
+    font-size: 14px;
+    padding: 10px;
+  }
+
+  button {
+    font-size: 14px;
+    padding: 10px 16px;
+    max-width: 100%;
+  }
+
+  pre {
+    font-size: 13px;
+    padding: 15px;
+  }
+
+  .diagnostico-titulo {
+    font-size: 18px;
+  }
+}
+
   </style>
 </head>
 <body>
