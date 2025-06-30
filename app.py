@@ -160,24 +160,72 @@ def descargar_pdf():
     return send_file(output_pdf_path, as_attachment=True)
 
 def montar_pdf(input_path, output_path):
-    reader = fitz.open(input_path)
-    total_pages = len(reader)
-    if total_pages % 4 != 0:
-        raise ValueError("El PDF debe tener un número de páginas múltiplo de 4.")
-    writer = fitz.open()
+    import fitz
+    from io import BytesIO
+    from PIL import Image
+    from reportlab.lib.pagesizes import A4
 
-    for i in range(0, total_pages, 4):
-        new_page = writer.new_page(width=A4[0], height=A4[1])
-        for j in range(4):
-            page = reader[i + j].get_pixmap()
-            img = Image.frombytes("RGB", [page.width, page.height], page.samples)
+    def generar_compaginacion(total_paginas):
+        """
+        Genera la compaginación para cosido a caballete en pliegos de 8 páginas (4 por cara A4).
+        """
+        paginas = list(range(1, total_paginas + 1))
+
+        # Agrega páginas en blanco para completar múltiplos de 4
+        while len(paginas) % 4 != 0:
+            paginas.append(0)
+
+        montajes = []
+        for i in range(0, len(paginas), 16):  # 16 páginas = 2 caras (frente/dorso)
+            seccion = paginas[i:i+16]
+            if len(seccion) == 16:
+                frente = [
+                    [seccion[0], seccion[15], seccion[2], seccion[13]],
+                    [seccion[4], seccion[11], seccion[6], seccion[9]]
+                ]
+                dorso = [
+                    [seccion[1], seccion[14], seccion[3], seccion[12]],
+                    [seccion[5], seccion[10], seccion[7], seccion[8]]
+                ]
+                montajes.extend(frente + dorso)
+            else:
+                # Si quedan menos de 16, crear grupos de 4
+                while len(seccion) < 4:
+                    seccion.append(0)
+                montajes.append(seccion[:4])
+        return montajes
+
+    doc = fitz.open(input_path)
+    total_paginas = len(doc)
+
+    compaginacion = generar_compaginacion(total_paginas)
+    pdf_salida = fitz.open()
+
+    for grupo in compaginacion:
+        nueva_pagina = pdf_salida.new_page(width=A4[0], height=A4[1])
+        for j, idx in enumerate(grupo):
+            if idx == 0:
+                continue  # Página en blanco
+            pagina = doc[idx - 1]
+            pix = pagina.get_pixmap(matrix=fitz.Matrix(1, 1))
+            img = Image.frombytes("RGB", [pix.width, pix.height], pix.samples)
             buffer = BytesIO()
             img.save(buffer, format="PNG")
             buffer.seek(0)
-            rect = fitz.Rect((j % 2) * (A4[0] / 2), (j // 2) * (A4[1] / 2), ((j % 2) + 1) * (A4[0] / 2), ((j // 2) + 1) * (A4[1] / 2))
-            new_page.insert_image(rect, stream=buffer)
 
-    writer.save(output_path)
+            x = (j % 2) * (A4[0] / 2)
+            y = (j // 2) * (A4[1] / 2)
+            rect = fitz.Rect(x, y, x + A4[0] / 2, y + A4[1] / 2)
+
+            # Cabeza con cabeza: girar las páginas superiores
+            if j in [0, 1]:
+                nueva_pagina.insert_image(rect, stream=buffer, rotate=180)
+            else:
+                nueva_pagina.insert_image(rect, stream=buffer)
+
+    pdf_salida.save(output_path)
+
+
 
 def diagnosticar_pdf(path):
     doc = fitz.open(path)
