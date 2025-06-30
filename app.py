@@ -198,25 +198,28 @@ def montar_pdf(input_path, output_path):
     from PIL import Image
     from reportlab.lib.pagesizes import A4
 
-    def generar_compaginacion_por_hojas(total_paginas):
-        paginas = list(range(1, total_paginas + 1))
+    def generar_compaginacion_cosido(paginas_total):
+        paginas = list(range(1, paginas_total + 1))
         while len(paginas) % 4 != 0:
-            paginas.append(0)
+            paginas.append(0)  # Agrega páginas en blanco si no es múltiplo de 4
 
         hojas = []
-        for i in range(0, len(paginas), 8):
-            seccion = paginas[i:i+8]
-            if len(seccion) < 8:
-                seccion += [0] * (8 - len(seccion))
-            frente = [seccion[0], seccion[7], seccion[2], seccion[5]]
-            dorso  = [seccion[1], seccion[6], seccion[3], seccion[4]]
-            hojas.append((frente, dorso))
+        while paginas:
+            if len(paginas) >= 8:
+                frente = [paginas[-1], paginas[0], paginas[1], paginas[-2]]
+                dorso  = [paginas[2], paginas[-3], paginas[-4], paginas[3]]
+                hojas.append((frente, dorso))
+                paginas = paginas[4:-4]
+            elif len(paginas) == 4:
+                frente = [paginas[-1], paginas[0]]
+                dorso = [paginas[1], paginas[-2]]
+                hojas.append((frente, dorso))
+                paginas = []
         return hojas
 
     doc = fitz.open(input_path)
     total_paginas = len(doc)
-    hojas = generar_compaginacion_por_hojas(total_paginas)
-
+    hojas = generar_compaginacion_cosido(total_paginas)
     salida = fitz.open()
 
     for frente, dorso in hojas:
@@ -227,38 +230,30 @@ def montar_pdf(input_path, output_path):
                     continue
                 pagina = doc[idx - 1]
 
-                # Renderizar a 300 DPI
+                # Renderizar la página a 300 DPI
                 pix = pagina.get_pixmap(matrix=fitz.Matrix(3, 3), alpha=False)
                 img = Image.frombytes("RGB", [pix.width, pix.height], pix.samples)
                 buffer = BytesIO()
                 img.save(buffer, format="JPEG", quality=95)
                 buffer.seek(0)
 
-                # Calcular posición en pliego
+                # Posición de miniatura 2x2
                 x = (j % 2) * (A4[0] / 2)
                 y = (j // 2) * (A4[1] / 2)
                 rect = fitz.Rect(x, y, x + A4[0] / 2, y + A4[1] / 2)
 
-                # Insertar imagen con rotación para cabeza con cabeza
+                # Rotar las páginas superiores para cabeza con cabeza
                 if j in [0, 1]:
                     nueva_pagina.insert_image(rect, stream=buffer, rotate=180)
                 else:
                     nueva_pagina.insert_image(rect, stream=buffer)
 
-                # Insertar número de página en la esquina superior izquierda
-                nueva_pagina.insert_text(
-                    fitz.Point(x + 5, y + 5),
-                    str(idx),
-                    fontsize=10,
-                    color=(0, 0, 0)
-                )
-
-                # Liberar memoria
                 buffer.close()
                 del pix
                 del img
 
     salida.save(output_path)
+
 
 
 
