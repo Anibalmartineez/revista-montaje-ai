@@ -243,21 +243,14 @@ def montar_pdf(input_path, output_path):
 
                 rotar = 180 if j in [0, 1] else 0
 
-                # rotación espejo solo para hoja vuelta y vuelta dorso
-                if len(cara) == 2 and i == 1:
-                    nueva_pagina.insert_image(rect, stream=buffer, rotate=0,
-                                               transform=[-1, 0, 0, 1, rect.x1 + rect.x0, 0])
-                else:
-                    nueva_pagina.insert_image(rect, stream=buffer, rotate=rotar)
+                # 🚫 Sin transform, compatible con PyMuPDF antiguo
+                nueva_pagina.insert_image(rect, stream=buffer, rotate=rotar)
 
                 buffer.close()
                 del pix
                 del img
 
     salida.save(output_path)
-
-
-
 
 
 
