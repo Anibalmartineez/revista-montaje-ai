@@ -227,30 +227,39 @@ def montar_pdf(input_path, output_path):
                     continue
                 pagina = doc[idx - 1]
 
-                # ✅ Renderizar la página a 300 DPI
+                # Renderizar a 300 DPI
                 pix = pagina.get_pixmap(matrix=fitz.Matrix(3, 3), alpha=False)
                 img = Image.frombytes("RGB", [pix.width, pix.height], pix.samples)
                 buffer = BytesIO()
                 img.save(buffer, format="JPEG", quality=95)
                 buffer.seek(0)
 
-                # Ubicar en pliego
+                # Calcular posición en pliego
                 x = (j % 2) * (A4[0] / 2)
                 y = (j // 2) * (A4[1] / 2)
                 rect = fitz.Rect(x, y, x + A4[0] / 2, y + A4[1] / 2)
 
-                # Cabeza con cabeza: rotar las páginas superiores
+                # Insertar imagen con rotación para cabeza con cabeza
                 if j in [0, 1]:
                     nueva_pagina.insert_image(rect, stream=buffer, rotate=180)
                 else:
                     nueva_pagina.insert_image(rect, stream=buffer)
 
-                # ✅ Liberar memoria inmediatamente
+                # Insertar número de página en la esquina superior izquierda
+                nueva_pagina.insert_text(
+                    fitz.Point(x + 5, y + 5),
+                    str(idx),
+                    fontsize=10,
+                    color=(0, 0, 0)
+                )
+
+                # Liberar memoria
                 buffer.close()
                 del pix
                 del img
 
     salida.save(output_path)
+
 
 
 
