@@ -318,24 +318,32 @@ def diagnosticar_pdf(path):
         return f"[ERROR] No se pudo generar el diagnóstico con OpenAI: {e}"
 
 def corregir_sangrado(input_path, output_path):
+    import fitz
+
     doc = fitz.open(input_path)
     nuevo_doc = fitz.open()
 
     margen_mm = 3
-    margen_pts = margen_mm * 72 / 25.4
+    margen_pts = margen_mm * 72 / 25.4  # 3 mm en puntos
 
     for pagina in doc:
-        media_box = pagina.rect
-        nuevo_rect = fitz.Rect(
-            media_box.x0 - margen_pts,
-            media_box.y0 - margen_pts,
-            media_box.x1 + margen_pts,
-            media_box.y1 + margen_pts
+        ancho_original = pagina.rect.width
+        alto_original = pagina.rect.height
+
+        nuevo_ancho = ancho_original + 2 * margen_pts
+        nuevo_alto = alto_original + 2 * margen_pts
+
+        nueva_pagina = nuevo_doc.new_page(width=nuevo_ancho, height=nuevo_alto)
+
+        # Mostrar la página original centrada en la nueva con sangrado
+        nueva_pagina.show_pdf_page(
+            fitz.Rect(margen_pts, margen_pts, margen_pts + ancho_original, margen_pts + alto_original),
+            doc,
+            pagina.number
         )
-        nueva_pagina = nuevo_doc.new_page(width=nuevo_rect.width, height=nuevo_rect.height)
-        nueva_pagina.show_pdf_page(nueva_pagina.rect, doc, pagina.number)
 
     nuevo_doc.save(output_path)
+
 
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 5000))
