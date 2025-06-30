@@ -198,65 +198,52 @@ def montar_pdf(input_path, output_path):
     from PIL import Image
     from reportlab.lib.pagesizes import A4
 
-    def generar_compaginacion(total_paginas):
-        """
-        Genera la compaginación para cosido a caballete en pliegos de 8 páginas (4 por cara A4).
-        """
+    def generar_compaginacion_por_hojas(total_paginas):
         paginas = list(range(1, total_paginas + 1))
-
-        # Agrega páginas en blanco para completar múltiplos de 4
         while len(paginas) % 4 != 0:
             paginas.append(0)
 
-        montajes = []
-        for i in range(0, len(paginas), 16):  # 16 páginas = 2 caras (frente/dorso)
-            seccion = paginas[i:i+16]
-            if len(seccion) == 16:
-                frente = [
-                    [seccion[0], seccion[15], seccion[2], seccion[13]],
-                    [seccion[4], seccion[11], seccion[6], seccion[9]]
-                ]
-                dorso = [
-                    [seccion[1], seccion[14], seccion[3], seccion[12]],
-                    [seccion[5], seccion[10], seccion[7], seccion[8]]
-                ]
-                montajes.extend(frente + dorso)
-            else:
-                # Si quedan menos de 16, crear grupos de 4
-                while len(seccion) < 4:
-                    seccion.append(0)
-                montajes.append(seccion[:4])
-        return montajes
+        hojas = []
+        for i in range(0, len(paginas), 8):
+            seccion = paginas[i:i+8]
+            if len(seccion) < 8:
+                seccion += [0] * (8 - len(seccion))
+            frente = [seccion[0], seccion[7], seccion[2], seccion[5]]
+            dorso  = [seccion[1], seccion[6], seccion[3], seccion[4]]
+            hojas.append((frente, dorso))
+        return hojas
 
     doc = fitz.open(input_path)
     total_paginas = len(doc)
+    hojas = generar_compaginacion_por_hojas(total_paginas)
 
-    compaginacion = generar_compaginacion(total_paginas)
-    pdf_salida = fitz.open()
+    salida = fitz.open()
 
-    for grupo in compaginacion:
-        nueva_pagina = pdf_salida.new_page(width=A4[0], height=A4[1])
-        for j, idx in enumerate(grupo):
-            if idx == 0:
-                continue  # Página en blanco
-            pagina = doc[idx - 1]
-            pix = pagina.get_pixmap(matrix=fitz.Matrix(1, 1))
-            img = Image.frombytes("RGB", [pix.width, pix.height], pix.samples)
-            buffer = BytesIO()
-            img.save(buffer, format="PNG")
-            buffer.seek(0)
+    for frente, dorso in hojas:
+        for cara in [frente, dorso]:
+            nueva_pagina = salida.new_page(width=A4[0], height=A4[1])
+            for j, idx in enumerate(cara):
+                if idx == 0:
+                    continue
+                pagina = doc[idx - 1]
+                # ✅ Renderizamos con Matrix(3,3) para mejor resolución (~300 DPI)
+                pix = pagina.get_pixmap(matrix=fitz.Matrix(3, 3))
+                img = Image.frombytes("RGB", [pix.width, pix.height], pix.samples)
+                buffer = BytesIO()
+                img.save(buffer, format="PNG")
+                buffer.seek(0)
 
-            x = (j % 2) * (A4[0] / 2)
-            y = (j // 2) * (A4[1] / 2)
-            rect = fitz.Rect(x, y, x + A4[0] / 2, y + A4[1] / 2)
+                x = (j % 2) * (A4[0] / 2)
+                y = (j // 2) * (A4[1] / 2)
+                rect = fitz.Rect(x, y, x + A4[0] / 2, y + A4[1] / 2)
 
-            # Cabeza con cabeza: girar las páginas superiores
-            if j in [0, 1]:
-                nueva_pagina.insert_image(rect, stream=buffer, rotate=180)
-            else:
-                nueva_pagina.insert_image(rect, stream=buffer)
+                # Cabeza con cabeza: giramos las páginas superiores
+                if j in [0, 1]:
+                    nueva_pagina.insert_image(rect, stream=buffer, rotate=180)
+                else:
+                    nueva_pagina.insert_image(rect, stream=buffer)
 
-    pdf_salida.save(output_path)
+    salida.save(output_path)
 
 
 
