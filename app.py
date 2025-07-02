@@ -399,7 +399,8 @@ def corregir_sangrado(input_path, output_path):
         promedio = recorte.reshape(-1, 3).mean(axis=0)
         return tuple(int(x) for x in promedio)
 
-    color_fondo = detectar_color_fondo(input_path)
+    # ✅ Normalizamos color entre 0 y 1 para usar en draw_rect()
+    color_fondo = tuple(x / 255 for x in detectar_color_fondo(input_path))
 
     doc = fitz.open(input_path)
     nuevo_doc = fitz.open()
@@ -416,14 +417,14 @@ def corregir_sangrado(input_path, output_path):
 
         nueva_pagina = nuevo_doc.new_page(width=nuevo_ancho, height=nuevo_alto)
 
-        # Dibujar fondo con color detectado
+        # 🖌 Dibujar fondo con color detectado
         nueva_pagina.draw_rect(
             fitz.Rect(0, 0, nuevo_ancho, nuevo_alto),
             color=color_fondo,
             fill=color_fondo
         )
 
-        # Insertar página original centrada
+        # 📄 Insertar página original centrada
         nueva_pagina.show_pdf_page(
             fitz.Rect(margen_pts, margen_pts, margen_pts + ancho_original, margen_pts + alto_original),
             doc,
@@ -431,6 +432,7 @@ def corregir_sangrado(input_path, output_path):
         )
 
     nuevo_doc.save(output_path)
+
 
 
 
