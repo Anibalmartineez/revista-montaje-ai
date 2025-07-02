@@ -269,9 +269,10 @@ def diagnosticar_pdf(path):
     trim_ancho_mm = round(trim.width * 25.4 / 72, 2)
     trim_alto_mm = round(trim.height * 25.4 / 72, 2)
 
-    art = first_page.artbox
-    art_ancho_mm = round(art.width * 25.4 / 72, 2)
-    art_alto_mm = round(art.height * 25.4 / 72, 2)
+    # ⚠️ Mejoramos: usamos bounding box real del contenido visible, no ArtBox
+    contenido_rect = first_page.bound()  # área visible real
+    art_ancho_mm = round(contenido_rect.width * 25.4 / 72, 2)
+    art_alto_mm = round(contenido_rect.height * 25.4 / 72, 2)
 
     try:
         resolution = first_page.get_text("dict")["width"]
@@ -294,7 +295,7 @@ def diagnosticar_pdf(path):
     resumen = f"""
 1. Tamaño de página (desde CropBox): {ancho_mm} × {alto_mm} mm
 2. Área de corte final (TrimBox): {trim_ancho_mm} × {trim_alto_mm} mm
-3. Área artística o troquel (ArtBox): {art_ancho_mm} × {art_alto_mm} mm
+3. Área útil visible (contenido detectado): {art_ancho_mm} × {art_alto_mm} mm
 4. Resolución estimada (texto): {resolution}
 5. Resolución efectiva (imagen): {dpi_info}
 6. Cantidad de páginas: {len(doc)}
@@ -312,6 +313,7 @@ def diagnosticar_pdf(path):
 
     except Exception as e:
         return f"[ERROR] No se pudo generar el diagnóstico con OpenAI: {e}"
+
 
 def corregir_sangrado(input_path, output_path):
     import fitz
