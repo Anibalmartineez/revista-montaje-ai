@@ -267,65 +267,80 @@ def diagnosticar_pdf(path):
     ancho_mm = round(crop.width * 25.4 / 72, 2)
     alto_mm = round(crop.height * 25.4 / 72, 2)
 
-    elementos_visuales = []
+    elementos_visual = []
+    posible_troquel = []
 
-    # Texto
-    contenido_dict = first_page.get_text("dict")
-    for bloque in contenido_dict.get("blocks", []):
-        if "bbox" in bloque:
-            x0, y0, x1, y1 = bloque["bbox"]
-            w = x1 - x0
-            h = y1 - y0
-            area = w * h
-            if area > 1000:
-                elementos_visuales.append((x0, y0, x1, y1))
-
-    # Imágenes
-    for img in first_page.get_images(full=True):
-        try:
-            bbox = first_page.get_image_bbox(img)
-            x0, y0, x1, y1 = bbox.x0, bbox.y0, bbox.x1, bbox.y1
-            w = x1 - x0
-            h = y1 - y0
-            area = w * h
-            if area > 1000:
-                elementos_visuales.append((x0, y0, x1, y1))
-        except:
-            continue
-
-    # Vectores
+    # Detectar vectores (posible troquel por líneas largas)
     drawings = first_page.get_drawings()
     for d in drawings:
         for item in d["items"]:
             if len(item) == 4:
                 x0, y0, x1, y1 = item
+                w = abs(x1 - x0)
+                h = abs(y1 - y0)
+                if w * h > 1000:  # Mayor área posible (líneas grandes)
+                    posible_troquel.append((x0, y0, x1, y1))
+
+    # Calcular bounding box del troquel si se detectó
+    if posible_troquel:
+        min_x = min(p[0] for p in posible_troquel)
+        min_y = min(p[1] for p in posible_troquel)
+        max_x = max(p[2] for p in posible_troquel)
+        max_y = max(p[3] for p in posible_troquel)
+
+        troquel_ancho_mm = round((max_x - min_x) * 25.4 / 72, 2)
+        troquel_alto_mm = round((max_y - min_y) * 25.4 / 72, 2)
+        medida_util = f"{troquel_ancho_mm} × {troquel_alto_mm} mm (Detectado como área de troquel)"
+    else:
+        # Si no hay troquel, usar el método anterior (texto + imágenes + vectores)
+        bloques_visuales = []
+
+        contenido_dict = first_page.get_text("dict")
+        for bloque in contenido_dict.get("blocks", []):
+            if "bbox" in bloque:
+                x0, y0, x1, y1 = bloque["bbox"]
                 w = x1 - x0
                 h = y1 - y0
                 area = w * h
                 if area > 1000:
-                    elementos_visuales.append((x0, y0, x1, y1))
+                    bloques_visuales.append((x0, y0, x1, y1))
 
-    # Calcular bbox total con fallback usando display list
-    if elementos_visuales:
-        min_x = min(x[0] for x in elementos_visuales)
-        min_y = min(x[1] for x in elementos_visuales)
-        max_x = max(x[2] for x in elementos_visuales)
-        max_y = max(x[3] for x in elementos_visuales)
-    else:
-        # ✅ fallback: bbox visual completo
-        dl_bbox = first_page.get_displaylist().get_bbox()
-        min_x, min_y, max_x, max_y = dl_bbox.x0, dl_bbox.y0, dl_bbox.x1, dl_bbox.y1
+        for img in first_page.get_images(full=True):
+            try:
+                bbox = first_page.get_image_bbox(img)
+                x0, y0, x1, y1 = bbox.x0, bbox.y0, bbox.x1, bbox.y1
+                w = x1 - x0
+                h = y1 - y0
+                area = w * h
+                if area > 1000:
+                    bloques_visuales.append((x0, y0, x1, y1))
+            except:
+                continue
 
-    util_ancho_mm = round((max_x - min_x) * 25.4 / 72, 2)
-    util_alto_mm = round((max_y - min_y) * 25.4 / 72, 2)
+        for d in drawings:
+            for item in d["items"]:
+                if len(item) == 4:
+                    x0, y0, x1, y1 = item
+                    w = x1 - x0
+                    h = y1 - y0
+                    area = w * h
+                    if area > 1000:
+                        bloques_visuales.append((x0, y0, x1, y1))
 
-    # Resolución texto
-    try:
-        resolution = contenido_dict["width"]
-    except:
-        resolution = "No se pudo detectar"
+        if bloques_visuales:
+            min_x = min(x[0] for x in bloques_visuales)
+            min_y = min(x[1] for x in bloques_visuales)
+            max_x = max(x[2] for x in bloques_visuales)
+            max_y = max(x[3] for x in bloques_visuales)
+            util_ancho_mm = round((max_x - min_x) * 25.4 / 72, 2)
+            util_alto_mm = round((max_y - min_y) * 25.4 / 72, 2)
+        else:
+            util_ancho_mm = 0
+            util_alto_mm = 0
 
-    # DPI imagen
+        medida_util = f"{util_ancho_mm} × {util_alto_mm} mm (Detectado por elementos visuales)"
+
+    # Resolución imagen
     dpi_info = "No se detectaron imágenes rasterizadas."
     image_list = first_page.get_images(full=True)
     if image_list:
@@ -337,18 +352,24 @@ def diagnosticar_pdf(path):
         height_inch = crop.height / 72
         dpi_x = round(img_width / width_inch, 1)
         dpi_y = round(img_height / height_inch, 1)
-        dpi_info = f"{dpi_x} x {dpi_y} DPI (1.ª imagen y cropbox)"
+        dpi_info = f"{dpi_x} x {dpi_y} DPI (1.ª imagen)"
+
+    # Resolución texto
+    try:
+        resolution = contenido_dict["width"]
+    except:
+        resolution = "No se pudo detectar"
 
     resumen = f"""
 A) Tamaño de página: {ancho_mm} × {alto_mm} mm
-B) Medida útil visual detectada: {util_ancho_mm} × {util_alto_mm} mm
+B) Medida útil visual detectada: {medida_util}
 C) Resolución estimada del texto: {resolution}
 D) Resolución imagen raster: {dpi_info}
 E) Páginas: {len(doc)}
 F) Metadatos: {info}
 """
 
-    prompt = f"""Sos un experto en preprensa. Analizá este diagnóstico técnico y explicalo para un operador gráfico. A es el tamaño de página. B es el área útil del diseño. Indicá si se está aprovechando bien el espacio.\n\n{resumen}"""
+    prompt = f"""Sos un experto en preprensa. Analizá este diagnóstico técnico y explicalo para un operador gráfico. A es el tamaño de página. B es el área útil del diseño (preferentemente la del troquel si se detectó). Indicá si se está aprovechando bien el espacio.\n\n{resumen}"""
 
     try:
         response = client.chat.completions.create(
@@ -359,6 +380,7 @@ F) Metadatos: {info}
 
     except Exception as e:
         return f"[ERROR] No se pudo generar el diagnóstico con OpenAI: {e}"
+
 
 
 
