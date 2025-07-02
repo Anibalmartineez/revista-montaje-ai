@@ -385,6 +385,21 @@ F) Metadatos: {info}
 
 def corregir_sangrado(input_path, output_path):
     import fitz
+    from PIL import Image
+    import numpy as np
+
+    def detectar_color_fondo(pdf_path):
+        doc = fitz.open(pdf_path)
+        pix = doc[0].get_pixmap(matrix=fitz.Matrix(2, 2), alpha=False)
+        img = Image.frombytes("RGB", [pix.width, pix.height], pix.samples)
+        arr = np.array(img)
+
+        # Ignoramos un margen de 50 px para evitar texto u objetos
+        recorte = arr[50:-50, 50:-50]
+        promedio = recorte.reshape(-1, 3).mean(axis=0)
+        return tuple(int(x) for x in promedio)
+
+    color_fondo = detectar_color_fondo(input_path)
 
     doc = fitz.open(input_path)
     nuevo_doc = fitz.open()
@@ -401,7 +416,14 @@ def corregir_sangrado(input_path, output_path):
 
         nueva_pagina = nuevo_doc.new_page(width=nuevo_ancho, height=nuevo_alto)
 
-        # Mostrar la página original centrada en la nueva con sangrado
+        # Dibujar fondo con color detectado
+        nueva_pagina.draw_rect(
+            fitz.Rect(0, 0, nuevo_ancho, nuevo_alto),
+            color=color_fondo,
+            fill=color_fondo
+        )
+
+        # Insertar página original centrada
         nueva_pagina.show_pdf_page(
             fitz.Rect(margen_pts, margen_pts, margen_pts + ancho_original, margen_pts + alto_original),
             doc,
@@ -409,6 +431,7 @@ def corregir_sangrado(input_path, output_path):
         )
 
     nuevo_doc.save(output_path)
+
 
 
 if __name__ == '__main__':
