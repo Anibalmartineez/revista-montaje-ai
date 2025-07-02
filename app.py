@@ -257,28 +257,47 @@ def montar_pdf(input_path, output_path):
 
 
 def diagnosticar_pdf(path):
+    import fitz
+
     doc = fitz.open(path)
     first_page = doc[0]
     info = doc.metadata
 
+    # Tamaño general de página (CropBox)
     crop = first_page.cropbox
     ancho_mm = round(crop.width * 25.4 / 72, 2)
     alto_mm = round(crop.height * 25.4 / 72, 2)
 
+    # Área de corte final (TrimBox)
     trim = first_page.trimbox
     trim_ancho_mm = round(trim.width * 25.4 / 72, 2)
     trim_alto_mm = round(trim.height * 25.4 / 72, 2)
 
-    # ⚠️ Mejoramos: usamos bounding box real del contenido visible, no ArtBox
-    contenido_rect = first_page.bound()  # área visible real
-    art_ancho_mm = round(contenido_rect.width * 25.4 / 72, 2)
-    art_alto_mm = round(contenido_rect.height * 25.4 / 72, 2)
+    # ✅ Detección REAL del área visible útil (bounding box real del contenido)
+    min_x, min_y, max_x, max_y = float('inf'), float('inf'), 0, 0
+    contenido_dict = first_page.get_text("dict")
+    for bloque in contenido_dict.get("blocks", []):
+        if "bbox" in bloque:
+            x0, y0, x1, y1 = bloque["bbox"]
+            min_x = min(min_x, x0)
+            min_y = min(min_y, y0)
+            max_x = max(max_x, x1)
+            max_y = max(max_y, y1)
 
+    if min_x < max_x and min_y < max_y:
+        art_ancho_mm = round((max_x - min_x) * 25.4 / 72, 2)
+        art_alto_mm = round((max_y - min_y) * 25.4 / 72, 2)
+    else:
+        art_ancho_mm = 0
+        art_alto_mm = 0
+
+    # Resolución estimada (texto)
     try:
-        resolution = first_page.get_text("dict")["width"]
+        resolution = contenido_dict["width"]
     except:
         resolution = "No se pudo detectar"
 
+    # Resolución efectiva de la primera imagen (DPI)
     dpi_info = "No se detectaron imágenes rasterizadas en la primera página."
     image_list = first_page.get_images(full=True)
     if image_list:
@@ -313,6 +332,7 @@ def diagnosticar_pdf(path):
 
     except Exception as e:
         return f"[ERROR] No se pudo generar el diagnóstico con OpenAI: {e}"
+
 
 
 def corregir_sangrado(input_path, output_path):
