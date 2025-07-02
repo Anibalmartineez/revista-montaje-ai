@@ -387,51 +387,61 @@ def corregir_sangrado(input_path, output_path):
     import fitz
     from PIL import Image
     import numpy as np
+    from io import BytesIO
 
-    def detectar_color_fondo(pdf_path):
-        doc = fitz.open(pdf_path)
-        pix = doc[0].get_pixmap(matrix=fitz.Matrix(2, 2), alpha=False)
-        img = Image.frombytes("RGB", [pix.width, pix.height], pix.samples)
-        arr = np.array(img)
-
-        # Ignoramos un margen de 50 px para evitar texto u objetos
-        recorte = arr[50:-50, 50:-50]
-        promedio = recorte.reshape(-1, 3).mean(axis=0)
-        return tuple(int(x) for x in promedio)
-
-    # ✅ Normalizamos color entre 0 y 1 para usar en draw_rect()
-    color_fondo = tuple(x / 255 for x in detectar_color_fondo(input_path))
-
+    margen_px = 36  # ~3 mm a 300 dpi (36 px)
     doc = fitz.open(input_path)
     nuevo_doc = fitz.open()
 
-    margen_mm = 3
-    margen_pts = margen_mm * 72 / 25.4  # 3 mm en puntos
-
     for pagina in doc:
-        ancho_original = pagina.rect.width
-        alto_original = pagina.rect.height
+        pix = pagina.get_pixmap(matrix=fitz.Matrix(4, 4), alpha=False)  # 4x para buena resolución
+        img = Image.frombytes("RGB", [pix.width, pix.height], pix.samples)
 
-        nuevo_ancho = ancho_original + 2 * margen_pts
-        nuevo_alto = alto_original + 2 * margen_pts
+        ancho, alto = img.size
+        nuevo_ancho = ancho + 2 * margen_px
+        nuevo_alto = alto + 2 * margen_px
 
-        nueva_pagina = nuevo_doc.new_page(width=nuevo_ancho, height=nuevo_alto)
+        # Crear nueva imagen con sangrado extendido
+        extendida = Image.new("RGB", (nuevo_ancho, nuevo_alto))
+        extendida.paste(img, (margen_px, margen_px))
 
-        # 🖌 Dibujar fondo con color detectado
-        nueva_pagina.draw_rect(
-            fitz.Rect(0, 0, nuevo_ancho, nuevo_alto),
-            color=color_fondo,
-            fill=color_fondo
+        # Extender lados
+        # Izquierda
+        extendida.paste(img.crop((0, 0, 1, alto)).resize((margen_px, alto)), (0, margen_px))
+        # Derecha
+        extendida.paste(img.crop((ancho - 1, 0, ancho, alto)).resize((margen_px, alto)), (ancho + margen_px, margen_px))
+        # Arriba
+        extendida.paste(img.crop((0, 0, ancho, 1)).resize((ancho, margen_px)), (margen_px, 0))
+        # Abajo
+        extendida.paste(img.crop((0, alto - 1, ancho, alto)).resize((ancho, margen_px)), (margen_px, alto + margen_px))
+
+        # Esquinas (relleno con promedio)
+        esquina = np.array(img.crop((0, 0, 10, 10))).mean(axis=(0, 1)).astype(np.uint8)
+        esquina_img = Image.new("RGB", (margen_px, margen_px), tuple(esquina))
+        extendida.paste(esquina_img, (0, 0))  # superior izquierda
+        extendida.paste(esquina_img, (0, alto + margen_px))  # inferior izquierda
+        extendida.paste(esquina_img, (ancho + margen_px, 0))  # superior derecha
+        extendida.paste(esquina_img, (ancho + margen_px, alto + margen_px))  # inferior derecha
+
+        # Convertimos imagen extendida a PDF
+        buffer = BytesIO()
+        extendida.save(buffer, format="JPEG", quality=95)
+        buffer.seek(0)
+
+        # Insertamos como nueva página PDF
+        ancho_pts = nuevo_ancho * 72 / 300
+        alto_pts = nuevo_alto * 72 / 300
+        nueva_pagina = nuevo_doc.new_page(width=ancho_pts, height=alto_pts)
+        nueva_pagina.insert_image(
+            fitz.Rect(0, 0, ancho_pts, alto_pts),
+            stream=buffer
         )
 
-        # 📄 Insertar página original centrada
-        nueva_pagina.show_pdf_page(
-            fitz.Rect(margen_pts, margen_pts, margen_pts + ancho_original, margen_pts + alto_original),
-            doc,
-            pagina.number
-        )
+        buffer.close()
+        del img, extendida, pix
 
     nuevo_doc.save(output_path)
+
 
 
 
