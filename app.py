@@ -263,18 +263,15 @@ def diagnosticar_pdf(path):
     first_page = doc[0]
     info = doc.metadata
 
-    # Tamaño general de página (CropBox)
+    # A) Tamaño general de la página (CropBox)
     crop = first_page.cropbox
     ancho_mm = round(crop.width * 25.4 / 72, 2)
     alto_mm = round(crop.height * 25.4 / 72, 2)
 
-    # Área de corte final (TrimBox)
-    trim = first_page.trimbox
-    trim_ancho_mm = round(trim.width * 25.4 / 72, 2)
-    trim_alto_mm = round(trim.height * 25.4 / 72, 2)
-
-    # ✅ Detección REAL del área visible útil (bounding box real del contenido)
+    # B) Detectar medida útil del trabajo (todo el contenido visual)
     min_x, min_y, max_x, max_y = float('inf'), float('inf'), 0, 0
+
+    # 1. Textos y vectores
     contenido_dict = first_page.get_text("dict")
     for bloque in contenido_dict.get("blocks", []):
         if "bbox" in bloque:
@@ -284,20 +281,33 @@ def diagnosticar_pdf(path):
             max_x = max(max_x, x1)
             max_y = max(max_y, y1)
 
-    if min_x < max_x and min_y < max_y:
-        art_ancho_mm = round((max_x - min_x) * 25.4 / 72, 2)
-        art_alto_mm = round((max_y - min_y) * 25.4 / 72, 2)
-    else:
-        art_ancho_mm = 0
-        art_alto_mm = 0
+    # 2. Imágenes rasterizadas (si hay)
+    for img in first_page.get_images(full=True):
+        xref = img[0]
+        try:
+            bbox = first_page.get_image_bbox(img)
+            x0, y0, x1, y1 = bbox.x0, bbox.y0, bbox.x1, bbox.y1
+            min_x = min(min_x, x0)
+            min_y = min(min_y, y0)
+            max_x = max(max_x, x1)
+            max_y = max(max_y, y1)
+        except:
+            continue
 
-    # Resolución estimada (texto)
+    if min_x < max_x and min_y < max_y:
+        util_ancho_mm = round((max_x - min_x) * 25.4 / 72, 2)
+        util_alto_mm = round((max_y - min_y) * 25.4 / 72, 2)
+    else:
+        util_ancho_mm = 0
+        util_alto_mm = 0
+
+    # Resolución estimada del texto
     try:
         resolution = contenido_dict["width"]
     except:
         resolution = "No se pudo detectar"
 
-    # Resolución efectiva de la primera imagen (DPI)
+    # Resolución de la primera imagen (si hay)
     dpi_info = "No se detectaron imágenes rasterizadas en la primera página."
     image_list = first_page.get_images(full=True)
     if image_list:
@@ -312,16 +322,15 @@ def diagnosticar_pdf(path):
         dpi_info = f"{dpi_x} x {dpi_y} DPI (basado en la 1.ª imagen y cropbox)"
 
     resumen = f"""
-1. Tamaño de página (desde CropBox): {ancho_mm} × {alto_mm} mm
-2. Área de corte final (TrimBox): {trim_ancho_mm} × {trim_alto_mm} mm
-3. Área útil visible (contenido detectado): {art_ancho_mm} × {art_alto_mm} mm
-4. Resolución estimada (texto): {resolution}
-5. Resolución efectiva (imagen): {dpi_info}
-6. Cantidad de páginas: {len(doc)}
-7. Metadatos del documento: {info}
+A) Tamaño de página (desde CropBox): {ancho_mm} × {alto_mm} mm
+B) Medida útil del trabajo detectada: {util_ancho_mm} × {util_alto_mm} mm
+C) Resolución estimada (texto): {resolution}
+D) Resolución efectiva (imagen): {dpi_info}
+E) Cantidad de páginas: {len(doc)}
+F) Metadatos del documento: {info}
 """
 
-    prompt = f"""Sos un experto en preprensa. Explicá de forma clara y profesional el siguiente diagnóstico técnico para que un operador gráfico lo entienda fácilmente. Usá un lenguaje humano claro, con consejos si detectás problemas:\n\n{resumen}"""
+    prompt = f"""Sos un experto en preprensa. Explicá de forma clara y profesional el siguiente diagnóstico técnico para que un operador gráfico lo entienda fácilmente. Aclará que A es el tamaño de página, B la medida útil real del trabajo, con o sin marcas. Aconsejá si está mal armado.\n\n{resumen}"""
 
     try:
         response = client.chat.completions.create(
@@ -332,6 +341,7 @@ def diagnosticar_pdf(path):
 
     except Exception as e:
         return f"[ERROR] No se pudo generar el diagnóstico con OpenAI: {e}"
+
 
 
 
