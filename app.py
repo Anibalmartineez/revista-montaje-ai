@@ -269,31 +269,44 @@ def diagnosticar_pdf(path):
 
     contenido_dict = first_page.get_text("dict")
     drawings = first_page.get_drawings()
+    bloques = []
 
-    troquel_lines = []
-
+    # 1. Buscar contorno rectangular tipo troquel
+    posibles_troqueles = []
     for d in drawings:
+        box_x = []
+        box_y = []
         for item in d["items"]:
             if len(item) == 4:
                 x0, y0, x1, y1 = item
                 w = abs(x1 - x0)
                 h = abs(y1 - y0)
-                if w > 30 or h > 30:  # líneas largas, no decorativas
-                    troquel_lines.append((x0, y0, x1, y1))
+                if min(w, h) < 1 or max(w, h) < 20:
+                    continue
+                box_x.extend([x0, x1])
+                box_y.extend([y0, y1])
+        if len(box_x) >= 4:
+            min_x = min(box_x)
+            max_x = max(box_x)
+            min_y = min(box_y)
+            max_y = max(box_y)
+            if max_x - min_x > 100 and max_y - min_y > 100:
+                posibles_troqueles.append((min_x, min_y, max_x, max_y))
 
-    if len(troquel_lines) >= 4:
-        min_x = min(p[0] for p in troquel_lines)
-        min_y = min(p[1] for p in troquel_lines)
-        max_x = max(p[2] for p in troquel_lines)
-        max_y = max(p[3] for p in troquel_lines)
+    mejor_troquel = None
+    max_area = 0
+    for x0, y0, x1, y1 in posibles_troqueles:
+        area = (x1 - x0) * (y1 - y0)
+        if area > max_area:
+            mejor_troquel = (x0, y0, x1, y1)
+            max_area = area
 
-        troquel_ancho_mm = round((max_x - min_x) * 25.4 / 72, 2)
-        troquel_alto_mm = round((max_y - min_y) * 25.4 / 72, 2)
-        medida_util = f"{troquel_ancho_mm} × {troquel_alto_mm} mm (Detectado como área de troquel)"
+    if mejor_troquel:
+        troquel_ancho_mm = round((mejor_troquel[2] - mejor_troquel[0]) * 25.4 / 72, 2)
+        troquel_alto_mm = round((mejor_troquel[3] - mejor_troquel[1]) * 25.4 / 72, 2)
+        medida_util = f"{troquel_ancho_mm} × {troquel_alto_mm} mm (Detectado como área de troquel vectorial)"
     else:
-        # fallback por elementos visuales (texto + imagenes + vectores)
-        bloques = []
-
+        # fallback por bloques visuales
         for bloque in contenido_dict.get("blocks", []):
             if "bbox" in bloque:
                 x0, y0, x1, y1 = bloque["bbox"]
@@ -334,7 +347,6 @@ def diagnosticar_pdf(path):
         dpi_y = round(img_height / height_inch, 1)
         dpi_info = f"{dpi_x} x {dpi_y} DPI (1.ª imagen)"
 
-    # Resolución texto
     try:
         resolution = contenido_dict["width"]
     except:
@@ -349,17 +361,8 @@ E) Páginas: {len(doc)}
 F) Metadatos: {info}
 """
 
-    prompt = f"""Sos un experto en preprensa. Analizá este diagnóstico técnico y explicalo para un operador gráfico. La clave está en el punto B, que es el área útil real, basada en el troquel si se detecta.\n\n{resumen}"""
+    return resumen
 
-    try:
-        response = client.chat.completions.create(
-            model="gpt-4",
-            messages=[{"role": "user", "content": prompt}]
-        )
-        return response.choices[0].message.content
-
-    except Exception as e:
-        return f"[ERROR] No se pudo generar el diagnóstico con OpenAI: {e}"
 
 
 
