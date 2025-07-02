@@ -277,7 +277,7 @@ def diagnosticar_pdf(path):
             w = x1 - x0
             h = y1 - y0
             area = w * h
-            if area > 1000:  # ✅ FILTRA cosas chicas
+            if area > 1000:
                 elementos_visuales.append((x0, y0, x1, y1))
 
     # Imágenes
@@ -305,17 +305,19 @@ def diagnosticar_pdf(path):
                 if area > 1000:
                     elementos_visuales.append((x0, y0, x1, y1))
 
-    # Calcular bbox total
+    # Calcular bbox total con fallback usando display list
     if elementos_visuales:
         min_x = min(x[0] for x in elementos_visuales)
         min_y = min(x[1] for x in elementos_visuales)
         max_x = max(x[2] for x in elementos_visuales)
         max_y = max(x[3] for x in elementos_visuales)
-        util_ancho_mm = round((max_x - min_x) * 25.4 / 72, 2)
-        util_alto_mm = round((max_y - min_y) * 25.4 / 72, 2)
     else:
-        util_ancho_mm = 0
-        util_alto_mm = 0
+        # ✅ fallback: bbox visual completo
+        dl_bbox = first_page.get_displaylist().get_bbox()
+        min_x, min_y, max_x, max_y = dl_bbox.x0, dl_bbox.y0, dl_bbox.x1, dl_bbox.y1
+
+    util_ancho_mm = round((max_x - min_x) * 25.4 / 72, 2)
+    util_alto_mm = round((max_y - min_y) * 25.4 / 72, 2)
 
     # Resolución texto
     try:
@@ -357,6 +359,7 @@ F) Metadatos: {info}
 
     except Exception as e:
         return f"[ERROR] No se pudo generar el diagnóstico con OpenAI: {e}"
+
 
 
 
