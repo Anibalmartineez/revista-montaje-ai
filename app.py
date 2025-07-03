@@ -284,64 +284,72 @@ def descargar_pdf():
     return send_file(output_pdf_path, as_attachment=True)
 
 def montar_pdf(input_path, output_path):
-    from reportlab.lib.pagesizes import A4
     import fitz
     from PIL import Image
     from io import BytesIO
 
-    def generar_compaginacion_cosido(paginas_total):
-        paginas = list(range(1, paginas_total + 1))
-        while len(paginas) % 4 != 0:
-            paginas.append(0)  # Página en blanco
-
-        hojas = []
-        while paginas:
-            if len(paginas) >= 8:
-                frente = [paginas[-1], paginas[0], paginas[1], paginas[-2]]
-                dorso  = [paginas[2], paginas[-3], paginas[-4], paginas[3]]
-                hojas.append((frente, dorso))
-                paginas = paginas[4:-4]
-            elif len(paginas) == 4:
-                # vuelta y vuelta final
-                frente = [paginas[3], paginas[0]]
-                dorso = [paginas[1], paginas[2]]
-                hojas.append((frente, dorso))
-                paginas = []
-        return hojas
-
     doc = fitz.open(input_path)
     total_paginas = len(doc)
-    hojas = generar_compaginacion_cosido(total_paginas)
+
+    # Completa a múltiplo de 4 si es necesario
+    while total_paginas % 4 != 0:
+        doc.insert_page(-1)  # página en blanco
+        total_paginas += 1
+
+    # Calcula hojas (cada hoja tiene 4 páginas por cara, o sea 8 por hoja completa)
+    hojas = []
+    paginas = list(range(1, total_paginas + 1))
+
+    while paginas:
+        if len(paginas) >= 8:
+            frente = [paginas[-1], paginas[0], paginas[2], paginas[-3]]
+            dorso  = [paginas[1], paginas[-2], paginas[-4], paginas[3]]
+            hojas.append((frente, dorso))
+            paginas = paginas[4:-4]
+        else:
+            # última hoja (vuelta y vuelta)
+            frente = [paginas[-1], paginas[0]]
+            dorso  = [paginas[1], paginas[-2]]
+            hojas.append((frente, dorso))
+            paginas = []
+
     salida = fitz.open()
+    A4_WIDTH, A4_HEIGHT = fitz.paper_size("a4")
+
+    def insertar_pagina_con_rotacion(nueva_pagina, idx, j):
+        if idx == 0:
+            return
+        pagina = doc[idx - 1]
+        pix = pagina.get_pixmap(matrix=fitz.Matrix(3, 3), alpha=False)  # 300 DPI
+        img = Image.frombytes("RGB", [pix.width, pix.height], pix.samples)
+        buffer = BytesIO()
+        img.save(buffer, format="JPEG", quality=95)
+        buffer.seek(0)
+
+        x = (j % 2) * (A4_WIDTH / 2)
+        y = (j // 2) * (A4_HEIGHT / 2)
+        rect = fitz.Rect(x, y, x + A4_WIDTH / 2, y + A4_HEIGHT / 2)
+
+        # cabeza con cabeza: abajo (j 2 o 3) va girado 180
+        rotar = 180 if j >= 2 else 0
+
+        nueva_pagina.insert_image(rect, stream=buffer, rotate=rotar)
+        buffer.close()
+        del pix, img
 
     for frente, dorso in hojas:
-        for i, cara in enumerate([frente, dorso]):
-            nueva_pagina = salida.new_page(width=A4[0], height=A4[1])
-            for j, idx in enumerate(cara):
-                if idx == 0:
-                    continue
-                pagina = doc[idx - 1]
-                pix = pagina.get_pixmap(matrix=fitz.Matrix(3, 3), alpha=False)
-                img = Image.frombytes("RGB", [pix.width, pix.height], pix.samples)
+        # Crea cara frente
+        nueva_pagina = salida.new_page(width=A4_WIDTH, height=A4_HEIGHT)
+        for j, idx in enumerate(frente):
+            insertar_pagina_con_rotacion(nueva_pagina, idx, j)
 
-                buffer = BytesIO()
-                img.save(buffer, format="JPEG", quality=95)
-                buffer.seek(0)
-
-                x = (j % 2) * (A4[0] / 2)
-                y = (j // 2) * (A4[1] / 2)
-                rect = fitz.Rect(x, y, x + A4[0] / 2, y + A4[1] / 2)
-
-                rotar = 180 if j in [0, 1] else 0
-
-                # 🚫 Sin transform, compatible con PyMuPDF antiguo
-                nueva_pagina.insert_image(rect, stream=buffer, rotate=rotar)
-
-                buffer.close()
-                del pix
-                del img
+        # Crea cara dorso
+        nueva_pagina = salida.new_page(width=A4_WIDTH, height=A4_HEIGHT)
+        for j, idx in enumerate(dorso):
+            insertar_pagina_con_rotacion(nueva_pagina, idx, j)
 
     salida.save(output_path)
+
 
 
 
