@@ -289,14 +289,18 @@ def montar_pdf(input_path, output_path):
     from io import BytesIO
 
     doc = fitz.open(input_path)
+
+    if len(doc) == 0:
+        raise Exception("El PDF está vacío o no se pudo leer correctamente.")
+
     total_paginas = len(doc)
 
     # Asegurar múltiplo de 4
     while total_paginas % 4 != 0:
-        doc.insert_page(-1)  # Agrega página en blanco
+        doc.insert_page(-1)
         total_paginas += 1
 
-    paginas = list(range(1, total_paginas + 1))  # Índices desde 1
+    paginas = list(range(1, total_paginas + 1))  # índices desde 1
     hojas = []
 
     while paginas:
@@ -306,9 +310,8 @@ def montar_pdf(input_path, output_path):
             hojas.append((frente, dorso))
             paginas = paginas[4:-4]
         else:
-            # Último pliego (4 páginas reales)
             frente = [paginas[-1], paginas[0]]
-            dorso = [paginas[1], paginas[-2]]
+            dorso  = [paginas[1], paginas[-2]]
             hojas.append((frente, dorso))
             paginas = []
 
@@ -316,13 +319,21 @@ def montar_pdf(input_path, output_path):
     A4_WIDTH, A4_HEIGHT = fitz.paper_size("a4")
 
     def insertar_pagina(nueva_pagina, idx, pos):
-        if idx == 0:
-            return
-        pagina = doc[idx - 1]
-        pix = pagina.get_pixmap(matrix=fitz.Matrix(3, 3), alpha=False)
-        img = Image.frombytes("RGB", [pix.width, pix.height], pix.samples)
+        if not idx or idx < 1 or idx > len(doc):
+            return  # página inválida o fuera de rango
 
-        # Agregar numeración pequeña sobre la imagen
+        try:
+            pagina = doc[idx - 1]
+            pix = pagina.get_pixmap(matrix=fitz.Matrix(3, 3), alpha=False)
+        except:
+            return  # no se pudo renderizar la página
+
+        try:
+            img = Image.frombytes("RGB", [pix.width, pix.height], pix.samples)
+        except:
+            return
+
+        # Añadir numeración
         draw = ImageDraw.Draw(img)
         try:
             font = ImageFont.truetype("arial.ttf", 20)
@@ -338,10 +349,9 @@ def montar_pdf(input_path, output_path):
         y = (pos // 2) * (A4_HEIGHT / 2)
         rect = fitz.Rect(x, y, x + A4_WIDTH / 2, y + A4_HEIGHT / 2)
 
-        # Cabeza con cabeza: abajo se rota 180°
-        rotar = 180 if pos >= 2 else 0
-
+        rotar = 180 if pos >= 2 else 0  # cabeza con cabeza
         nueva_pagina.insert_image(rect, stream=buffer, rotate=rotar)
+
         buffer.close()
         del pix, img
 
@@ -349,19 +359,18 @@ def montar_pdf(input_path, output_path):
         es_ultimo_incompleto = (i == len(hojas) - 1 and len(frente) < 4)
 
         # Frente
-        pagina_frente = salida.new_page(width=A4_WIDTH, height=A4_HEIGHT)
+        pag_frente = salida.new_page(width=A4_WIDTH, height=A4_HEIGHT)
         for j, idx in enumerate(frente):
-            insertar_pagina(pagina_frente, idx, j)
+            insertar_pagina(pag_frente, idx, j)
 
         # Dorso
-        pagina_dorso = salida.new_page(width=A4_WIDTH, height=A4_HEIGHT)
+        pag_dorso = salida.new_page(width=A4_WIDTH, height=A4_HEIGHT)
         for j, idx in enumerate(dorso):
-            insertar_pagina(pagina_dorso, idx, j)
+            insertar_pagina(pag_dorso, idx, j)
 
-        # Si última hoja parcial, girar todo frente y dorso
         if es_ultimo_incompleto:
-            pagina_frente.set_rotation(180)
-            pagina_dorso.set_rotation(180)
+            pag_frente.set_rotation(180)
+            pag_dorso.set_rotation(180)
 
     salida.save(output_path)
 
