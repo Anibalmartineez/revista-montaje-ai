@@ -6,8 +6,6 @@ import fitz  # PyMuPDF
 import openai
 import os
 from werkzeug.utils import secure_filename
-from validador import validar_archivo_pdf
-
 
 # Cliente OpenAI moderno
 client = openai.OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
@@ -242,9 +240,13 @@ HTML = """
 
 
 
+
 @app.route("/", methods=["GET", "POST"])
 def index():
     mensaje = ""
+    diagnostico = None
+    output_pdf = False
+
     if request.method == "POST":
         try:
             if 'pdf' not in request.files:
@@ -252,20 +254,36 @@ def index():
             archivo = request.files['pdf']
             if archivo.filename == '':
                 raise Exception("Debes subir un archivo PDF válido.")
+            filename = secure_filename(archivo.filename)
+            path_pdf = os.path.join(UPLOAD_FOLDER, filename)
+            archivo.save(path_pdf)
 
-            path_pdf = validar_archivo_pdf(archivo, UPLOAD_FOLDER)
             action = request.form.get("action")
-            modo_montaje = int(request.form.get("modo_montaje", 4))
+            modo_montaje = int(request.form.get("modo_montaje", 4) or 4)
             output_path = os.path.join("output", "montado.pdf")
 
             if action == "montar":
                 montar_pdf(path_pdf, output_path, paginas_por_cara=modo_montaje)
-                return send_file(output_path, as_attachment=True)
-
-            mensaje = "⚠️ Función no implementada para esta acción."
+                output_pdf = True
+            elif action == "diagnostico":
+                diagnostico = diagnosticar_pdf(path_pdf)
+            elif action == "corregir_sangrado":
+                corregir_sangrado(path_pdf, output_path)
+                output_pdf = True
+            elif action == "redimensionar":
+                nuevo_ancho = float(request.form.get("nuevo_ancho", 0))
+                nuevo_alto = request.form.get("nuevo_alto")
+                if not nuevo_ancho:
+                    raise Exception("Debes ingresar al menos un nuevo ancho.")
+                nuevo_alto = float(nuevo_alto) if nuevo_alto else None
+                redimensionar_pdf(path_pdf, output_path, nuevo_ancho, nuevo_alto)
+                output_pdf = True
+            else:
+                mensaje = "⚠️ Función no implementada para esta acción."
         except Exception as e:
             mensaje = f"❌ Error al procesar el archivo: {str(e)}"
-    return render_template_string(HTML, mensaje=mensaje)
+
+    return render_template_string(HTML, mensaje=mensaje, diagnostico=diagnostico, output_pdf=output_pdf)
 
 
 @app.route('/descargar')
