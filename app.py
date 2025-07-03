@@ -208,14 +208,21 @@ HTML = """
   <div class="container">
     <h2>🧠 Diagnóstico & Montaje de Revista PDF</h2>
     <form method="post" enctype="multipart/form-data">
-      <input type="file" name="pdf" required>
-      <input type="number" step="0.1" name="nuevo_ancho" placeholder="Nuevo ancho en mm (para redimensionar)">
-      <input type="number" step="0.1" name="nuevo_alto" placeholder="Nuevo alto en mm (opcional)">
-      <button name='action' value='montar'>📄 Montar Revista (4 páginas por cara)</button>
-      <button name='action' value='diagnostico'>🔍 Diagnóstico Técnico (IA)</button>
-      <button name='action' value='corregir_sangrado'>✂️ Corregir Márgenes y Sangrado</button>
-      <button name='action' value='redimensionar'>📐 Redimensionar PDF</button>
-    </form>
+  <input type="file" name="pdf" required>
+  <input type="number" step="0.1" name="nuevo_ancho" placeholder="Nuevo ancho en mm (para redimensionar)">
+  <input type="number" step="0.1" name="nuevo_alto" placeholder="Nuevo alto en mm (opcional)">
+
+  <select name="modo_montaje" required style="padding: 12px; border-radius: 10px; border: 2px solid #ccc; font-size: 15px; width: 100%;">
+    <option value="4" selected>🗞️ Montaje 4 páginas por cara (revista cosido a caballete)</option>
+    <option value="2">📰 Montaje 2 páginas por cara (libro frente/dorso)</option>
+  </select>
+
+  <button name='action' value='montar'>📄 Montar Revista</button>
+  <button name='action' value='diagnostico'>🔍 Diagnóstico Técnico (IA)</button>
+  <button name='action' value='corregir_sangrado'>✂️ Corregir Márgenes y Sangrado</button>
+  <button name='action' value='redimensionar'>📐 Redimensionar PDF</button>
+</form>
+
 
     {% if mensaje %}
       <p class="mensaje">{{ mensaje }}</p>
@@ -243,122 +250,93 @@ def index():
         try:
             if 'pdf' not in request.files:
                 raise Exception("No se seleccionó ningún archivo.")
-
             archivo = request.files['pdf']
             if archivo.filename == '':
                 raise Exception("Debes subir un archivo PDF válido.")
 
-            # Guardar archivo y validar
             path_pdf = validar_archivo_pdf(archivo, UPLOAD_FOLDER)
-
-            # Acción seleccionada por el botón
             action = request.form.get("action")
+            modo_montaje = int(request.form.get("modo_montaje", 4))
             output_path = os.path.join("output", "montado.pdf")
 
             if action == "montar":
-                montar_pdf(path_pdf, output_path)
+                montar_pdf(path_pdf, output_path, paginas_por_cara=modo_montaje)
                 return send_file(output_path, as_attachment=True)
 
             mensaje = "⚠️ Función no implementada para esta acción."
-
         except Exception as e:
             mensaje = f"❌ Error al procesar el archivo: {str(e)}"
-
     return render_template_string(HTML, mensaje=mensaje)
-
 
 
 @app.route('/descargar')
 def descargar_pdf():
     return send_file(output_pdf_path, as_attachment=True)
 
-def montar_pdf(input_path, output_path):
-    doc = fitz.open(input_path)
+def montar_pdf(input_path, output_path, paginas_por_cara=4):
+    import fitz
+    from PIL import Image, ImageDraw, ImageFont
+    from io import BytesIO
 
+    doc = fitz.open(input_path)
     if len(doc) == 0:
         raise Exception("El PDF está vacío o corrupto.")
-
     total_paginas = len(doc)
-
     while total_paginas % 4 != 0:
         doc.insert_page(-1)
         total_paginas += 1
 
+    salida = fitz.open()
+    A4_WIDTH, A4_HEIGHT = fitz.paper_size("a4")
     paginas = list(range(1, total_paginas + 1))
     hojas = []
 
     while paginas:
-        if len(paginas) >= 8:
+        if paginas_por_cara == 4 and len(paginas) >= 8:
             frente = [paginas[-1], paginas[0], paginas[2], paginas[-3]]
-            dorso  = [paginas[1], paginas[-2], paginas[-4], paginas[3]]
+            dorso = [paginas[1], paginas[-2], paginas[-4], paginas[3]]
             hojas.append((frente, dorso))
             paginas = paginas[4:-4]
-        else:
+        elif paginas_por_cara == 2 and len(paginas) >= 4:
             frente = [paginas[-1], paginas[0]]
-            dorso  = [paginas[1], paginas[-2]]
+            dorso = [paginas[1], paginas[-2]]
             hojas.append((frente, dorso))
-            paginas = []
-
-    salida = fitz.open()
-    A4_WIDTH, A4_HEIGHT = fitz.paper_size("a4")
+            paginas = paginas[2:-2]
+        else:
+            frente = paginas[:paginas_por_cara]
+            dorso = paginas[paginas_por_cara:paginas_por_cara*2]
+            hojas.append((frente, dorso))
+            paginas = paginas[paginas_por_cara*2:]
 
     def insertar_pagina(nueva_pagina, idx, pos):
-        if not idx or idx < 1 or idx > len(doc):
-            return
-
-        try:
-            pagina = doc[idx - 1]
-            pix = pagina.get_pixmap(matrix=fitz.Matrix(3, 3), alpha=False)
-        except:
-            return
-
-        try:
-            img = Image.frombytes("RGB", [pix.width, pix.height], pix.samples)
-        except:
-            return
-
-        draw = ImageDraw.Draw(img)
-        try:
-            font = ImageFont.truetype("arial.ttf", 20)
-        except:
-            font = ImageFont.load_default()
-        draw.text((10, 10), f"Página {idx}", fill="black", font=font)
-
+        if not idx or idx < 1 or idx > len(doc): return
+        pagina = doc[idx - 1]
+        pix = pagina.get_pixmap(matrix=fitz.Matrix(3, 3), alpha=False)
+        img = Image.frombytes("RGB", [pix.width, pix.height], pix.samples)
         buffer = BytesIO()
         img.save(buffer, format="JPEG", quality=95)
         buffer.seek(0)
-
-        x = (pos % 2) * (A4_WIDTH / 2)
-        y = (pos // 2) * (A4_HEIGHT / 2)
-        rect = fitz.Rect(x, y, x + A4_WIDTH / 2, y + A4_HEIGHT / 2)
-
-        rotar = 180 if pos >= 2 else 0
+        if paginas_por_cara == 4:
+            x = (pos % 2) * (A4_WIDTH / 2)
+            y = (pos // 2) * (A4_HEIGHT / 2)
+            rect = fitz.Rect(x, y, x + A4_WIDTH / 2, y + A4_HEIGHT / 2)
+        else:
+            x = (pos % 2) * (A4_WIDTH / 2)
+            y = 0
+            rect = fitz.Rect(x, y, x + A4_WIDTH / 2, A4_HEIGHT)
+        rotar = 180 if pos >= 2 else 0 if paginas_por_cara == 4 else 0
         nueva_pagina.insert_image(rect, stream=buffer, rotate=rotar)
-
         buffer.close()
-        del pix, img
 
-    for i, (frente, dorso) in enumerate(hojas):
-        es_ultimo_incompleto = (i == len(hojas) - 1 and len(frente) < 4)
-
+    for frente, dorso in hojas:
         pag_frente = salida.new_page(width=A4_WIDTH, height=A4_HEIGHT)
         for j, idx in enumerate(frente):
             insertar_pagina(pag_frente, idx, j)
-
         pag_dorso = salida.new_page(width=A4_WIDTH, height=A4_HEIGHT)
         for j, idx in enumerate(dorso):
             insertar_pagina(pag_dorso, idx, j)
 
-        if es_ultimo_incompleto:
-            pag_frente.set_rotation(180)
-            pag_dorso.set_rotation(180)
-
     salida.save(output_path)
-
-
-
-
-
 
 
 
