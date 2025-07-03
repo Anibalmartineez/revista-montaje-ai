@@ -6,7 +6,6 @@ import fitz  # PyMuPDF
 import openai
 import os
 from werkzeug.utils import secure_filename
-from montar_pdf import montar_pdf
 from validador import validar_archivo_pdf
 
 
