@@ -23,67 +23,117 @@ HTML = """
   <title>Creativa CTP – Diagnóstico y Montaje</title>
   <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600&display=swap" rel="stylesheet">
   <style>
+    :root {
+      --color-bg: #f5f9ff;
+      --color-primary: #007bff;
+      --color-secondary: #28a745;
+      --color-danger: #dc3545;
+      --color-gray: #6c757d;
+    }
+
     body {
       font-family: 'Poppins', sans-serif;
-      background: linear-gradient(to right, #e0eafc, #cfdef3);
+      background: var(--color-bg);
       margin: 0;
       padding: 0;
     }
+
     .container {
-      max-width: 700px;
+      max-width: 720px;
       margin: 60px auto;
       background: #fff;
-      border-radius: 16px;
+      border-radius: 20px;
       padding: 40px 30px;
-      box-shadow: 0 10px 30px rgba(0,0,0,0.1);
-      animation: fadeIn 0.8s ease-in-out;
+      box-shadow: 0 12px 36px rgba(0, 0, 0, 0.1);
+      animation: fadeIn 1s ease-in-out;
     }
+
     @keyframes fadeIn {
-      from {opacity: 0; transform: translateY(20px);}
-      to {opacity: 1; transform: translateY(0);}
+      from { opacity: 0; transform: translateY(30px); }
+      to { opacity: 1; transform: translateY(0); }
     }
+
     h2 {
       text-align: center;
       color: #222;
-      font-size: 26px;
-      margin-bottom: 25px;
+      font-size: 28px;
+      margin-bottom: 30px;
     }
+
     form {
       display: flex;
       flex-direction: column;
       align-items: center;
+      gap: 15px;
     }
-    input[type="file"] {
-      border: 2px dashed #ccc;
-      padding: 12px;
-      border-radius: 10px;
+
+    input[type="file"], input[type="number"] {
+      border: 2px dashed var(--color-primary);
+      padding: 14px;
+      border-radius: 12px;
       width: 100%;
-      margin-bottom: 20px;
-      background-color: #f9f9f9;
-    }
-    button {
-      margin: 8px 0;
-      padding: 12px 24px;
-      background-color: #007bff;
-      color: white;
-      border: none;
-      border-radius: 8px;
-      font-weight: bold;
+      background: #f8fbff;
       font-size: 15px;
-      width: 100%;
-      max-width: 350px;
-      transition: background-color 0.3s;
       cursor: pointer;
     }
-    button:hover {
+
+    input[type="number"] {
+      border-style: solid;
+      border-color: #ccc;
+    }
+
+    button {
+      width: 100%;
+      max-width: 360px;
+      padding: 14px;
+      font-size: 16px;
+      border-radius: 10px;
+      border: none;
+      color: white;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.3s ease;
+    }
+
+    button[value="montar"] {
+      background-color: var(--color-primary);
+    }
+
+    button[value="montar"]:hover {
       background-color: #0056b3;
     }
+
+    button[value="diagnostico"] {
+      background-color: var(--color-secondary);
+    }
+
+    button[value="diagnostico"]:hover {
+      background-color: #1e7e34;
+    }
+
+    button[value="corregir_sangrado"] {
+      background-color: var(--color-danger);
+    }
+
+    button[value="corregir_sangrado"]:hover {
+      background-color: #bd2130;
+    }
+
+    button[value="redimensionar"] {
+      background-color: var(--color-gray);
+    }
+
+    button[value="redimensionar"]:hover {
+      background-color: #5a6268;
+    }
+
     .mensaje {
       text-align: center;
       color: red;
       font-weight: bold;
       margin-top: 20px;
     }
+
     pre {
       background: #f1f1f1;
       padding: 20px;
@@ -93,46 +143,61 @@ HTML = """
       margin-top: 30px;
       white-space: pre-wrap;
     }
+
     .diagnostico-titulo {
       font-size: 20px;
       margin-top: 35px;
-      color: #333;
-      border-bottom: 2px solid #007bff;
+      color: var(--color-primary);
+      border-bottom: 2px solid var(--color-primary);
       padding-bottom: 8px;
     }
+
+    .descargar-link {
+      display: block;
+      text-align: center;
+      margin-top: 30px;
+      font-size: 16px;
+      text-decoration: none;
+      color: var(--color-primary);
+      font-weight: 600;
+    }
+
+    .descargar-link:hover {
+      text-decoration: underline;
+    }
+
     @media (max-width: 600px) {
-  .container {
-    margin: 20px auto;
-    padding: 20px 15px;
-    border-radius: 12px;
-  }
+      .container {
+        margin: 20px auto;
+        padding: 25px 20px;
+        border-radius: 14px;
+      }
 
-  h2 {
-    font-size: 22px;
-    margin-bottom: 20px;
-  }
+      h2 {
+        font-size: 24px;
+        margin-bottom: 20px;
+      }
 
-  input[type="file"] {
-    font-size: 14px;
-    padding: 10px;
-  }
+      input[type="file"], input[type="number"] {
+        font-size: 14px;
+        padding: 12px;
+      }
 
-  button {
-    font-size: 14px;
-    padding: 10px 16px;
-    max-width: 100%;
-  }
+      button {
+        font-size: 14px;
+        padding: 12px;
+        max-width: 100%;
+      }
 
-  pre {
-    font-size: 13px;
-    padding: 15px;
-  }
+      pre {
+        font-size: 13px;
+        padding: 15px;
+      }
 
-  .diagnostico-titulo {
-    font-size: 18px;
-  }
-}
-
+      .diagnostico-titulo {
+        font-size: 18px;
+      }
+    }
   </style>
 </head>
 <body>
@@ -140,12 +205,22 @@ HTML = """
     <h2>🧠 Diagnóstico & Montaje de Revista PDF</h2>
     <form method="post" enctype="multipart/form-data">
       <input type="file" name="pdf" required>
+      <input type="number" step="0.1" name="nuevo_ancho" placeholder="Nuevo ancho en mm (para redimensionar)">
+      <input type="number" step="0.1" name="nuevo_alto" placeholder="Nuevo alto en mm (opcional)">
       <button name='action' value='montar'>📄 Montar Revista (4 páginas por cara)</button>
       <button name='action' value='diagnostico'>🔍 Diagnóstico Técnico (IA)</button>
       <button name='action' value='corregir_sangrado'>✂️ Corregir Márgenes y Sangrado</button>
+      <button name='action' value='redimensionar'>📐 Redimensionar PDF</button>
     </form>
-    {% if mensaje %}<p class="mensaje">{{ mensaje }}</p>{% endif %}
-    {% if output_pdf %}<p style="text-align:center;"><a href="{{ url_for('descargar_pdf') }}">📥 Descargar PDF Montado</a></p>{% endif %}
+
+    {% if mensaje %}
+      <p class="mensaje">{{ mensaje }}</p>
+    {% endif %}
+
+    {% if output_pdf %}
+      <a href="{{ url_for('descargar_pdf') }}" class="descargar-link">📥 Descargar PDF Procesado</a>
+    {% endif %}
+
     {% if diagnostico %}
       <h3 class="diagnostico-titulo">📊 Diagnóstico IA:</h3>
       <pre>{{ diagnostico }}</pre>
@@ -154,6 +229,8 @@ HTML = """
 </body>
 </html>
 """
+
+
 
 @app.route('/', methods=['GET', 'POST'])
 def index():
@@ -169,24 +246,38 @@ def index():
             path_pdf = os.path.join(UPLOAD_FOLDER, archivo.filename)
             archivo.save(path_pdf)
 
-            if request.form['action'] == 'montar':
+            accion = request.form['action']
+
+            if accion == 'montar':
                 try:
                     montar_pdf(path_pdf, output_pdf_path)
                     output_pdf = True
                 except Exception as e:
                     mensaje = f"Error al procesar el archivo: {e}"
 
-            elif request.form['action'] == 'diagnostico':
+            elif accion == 'diagnostico':
                 diagnostico = diagnosticar_pdf(path_pdf)
 
-            elif request.form['action'] == 'corregir_sangrado':
+            elif accion == 'corregir_sangrado':
                 try:
                     corregir_sangrado(path_pdf, output_pdf_path)
                     output_pdf = True
                 except Exception as e:
                     mensaje = f"Error al corregir márgenes: {e}"
 
+            elif accion == 'redimensionar':
+                try:
+                    nuevo_ancho_mm = float(request.form['nuevo_ancho'])
+                    nuevo_alto_mm = request.form.get('nuevo_alto')
+                    nuevo_alto_mm = float(nuevo_alto_mm) if nuevo_alto_mm else None
+
+                    redimensionar_pdf(path_pdf, output_pdf_path, nuevo_ancho_mm, nuevo_alto_mm)
+                    output_pdf = True
+                except Exception as e:
+                    mensaje = f"Error al redimensionar el PDF: {e}"
+
     return render_template_string(HTML, mensaje=mensaje, output_pdf=output_pdf, diagnostico=diagnostico)
+
 
 @app.route('/descargar')
 def descargar_pdf():
@@ -436,6 +527,44 @@ def corregir_sangrado(input_path, output_path):
 
 
 
+def redimensionar_pdf(input_path, output_path, nuevo_ancho_mm, nuevo_alto_mm=None):
+    import fitz  # PyMuPDF
+
+    doc = fitz.open(input_path)
+    nuevo_doc = fitz.open()
+
+    ancho_pts = nuevo_ancho_mm * 72 / 25.4
+
+    if nuevo_alto_mm:
+        alto_pts = nuevo_alto_mm * 72 / 25.4
+    else:
+        # Escalado proporcional según la primera página
+        pagina = doc[0]
+        proporcion = pagina.rect.height / pagina.rect.width
+        alto_pts = ancho_pts * proporcion
+
+    for pagina in doc:
+        pix = pagina.get_pixmap(matrix=fitz.Matrix(1, 1), alpha=False)
+        ancho_original = pagina.rect.width
+        alto_original = pagina.rect.height
+        escala_x = ancho_pts / ancho_original
+        escala_y = alto_pts / alto_original
+        escala = min(escala_x, escala_y)
+
+        nueva_pagina = nuevo_doc.new_page(width=ancho_pts, height=alto_pts)
+        nueva_pagina.show_pdf_page(
+            fitz.Rect(0, 0, ancho_pts, alto_pts),
+            doc,
+            pagina.number,
+            rotate=0,
+            clip=None,
+            oc=0,
+            overlay=False,
+            keep_proportion=True,
+            scale=escala
+        )
+
+    nuevo_doc.save(output_path)
 
 
 
