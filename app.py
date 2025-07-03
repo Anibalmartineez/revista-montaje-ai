@@ -5,6 +5,10 @@ from PIL import Image
 import fitz  # PyMuPDF
 import openai
 import os
+from werkzeug.utils import secure_filename
+from montar_pdf import montar_pdf
+from validador import validar_archivo_pdf
+
 
 # Cliente OpenAI moderno
 client = openai.OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
@@ -232,51 +236,36 @@ HTML = """
 
 
 
-@app.route('/', methods=['GET', 'POST'])
+@app.route("/", methods=["GET", "POST"])
 def index():
-    mensaje = ''
-    output_pdf = False
-    diagnostico = ''
+    mensaje = ""
+    if request.method == "POST":
+        try:
+            if 'pdf' not in request.files:
+                raise Exception("No se seleccionó ningún archivo.")
 
-    if request.method == 'POST':
-        archivo = request.files['pdf']
-        if archivo.filename == '':
-            mensaje = 'Ningún archivo seleccionado'
-        else:
-            path_pdf = os.path.join(UPLOAD_FOLDER, archivo.filename)
-            archivo.save(path_pdf)
+            archivo = request.files['pdf']
+            if archivo.filename == '':
+                raise Exception("Debes subir un archivo PDF válido.")
 
-            accion = request.form['action']
+            # Guardar archivo y validar
+            path_pdf = validar_archivo_pdf(archivo, UPLOAD_FOLDER)
 
-            if accion == 'montar':
-                try:
-                    montar_pdf(path_pdf, output_pdf_path)
-                    output_pdf = True
-                except Exception as e:
-                    mensaje = f"Error al procesar el archivo: {e}"
+            # Acción seleccionada por el botón
+            action = request.form.get("action")
+            output_path = os.path.join("output", "montado.pdf")
 
-            elif accion == 'diagnostico':
-                diagnostico = diagnosticar_pdf(path_pdf)
+            if action == "montar":
+                montar_pdf(path_pdf, output_path)
+                return send_file(output_path, as_attachment=True)
 
-            elif accion == 'corregir_sangrado':
-                try:
-                    corregir_sangrado(path_pdf, output_pdf_path)
-                    output_pdf = True
-                except Exception as e:
-                    mensaje = f"Error al corregir márgenes: {e}"
+            mensaje = "⚠️ Función no implementada para esta acción."
 
-            elif accion == 'redimensionar':
-                try:
-                    nuevo_ancho_mm = float(request.form['nuevo_ancho'])
-                    nuevo_alto_mm = request.form.get('nuevo_alto')
-                    nuevo_alto_mm = float(nuevo_alto_mm) if nuevo_alto_mm else None
+        except Exception as e:
+            mensaje = f"❌ Error al procesar el archivo: {str(e)}"
 
-                    redimensionar_pdf(path_pdf, output_pdf_path, nuevo_ancho_mm, nuevo_alto_mm)
-                    output_pdf = True
-                except Exception as e:
-                    mensaje = f"Error al redimensionar el PDF: {e}"
+    return render_template_string(HTML, mensaje=mensaje)
 
-    return render_template_string(HTML, mensaje=mensaje, output_pdf=output_pdf, diagnostico=diagnostico)
 
 
 @app.route('/descargar')
@@ -284,23 +273,18 @@ def descargar_pdf():
     return send_file(output_pdf_path, as_attachment=True)
 
 def montar_pdf(input_path, output_path):
-    import fitz  # PyMuPDF
-    from PIL import Image, ImageDraw, ImageFont
-    from io import BytesIO
-
     doc = fitz.open(input_path)
 
     if len(doc) == 0:
-        raise Exception("El PDF está vacío o no se pudo leer correctamente.")
+        raise Exception("El PDF está vacío o corrupto.")
 
     total_paginas = len(doc)
 
-    # Asegurar múltiplo de 4
     while total_paginas % 4 != 0:
         doc.insert_page(-1)
         total_paginas += 1
 
-    paginas = list(range(1, total_paginas + 1))  # índices desde 1
+    paginas = list(range(1, total_paginas + 1))
     hojas = []
 
     while paginas:
@@ -320,20 +304,19 @@ def montar_pdf(input_path, output_path):
 
     def insertar_pagina(nueva_pagina, idx, pos):
         if not idx or idx < 1 or idx > len(doc):
-            return  # página inválida o fuera de rango
+            return
 
         try:
             pagina = doc[idx - 1]
             pix = pagina.get_pixmap(matrix=fitz.Matrix(3, 3), alpha=False)
         except:
-            return  # no se pudo renderizar la página
+            return
 
         try:
             img = Image.frombytes("RGB", [pix.width, pix.height], pix.samples)
         except:
             return
 
-        # Añadir numeración
         draw = ImageDraw.Draw(img)
         try:
             font = ImageFont.truetype("arial.ttf", 20)
@@ -349,7 +332,7 @@ def montar_pdf(input_path, output_path):
         y = (pos // 2) * (A4_HEIGHT / 2)
         rect = fitz.Rect(x, y, x + A4_WIDTH / 2, y + A4_HEIGHT / 2)
 
-        rotar = 180 if pos >= 2 else 0  # cabeza con cabeza
+        rotar = 180 if pos >= 2 else 0
         nueva_pagina.insert_image(rect, stream=buffer, rotate=rotar)
 
         buffer.close()
@@ -358,12 +341,10 @@ def montar_pdf(input_path, output_path):
     for i, (frente, dorso) in enumerate(hojas):
         es_ultimo_incompleto = (i == len(hojas) - 1 and len(frente) < 4)
 
-        # Frente
         pag_frente = salida.new_page(width=A4_WIDTH, height=A4_HEIGHT)
         for j, idx in enumerate(frente):
             insertar_pagina(pag_frente, idx, j)
 
-        # Dorso
         pag_dorso = salida.new_page(width=A4_WIDTH, height=A4_HEIGHT)
         for j, idx in enumerate(dorso):
             insertar_pagina(pag_dorso, idx, j)
