@@ -127,6 +127,14 @@ HTML = """
     button[value="redimensionar"]:hover {
       background-color: #5a6268;
     }
+    button[value="analisis_grafico"] {
+  background-color: #004aad;
+}
+
+button[value="analisis_grafico"]:hover {
+  background-color: #00367a;
+}
+
 
     .mensaje {
       text-align: center;
