@@ -292,7 +292,7 @@ def descargar_pdf():
 
 def montar_pdf(input_path, output_path, paginas_por_cara=4):
     import fitz
-    from PIL import Image, ImageDraw, ImageFont
+    from PIL import Image
     from io import BytesIO
 
     doc = fitz.open(input_path)
@@ -325,7 +325,7 @@ def montar_pdf(input_path, output_path, paginas_por_cara=4):
             hojas.append((frente, dorso))
             paginas = paginas[paginas_por_cara*2:]
 
-    def insertar_pagina(nueva_pagina, idx, pos):
+    def insertar_pagina(nueva_pagina, idx, pos, paginas_por_cara):
         if not idx or idx < 1 or idx > len(doc): return
         pagina = doc[idx - 1]
         pix = pagina.get_pixmap(matrix=fitz.Matrix(3, 3), alpha=False)
@@ -333,27 +333,44 @@ def montar_pdf(input_path, output_path, paginas_por_cara=4):
         buffer = BytesIO()
         img.save(buffer, format="JPEG", quality=95)
         buffer.seek(0)
+
         if paginas_por_cara == 4:
             x = (pos % 2) * (A4_WIDTH / 2)
             y = (pos // 2) * (A4_HEIGHT / 2)
             rect = fitz.Rect(x, y, x + A4_WIDTH / 2, y + A4_HEIGHT / 2)
-        else:
-            x = (pos % 2) * (A4_WIDTH / 2)
+            rotar = 180 if pos >= 2 else 0
+        elif paginas_por_cara == 2:
+            ancho_paisaje = A4_HEIGHT
+            alto_paisaje = A4_WIDTH
+            x = (pos % 2) * (ancho_paisaje / 2)
             y = 0
-            rect = fitz.Rect(x, y, x + A4_WIDTH / 2, A4_HEIGHT)
-        rotar = 180 if pos >= 2 else 0 if paginas_por_cara == 4 else 0
+            rect = fitz.Rect(x, y, x + (ancho_paisaje / 2), alto_paisaje)
+            rotar = 0
+        else:
+            rect = fitz.Rect(0, 0, A4_WIDTH, A4_HEIGHT)
+            rotar = 0
+
         nueva_pagina.insert_image(rect, stream=buffer, rotate=rotar)
         buffer.close()
 
     for frente, dorso in hojas:
-        pag_frente = salida.new_page(width=A4_WIDTH, height=A4_HEIGHT)
+        if paginas_por_cara == 2:
+            ancho = A4_HEIGHT  # horizontal
+            alto = A4_WIDTH
+        else:
+            ancho = A4_WIDTH
+            alto = A4_HEIGHT
+
+        pag_frente = salida.new_page(width=ancho, height=alto)
         for j, idx in enumerate(frente):
-            insertar_pagina(pag_frente, idx, j)
-        pag_dorso = salida.new_page(width=A4_WIDTH, height=A4_HEIGHT)
+            insertar_pagina(pag_frente, idx, j, paginas_por_cara)
+
+        pag_dorso = salida.new_page(width=ancho, height=alto)
         for j, idx in enumerate(dorso):
-            insertar_pagina(pag_dorso, idx, j)
+            insertar_pagina(pag_dorso, idx, j, paginas_por_cara)
 
     salida.save(output_path)
+
 
 
 
