@@ -261,45 +261,47 @@ button[value="analisis_grafico"]:hover {
   </div>
 
   <!-- Script para mostrar/ocultar campos -->
-  <script>
-    function setModo(accion) {
-      const grupoPDF = document.getElementById("grupo-pdf");
-      const grupoGrafico = document.getElementById("grupo-grafico");
-      const grupoRedimensionar = document.getElementById("grupo-redimensionar");
-      const grupoMontaje = document.getElementById("grupo-montaje");
+<script>
+  function setModo(accion) {
+    const grupoPDF = document.getElementById("grupo-pdf");
+    const grupoGrafico = document.getElementById("grupo-grafico");
+    const grupoRedimensionar = document.getElementById("grupo-redimensionar");
+    const grupoMontaje = document.getElementById("grupo-montaje");
 
-      // Reset
-      grupoPDF.style.display = "block";
-      grupoGrafico.style.display = "none";
-      grupoRedimensionar.style.display = "none";
-      grupoMontaje.style.display = "block";
+    // Reset
+    grupoPDF.style.display = "block";
+    grupoGrafico.style.display = "none";
+    grupoRedimensionar.style.display = "none";
+    grupoMontaje.style.display = "block";
 
-      if (accion === "analisis_grafico") {
-        grupoPDF.style.display = "none";
-        grupoGrafico.style.display = "block";
-        grupoMontaje.style.display = "none";
-      }
-
-      if (accion === "redimensionar") {
-        grupoRedimensionar.style.display = "block";
-      }
-
-      if (accion === "corregir_sangrado" || accion === "diagnostico") {
-        grupoMontaje.style.display = "none";
-      }
+    // Mostrar campos según acción
+    if (accion === "analisis_grafico") {
+      grupoPDF.style.display = "none";
+      grupoGrafico.style.display = "block";
+      grupoMontaje.style.display = "none";
     }
 
-    document.addEventListener("DOMContentLoaded", function () {
-      const formulario = document.getElementById("formulario");
-      const botones = formulario.querySelectorAll("button[name='action']");
+    if (accion === "redimensionar") {
+      grupoRedimensionar.style.display = "block";
+    }
 
-      botones.forEach(boton => {
-        boton.addEventListener("click", function () {
-          setModo(this.value);
-        });
+    if (accion === "corregir_sangrado" || accion === "diagnostico") {
+      grupoMontaje.style.display = "none";
+    }
+  }
+
+  document.addEventListener("DOMContentLoaded", function () {
+    const formulario = document.getElementById("formulario");
+    const botones = formulario.querySelectorAll("button[name='action']");
+
+    botones.forEach(boton => {
+      boton.addEventListener("click", function () {
+        setModo(this.value);
       });
     });
-  </script>
+  });
+</script>
+
 </body>
 </html>
 """
