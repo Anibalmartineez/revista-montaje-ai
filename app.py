@@ -204,24 +204,39 @@ HTML = """
 <body>
   <div class="container">
     <h2>🧠 Diagnóstico & Montaje de Revista PDF</h2>
-    <form method="post" enctype="multipart/form-data">
-  <input type="file" name="pdf" required>
-  <input type="number" step="0.1" name="nuevo_ancho" placeholder="Nuevo ancho en mm (para redimensionar)">
-  <input type="number" step="0.1" name="nuevo_alto" placeholder="Nuevo alto en mm (opcional)">
-  <input type="file" name="grafico" accept="image/png, image/jpeg">
+    <form method="post" enctype="multipart/form-data" id="formulario">
+      
+      <!-- Campo PDF -->
+      <div id="grupo-pdf">
+        <input type="file" name="pdf" id="pdf" required>
+      </div>
 
-  <select name="modo_montaje" required style="padding: 12px; border-radius: 10px; border: 2px solid #ccc; font-size: 15px; width: 100%;">
-    <option value="4" selected>🗞️ Montaje 4 páginas por cara (revista cosido a caballete)</option>
-    <option value="2">📰 Montaje 2 páginas por cara (libro frente/dorso)</option>
-  </select>
+      <!-- Campos de redimensionar -->
+      <div id="grupo-redimensionar" style="display: none;">
+        <input type="number" step="0.1" name="nuevo_ancho" placeholder="Nuevo ancho en mm (para redimensionar)">
+        <input type="number" step="0.1" name="nuevo_alto" placeholder="Nuevo alto en mm (opcional)">
+      </div>
 
-  <button name='action' value='montar'>📄 Montar Revista</button>
-  <button name='action' value='diagnostico'>🔍 Diagnóstico Técnico (IA)</button>
-  <button name='action' value='corregir_sangrado'>✂️ Corregir Márgenes y Sangrado</button>
-  <button name='action' value='redimensionar'>📐 Redimensionar PDF</button>
-  <button name='action' value='analisis_grafico'>📈 Analizar Gráfico Técnico</button>
-</form>
+      <!-- Imagen para análisis gráfico -->
+      <div id="grupo-grafico" style="display: none;">
+        <input type="file" name="grafico" id="grafico" accept="image/png, image/jpeg">
+      </div>
 
+      <!-- Selector modo montaje -->
+      <div id="grupo-montaje">
+        <select name="modo_montaje" id="modo_montaje" required style="padding: 12px; border-radius: 10px; border: 2px solid #ccc; font-size: 15px; width: 100%;">
+          <option value="4" selected>🗞️ Montaje 4 páginas por cara (revista cosido a caballete)</option>
+          <option value="2">📰 Montaje 2 páginas por cara (libro frente/dorso)</option>
+        </select>
+      </div>
+
+      <!-- Botones de acción -->
+      <button name='action' value='montar'>📄 Montar Revista</button>
+      <button name='action' value='diagnostico'>🔍 Diagnóstico Técnico (IA)</button>
+      <button name='action' value='corregir_sangrado'>✂️ Corregir Márgenes y Sangrado</button>
+      <button name='action' value='redimensionar'>📐 Redimensionar PDF</button>
+      <button name='action' value='analisis_grafico'>📈 Analizar Gráfico Técnico</button>
+    </form>
 
     {% if mensaje %}
       <p class="mensaje">{{ mensaje }}</p>
@@ -233,9 +248,50 @@ HTML = """
 
     {% if diagnostico %}
       <h3 class="diagnostico-titulo">📊 Diagnóstico IA:</h3>
-      <pre>{{ diagnostico }}</pre>
+      <pre>{{ diagnostico|safe }}</pre>
     {% endif %}
   </div>
+
+  <!-- Script para mostrar/ocultar campos -->
+  <script>
+    function setModo(accion) {
+      const grupoPDF = document.getElementById("grupo-pdf");
+      const grupoGrafico = document.getElementById("grupo-grafico");
+      const grupoRedimensionar = document.getElementById("grupo-redimensionar");
+      const grupoMontaje = document.getElementById("grupo-montaje");
+
+      // Reset
+      grupoPDF.style.display = "block";
+      grupoGrafico.style.display = "none";
+      grupoRedimensionar.style.display = "none";
+      grupoMontaje.style.display = "block";
+
+      if (accion === "analisis_grafico") {
+        grupoPDF.style.display = "none";
+        grupoGrafico.style.display = "block";
+        grupoMontaje.style.display = "none";
+      }
+
+      if (accion === "redimensionar") {
+        grupoRedimensionar.style.display = "block";
+      }
+
+      if (accion === "corregir_sangrado" || accion === "diagnostico") {
+        grupoMontaje.style.display = "none";
+      }
+    }
+
+    document.addEventListener("DOMContentLoaded", function () {
+      const formulario = document.getElementById("formulario");
+      const botones = formulario.querySelectorAll("button[name='action']");
+
+      botones.forEach(boton => {
+        boton.addEventListener("click", function () {
+          setModo(this.value);
+        });
+      });
+    });
+  </script>
 </body>
 </html>
 """
@@ -266,9 +322,10 @@ def index():
                 else:
                     raise Exception("Debe subir una imagen válida para análisis técnico.")
 
-            else:
+            elif action in ["montar", "diagnostico", "corregir_sangrado", "redimensionar"]:
                 if 'pdf' not in request.files or request.files['pdf'].filename == '':
                     raise Exception("Debes subir un archivo PDF válido.")
+
                 archivo = request.files['pdf']
                 filename = secure_filename(archivo.filename)
                 path_pdf = os.path.join(UPLOAD_FOLDER, filename)
@@ -298,6 +355,7 @@ def index():
             mensaje = f"❌ Error al procesar el archivo: {str(e)}"
 
     return render_template_string(HTML, mensaje=mensaje, diagnostico=diagnostico, output_pdf=output_pdf)
+
 
 
 
