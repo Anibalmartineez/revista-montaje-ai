@@ -670,37 +670,69 @@ def analizar_grafico_tecnico(image_path):
     import base64
     from io import BytesIO
     from PIL import Image
+    import json
 
+    # Cargar imagen
     image = cv2.imread(image_path)
     if image is None:
         raise Exception("No se pudo leer la imagen")
-    
+
     resized = cv2.resize(image, (1000, 600))
     gray = cv2.cvtColor(resized, cv2.COLOR_BGR2GRAY)
     edges = cv2.Canny(gray, 50, 150, apertureSize=3)
-    lines = cv2.HoughLinesP(edges, 1, np.pi/180, threshold=100, minLineLength=80, maxLineGap=10)
+    lines = cv2.HoughLinesP(edges, 1, np.pi / 180, threshold=100, minLineLength=80, maxLineGap=10)
 
     resultado = resized.copy()
     datos_lineas = []
 
     if lines is not None:
-        for line in lines[:20]:
+        for line in lines[:30]:  # máximo 30 líneas
             x1, y1, x2, y2 = line[0]
             cv2.line(resultado, (x1, y1), (x2, y2), (0, 0, 255), 2)
-            datos_lineas.append((x1, y1, x2, y2))
+            datos_lineas.append({"x1": x1, "y1": y1, "x2": x2, "y2": y2})
 
+    # Convertir imagen con líneas dibujadas a base64
     resultado_rgb = cv2.cvtColor(resultado, cv2.COLOR_BGR2RGB)
     im_pil = Image.fromarray(resultado_rgb)
     buffer = BytesIO()
     im_pil.save(buffer, format="PNG")
     buffer.seek(0)
     imagen_base64 = base64.b64encode(buffer.read()).decode("utf-8")
-    
-    resumen = f"🔍 Se detectaron {len(datos_lineas)} líneas principales en el gráfico. Coordenadas aproximadas:\n"
-    for i, (x1, y1, x2, y2) in enumerate(datos_lineas[:10], 1):
-        resumen += f"{i}) Línea de ({x1}, {y1}) a ({x2}, {y2})\n"
+
+    # Generar JSON simplificado de las líneas
+    resumen_json = json.dumps(datos_lineas, indent=2)
+
+    # Prompt para OpenAI
+    prompt = f"""
+Sos un experto en análisis técnico bursátil. A continuación te paso una serie de líneas detectadas automáticamente en un gráfico de precios. Cada línea representa un posible soporte, resistencia o tendencia.
+
+Tu tarea es:
+- Detectar si hay tendencia alcista o bajista.
+- Identificar zonas claves de soporte/resistencia.
+- Proponer una estrategia concreta: ¿dónde sería buen punto de compra o venta?
+- Justificarlo con lenguaje técnico simple, como si lo explicaras a un trader junior.
+
+Líneas detectadas:
+{resumen_json}
+"""
+
+    try:
+        response = client.chat.completions.create(
+            model="gpt-4",
+            messages=[{"role": "user", "content": prompt}]
+        )
+        explicacion = response.choices[0].message.content
+    except Exception as e:
+        explicacion = f"[ERROR] No se pudo generar el análisis con OpenAI: {e}"
+
+    resumen = f"""
+📈 Análisis generado por IA a partir de {len(datos_lineas)} líneas detectadas:
+
+{explicacion}
+"""
 
     return resumen, imagen_base64
+
 
 
 if __name__ == '__main__':
