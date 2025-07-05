@@ -483,98 +483,124 @@ def diagnosticar_pdf(path):
     from collections import defaultdict
 
     doc = fitz.open(path)
-    first_page = doc[0]
     info = doc.metadata
+    num_paginas = len(doc)
+    resumen_paginas = []
+    diferencias = []
 
-    crop = first_page.cropbox
-    trim = first_page.trimbox
-    bleed = first_page.bleedbox
-    art = first_page.artbox
+    for i, page in enumerate(doc):
+        crop = page.cropbox
+        trim = page.trimbox
+        bleed = page.bleedbox
+        art = page.artbox
+        page_width, page_height = crop.width, crop.height
 
-    def pts_to_mm(p): return round(p.width * 25.4 / 72, 2), round(p.height * 25.4 / 72, 2)
+        def pts_to_mm(box):
+            return round(box.width * 25.4 / 72, 2), round(box.height * 25.4 / 72, 2)
 
-    crop_mm = pts_to_mm(crop)
-    trim_mm = pts_to_mm(trim)
-    bleed_mm = pts_to_mm(bleed)
-    art_mm = pts_to_mm(art)
+        crop_mm = pts_to_mm(crop)
+        trim_mm = pts_to_mm(trim)
+        bleed_mm = pts_to_mm(bleed)
+        art_mm = pts_to_mm(art)
 
-    contenido_dict = first_page.get_text("dict")
-    drawings = first_page.get_drawings()
-    objetos_visibles = []
-    page_width, page_height = crop.width, crop.height
+        contenido_dict = page.get_text("dict")
+        drawings = page.get_drawings()
+        objetos_visibles = []
 
-    def dentro_de_pagina(x0, y0, x1, y1):
-        return 0 <= x0 <= page_width and 0 <= y0 <= page_height and 0 <= x1 <= page_width and 0 <= y1 <= page_height
+        def dentro_de_pagina(x0, y0, x1, y1):
+            return 0 <= x0 <= page_width and 0 <= y0 <= page_height and 0 <= x1 <= page_width and 0 <= y1 <= page_height
 
-    # 🔍 Vectores visibles
-    for d in drawings:
-        for item in d.get("items", []):
-            if len(item) == 4:
-                x0, y0, x1, y1 = item
+        for d in drawings:
+            for item in d.get("items", []):
+                if len(item) == 4:
+                    x0, y0, x1, y1 = item
+                    if dentro_de_pagina(x0, y0, x1, y1):
+                        objetos_visibles.append((x0, y0, x1, y1))
+
+        for img in page.get_images(full=True):
+            try:
+                bbox = page.get_image_bbox(img)
+                if dentro_de_pagina(bbox.x0, bbox.y0, bbox.x1, bbox.y1):
+                    objetos_visibles.append((bbox.x0, bbox.y0, bbox.x1, bbox.y1))
+            except:
+                continue
+
+        for bloque in contenido_dict.get("blocks", []):
+            if "bbox" in bloque:
+                x0, y0, x1, y1 = bloque["bbox"]
                 if dentro_de_pagina(x0, y0, x1, y1):
                     objetos_visibles.append((x0, y0, x1, y1))
 
-    # 🖼️ Imágenes visibles
-    for img in first_page.get_images(full=True):
-        try:
-            bbox = first_page.get_image_bbox(img)
-            if dentro_de_pagina(bbox.x0, bbox.y0, bbox.x1, bbox.y1):
-                objetos_visibles.append((bbox.x0, bbox.y0, bbox.x1, bbox.y1))
-        except:
-            continue
+        objetos_finales = []
+        for obj in objetos_visibles:
+            x0, y0, x1, y1 = obj
+            w = round((x1 - x0) * 25.4 / 72, 2)
+            h = round((y1 - y0) * 25.4 / 72, 2)
+            if w > 10 and h > 10:
+                objetos_finales.append((w, h))
 
-    # ✍️ Bloques de texto visibles
-    for bloque in contenido_dict.get("blocks", []):
-        if "bbox" in bloque:
-            x0, y0, x1, y1 = bloque["bbox"]
-            if dentro_de_pagina(x0, y0, x1, y1):
-                objetos_visibles.append((x0, y0, x1, y1))
+        if not objetos_finales:
+            medida_util = "No se detectaron objetos visuales significativos."
+        else:
+            grupos = defaultdict(int)
+            for w, h in objetos_finales:
+                clave = (round(w / 5) * 5, round(h / 5) * 5)
+                grupos[clave] += 1
+            medida_util = "; ".join([f"{v} obj. de ~{k[0]}×{k[1]} mm" for k, v in grupos.items()])
 
-    # 📏 Calcular área útil visual
-    objetos_finales = []
-    for obj in objetos_visibles:
-        x0, y0, x1, y1 = obj
-        w = round((x1 - x0) * 25.4 / 72, 2)
-        h = round((y1 - y0) * 25.4 / 72, 2)
-        if w > 10 and h > 10:
-            objetos_finales.append((w, h))
+        resumen_paginas.append({
+            "pagina": i + 1,
+            "crop": crop_mm,
+            "trim": trim_mm,
+            "bleed": bleed_mm,
+            "art": art_mm,
+            "util": medida_util
+        })
 
-    if not objetos_finales:
-        medida_util = "No se detectaron objetos visuales significativos."
-    else:
-        grupos = defaultdict(int)
-        for w, h in objetos_finales:
-            clave = (round(w / 5) * 5, round(h / 5) * 5)
-            grupos[clave] += 1
-        medida_util = "; ".join([f"{v} objeto(s) de aprox. {k[0]}×{k[1]} mm" for k, v in grupos.items()])
+    # 🔍 Comparar medidas entre páginas
+    for key in ["crop", "trim", "bleed", "art"]:
+        valores = {str(p[key]) for p in resumen_paginas}
+        if len(valores) > 1:
+            diferencias.append(f"Diferencias detectadas en {key.upper()}: {', '.join(valores)}")
 
-    # 🧠 DPI de la 1ra imagen
+    # 🧠 DPI estimado (sólo primera página)
     dpi_info = "No se detectaron imágenes rasterizadas."
-    image_list = first_page.get_images(full=True)
+    image_list = doc[0].get_images(full=True)
     if image_list:
         xref = image_list[0][0]
         base_image = doc.extract_image(xref)
         img_width = base_image["width"]
         img_height = base_image["height"]
-        width_inch = crop.width / 72
-        height_inch = crop.height / 72
+        width_inch = doc[0].cropbox.width / 72
+        height_inch = doc[0].cropbox.height / 72
         dpi_x = round(img_width / width_inch, 1)
         dpi_y = round(img_height / height_inch, 1)
         dpi_info = f"{dpi_x} x {dpi_y} DPI"
 
+    # 📋 Construir resumen
     resumen = f"""
-📄 Diagnóstico Técnico del PDF:
+📄 DIAGNÓSTICO GENERAL
 
-1️⃣ Tamaño de página (CropBox): {crop_mm[0]} × {crop_mm[1]} mm
-2️⃣ Área de corte final (TrimBox): {trim_mm[0]} × {trim_mm[1]} mm
-3️⃣ Zona de sangrado (BleedBox): {bleed_mm[0]} × {bleed_mm[1]} mm
-4️⃣ Área artística (ArtBox): {art_mm[0]} × {art_mm[1]} mm
-5️⃣ Resolución estimada: {dpi_info}
-6️⃣ Elementos visuales encontrados: {medida_util}
-7️⃣ Metadatos del archivo: {info}
+- Cantidad de páginas: {num_paginas}
+- Resolución estimada de imagen (pág. 1): {dpi_info}
+- Diferencias detectadas: {'Ninguna' if not diferencias else '; '.join(diferencias)}
+- Metadatos del archivo: {info}
+
+📚 RESUMEN POR PÁGINA
 """
 
-    prompt = f"""Sos un experto en preprensa profesional. Explicá este informe técnico como si fueras el jefe de control de calidad de una imprenta. Comentá si el área útil coincide con el tamaño final, si hay marcas de corte o troquel, si hay buen sangrado, y cualquier advertencia importante. Usá un lenguaje claro para operadores gráficos.
+    for p in resumen_paginas:
+        resumen += f"""
+🧾 Página {p['pagina']}:
+  • Tamaño (CropBox): {p['crop'][0]} × {p['crop'][1]} mm
+  • Corte final (TrimBox): {p['trim'][0]} × {p['trim'][1]} mm
+  • Sangrado (BleedBox): {p['bleed'][0]} × {p['bleed'][1]} mm
+  • Área artística (ArtBox): {p['art'][0]} × {p['art'][1]} mm
+  • Elementos visuales: {p['util']}
+"""
+
+    # 🔎 IA: interpretar resultados
+    prompt = f"""Sos un experto en preprensa offset y digital. Analizá este diagnóstico técnico y explicalo para operadores gráficos. Detectá si hay problemas por páginas con medidas distintas, falta de sangrado, contenido fuera del área útil, o DPI bajo. Hacé advertencias profesionales si es necesario:
 
 {resumen}"""
 
@@ -586,6 +612,7 @@ def diagnosticar_pdf(path):
         return response.choices[0].message.content
     except Exception as e:
         return f"[ERROR] No se pudo generar el diagnóstico con OpenAI: {e}"
+
 
 
 
