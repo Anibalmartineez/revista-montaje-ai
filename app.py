@@ -480,97 +480,103 @@ def montar_pdf(input_path, output_path, paginas_por_cara=4):
 
 def diagnosticar_pdf(path):
     import fitz
-    import math
+    from collections import defaultdict
 
     doc = fitz.open(path)
     first_page = doc[0]
     info = doc.metadata
 
     crop = first_page.cropbox
-    page_width = crop.width
-    page_height = crop.height
-    ancho_mm = round(page_width * 25.4 / 72, 2)
-    alto_mm = round(page_height * 25.4 / 72, 2)
+    trim = first_page.trimbox
+    bleed = first_page.bleedbox
+    art = first_page.artbox
+
+    def pts_to_mm(p): return round(p.width * 25.4 / 72, 2), round(p.height * 25.4 / 72, 2)
+
+    crop_mm = pts_to_mm(crop)
+    trim_mm = pts_to_mm(trim)
+    bleed_mm = pts_to_mm(bleed)
+    art_mm = pts_to_mm(art)
 
     contenido_dict = first_page.get_text("dict")
     drawings = first_page.get_drawings()
     objetos_visibles = []
+    page_width, page_height = crop.width, crop.height
 
-    # -------------------------------
-    # DETECCIÓN DE OBJETOS VISIBLES
-    # -------------------------------
     def dentro_de_pagina(x0, y0, x1, y1):
-        return (
-            0 <= x0 <= page_width and
-            0 <= y0 <= page_height and
-            0 <= x1 <= page_width and
-            0 <= y1 <= page_height
-        )
+        return 0 <= x0 <= page_width and 0 <= y0 <= page_height and 0 <= x1 <= page_width and 0 <= y1 <= page_height
 
-    # Vectores visibles
+    # 🔍 Vectores visibles
     for d in drawings:
-        for item in d["items"]:
+        for item in d.get("items", []):
             if len(item) == 4:
                 x0, y0, x1, y1 = item
                 if dentro_de_pagina(x0, y0, x1, y1):
-                    min_x = min(x0, x1)
-                    min_y = min(y0, y1)
-                    max_x = max(x0, x1)
-                    max_y = max(y0, y1)
-                    if (max_x - min_x) > 10 and (max_y - min_y) > 10:
-                        objetos_visibles.append((min_x, min_y, max_x, max_y))
+                    objetos_visibles.append((x0, y0, x1, y1))
 
-    # Imágenes visibles
+    # 🖼️ Imágenes visibles
     for img in first_page.get_images(full=True):
         try:
             bbox = first_page.get_image_bbox(img)
-            x0, y0, x1, y1 = bbox.x0, bbox.y0, bbox.x1, bbox.y1
-            if dentro_de_pagina(x0, y0, x1, y1):
-                objetos_visibles.append((x0, y0, x1, y1))
+            if dentro_de_pagina(bbox.x0, bbox.y0, bbox.x1, bbox.y1):
+                objetos_visibles.append((bbox.x0, bbox.y0, bbox.x1, bbox.y1))
         except:
             continue
 
-    # Bloques de texto o layout visibles
+    # ✍️ Bloques de texto visibles
     for bloque in contenido_dict.get("blocks", []):
         if "bbox" in bloque:
             x0, y0, x1, y1 = bloque["bbox"]
             if dentro_de_pagina(x0, y0, x1, y1):
                 objetos_visibles.append((x0, y0, x1, y1))
 
-    # -------------------------------
-    # PROCESAR LOS OBJETOS VISIBLES
-    # -------------------------------
+    # 📏 Calcular área útil visual
     objetos_finales = []
     for obj in objetos_visibles:
         x0, y0, x1, y1 = obj
         w = round((x1 - x0) * 25.4 / 72, 2)
         h = round((y1 - y0) * 25.4 / 72, 2)
-        if w > 10 and h > 10:  # solo objetos significativos
+        if w > 10 and h > 10:
             objetos_finales.append((w, h))
 
     if not objetos_finales:
-        medida_util = "No se detectaron objetos visuales significativos dentro de la página."
+        medida_util = "No se detectaron objetos visuales significativos."
     else:
-        # Agrupar por tamaño aproximado (redondeo a 5 mm)
-        from collections import defaultdict
         grupos = defaultdict(int)
         for w, h in objetos_finales:
-            clave = (round(w/5)*5, round(h/5)*5)
+            clave = (round(w / 5) * 5, round(h / 5) * 5)
             grupos[clave] += 1
+        medida_util = "; ".join([f"{v} objeto(s) de aprox. {k[0]}×{k[1]} mm" for k, v in grupos.items()])
 
-        detalle_objetos = []
-        for (w_aprox, h_aprox), cantidad in grupos.items():
-            detalle_objetos.append(f"{cantidad} objeto(s) de aprox. {w_aprox}×{h_aprox} mm")
-
-        medida_util = "; ".join(detalle_objetos)
+    # 🧠 DPI de la 1ra imagen
+    dpi_info = "No se detectaron imágenes rasterizadas."
+    image_list = first_page.get_images(full=True)
+    if image_list:
+        xref = image_list[0][0]
+        base_image = doc.extract_image(xref)
+        img_width = base_image["width"]
+        img_height = base_image["height"]
+        width_inch = crop.width / 72
+        height_inch = crop.height / 72
+        dpi_x = round(img_width / width_inch, 1)
+        dpi_y = round(img_height / height_inch, 1)
+        dpi_info = f"{dpi_x} x {dpi_y} DPI"
 
     resumen = f"""
-A) Tamaño de página: {ancho_mm} × {alto_mm} mm
-B) Objetos detectados visualmente: {medida_util}
-C) Metadatos: {info}
+📄 Diagnóstico Técnico del PDF:
+
+1️⃣ Tamaño de página (CropBox): {crop_mm[0]} × {crop_mm[1]} mm
+2️⃣ Área de corte final (TrimBox): {trim_mm[0]} × {trim_mm[1]} mm
+3️⃣ Zona de sangrado (BleedBox): {bleed_mm[0]} × {bleed_mm[1]} mm
+4️⃣ Área artística (ArtBox): {art_mm[0]} × {art_mm[1]} mm
+5️⃣ Resolución estimada: {dpi_info}
+6️⃣ Elementos visuales encontrados: {medida_util}
+7️⃣ Metadatos del archivo: {info}
 """
 
-    prompt = f"""Sos un experto en preprensa. Analizá este diagnóstico técnico y explicalo para un operador gráfico. En especial, el punto B indica cuántos elementos hay realmente dentro de la página y qué medidas útiles tienen.\n\n{resumen}"""
+    prompt = f"""Sos un experto en preprensa profesional. Explicá este informe técnico como si fueras el jefe de control de calidad de una imprenta. Comentá si el área útil coincide con el tamaño final, si hay marcas de corte o troquel, si hay buen sangrado, y cualquier advertencia importante. Usá un lenguaje claro para operadores gráficos.
+
+{resumen}"""
 
     try:
         response = client.chat.completions.create(
@@ -580,6 +586,7 @@ C) Metadatos: {info}
         return response.choices[0].message.content
     except Exception as e:
         return f"[ERROR] No se pudo generar el diagnóstico con OpenAI: {e}"
+
 
 
 
