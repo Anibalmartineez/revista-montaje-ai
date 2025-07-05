@@ -208,6 +208,7 @@ HTML = """
   <input type="file" name="pdf" required>
   <input type="number" step="0.1" name="nuevo_ancho" placeholder="Nuevo ancho en mm (para redimensionar)">
   <input type="number" step="0.1" name="nuevo_alto" placeholder="Nuevo alto en mm (opcional)">
+  <input type="file" name="grafico" accept="image/png, image/jpeg">
 
   <select name="modo_montaje" required style="padding: 12px; border-radius: 10px; border: 2px solid #ccc; font-size: 15px; width: 100%;">
     <option value="4" selected>🗞️ Montaje 4 páginas por cara (revista cosido a caballete)</option>
@@ -218,6 +219,7 @@ HTML = """
   <button name='action' value='diagnostico'>🔍 Diagnóstico Técnico (IA)</button>
   <button name='action' value='corregir_sangrado'>✂️ Corregir Márgenes y Sangrado</button>
   <button name='action' value='redimensionar'>📐 Redimensionar PDF</button>
+  <button name='action' value='analisis_grafico'>📈 Analizar Gráfico Técnico</button>
 </form>
 
 
@@ -249,41 +251,54 @@ def index():
 
     if request.method == "POST":
         try:
-            if 'pdf' not in request.files:
-                raise Exception("No se seleccionó ningún archivo.")
-            archivo = request.files['pdf']
-            if archivo.filename == '':
-                raise Exception("Debes subir un archivo PDF válido.")
-            filename = secure_filename(archivo.filename)
-            path_pdf = os.path.join(UPLOAD_FOLDER, filename)
-            archivo.save(path_pdf)
-
             action = request.form.get("action")
             modo_montaje = int(request.form.get("modo_montaje", 4) or 4)
-            output_path = os.path.join("output", "montado.pdf")
+            nuevo_ancho = request.form.get("nuevo_ancho")
+            nuevo_alto = request.form.get("nuevo_alto")
 
-            if action == "montar":
-                montar_pdf(path_pdf, output_path, paginas_por_cara=modo_montaje)
-                output_pdf = True
-            elif action == "diagnostico":
-                diagnostico = diagnosticar_pdf(path_pdf)
-            elif action == "corregir_sangrado":
-                corregir_sangrado(path_pdf, output_path)
-                output_pdf = True
-            elif action == "redimensionar":
-                nuevo_ancho = float(request.form.get("nuevo_ancho", 0))
-                nuevo_alto = request.form.get("nuevo_alto")
-                if not nuevo_ancho:
-                    raise Exception("Debes ingresar al menos un nuevo ancho.")
-                nuevo_alto = float(nuevo_alto) if nuevo_alto else None
-                redimensionar_pdf(path_pdf, output_path, nuevo_ancho, nuevo_alto)
-                output_pdf = True
+            if action == "analisis_grafico":
+                imagen = request.files.get("grafico")
+                if imagen and imagen.filename != '':
+                    path_img = os.path.join(UPLOAD_FOLDER, secure_filename(imagen.filename))
+                    imagen.save(path_img)
+                    resumen, img_base64 = analizar_grafico_tecnico(path_img)
+                    diagnostico = f"{resumen}\n\n<img src='data:image/png;base64,{img_base64}' style='width:100%;margin-top:20px;border:2px solid #ccc;border-radius:12px;'>"
+                else:
+                    raise Exception("Debe subir una imagen válida para análisis técnico.")
+
             else:
-                mensaje = "⚠️ Función no implementada para esta acción."
+                if 'pdf' not in request.files or request.files['pdf'].filename == '':
+                    raise Exception("Debes subir un archivo PDF válido.")
+                archivo = request.files['pdf']
+                filename = secure_filename(archivo.filename)
+                path_pdf = os.path.join(UPLOAD_FOLDER, filename)
+                archivo.save(path_pdf)
+
+                output_path = os.path.join("output", "montado.pdf")
+
+                if action == "montar":
+                    montar_pdf(path_pdf, output_path, paginas_por_cara=modo_montaje)
+                    output_pdf = True
+                elif action == "diagnostico":
+                    diagnostico = diagnosticar_pdf(path_pdf)
+                elif action == "corregir_sangrado":
+                    corregir_sangrado(path_pdf, output_path)
+                    output_pdf = True
+                elif action == "redimensionar":
+                    if not nuevo_ancho:
+                        raise Exception("Debes ingresar al menos un nuevo ancho.")
+                    nuevo_ancho = float(nuevo_ancho)
+                    nuevo_alto = float(nuevo_alto) if nuevo_alto else None
+                    redimensionar_pdf(path_pdf, output_path, nuevo_ancho, nuevo_alto)
+                    output_pdf = True
+                else:
+                    mensaje = "⚠️ Función no implementada para esta acción."
+
         except Exception as e:
             mensaje = f"❌ Error al procesar el archivo: {str(e)}"
 
     return render_template_string(HTML, mensaje=mensaje, diagnostico=diagnostico, output_pdf=output_pdf)
+
 
 
 @app.route('/descargar')
@@ -571,6 +586,43 @@ def redimensionar_pdf(input_path, output_path, nuevo_ancho_mm, nuevo_alto_mm=Non
 
     nuevo_doc.save(output_path)
 
+def analizar_grafico_tecnico(image_path):
+    import cv2
+    import numpy as np
+    import base64
+    from io import BytesIO
+    from PIL import Image
+
+    image = cv2.imread(image_path)
+    if image is None:
+        raise Exception("No se pudo leer la imagen")
+    
+    resized = cv2.resize(image, (1000, 600))
+    gray = cv2.cvtColor(resized, cv2.COLOR_BGR2GRAY)
+    edges = cv2.Canny(gray, 50, 150, apertureSize=3)
+    lines = cv2.HoughLinesP(edges, 1, np.pi/180, threshold=100, minLineLength=80, maxLineGap=10)
+
+    resultado = resized.copy()
+    datos_lineas = []
+
+    if lines is not None:
+        for line in lines[:20]:
+            x1, y1, x2, y2 = line[0]
+            cv2.line(resultado, (x1, y1), (x2, y2), (0, 0, 255), 2)
+            datos_lineas.append((x1, y1, x2, y2))
+
+    resultado_rgb = cv2.cvtColor(resultado, cv2.COLOR_BGR2RGB)
+    im_pil = Image.fromarray(resultado_rgb)
+    buffer = BytesIO()
+    im_pil.save(buffer, format="PNG")
+    buffer.seek(0)
+    imagen_base64 = base64.b64encode(buffer.read()).decode("utf-8")
+    
+    resumen = f"🔍 Se detectaron {len(datos_lineas)} líneas principales en el gráfico. Coordenadas aproximadas:\n"
+    for i, (x1, y1, x2, y2) in enumerate(datos_lineas[:10], 1):
+        resumen += f"{i}) Línea de ({x1}, {y1}) a ({x2}, {y2})\n"
+
+    return resumen, imagen_base64
 
 
 if __name__ == '__main__':
