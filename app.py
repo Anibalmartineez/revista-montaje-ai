@@ -338,18 +338,10 @@ def index():
                     path_img = os.path.join(UPLOAD_FOLDER, secure_filename(imagen.filename))
                     imagen.save(path_img)
 
-                    # La función devuelve: lineas, imagen en base64, análisis IA
-                    lineas, img_base64, estrategia = analizar_grafico_tecnico(path_img)
-
-                    if lineas is None:
-                        raise Exception(img_base64)  # img_base64 contiene el mensaje de error en ese caso
-
-                    resumen_lineas = "🔍 Se detectaron las siguientes líneas principales en el gráfico:\n\n"
-                    for i, linea in enumerate(lineas):
-                        resumen_lineas += f"{i+1}) Línea de ({linea['x1']}, {linea['y1']}) a ({linea['x2']}, {linea['y2']})\n"
+                    # 🔁 Análisis gráfico técnico
+                    estrategia, img_base64 = analizar_grafico_tecnico(path_img)
 
                     diagnostico = f"""
-                    <pre style='background:#f8f9fa;padding:15px;border-radius:10px;border:1px solid #ccc;font-size:14px;'>{resumen_lineas}</pre>
                     <h3 style='margin-top:20px;'>📈 Gráfico Técnico Simulado</h3>
                     <img src='data:image/png;base64,{img_base64}' style='width:100%;margin:15px 0;border:2px solid #007bff;border-radius:12px;'>
 
@@ -392,6 +384,7 @@ def index():
             mensaje = f"❌ Error al procesar el archivo: {str(e)}"
 
     return render_template_string(HTML, mensaje=mensaje, diagnostico=diagnostico, output_pdf=output_pdf)
+
 
 
 
@@ -682,77 +675,62 @@ def redimensionar_pdf(input_path, output_path, nuevo_ancho_mm, nuevo_alto_mm=Non
 
     nuevo_doc.save(output_path)
 
-def analizar_grafico_tecnico(image_path):
+def analizar_grafico_tecnico(path_img):
     import cv2
     import numpy as np
     import base64
+    import json  # ✅ NECESARIO para serializar el array
     from io import BytesIO
     from PIL import Image
-    import openai
-    import os
 
-    # Configurar cliente OpenAI
-    client = openai.OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
-
-    # Leer imagen original
-    image = cv2.imread(image_path)
+    # Leer imagen
+    image = cv2.imread(path_img)
     if image is None:
-        return "Error: no se pudo leer la imagen.", None, None
-
-    # Redimensionar para estandarizar
-    height = 600
-    scale = height / image.shape[0]
-    resized = cv2.resize(image, (int(image.shape[1] * scale), height))
-
-    # Convertir a escala de grises
-    gray = cv2.cvtColor(resized, cv2.COLOR_BGR2GRAY)
-    blurred = cv2.GaussianBlur(gray, (5, 5), 0)
-    edges = cv2.Canny(blurred, 50, 150)
+        raise Exception("No se pudo leer la imagen.")
+    
+    gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+    edges = cv2.Canny(gray, 50, 150, apertureSize=3)
 
     # Detección de líneas
-    lines = cv2.HoughLinesP(edges, 1, np.pi / 180, threshold=100, minLineLength=50, maxLineGap=10)
+    lineas_detectadas = cv2.HoughLinesP(edges, 1, np.pi / 180, 100, minLineLength=100, maxLineGap=10)
+    lineas = []
 
-    resultado = resized.copy()
-    datos_lineas = []
+    if lineas_detectadas is not None:
+        for linea in lineas_detectadas[:20]:  # Máximo 20 líneas
+            x1, y1, x2, y2 = map(int, linea[0])  # 🔁 conversión a int nativo
+            cv2.line(image, (x1, y1), (x2, y2), (0, 0, 255), 2)
+            lineas.append({"x1": x1, "y1": y1, "x2": x2, "y2": y2})
 
-    if lines is not None:
-        for line in lines[:20]:  # máximo 20 líneas
-            x1, y1, x2, y2 = map(int, line[0])
-            cv2.line(resultado, (x1, y1), (x2, y2), (0, 0, 255), 2)
-            datos_lineas.append({"x1": x1, "y1": y1, "x2": x2, "y2": y2})
-
-    # Convertir imagen final a base64
-    resultado_rgb = cv2.cvtColor(resultado, cv2.COLOR_BGR2RGB)
-    img_pil = Image.fromarray(resultado_rgb)
+    # Convertir imagen a base64 para mostrar en HTML
+    img_pil = Image.fromarray(cv2.cvtColor(image, cv2.COLOR_BGR2RGB))
     buffer = BytesIO()
     img_pil.save(buffer, format="PNG")
-    img_base64 = base64.b64encode(buffer.getvalue()).decode()
+    img_base64 = base64.b64encode(buffer.getvalue()).decode("utf-8")
 
-    # Preparar prompt para la IA
-    prompt = (
-        "Sos un experto en análisis técnico de gráficos financieros. "
-        "A continuación se presenta un conjunto de líneas detectadas en un gráfico, representando posibles tendencias, soportes y resistencias. "
-        "Analizá las líneas y brindá una interpretación técnica: posibles zonas de compra y venta, tendencias, señales de entrada o salida, etc.\n\n"
-        "Líneas detectadas (coordenadas aproximadas):\n"
-    )
-    for i, linea in enumerate(datos_lineas):
-        prompt += f"{i+1}) Línea de ({linea['x1']}, {linea['y1']}) a ({linea['x2']}, {linea['y2']})\n"
-
-    prompt += "\nResponde como si fueras un trader profesional y explicá qué harías."
-
-    # Consultar a OpenAI
+    # Análisis inteligente con OpenAI
     try:
-        respuesta_ia = client.chat.completions.create(
-            model="gpt-4",
-            messages=[{"role": "user", "content": prompt}],
-            temperature=0.8,
-            max_tokens=500
-        )
-        analisis_estrategia = respuesta_ia.choices[0].message.content.strip()
-    except Exception as e:
-        analisis_estrategia = f"Error al consultar OpenAI: {e}"
+        prompt = f"""
+Eres un experto en análisis técnico bursátil. Se detectaron las siguientes líneas principales en un gráfico financiero (líneas de soporte, resistencia o tendencias). Basado en estas coordenadas (en formato de líneas con punto inicial y final):
 
-    return datos_lineas, img_base64, analisis_estrategia
+{json.dumps(lineas, indent=2)}
+
+Simula una breve interpretación como si fueras un analista técnico. Indica si se observa un canal, una tendencia, y si sería un buen momento para comprar, vender o esperar. Usa un tono profesional y claro.
+"""
+
+        respuesta = client.chat.completions.create(
+            model="gpt-4o",
+            messages=[{"role": "user", "content": prompt}],
+            temperature=0.3,
+        )
+
+        resumen = respuesta.choices[0].message.content.strip()
+
+    except Exception as e:
+        resumen = f"No se pudo generar el análisis técnico automático. Detalle: {str(e)}"
+
+    return resumen, img_base64
+
+
 
 
 
