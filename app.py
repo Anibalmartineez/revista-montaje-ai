@@ -226,7 +226,7 @@ button[value="analisis_grafico"]:hover {
       </div>
 
       <!-- Imagen para análisis gráfico -->
-      <div id="grupo-grafico" style="display: none;">
+      <div id="grupo-grafico" style="margin-bottom: 15px;">
         <input type="file" name="grafico" id="grafico" accept="image/png, image/jpeg">
       </div>
 
