@@ -383,106 +383,90 @@ def diagnosticar_pdf(path):
     info = doc.metadata
 
     crop = first_page.cropbox
-    ancho_mm = round(crop.width * 25.4 / 72, 2)
-    alto_mm = round(crop.height * 25.4 / 72, 2)
+    page_width = crop.width
+    page_height = crop.height
+    ancho_mm = round(page_width * 25.4 / 72, 2)
+    alto_mm = round(page_height * 25.4 / 72, 2)
 
     contenido_dict = first_page.get_text("dict")
     drawings = first_page.get_drawings()
+    objetos_visibles = []
 
     # -------------------------------
-    # DETECCIÓN DE TROQUEL RECTANGULAR
+    # DETECCIÓN DE OBJETOS VISIBLES
     # -------------------------------
-    rectangulos_detectados = []
-    tolerancia = 5  # en puntos PDF (~1.8 mm)
+    def dentro_de_pagina(x0, y0, x1, y1):
+        return (
+            0 <= x0 <= page_width and
+            0 <= y0 <= page_height and
+            0 <= x1 <= page_width and
+            0 <= y1 <= page_height
+        )
 
+    # Vectores visibles
     for d in drawings:
-        puntos = []
         for item in d["items"]:
             if len(item) == 4:
                 x0, y0, x1, y1 = item
-                puntos.append((x0, y0))
-                puntos.append((x1, y1))
-        if not puntos:
+                if dentro_de_pagina(x0, y0, x1, y1):
+                    min_x = min(x0, x1)
+                    min_y = min(y0, y1)
+                    max_x = max(x0, x1)
+                    max_y = max(y0, y1)
+                    if (max_x - min_x) > 10 and (max_y - min_y) > 10:
+                        objetos_visibles.append((min_x, min_y, max_x, max_y))
+
+    # Imágenes visibles
+    for img in first_page.get_images(full=True):
+        try:
+            bbox = first_page.get_image_bbox(img)
+            x0, y0, x1, y1 = bbox.x0, bbox.y0, bbox.x1, bbox.y1
+            if dentro_de_pagina(x0, y0, x1, y1):
+                objetos_visibles.append((x0, y0, x1, y1))
+        except:
             continue
 
-        xs = [p[0] for p in puntos]
-        ys = [p[1] for p in puntos]
-        min_x, max_x = min(xs), max(xs)
-        min_y, max_y = min(ys), max(ys)
-        ancho = max_x - min_x
-        alto = max_y - min_y
+    # Bloques de texto o layout visibles
+    for bloque in contenido_dict.get("blocks", []):
+        if "bbox" in bloque:
+            x0, y0, x1, y1 = bloque["bbox"]
+            if dentro_de_pagina(x0, y0, x1, y1):
+                objetos_visibles.append((x0, y0, x1, y1))
 
-        if ancho > 40 and alto > 40:
-            rectangulos_detectados.append((min_x, min_y, max_x, max_y))
+    # -------------------------------
+    # PROCESAR LOS OBJETOS VISIBLES
+    # -------------------------------
+    objetos_finales = []
+    for obj in objetos_visibles:
+        x0, y0, x1, y1 = obj
+        w = round((x1 - x0) * 25.4 / 72, 2)
+        h = round((y1 - y0) * 25.4 / 72, 2)
+        if w > 10 and h > 10:  # solo objetos significativos
+            objetos_finales.append((w, h))
 
-    if rectangulos_detectados:
-        # Elegimos el más grande como troquel
-        troquel = max(rectangulos_detectados, key=lambda r: (r[2] - r[0]) * (r[3] - r[1]))
-        min_x, min_y, max_x, max_y = troquel
-        troquel_ancho_mm = round((max_x - min_x) * 25.4 / 72, 2)
-        troquel_alto_mm = round((max_y - min_y) * 25.4 / 72, 2)
-        medida_util = f"{troquel_ancho_mm} × {troquel_alto_mm} mm (Detectado como troquel por vectores)"
+    if not objetos_finales:
+        medida_util = "No se detectaron objetos visuales significativos dentro de la página."
     else:
-        # Fallback → contenido visual
-        bloques = []
-        for bloque in contenido_dict.get("blocks", []):
-            if "bbox" in bloque:
-                x0, y0, x1, y1 = bloque["bbox"]
-                if (x1 - x0) * (y1 - y0) > 1000:
-                    bloques.append((x0, y0, x1, y1))
-        for img in first_page.get_images(full=True):
-            try:
-                bbox = first_page.get_image_bbox(img)
-                x0, y0, x1, y1 = bbox.x0, bbox.y0, bbox.x1, bbox.y1
-                if (x1 - x0) * (y1 - y0) > 1000:
-                    bloques.append((x0, y0, x1, y1))
-            except:
-                continue
-        if bloques:
-            min_x = min(b[0] for b in bloques)
-            min_y = min(b[1] for b in bloques)
-            max_x = max(b[2] for b in bloques)
-            max_y = max(b[3] for b in bloques)
-            util_ancho_mm = round((max_x - min_x) * 25.4 / 72, 2)
-            util_alto_mm = round((max_y - min_y) * 25.4 / 72, 2)
-            medida_util = f"{util_ancho_mm} × {util_alto_mm} mm (Detectado por contenido visual)"
-        else:
-            medida_util = "No se detectó contenido útil significativo"
+        # Agrupar por tamaño aproximado (redondeo a 5 mm)
+        from collections import defaultdict
+        grupos = defaultdict(int)
+        for w, h in objetos_finales:
+            clave = (round(w/5)*5, round(h/5)*5)
+            grupos[clave] += 1
 
-    # -------------------------------
-    # RESOLUCIÓN IMAGEN RASTER
-    # -------------------------------
-    dpi_info = "No se detectaron imágenes rasterizadas."
-    image_list = first_page.get_images(full=True)
-    if image_list:
-        xref = image_list[0][0]
-        base_image = doc.extract_image(xref)
-        img_width = base_image["width"]
-        img_height = base_image["height"]
-        width_inch = crop.width / 72
-        height_inch = crop.height / 72
-        dpi_x = round(img_width / width_inch, 1)
-        dpi_y = round(img_height / height_inch, 1)
-        dpi_info = f"{dpi_x} x {dpi_y} DPI (1.ª imagen)"
+        detalle_objetos = []
+        for (w_aprox, h_aprox), cantidad in grupos.items():
+            detalle_objetos.append(f"{cantidad} objeto(s) de aprox. {w_aprox}×{h_aprox} mm")
 
-    # -------------------------------
-    # RESOLUCIÓN TEXTO
-    # -------------------------------
-    try:
-        resolution = contenido_dict["width"]
-    except:
-        resolution = "No se pudo detectar"
+        medida_util = "; ".join(detalle_objetos)
 
     resumen = f"""
 A) Tamaño de página: {ancho_mm} × {alto_mm} mm
-B) Medida útil detectada: {medida_util}
-C) Resolución estimada del texto: {resolution}
-D) Resolución imagen raster: {dpi_info}
-E) Páginas: {len(doc)}
-F) Metadatos: {info}
+B) Objetos detectados visualmente: {medida_util}
+C) Metadatos: {info}
 """
 
-    prompt = f"""Sos un experto en preprensa. Analizá este diagnóstico técnico y explicalo para un operador gráfico. La clave está en el punto B, que es el área útil real, basada en el troquel si se detecta.\n\n{resumen}"""
+    prompt = f"""Sos un experto en preprensa. Analizá este diagnóstico técnico y explicalo para un operador gráfico. En especial, el punto B indica cuántos elementos hay realmente dentro de la página y qué medidas útiles tienen.\n\n{resumen}"""
 
     try:
         response = client.chat.completions.create(
@@ -490,14 +474,8 @@ F) Metadatos: {info}
             messages=[{"role": "user", "content": prompt}]
         )
         return response.choices[0].message.content
-
     except Exception as e:
         return f"[ERROR] No se pudo generar el diagnóstico con OpenAI: {e}"
-
-
-
-
-
 
 
 
