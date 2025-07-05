@@ -268,17 +268,26 @@ button[value="analisis_grafico"]:hover {
     const grupoRedimensionar = document.getElementById("grupo-redimensionar");
     const grupoMontaje = document.getElementById("grupo-montaje");
 
-    // Reset
+    const inputPDF = document.getElementById("pdf");
+    const inputGrafico = document.getElementById("grafico");
+
+    // Reset visibilidad
     grupoPDF.style.display = "block";
     grupoGrafico.style.display = "none";
     grupoRedimensionar.style.display = "none";
     grupoMontaje.style.display = "block";
 
-    // Mostrar campos según acción
+    // Reset campos requeridos
+    if (inputPDF) inputPDF.required = true;
+    if (inputGrafico) inputGrafico.required = false;
+
+    // Mostrar u ocultar según la acción
     if (accion === "analisis_grafico") {
       grupoPDF.style.display = "none";
       grupoGrafico.style.display = "block";
       grupoMontaje.style.display = "none";
+      if (inputGrafico) inputGrafico.required = true;
+      if (inputPDF) inputPDF.required = false;
     }
 
     if (accion === "redimensionar") {
@@ -301,6 +310,7 @@ button[value="analisis_grafico"]:hover {
     });
   });
 </script>
+
 
 </body>
 </html>
