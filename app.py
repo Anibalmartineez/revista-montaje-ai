@@ -8,7 +8,7 @@ import os
 from werkzeug.utils import secure_filename
 
 # Cliente OpenAI moderno
-openai.api_key = os.environ["OPENAI_API_KEY"]
+client = openai.OpenAI(api_key=os.environ["OPENAI_API_KEY"])
 
 
 app = Flask(__name__)
@@ -494,119 +494,28 @@ HTML_GRABACION_JS = """
   }
 </script>
 """
-
-HTML_HABLA_INGLES = """
+HTML_SIMULAR_CONVERSACION = '''
 <!DOCTYPE html>
 <html lang="es">
 <head>
   <meta charset="UTF-8">
-  <title>Habla en Inglés – IA Coach</title>
-  <style>
-    body {
-      font-family: Arial, sans-serif;
-      background: #f2f9ff;
-      padding: 30px;
-    }
-    .container {
-      max-width: 700px;
-      margin: auto;
-      background: white;
-      padding: 30px;
-      border-radius: 14px;
-      box-shadow: 0 0 20px rgba(0,0,0,0.1);
-    }
-    h1 {
-      text-align: center;
-      color: #0077cc;
-    }
-    input[type="file"], button {
-      margin: 20px 0;
-      padding: 12px;
-      font-size: 16px;
-    }
-    .box {
-      background: #eef4ff;
-      padding: 15px;
-      border-left: 4px solid #0077cc;
-      margin-top: 20px;
-      white-space: pre-wrap;
-    }
-  </style>
+  <title>Simular Conversación</title>
 </head>
 <body>
-  <div class="container">
-    <h1>&#127908; Habla en Inglés con IA</h1>
-    <p>Subí un archivo de voz en inglés (.mp3) o grabá directamente desde el navegador. Te diremos qué tan bien estás hablando y cómo mejorar.</p>
-
-    <form method="post" enctype="multipart/form-data">
-      <input type="file" name="audio" accept=".mp3">
-      <br>
-      <button type="submit">&#128228; Subir y Analizar</button>
-    </form>
-
-    <div style="text-align:center; margin-top: 30px;">
-      <button onclick="iniciarGrabacion()">🎙️ Iniciar Grabación</button>
-      <button onclick="detenerGrabacion()">🛑 Detener y Analizar</button>
-      <p id="estado" style="color:#0077cc; margin-top:10px;"></p>
-    </div>
-
-    {% if mensaje %}
-      <div class="box" style="color:red">{{ mensaje }}</div>
-    {% endif %}
-
-    {% if transcripcion %}
-      <div class="box"><strong>📝 Transcripción IA:</strong><br>{{ transcripcion }}</div>
-    {% endif %}
-
-    {% if analisis %}
-      <div class="box"><strong>🧠 Análisis del Habla:</strong><br>{{ analisis }}</div>
-    {% endif %}
+  <h2>Simular Conversación en Inglés</h2>
+  <form method="POST">
+    <textarea name="pregunta" rows="5" cols="50"></textarea><br>
+    <button type="submit">Enviar</button>
+  </form>
+  {% if respuesta %}
+  <div>
+    <h3>Respuesta:</h3>
+    <p>{{ respuesta }}</p>
   </div>
-
-  <script>
-    let mediaRecorder;
-    let audioChunks = [];
-
-    async function iniciarGrabacion() {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      mediaRecorder = new MediaRecorder(stream);
-
-      mediaRecorder.ondataavailable = event => {
-        if (event.data.size > 0) {
-          audioChunks.push(event.data);
-        }
-      };
-
-      mediaRecorder.onstop = () => {
-        const audioBlob = new Blob(audioChunks, { type: 'audio/mp3' });
-        const formData = new FormData();
-        formData.append('audio', audioBlob, 'grabacion.mp3');
-
-        fetch('/habla-ingles', {
-          method: 'POST',
-          body: formData
-        })
-        .then(res => location.reload())
-        .catch(err => alert('Error al subir el audio'));
-
-        audioChunks = [];
-      };
-
-      mediaRecorder.start();
-      document.getElementById('estado').innerText = ' Grabando...';
-    }
-
-    function detenerGrabacion() {
-      mediaRecorder.stop();
-      document.getElementById('estado').innerText = ' Procesando audio...';
-    }
-  </script>
+  {% endif %}
 </body>
 </html>
-"""
-
-
-
+'''
 
 
 
@@ -1103,107 +1012,22 @@ Texto: "{transcripcion}"
 # Historial de conversación en memoria
 chat_historial = []
 
-@app.route("/simular_conversacion", methods=["GET", "POST"])
+@app.route("/simular-conversacion", methods=["GET", "POST"])
 def simular_conversacion():
-    global historial_chat
     respuesta = ""
-
     if request.method == "POST":
         pregunta = request.form.get("pregunta")
         if pregunta:
-            historial_chat.append({"role": "user", "content": pregunta})
+            respuesta_openai = client.chat.completions.create(
+                model="gpt-4",
+                messages=[
+                    {"role": "system", "content": "Simula una conversación en inglés."},
+                    {"role": "user", "content": pregunta}
+                ]
+            )
+            respuesta = respuesta_openai.choices[0].message.content
+    return render_template_string(HTML_SIMULAR_CONVERSACION, respuesta=respuesta)
 
-            try:
-                respuesta_openai = client.chat.completions.create(
-                    model="gpt-4o",
-                    messages=[{"role": "system", "content": "Simulá una conversación informal en inglés con un humano. Respondé de forma breve, natural y amistosa, como si fueras un compañero de charla."}] + historial_chat
-                )
-                respuesta = respuesta_openai.choices[0].message.content
-                historial_chat.append({"role": "assistant", "content": respuesta})
-
-            except Exception as e:
-                respuesta = f"[ERROR] No se pudo generar respuesta: {str(e)}"
-
-    return render_template_string("""
-    <!DOCTYPE html>
-    <html lang="es">
-    <head>
-        <meta charset="UTF-8">
-        <title>Simular Conversación en Inglés</title>
-        <style>
-            body {
-                font-family: Arial, sans-serif;
-                background: #f4f8fc;
-                padding: 20px;
-            }
-            .box {
-                max-width: 700px;
-                background: white;
-                padding: 30px;
-                border-radius: 15px;
-                box-shadow: 0 0 30px rgba(0,0,0,0.1);
-                margin: auto;
-            }
-            textarea {
-                width: 100%;
-                height: 120px;
-                font-size: 16px;
-                padding: 10px;
-                border: 2px solid #ccc;
-                border-radius: 10px;
-            }
-            button {
-                margin-top: 15px;
-                background: #004aad;
-                color: white;
-                border: none;
-                padding: 12px 20px;
-                border-radius: 10px;
-                font-size: 16px;
-                cursor: pointer;
-            }
-            .chat-box {
-                margin-top: 25px;
-                background: #eef4ff;
-                padding: 15px;
-                border-radius: 12px;
-                max-height: 400px;
-                overflow-y: auto;
-            }
-            .user {
-                color: #004aad;
-                font-weight: bold;
-            }
-            .ai {
-                color: #2e8b57;
-                font-weight: bold;
-            }
-            .mensaje {
-                margin-bottom: 10px;
-            }
-        </style>
-    </head>
-    <body>
-        <div class="box">
-            <h2>🗣️ Simular Conversación en Inglés</h2>
-            <form method="POST">
-                <label>Escribí algo como si estuvieras hablando con un amigo en inglés:</label>
-                <textarea name="pregunta" required></textarea>
-                <button type="submit">Enviar</button>
-            </form>
-
-            <div class="chat-box">
-                {% for entrada in historial %}
-                    <div class="mensaje">
-                        <span class="{{ 'user' if entrada.role == 'user' else 'ai' }}">{{ entrada.role|capitalize }}:</span>
-                        {{ entrada.content }}
-                    </div>
-                {% endfor %}
-            </div>
-        </div>
-    </body>
-    </html>
-    """, historial=historial_chat)
 @app.route("/resetear_chat")
 def resetear_chat():
     global historial_chat
