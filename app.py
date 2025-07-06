@@ -495,28 +495,63 @@ HTML_GRABACION_JS = """
   }
 </script>
 """
-HTML_SIMULAR_CONVERSACION = '''
-<!DOCTYPE html>
+HTML_SIMULA_INGLES = """
+<!doctype html>
 <html lang="es">
 <head>
   <meta charset="UTF-8">
-  <title>Simular Conversación</title>
+  <title>Simulador de Conversación en Inglés</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      background: #f5f9ff;
+      padding: 30px;
+    }
+    .container {
+      max-width: 700px;
+      margin: auto;
+      background: white;
+      padding: 30px;
+      border-radius: 14px;
+      box-shadow: 0 0 20px rgba(0,0,0,0.1);
+    }
+    textarea, input[type="text"], button {
+      width: 100%;
+      margin: 10px 0;
+      padding: 12px;
+      font-size: 16px;
+    }
+    .respuesta {
+      background: #eef4ff;
+      padding: 15px;
+      border-left: 4px solid #0077cc;
+      margin-top: 20px;
+      white-space: pre-wrap;
+    }
+  </style>
 </head>
 <body>
-  <h2>Simular Conversación en Inglés</h2>
-  <form method="POST">
-    <textarea name="pregunta" rows="5" cols="50"></textarea><br>
-    <button type="submit">Enviar</button>
-  </form>
-  {% if respuesta %}
-  <div>
-    <h3>Respuesta:</h3>
-    <p>{{ respuesta }}</p>
+  <div class="container">
+    <h1>🧠 Simulador de Conversación en Inglés</h1>
+    <p>Escribí algo en inglés y la IA responderá de forma natural. Luego te explicará brevemente tus errores o cómo mejorar.</p>
+    <form method="POST">
+      <label for="contexto">Contexto (opcional):</label>
+      <input type="text" name="contexto" placeholder="Conversación general" value="{{ contexto }}">
+      
+      <label for="texto">Tu mensaje en inglés:</label>
+      <textarea name="texto" rows="4" placeholder="Hello, how are you?">{{ texto_usuario }}</textarea>
+      
+      <button type="submit">Enviar</button>
+    </form>
+
+    {% if respuesta %}
+      <div class="respuesta"><strong>IA:</strong><br>{{ respuesta }}</div>
+    {% endif %}
   </div>
-  {% endif %}
 </body>
 </html>
-'''
+"""
+
 
 
 
@@ -1013,27 +1048,34 @@ Texto: "{transcripcion}"
 # Historial de conversación en memoria
 chat_historial = []
 
-@app.route("/simular-conversacion", methods=["GET", "POST"])
+@app.route("/simular_conversacion", methods=["GET", "POST"])
 def simular_conversacion():
-    respuesta = ""
-    if request.method == "POST":
-        pregunta = request.form.get("pregunta")
-        if pregunta:
-            respuesta_openai = client.chat.completions.create(
-                model="gpt-4",
-                messages=[
-                    {"role": "system", "content": "Simula una conversación en inglés."},
-                    {"role": "user", "content": pregunta}
-                ]
-            )
-            respuesta = respuesta_openai.choices[0].message.content
-    return render_template_string(HTML_SIMULAR_CONVERSACION, respuesta=respuesta)
+    texto_usuario = request.form.get("texto", "")
+    contexto = request.form.get("contexto", "Conversación general")
+    respuesta_ia = ""
 
-@app.route("/resetear_chat")
-def resetear_chat():
-    global historial_chat
-    historial_chat = []
-    return redirect("/simular_conversacion")
+    if texto_usuario:
+        prompt = f"""
+You are an English conversation partner for a Spanish-speaking learner.
+Simulate a realistic conversation in English under the context: "{contexto}".
+User's message: "{texto_usuario}"
+Please reply naturally in English. After your answer, explain briefly any errors or improvements in Spanish.
+        """
+
+        try:
+            completado = client.chat.completions.create(
+                model="gpt-4o",
+                messages=[{"role": "user", "content": prompt}]
+            )
+            respuesta_ia = completado.choices[0].message.content
+        except Exception as e:
+            respuesta_ia = f"[ERROR] No se pudo generar respuesta: {str(e)}"
+
+    return render_template_string(HTML_SIMULA_INGLES,
+                                  texto_usuario=texto_usuario,
+                                  contexto=contexto,
+                                  respuesta=respuesta_ia)
+
 
 
 
