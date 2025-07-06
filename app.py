@@ -211,7 +211,7 @@ button[value="analisis_grafico"]:hover {
 </head>
 <body>
   <div class="container">
-    <h2>🧠 Diagnóstico & Montaje de Revista PDF</h2>
+    <h2> Diagnóstico & Montaje de Revista PDF</h2>
     <form method="post" enctype="multipart/form-data" id="formulario">
       
       <!-- Campo PDF -->
@@ -233,17 +233,17 @@ button[value="analisis_grafico"]:hover {
       <!-- Selector modo montaje -->
       <div id="grupo-montaje">
         <select name="modo_montaje" id="modo_montaje" required style="padding: 12px; border-radius: 10px; border: 2px solid #ccc; font-size: 15px; width: 100%;">
-          <option value="4" selected>🗞️ Montaje 4 páginas por cara (revista cosido a caballete)</option>
-          <option value="2">📰 Montaje 2 páginas por cara (libro frente/dorso)</option>
+          <option value="4" selected>🗞 Montaje 4 páginas por cara (revista cosido a caballete)</option>
+          <option value="2"> Montaje 2 páginas por cara (libro frente/dorso)</option>
         </select>
       </div>
 
       <!-- Botones de acción -->
-      <button name='action' value='montar'>📄 Montar Revista</button>
-      <button name='action' value='diagnostico'>🔍 Diagnóstico Técnico (IA)</button>
-      <button name='action' value='corregir_sangrado'>✂️ Corregir Márgenes y Sangrado</button>
-      <button name='action' value='redimensionar'>📐 Redimensionar PDF</button>
-      <button name='action' value='analisis_grafico'>📈 Analizar Gráfico Técnico</button>
+      <button name='action' value='montar'> Montar Revista</button>
+      <button name='action' value='diagnostico'> Diagnóstico Técnico (IA)</button>
+      <button name='action' value='corregir_sangrado'>✂ Corregir Márgenes y Sangrado</button>
+      <button name='action' value='redimensionar'> Redimensionar PDF</button>
+      <button name='action' value='analisis_grafico'> Analizar Gráfico Técnico</button>
     </form>
 
     {% if mensaje %}
@@ -251,11 +251,11 @@ button[value="analisis_grafico"]:hover {
     {% endif %}
 
     {% if output_pdf %}
-      <a href="{{ url_for('descargar_pdf') }}" class="descargar-link">📥 Descargar PDF Procesado</a>
+      <a href="{{ url_for('descargar_pdf') }}" class="descargar-link"> Descargar PDF Procesado</a>
     {% endif %}
 
     {% if diagnostico %}
-      <h3 class="diagnostico-titulo">📊 Diagnóstico IA:</h3>
+      <h3 class="diagnostico-titulo"> Diagnóstico IA:</h3>
       <pre>{{ diagnostico|safe }}</pre>
     {% endif %}
   </div>
@@ -414,12 +414,12 @@ HTML_HABLA_INGLES = """
       };
 
       mediaRecorder.start();
-      document.getElementById('estado').innerText = '🎙️ Grabando...';
+      document.getElementById('estado').innerText = ' Grabando...';
     }
 
     function detenerGrabacion() {
       mediaRecorder.stop();
-      document.getElementById('estado').innerText = '⏳ Procesando audio...';
+      document.getElementById('estado').innerText = ' Procesando audio...';
     }
   </script>
 </body>
@@ -450,14 +450,14 @@ def index():
                     path_img = os.path.join(UPLOAD_FOLDER, secure_filename(imagen.filename))
                     imagen.save(path_img)
 
-                    # 🔁 Análisis gráfico técnico
+                    #  Análisis gráfico técnico
                     estrategia, img_base64 = analizar_grafico_tecnico(path_img)
 
                     diagnostico = f"""
-                    <h3 style='margin-top:20px;'>📈 Gráfico Técnico Simulado</h3>
+                    <h3 style='margin-top:20px;'> Gráfico Técnico Simulado</h3>
                     <img src='data:image/png;base64,{img_base64}' style='width:100%;margin:15px 0;border:2px solid #007bff;border-radius:12px;'>
 
-                    <h3>🤖 Estrategia Sugerida (IA)</h3>
+                    <h3> Estrategia Sugerida (IA)</h3>
                     <div style='background:#eef6ff;border-left:5px solid #007bff;padding:15px;border-radius:10px;font-size:15px;white-space:pre-wrap;'>{estrategia}</div>
                     """
                 else:
@@ -490,10 +490,10 @@ def index():
                     redimensionar_pdf(path_pdf, output_path, nuevo_ancho, nuevo_alto)
                     output_pdf = True
                 else:
-                    mensaje = "⚠️ Función no implementada para esta acción."
+                    mensaje = "⚠ Función no implementada para esta acción."
 
         except Exception as e:
-            mensaje = f"❌ Error al procesar el archivo: {str(e)}"
+            mensaje = f" Error al procesar el archivo: {str(e)}"
 
     return render_template_string(HTML, mensaje=mensaje, diagnostico=diagnostico, output_pdf=output_pdf)
 
@@ -618,7 +618,7 @@ def diagnosticar_pdf(path):
     def dentro_de_pagina(x0, y0, x1, y1):
         return 0 <= x0 <= page_width and 0 <= y0 <= page_height and 0 <= x1 <= page_width and 0 <= y1 <= page_height
 
-    # 🔍 Vectores visibles
+    #  Vectores visibles
     for d in drawings:
         for item in d.get("items", []):
             if len(item) == 4:
@@ -626,7 +626,7 @@ def diagnosticar_pdf(path):
                 if dentro_de_pagina(x0, y0, x1, y1):
                     objetos_visibles.append((x0, y0, x1, y1))
 
-    # 🖼️ Imágenes visibles
+    #  Imágenes visibles
     for img in first_page.get_images(full=True):
         try:
             bbox = first_page.get_image_bbox(img)
@@ -635,14 +635,14 @@ def diagnosticar_pdf(path):
         except:
             continue
 
-    # ✍️ Bloques de texto visibles
+    #  Bloques de texto visibles
     for bloque in contenido_dict.get("blocks", []):
         if "bbox" in bloque:
             x0, y0, x1, y1 = bloque["bbox"]
             if dentro_de_pagina(x0, y0, x1, y1):
                 objetos_visibles.append((x0, y0, x1, y1))
 
-    # 📏 Calcular área útil visual
+    #  Calcular área útil visual
     objetos_finales = []
     for obj in objetos_visibles:
         x0, y0, x1, y1 = obj
@@ -660,7 +660,7 @@ def diagnosticar_pdf(path):
             grupos[clave] += 1
         medida_util = "; ".join([f"{v} objeto(s) de aprox. {k[0]}×{k[1]} mm" for k, v in grupos.items()])
 
-    # 🧠 DPI de la 1ra imagen
+    #  DPI de la 1ra imagen
     dpi_info = "No se detectaron imágenes rasterizadas."
     image_list = first_page.get_images(full=True)
     if image_list:
@@ -675,7 +675,7 @@ def diagnosticar_pdf(path):
         dpi_info = f"{dpi_x} x {dpi_y} DPI"
 
     resumen = f"""
-📄 Diagnóstico Técnico del PDF:
+ Diagnóstico Técnico del PDF:
 
 1️⃣ Tamaño de página (CropBox): {crop_mm[0]} × {crop_mm[1]} mm
 2️⃣ Área de corte final (TrimBox): {trim_mm[0]} × {trim_mm[1]} mm
@@ -816,7 +816,7 @@ def analizar_grafico_tecnico(path_img):
 
     if lineas_detectadas is not None:
         for linea in lineas_detectadas[:20]:  # Máximo 20 líneas
-            x1, y1, x2, y2 = map(int, linea[0])  # 🔁 conversión a int nativo
+            x1, y1, x2, y2 = map(int, linea[0])  #  conversión a int nativo
             cv2.line(image, (x1, y1), (x2, y2), (0, 0, 255), 2)
             lineas.append({"x1": x1, "y1": y1, "x2": x2, "y2": y2})
 
