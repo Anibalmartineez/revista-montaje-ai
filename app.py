@@ -310,6 +310,19 @@ button[value="analisis_grafico"]:hover {
     });
   });
 </script>
+<script>
+function validarFormulario() {
+  const accion = document.activeElement.value;
+  const archivoGrafico = document.getElementById("grafico");
+
+  if (accion === "analisis_grafico" && (!archivoGrafico.files || archivoGrafico.files.length === 0)) {
+    alert("Debes subir una imagen para análisis gráfico.");
+    return false;
+  }
+  return true;
+}
+</script>
+
 
 
 </body>
@@ -425,6 +438,158 @@ HTML_HABLA_INGLES = """
 </body>
 </html>
 """
+HTML_GRABACION_JS = """
+<!-- HTML y JS para grabar audio en /habla-ingles -->
+<script>
+  let mediaRecorder;
+  let audioChunks = [];
+
+  async function iniciarGrabacion() {
+    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    mediaRecorder = new MediaRecorder(stream);
+
+    mediaRecorder.ondataavailable = event => {
+      if (event.data.size > 0) {
+        audioChunks.push(event.data);
+      }
+    };
+
+    mediaRecorder.onstop = () => {
+      const audioBlob = new Blob(audioChunks, { type: 'audio/mp3' });
+      const formData = new FormData();
+      formData.append('audio', audioBlob, 'grabacion.mp3');
+
+      fetch('/habla-ingles', {
+        method: 'POST',
+        body: formData
+      })
+      .then(res => location.reload())
+      .catch(err => alert('Error al subir el audio'));
+
+      audioChunks = [];
+    };
+
+    mediaRecorder.start();
+    document.getElementById('estado').innerText = ' Grabando...';
+  }
+
+  function detenerGrabacion() {
+    mediaRecorder.stop();
+    document.getElementById('estado').innerText = ' Procesando audio...';
+  }
+</script>
+"""
+
+HTML_HABLA_INGLES = """
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <title>Habla en Inglés – IA Coach</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      background: #f2f9ff;
+      padding: 30px;
+    }
+    .container {
+      max-width: 700px;
+      margin: auto;
+      background: white;
+      padding: 30px;
+      border-radius: 14px;
+      box-shadow: 0 0 20px rgba(0,0,0,0.1);
+    }
+    h1 {
+      text-align: center;
+      color: #0077cc;
+    }
+    input[type="file"], button {
+      margin: 20px 0;
+      padding: 12px;
+      font-size: 16px;
+    }
+    .box {
+      background: #eef4ff;
+      padding: 15px;
+      border-left: 4px solid #0077cc;
+      margin-top: 20px;
+      white-space: pre-wrap;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>&#127908; Habla en Inglés con IA</h1>
+    <p>Subí un archivo de voz en inglés (.mp3) o grabá directamente desde el navegador. Te diremos qué tan bien estás hablando y cómo mejorar.</p>
+
+    <form method="post" enctype="multipart/form-data">
+      <input type="file" name="audio" accept=".mp3">
+      <br>
+      <button type="submit">&#128228; Subir y Analizar</button>
+    </form>
+
+    <div style="text-align:center; margin-top: 30px;">
+      <button onclick="iniciarGrabacion()">🎙️ Iniciar Grabación</button>
+      <button onclick="detenerGrabacion()">🛑 Detener y Analizar</button>
+      <p id="estado" style="color:#0077cc; margin-top:10px;"></p>
+    </div>
+
+    {% if mensaje %}
+      <div class="box" style="color:red">{{ mensaje }}</div>
+    {% endif %}
+
+    {% if transcripcion %}
+      <div class="box"><strong>📝 Transcripción IA:</strong><br>{{ transcripcion }}</div>
+    {% endif %}
+
+    {% if analisis %}
+      <div class="box"><strong>🧠 Análisis del Habla:</strong><br>{{ analisis }}</div>
+    {% endif %}
+  </div>
+
+  <script>
+    let mediaRecorder;
+    let audioChunks = [];
+
+    async function iniciarGrabacion() {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      mediaRecorder = new MediaRecorder(stream);
+
+      mediaRecorder.ondataavailable = event => {
+        if (event.data.size > 0) {
+          audioChunks.push(event.data);
+        }
+      };
+
+      mediaRecorder.onstop = () => {
+        const audioBlob = new Blob(audioChunks, { type: 'audio/mp3' });
+        const formData = new FormData();
+        formData.append('audio', audioBlob, 'grabacion.mp3');
+
+        fetch('/habla-ingles', {
+          method: 'POST',
+          body: formData
+        })
+        .then(res => location.reload())
+        .catch(err => alert('Error al subir el audio'));
+
+        audioChunks = [];
+      };
+
+      mediaRecorder.start();
+      document.getElementById('estado').innerText = ' Grabando...';
+    }
+
+    function detenerGrabacion() {
+      mediaRecorder.stop();
+      document.getElementById('estado').innerText = ' Procesando audio...';
+    }
+  </script>
+</body>
+</html>
+"""
+
 
 
 
@@ -918,52 +1083,7 @@ Texto: "{transcripcion}"
     return render_template_string(HTML_HABLA_INGLES, mensaje=mensaje, transcripcion=transcripcion, analisis=analisis)
 
 
-# HTML y JS para grabar audio en /habla-ingles
-<script>
-let mediaRecorder;
-let audioChunks = [];
 
-async function iniciarGrabacion() {
-  const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-  mediaRecorder = new MediaRecorder(stream);
-
-  mediaRecorder.ondataavailable = event => {
-    if (event.data.size > 0) {
-      audioChunks.push(event.data);
-    }
-  };
-
-  mediaRecorder.onstop = () => {
-    const audioBlob = new Blob(audioChunks, { type: 'audio/mp3' });
-    const formData = new FormData();
-    formData.append('audio', audioBlob, 'grabacion.mp3');
-
-    fetch('/habla-ingles', {
-      method: 'POST',
-      body: formData
-    })
-    .then(res => location.reload())
-    .catch(err => alert('Error al subir el audio'));
-
-    audioChunks = [];
-  };
-
-  mediaRecorder.start();
-  document.getElementById('estado').innerText = ' Grabando...';
-}
-
-function detenerGrabacion() {
-  mediaRecorder.stop();
-  document.getElementById('estado').innerText = ' Procesando audio...';
-}
-</script>
-
-<!-- Botones HTML -->
-<div style="margin-top: 30px; text-align: center;">
-  <button onclick="iniciarGrabacion()"> Iniciar Grabación</button>
-  <button onclick="detenerGrabacion()"> Detener y Analizar</button>
-  <p id="estado" style="margin-top: 10px; color: #0077cc;"></p>
-</div>
 
 
 
