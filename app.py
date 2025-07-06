@@ -1099,20 +1099,30 @@ Texto: "{transcripcion}"
 
 
 
+# Historial de conversación en memoria
+chat_historial = []
+
 @app.route("/simular_conversacion", methods=["GET", "POST"])
 def simular_conversacion():
+    global historial_chat
     respuesta = ""
+
     if request.method == "POST":
         pregunta = request.form.get("pregunta")
         if pregunta:
-            respuesta_openai = client.chat.completions.create(
-                model="gpt-4",
-                messages=[
-                    {"role": "system", "content": "Simulá una conversación informal en inglés con un humano. Respondé de forma breve, natural y amistosa, como si fueras un compañero de charla."},
-                    {"role": "user", "content": pregunta}
-                ]
-            )
-            respuesta = respuesta_openai.choices[0].message.content
+            historial_chat.append({"role": "user", "content": pregunta})
+
+            try:
+                respuesta_openai = client.chat.completions.create(
+                    model="gpt-4o",
+                    messages=[{"role": "system", "content": "Simulá una conversación informal en inglés con un humano. Respondé de forma breve, natural y amistosa, como si fueras un compañero de charla."}] + historial_chat
+                )
+                respuesta = respuesta_openai.choices[0].message.content
+                historial_chat.append({"role": "assistant", "content": respuesta})
+
+            except Exception as e:
+                respuesta = f"[ERROR] No se pudo generar respuesta: {str(e)}"
+
     return render_template_string("""
     <!DOCTYPE html>
     <html lang="es">
@@ -1151,14 +1161,24 @@ def simular_conversacion():
                 font-size: 16px;
                 cursor: pointer;
             }
-            .respuesta {
-                margin-top: 20px;
+            .chat-box {
+                margin-top: 25px;
+                background: #eef4ff;
                 padding: 15px;
-                background: #e1f3e1;
-                border-left: 5px solid #2e8b57;
-                border-radius: 10px;
-                font-size: 17px;
-                color: #333;
+                border-radius: 12px;
+                max-height: 400px;
+                overflow-y: auto;
+            }
+            .user {
+                color: #004aad;
+                font-weight: bold;
+            }
+            .ai {
+                color: #2e8b57;
+                font-weight: bold;
+            }
+            .mensaje {
+                margin-bottom: 10px;
             }
         </style>
     </head>
@@ -1168,17 +1188,27 @@ def simular_conversacion():
             <form method="POST">
                 <label>Escribí algo como si estuvieras hablando con un amigo en inglés:</label>
                 <textarea name="pregunta" required></textarea>
-                <button type="submit">Enviar y Simular</button>
+                <button type="submit">Enviar</button>
             </form>
-            {% if respuesta %}
-                <div class="respuesta">
-                    <strong>Respuesta:</strong><br>{{ respuesta }}
-                </div>
-            {% endif %}
+
+            <div class="chat-box">
+                {% for entrada in historial %}
+                    <div class="mensaje">
+                        <span class="{{ 'user' if entrada.role == 'user' else 'ai' }}">{{ entrada.role|capitalize }}:</span>
+                        {{ entrada.content }}
+                    </div>
+                {% endfor %}
+            </div>
         </div>
     </body>
     </html>
-    """, respuesta=respuesta)
+    """, historial=historial_chat)
+@app.route("/resetear_chat")
+def resetear_chat():
+    global historial_chat
+    historial_chat = []
+    return redirect("/simular_conversacion")
+
 
 
 
