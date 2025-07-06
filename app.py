@@ -8,7 +8,8 @@ import os
 from werkzeug.utils import secure_filename
 
 # Cliente OpenAI moderno
-client = openai.OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+openai.api_key = os.environ["OPENAI_API_KEY"]
+
 
 app = Flask(__name__)
 UPLOAD_FOLDER = "uploads"
