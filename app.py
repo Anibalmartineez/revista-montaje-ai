@@ -890,14 +890,14 @@ def habla_ingles():
         audio = request.files.get("audio")
         if audio and audio.filename.endswith(".mp3"):
             try:
-                # 🧠 Transcripción con Whisper
+                #  Transcripción con Whisper
                 transcript = client.audio.transcriptions.create(
                     model="whisper-1",
                     file=audio
                 )
                 transcripcion = transcript.text
 
-                # 🧠 Análisis del inglés con GPT-4o
+                #  Análisis del inglés con GPT-4o
                 prompt = f"""
 El siguiente texto fue hablado por un estudiante de inglés. Analiza su nivel de pronunciación y gramática (en base al texto transcrito), y sugiere cómo podría mejorar. Sé claro, breve y amable. También indica el nivel estimado (A1, B1, C1, etc).
 
@@ -911,9 +911,9 @@ Texto: "{transcripcion}"
                 analisis = respuesta.choices[0].message.content
 
             except Exception as e:
-                mensaje = f"❌ Error al procesar audio: {str(e)}"
+                mensaje = f" Error al procesar audio: {str(e)}"
         else:
-            mensaje = "❗ Por favor, subí un archivo .mp3 válido."
+            mensaje = " Por favor, subí un archivo .mp3 válido."
 
     return render_template_string(HTML_HABLA_INGLES, mensaje=mensaje, transcripcion=transcripcion, analisis=analisis)
 
@@ -949,19 +949,19 @@ async function iniciarGrabacion() {
   };
 
   mediaRecorder.start();
-  document.getElementById('estado').innerText = '🎙️ Grabando...';
+  document.getElementById('estado').innerText = ' Grabando...';
 }
 
 function detenerGrabacion() {
   mediaRecorder.stop();
-  document.getElementById('estado').innerText = '⏳ Procesando audio...';
+  document.getElementById('estado').innerText = ' Procesando audio...';
 }
 </script>
 
 <!-- Botones HTML -->
 <div style="margin-top: 30px; text-align: center;">
-  <button onclick="iniciarGrabacion()">🎤 Iniciar Grabación</button>
-  <button onclick="detenerGrabacion()">🛑 Detener y Analizar</button>
+  <button onclick="iniciarGrabacion()"> Iniciar Grabación</button>
+  <button onclick="detenerGrabacion()"> Detener y Analizar</button>
   <p id="estado" style="margin-top: 10px; color: #0077cc;"></p>
 </div>
 
