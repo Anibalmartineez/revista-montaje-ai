@@ -1099,6 +1099,86 @@ Texto: "{transcripcion}"
 
 
 
+@app.route("/simular_conversacion", methods=["GET", "POST"])
+def simular_conversacion():
+    respuesta = ""
+    if request.method == "POST":
+        pregunta = request.form.get("pregunta")
+        if pregunta:
+            respuesta_openai = client.chat.completions.create(
+                model="gpt-4",
+                messages=[
+                    {"role": "system", "content": "Simulá una conversación informal en inglés con un humano. Respondé de forma breve, natural y amistosa, como si fueras un compañero de charla."},
+                    {"role": "user", "content": pregunta}
+                ]
+            )
+            respuesta = respuesta_openai.choices[0].message.content
+    return render_template_string("""
+    <!DOCTYPE html>
+    <html lang="es">
+    <head>
+        <meta charset="UTF-8">
+        <title>Simular Conversación en Inglés</title>
+        <style>
+            body {
+                font-family: Arial, sans-serif;
+                background: #f4f8fc;
+                padding: 20px;
+            }
+            .box {
+                max-width: 700px;
+                background: white;
+                padding: 30px;
+                border-radius: 15px;
+                box-shadow: 0 0 30px rgba(0,0,0,0.1);
+                margin: auto;
+            }
+            textarea {
+                width: 100%;
+                height: 120px;
+                font-size: 16px;
+                padding: 10px;
+                border: 2px solid #ccc;
+                border-radius: 10px;
+            }
+            button {
+                margin-top: 15px;
+                background: #004aad;
+                color: white;
+                border: none;
+                padding: 12px 20px;
+                border-radius: 10px;
+                font-size: 16px;
+                cursor: pointer;
+            }
+            .respuesta {
+                margin-top: 20px;
+                padding: 15px;
+                background: #e1f3e1;
+                border-left: 5px solid #2e8b57;
+                border-radius: 10px;
+                font-size: 17px;
+                color: #333;
+            }
+        </style>
+    </head>
+    <body>
+        <div class="box">
+            <h2>🗣️ Simular Conversación en Inglés</h2>
+            <form method="POST">
+                <label>Escribí algo como si estuvieras hablando con un amigo en inglés:</label>
+                <textarea name="pregunta" required></textarea>
+                <button type="submit">Enviar y Simular</button>
+            </form>
+            {% if respuesta %}
+                <div class="respuesta">
+                    <strong>Respuesta:</strong><br>{{ respuesta }}
+                </div>
+            {% endif %}
+        </div>
+    </body>
+    </html>
+    """, respuesta=respuesta)
 
 
 
