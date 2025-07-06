@@ -8,7 +8,8 @@ import os
 from werkzeug.utils import secure_filename
 
 # Cliente OpenAI moderno
-client = openai.OpenAI(api_key=os.environ["OPENAI_API_KEY"])
+openai.api_key = os.environ["OPENAI_API_KEY"]
+
 
 
 app = Flask(__name__)
@@ -958,7 +959,7 @@ Please reply naturally in English. After your answer, explain briefly any errors
 """
 
         try:
-            completado = client.chat.completions.create(
+            completado = openai.ChatCompletion.create(
                 model="gpt-4o",
                 messages=[{"role": "user", "content": prompt}]
             )
