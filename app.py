@@ -239,12 +239,26 @@ button[value="analisis_grafico"]:hover {
       </div>
 
       <!-- Botones de acción -->
-      <button name='action' value='montar'> Montar Revista</button>
-      <button name='action' value='diagnostico'> Diagnóstico Técnico (IA)</button>
-      <button name='action' value='corregir_sangrado'> Corregir Márgenes y Sangrado</button>
-      <button name='action' value='redimensionar'> Redimensionar PDF</button>
-      <button name='action' value='analisis_grafico'> Analizar Gráfico Técnico</button>
-    </form>
+<button name='action' value='montar'>Montar Revista</button>
+<button name='action' value='diagnostico'>Diagnóstico Técnico (IA)</button>
+<button name='action' value='corregir_sangrado'>Corregir Márgenes y Sangrado</button>
+<button name='action' value='redimensionar'>Redimensionar PDF</button>
+<button name='action' value='analisis_grafico'>Analizar Gráfico Técnico</button>
+</form>
+
+<!-- Botones de acceso externo -->
+<a href="https://creativactp.com/habla-en-ingles-con-ia/" target="_blank">
+  <button style="background-color: #1e90ff; color: white; padding: 12px 25px; margin-top: 15px; border: none; border-radius: 8px; font-size: 16px; width: 100%;">
+    🎤 Hablar en Inglés con IA
+  </button>
+</a>
+
+<a href="https://creativactp.com/simular-conversacion-en-ingles/" target="_blank">
+  <button style="background-color: #00b894; color: white; padding: 12px 25px; margin-top: 10px; border: none; border-radius: 8px; font-size: 16px; width: 100%;">
+    🗣️ Simular Conversación en Inglés
+  </button>
+</a>
+
 
     {% if mensaje %}
       <p class="mensaje">{{ mensaje }}</p>
