@@ -355,19 +355,19 @@ HTML_HABLA_INGLES = """
 </head>
 <body>
   <div class="container">
-    <h1>🎤 Habla en Inglés con IA</h1>
+    <h1>&#127908; Habla en Inglés con IA</h1>
     <p>Subí un archivo de voz en inglés (.mp3) o grabá directamente desde el navegador. Te diremos qué tan bien estás hablando y cómo mejorar.</p>
 
     <form method="post" enctype="multipart/form-data">
       <input type="file" name="audio" accept=".mp3">
       <br>
-      <button type="submit">📤 Subir y Analizar</button>
+      <button type="submit">&#128228; Subir y Analizar</button>
     </form>
 
     <!-- Grabador de audio -->
     <div style="text-align:center; margin-top: 30px;">
-      <button onclick="iniciarGrabacion()">🎙️ Iniciar Grabación</button>
-      <button onclick="detenerGrabacion()">🛑 Detener y Analizar</button>
+      <button onclick="iniciarGrabacion()">&#127908; Iniciar Grabación</button>
+      <button onclick="detenerGrabacion()">&#128721; Detener y Analizar</button>
       <p id="estado" style="color:#0077cc; margin-top:10px;"></p>
     </div>
 
@@ -376,11 +376,11 @@ HTML_HABLA_INGLES = """
     {% endif %}
 
     {% if transcripcion %}
-      <div class="box"><strong>📝 Transcripción IA:</strong><br>{{ transcripcion }}</div>
+      <div class="box"><strong>&#128221; Transcripción IA:</strong><br>{{ transcripcion }}</div>
     {% endif %}
 
     {% if analisis %}
-      <div class="box"><strong>🧠 Análisis del Habla:</strong><br>{{ analisis }}</div>
+      <div class="box"><strong>&#129504; Análisis del Habla:</strong><br>{{ analisis }}</div>
     {% endif %}
   </div>
 
@@ -425,6 +425,7 @@ HTML_HABLA_INGLES = """
 </body>
 </html>
 """
+
 
 
 
