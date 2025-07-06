@@ -918,7 +918,7 @@ Texto: "{transcripcion}"
     return render_template_string(HTML_HABLA_INGLES, mensaje=mensaje, transcripcion=transcripcion, analisis=analisis)
 
 
-<!-- HTML y JS para grabar audio en /habla-ingles -->
+# HTML y JS para grabar audio en /habla-ingles
 <script>
 let mediaRecorder;
 let audioChunks = [];
