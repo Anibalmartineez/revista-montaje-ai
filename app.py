@@ -233,7 +233,7 @@ button[value="analisis_grafico"]:hover {
       <!-- Selector modo montaje -->
       <div id="grupo-montaje">
         <select name="modo_montaje" id="modo_montaje" required style="padding: 12px; border-radius: 10px; border: 2px solid #ccc; font-size: 15px; width: 100%;">
-          <option value="4" selected>🗞 Montaje 4 páginas por cara (revista cosido a caballete)</option>
+          <option value="4" selected> Montaje 4 páginas por cara (revista cosido a caballete)</option>
           <option value="2"> Montaje 2 páginas por cara (libro frente/dorso)</option>
         </select>
       </div>
@@ -241,7 +241,7 @@ button[value="analisis_grafico"]:hover {
       <!-- Botones de acción -->
       <button name='action' value='montar'> Montar Revista</button>
       <button name='action' value='diagnostico'> Diagnóstico Técnico (IA)</button>
-      <button name='action' value='corregir_sangrado'>✂ Corregir Márgenes y Sangrado</button>
+      <button name='action' value='corregir_sangrado'> Corregir Márgenes y Sangrado</button>
       <button name='action' value='redimensionar'> Redimensionar PDF</button>
       <button name='action' value='analisis_grafico'> Analizar Gráfico Técnico</button>
     </form>
