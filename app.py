@@ -1062,7 +1062,7 @@ User's message: "{texto_usuario}"
 Please reply naturally in English. After your answer, explain briefly any errors or improvements in Spanish.
         """
 
-        try:
+try:
     completado = openai.ChatCompletion.create(
         model="gpt-4o",
         messages=[
