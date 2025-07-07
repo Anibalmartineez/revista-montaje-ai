@@ -496,61 +496,126 @@ HTML_GRABACION_JS = """
 </script>
 """
 HTML_SIMULA_INGLES = """
-<!doctype html>
+<!DOCTYPE html>
 <html lang="es">
 <head>
   <meta charset="UTF-8">
-  <title>Simulador de Conversación en Inglés</title>
+  <title>🧠 Simulador de Conversación en Inglés</title>
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600&display=swap" rel="stylesheet">
   <style>
     body {
-      font-family: Arial, sans-serif;
-      background: #f5f9ff;
-      padding: 30px;
+      background: #f0f4ff;
+      font-family: 'Poppins', sans-serif;
+      margin: 0;
+      padding: 0;
     }
-    .container {
+    .chat-container {
       max-width: 700px;
-      margin: auto;
-      background: white;
+      margin: 50px auto;
+      background: #ffffff;
+      border-radius: 12px;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.1);
       padding: 30px;
-      border-radius: 14px;
-      box-shadow: 0 0 20px rgba(0,0,0,0.1);
     }
-    textarea, input[type="text"], button {
-      width: 100%;
-      margin: 10px 0;
+    h1 {
+      text-align: center;
+      font-size: 26px;
+      margin-bottom: 20px;
+      color: #333;
+    }
+    form {
+      display: flex;
+      flex-direction: column;
+    }
+    textarea, input[type="text"] {
+      font-family: 'Poppins', sans-serif;
       padding: 12px;
-      font-size: 16px;
+      margin-bottom: 15px;
+      border: 1px solid #ddd;
+      border-radius: 8px;
+      font-size: 15px;
+      resize: vertical;
     }
-    .respuesta {
-      background: #eef4ff;
-      padding: 15px;
-      border-left: 4px solid #0077cc;
-      margin-top: 20px;
+    button {
+      background: #007bff;
+      color: white;
+      border: none;
+      padding: 12px;
+      border-radius: 8px;
+      font-size: 16px;
+      cursor: pointer;
+      transition: 0.3s ease;
+    }
+    button:hover {
+      background: #0056b3;
+    }
+    .bubble {
+      padding: 14px;
+      margin: 12px 0;
+      border-radius: 14px;
+      max-width: 90%;
+      line-height: 1.6;
       white-space: pre-wrap;
+    }
+    .user-msg {
+      background: #dcf8c6;
+      align-self: flex-end;
+      margin-left: auto;
+    }
+    .ia-msg {
+      background: #e6ecf4;
+      align-self: flex-start;
+    }
+    .chat-box {
+      display: flex;
+      flex-direction: column;
+    }
+    .typing {
+      font-style: italic;
+      color: gray;
+      margin-left: 5px;
     }
   </style>
 </head>
 <body>
-  <div class="container">
+  <div class="chat-container">
     <h1>🧠 Simulador de Conversación en Inglés</h1>
-    <p>Escribí algo en inglés y la IA responderá de forma natural. Luego te explicará brevemente tus errores o cómo mejorar.</p>
-    <form method="POST">
-      <label for="contexto">Contexto (opcional):</label>
-      <input type="text" name="contexto" placeholder="Conversación general" value="{{ contexto }}">
-      
-      <label for="texto">Tu mensaje en inglés:</label>
-      <textarea name="texto" rows="4" placeholder="Hello, how are you?">{{ texto_usuario }}</textarea>
-      
+    <form method="post">
+      <label><strong>Contexto (opcional):</strong></label>
+      <input type="text" name="contexto" value="{{ contexto or '' }}" placeholder="Conversación general">
+
+      <label><strong>Tu mensaje en inglés:</strong></label>
+      <textarea name="texto" rows="4" placeholder="Escribí algo en inglés o español...">{{ texto_usuario or '' }}</textarea>
+
       <button type="submit">Enviar</button>
     </form>
 
-    {% if respuesta %}
-      <div class="respuesta"><strong>IA:</strong><br>{{ respuesta }}</div>
+    {% if texto_usuario %}
+    <div class="chat-box">
+      <div class="bubble user-msg">🧑 {{ texto_usuario }}</div>
+      <div class="bubble ia-msg" id="iaRespuesta">🤖 {{ respuesta }}</div>
+    </div>
     {% endif %}
   </div>
+
+  <script>
+    // Simular animación de respuesta
+    const iaBubble = document.getElementById("iaRespuesta");
+    if (iaBubble) {
+      const fullText = iaBubble.textContent;
+      iaBubble.textContent = "";
+      let index = 0;
+      const interval = setInterval(() => {
+        iaBubble.textContent += fullText.charAt(index);
+        index++;
+        if (index >= fullText.length) clearInterval(interval);
+      }, 10);  // Velocidad de tipeo
+    }
+  </script>
 </body>
 </html>
 """
+
 
 
 
