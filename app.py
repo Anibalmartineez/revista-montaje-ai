@@ -1055,12 +1055,27 @@ def simular_conversacion():
     respuesta_ia = ""
 
     if texto_usuario:
+        prompt = f"""
+Act as a friendly English tutor for a Spanish-speaking learner. 
+Your goal is to simulate a natural, useful conversation in English, based on the context: "{contexto}".
+
+The student says (in Spanish or broken English): "{texto_usuario}"
+
+Your response should follow this structure:
+
+1. Answer naturally in English as if in a real-life situation.
+2. Add the translation of your response in Spanish below.
+3. If the user's sentence had mistakes, explain them briefly at the end.
+4. Encourage the student to continue the conversation with a question or comment.
+
+Keep it simple, friendly and practical. Don't sound like a robot.
+"""
+
         try:
             completado = openai.ChatCompletion.create(
                 model="gpt-4o",
                 messages=[
-                    {"role": "system", "content": f"You are an English conversation partner for a Spanish-speaking learner. Simulate a realistic conversation in English under the context: '{contexto}'. Please reply naturally in English. After your answer, explain briefly any errors or improvements in Spanish."},
-                    {"role": "user", "content": texto_usuario}
+                    {"role": "system", "content": prompt}
                 ]
             )
             respuesta_ia = completado.choices[0].message["content"]
@@ -1071,6 +1086,7 @@ def simular_conversacion():
                                   texto_usuario=texto_usuario,
                                   contexto=contexto,
                                   respuesta=respuesta_ia)
+
 
 
 
