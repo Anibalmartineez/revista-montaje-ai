@@ -1063,13 +1063,16 @@ Please reply naturally in English. After your answer, explain briefly any errors
         """
 
         try:
-            completado = client.chat.completions.create(
-                model="gpt-4o",
-                messages=[{"role": "user", "content": prompt}]
-            )
-            respuesta_ia = completado.choices[0].message.content
-        except Exception as e:
-            respuesta_ia = f"[ERROR] No se pudo generar respuesta: {str(e)}"
+    completado = openai.ChatCompletion.create(
+        model="gpt-4o",
+        messages=[
+            {"role": "system", "content": f"You are an English conversation partner for a Spanish-speaking learner. Simulate a realistic conversation in English under the context: '{contexto}'. Please reply naturally in English. After your answer, explain briefly any errors or improvements in Spanish."},
+            {"role": "user", "content": texto_usuario}
+        ]
+    )
+    respuesta_ia = completado.choices[0].message["content"]
+except Exception as e:
+    respuesta_ia = f"[ERROR] No se pudo generar respuesta: {str(e)}"
 
     return render_template_string(HTML_SIMULA_INGLES,
                                   texto_usuario=texto_usuario,
