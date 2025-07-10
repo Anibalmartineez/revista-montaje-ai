@@ -618,11 +618,15 @@ HTML_SIMULA_INGLES = """
     </div>
 
     <form method="POST" onsubmit="scrollToBottom()">
-      <input type="hidden" name="modo" id="modo" value="{{ contexto }}">
-      <textarea name="texto" rows="3" placeholder="Escribí algo en inglés o español..." required>{{ texto_usuario }}</textarea>
-      <button type="submit" class="enviar">💬 Enviar</button>
-      <button type="button" class="reset" onclick="resetChat()">🗑️ Reset</button>
-    </form>
+  <input type="hidden" name="modo" id="modo" value="{{ contexto }}">
+  <textarea name="texto" rows="3" placeholder="Escribí algo en inglés o español..." required>{{ texto_usuario }}</textarea>
+  <button type="submit" class="enviar">💬 Enviar</button>
+</form>
+
+<form method="GET" action="/reset-chat" style="margin-top: 10px;">
+  <button class="reset-btn" type="submit">🗑️ Reset</button>
+</form>
+
 
     <div id="chat-history">
       {{ historial|safe }}
@@ -1211,6 +1215,11 @@ End with a natural question or comment to keep the conversation going.
 
 
 
+@app.route("/reset-chat")
+def reset_chat():
+    global chat_historial
+    chat_historial = []
+    return redirect("/simula-ingles")
 
 
 
