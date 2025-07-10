@@ -502,7 +502,7 @@ HTML_SIMULA_INGLES = """
 <html lang="es">
 <head>
   <meta charset="UTF-8">
-  <title>🧠 Simulador de Conversación en Inglés</title>
+  <title>🗣️ Simulador de Conversación en Inglés</title>
   <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600&display=swap" rel="stylesheet">
   <style>
     body {
@@ -516,122 +516,147 @@ HTML_SIMULA_INGLES = """
       margin: 50px auto;
       background: #ffffff;
       border-radius: 12px;
-      box-shadow: 0 4px 20px rgba(0,0,0,0.1);
+      box-shadow: 0 0 20px rgba(0,0,0,0.1);
       padding: 30px;
     }
     h1 {
       text-align: center;
       font-size: 26px;
       margin-bottom: 20px;
-      color: #333;
-    }
-    form {
-      display: flex;
-      flex-direction: column;
-    }
-    textarea, input[type="text"] {
-      font-family: 'Poppins', sans-serif;
-      padding: 12px;
-      margin-bottom: 15px;
-      border: 1px solid #ddd;
-      border-radius: 8px;
-      font-size: 15px;
-      resize: vertical;
-    }
-    button {
-      background: #007bff;
-      color: white;
-      border: none;
-      padding: 12px;
-      border-radius: 8px;
-      font-size: 16px;
-      cursor: pointer;
-      transition: 0.3s ease;
-    }
-    button:hover {
-      background: #0056b3;
-    }
-    .bubble {
-      padding: 14px;
-      margin: 12px 0;
-      border-radius: 14px;
-      max-width: 90%;
-      line-height: 1.6;
-      white-space: pre-wrap;
-    }
-    .user-msg {
-      background: #dcf8c6;
-      align-self: flex-end;
-      margin-left: auto;
-    }
-    .ia-msg {
-      background: #e6ecf4;
-      align-self: flex-start;
-    }
-    .chat-box {
-      display: flex;
-      flex-direction: column;
-      gap: 8px;
-      margin-bottom: 20px;
     }
     .modo-buttons {
       display: flex;
       flex-wrap: wrap;
       gap: 10px;
+      justify-content: center;
       margin-bottom: 20px;
     }
     .modo-buttons button {
-      flex-grow: 1;
+      padding: 10px 16px;
       font-size: 14px;
-      padding: 10px 14px;
-      background-color: #6c5ce7;
+      border: none;
+      border-radius: 20px;
+      cursor: pointer;
+      background: #805dff;
+      color: white;
+      transition: transform 0.2s;
     }
     .modo-buttons button:hover {
-      background-color: #5a4cd1;
+      transform: scale(1.05);
+      background: #6949d1;
+    }
+    form {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      margin-top: 20px;
+    }
+    textarea {
+      padding: 12px;
+      font-size: 15px;
+      border-radius: 8px;
+      border: 1px solid #ccc;
+      resize: none;
+    }
+    button.enviar {
+      background: #007bff;
+      color: white;
+      font-weight: bold;
+      border: none;
+      border-radius: 8px;
+      padding: 10px;
+      cursor: pointer;
+      transition: 0.3s;
+    }
+    button.enviar:hover {
+      background: #0056b3;
+    }
+    button.reset {
+      background: #dc3545;
+      color: white;
+      border: none;
+      border-radius: 8px;
+      padding: 8px 12px;
+      cursor: pointer;
+      font-size: 13px;
+    }
+    #respuesta, #chat-history {
+      margin-top: 25px;
+    }
+    .bubble {
+      border-radius: 12px;
+      padding: 12px;
+      margin-bottom: 10px;
+      max-width: 80%;
+      animation: fadeIn 0.3s ease-in-out;
+    }
+    .user-msg {
+      background: #dbeafe;
+      align-self: flex-end;
+    }
+    .ia-msg {
+      background: #e7fce4;
+      align-self: flex-start;
+    }
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(10px); }
+      to { opacity: 1; transform: translateY(0); }
     }
   </style>
 </head>
 <body>
   <div class="chat-container">
     <h1>🧠 Simulador de Conversación en Inglés</h1>
+    
+    <div class="modo-buttons">
+      <button type="button" onclick="setModo('turismo')">🧳 Turismo</button>
+      <button type="button" onclick="setModo('negocios')">💼 Negocios</button>
+      <button type="button" onclick="setModo('entrevista')">📋 Entrevista</button>
+      <button type="button" onclick="setModo('educacion')">📚 Educación</button>
+      <button type="button" onclick="setModo('vocabulario')">🧠 Vocabulario</button>
+      <button type="button" onclick="setModo('quiz')">🎯 Mini Quiz</button>
+    </div>
 
-    <!-- Historial de conversación -->
-    <div class="chat-box">
+    <form method="POST" onsubmit="scrollToBottom()">
+      <input type="hidden" name="modo" id="modo" value="{{ contexto }}">
+      <textarea name="texto" rows="3" placeholder="Escribí algo en inglés o español..." required>{{ texto_usuario }}</textarea>
+      <button type="submit" class="enviar">💬 Enviar</button>
+      <button type="button" class="reset" onclick="resetChat()">🗑️ Reset</button>
+    </form>
+
+    <div id="chat-history">
       {{ historial|safe }}
     </div>
 
-    <!-- Formulario -->
-    <form method="post">
-      <label><strong>Elegí el modo de práctica:</strong></label>
-      <div class="modo-buttons">
-        <button type="button" onclick="setModo('turismo')">🧳 Turismo</button>
-        <button type="button" onclick="setModo('negocios')">📊 Negocios</button>
-        <button type="button" onclick="setModo('entrevista')">💼 Entrevista</button>
-        <button type="button" onclick="setModo('educacion')">🏫 Educación</button>
-        <button type="button" onclick="setModo('vocabulario')">🧠 Vocabulario</button>
-        <button type="button" onclick="setModo('quiz')">🎯 Mini Quiz</button>
-      </div>
-
-      <!-- Input oculto con el modo seleccionado -->
-      <input type="hidden" name="modo" id="modo">
-
-      <label><strong>Tu mensaje (español o inglés):</strong></label>
-      <textarea name="texto" rows="4" placeholder="Escribí algo en inglés o español...">{{ texto_usuario or '' }}</textarea>
-
-      <button type="submit">💬 Enviar</button>
-    </form>
+    <div id="respuesta">
+      {{ respuesta|safe }}
+    </div>
   </div>
 
-  <!-- Script para capturar el modo elegido -->
   <script>
-    function setModo(valor) {
-      document.getElementById("modo").value = valor;
-      document.querySelector("form").submit();
+    function setModo(m) {
+      document.getElementById('modo').value = m;
+    }
+
+    function resetChat() {
+      document.querySelector('textarea').value = "";
+      document.getElementById('chat-history').innerHTML = "";
+      document.getElementById('respuesta').innerHTML = "";
+    }
+
+    function scrollToBottom() {
+      setTimeout(() => {
+        window.scrollTo({
+          top: document.body.scrollHeight,
+          behavior: 'smooth'
+        });
+      }, 100);
     }
   </script>
 </body>
 </html>
 """
+
 
 
 
