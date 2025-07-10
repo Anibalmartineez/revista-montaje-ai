@@ -6,6 +6,8 @@ import fitz  # PyMuPDF
 import openai
 import os
 from werkzeug.utils import secure_filename
+chat_historial = []
+
 
 # Cliente OpenAI moderno
 openai.api_key = os.environ["OPENAI_API_KEY"]
@@ -569,52 +571,68 @@ HTML_SIMULA_INGLES = """
     .chat-box {
       display: flex;
       flex-direction: column;
+      gap: 8px;
+      margin-bottom: 20px;
     }
-    .typing {
-      font-style: italic;
-      color: gray;
-      margin-left: 5px;
+    .modo-buttons {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      margin-bottom: 20px;
+    }
+    .modo-buttons button {
+      flex-grow: 1;
+      font-size: 14px;
+      padding: 10px 14px;
+      background-color: #6c5ce7;
+    }
+    .modo-buttons button:hover {
+      background-color: #5a4cd1;
     }
   </style>
 </head>
 <body>
   <div class="chat-container">
     <h1>🧠 Simulador de Conversación en Inglés</h1>
-    <form method="post">
-      <label><strong>Contexto (opcional):</strong></label>
-      <input type="text" name="contexto" value="{{ contexto or '' }}" placeholder="Conversación general">
 
-      <label><strong>Tu mensaje en inglés:</strong></label>
+    <!-- Historial de conversación -->
+    <div class="chat-box">
+      {{ historial|safe }}
+    </div>
+
+    <!-- Formulario -->
+    <form method="post">
+      <label><strong>Elegí el modo de práctica:</strong></label>
+      <div class="modo-buttons">
+        <button type="button" onclick="setModo('turismo')">🧳 Turismo</button>
+        <button type="button" onclick="setModo('negocios')">📊 Negocios</button>
+        <button type="button" onclick="setModo('entrevista')">💼 Entrevista</button>
+        <button type="button" onclick="setModo('educacion')">🏫 Educación</button>
+        <button type="button" onclick="setModo('vocabulario')">🧠 Vocabulario</button>
+        <button type="button" onclick="setModo('quiz')">🎯 Mini Quiz</button>
+      </div>
+
+      <!-- Input oculto con el modo seleccionado -->
+      <input type="hidden" name="modo" id="modo">
+
+      <label><strong>Tu mensaje (español o inglés):</strong></label>
       <textarea name="texto" rows="4" placeholder="Escribí algo en inglés o español...">{{ texto_usuario or '' }}</textarea>
 
-      <button type="submit">Enviar</button>
+      <button type="submit">💬 Enviar</button>
     </form>
-
-    {% if texto_usuario %}
-    <div class="chat-box">
-      <div class="bubble user-msg">🧑 {{ texto_usuario }}</div>
-      <div class="bubble ia-msg" id="iaRespuesta">🤖 {{ respuesta }}</div>
-    </div>
-    {% endif %}
   </div>
 
+  <!-- Script para capturar el modo elegido -->
   <script>
-    // Simular animación de respuesta
-    const iaBubble = document.getElementById("iaRespuesta");
-    if (iaBubble) {
-      const fullText = iaBubble.textContent;
-      iaBubble.textContent = "";
-      let index = 0;
-      const interval = setInterval(() => {
-        iaBubble.textContent += fullText.charAt(index);
-        index++;
-        if (index >= fullText.length) clearInterval(interval);
-      }, 10);  // Velocidad de tipeo
+    function setModo(valor) {
+      document.getElementById("modo").value = valor;
+      document.querySelector("form").submit();
     }
   </script>
 </body>
 </html>
 """
+
 
 
 
@@ -1113,44 +1131,86 @@ Texto: "{transcripcion}"
 # Historial de conversación en memoria
 chat_historial = []
 
-@app.route("/simular_conversacion", methods=["GET", "POST"])
-def simular_conversacion():
-    texto_usuario = request.form.get("texto", "")
-    contexto = request.form.get("contexto", "Conversación general")
+@app.route("/simula-ingles", methods=["GET", "POST"])
+def simula_ingles():
+    global chat_historial
+    texto_usuario = ""
     respuesta_ia = ""
+    modo = "general"
 
-    if texto_usuario:
-        prompt = f"""
-Act as a friendly English tutor for a Spanish-speaking learner. 
-Your goal is to simulate a natural, useful conversation in English, based on the context: "{contexto}".
+    if request.method == "POST":
+        texto_usuario = request.form.get("texto", "").strip()
+        modo = request.form.get("modo", "general")
 
-The student says (in Spanish or broken English): "{texto_usuario}"
+        if modo == "quiz":
+            # Mini quiz aleatorio en inglés
+            prompt = f"""
+Act as an English quiz coach. Based on the user's last message: "{texto_usuario}", create a 1-question multiple-choice quiz in English.
+Include:
+- The question
+- 3 answer choices (A, B, C)
+- Indicate the correct one
+- Explain why it's correct in Spanish
+"""
+        else:
+            contexto = {
+                "general": "Conversación general",
+                "turismo": "Viaje y turismo en el extranjero",
+                "negocios": "Negociación y negocios",
+                "entrevista": "Entrevista de trabajo",
+                "educacion": "Presentación o entorno educativo",
+                "vocabulario": "Práctica de nuevo vocabulario"
+            }.get(modo, "Conversación general")
 
-Your response should follow this structure:
+            prompt = f"""
+Act as a friendly English tutor for a Spanish-speaking student. Simulate a conversation in the context: "{contexto}".
 
-1. Answer naturally in English as if in a real-life situation.
-2. Add the translation of your response in Spanish below.
-3. If the user's sentence had mistakes, explain them briefly at the end.
-4. Encourage the student to continue the conversation with a question or comment.
+The student says: "{texto_usuario}"
 
-Keep it simple, friendly and practical. Don't sound like a robot.
+Your response should follow this format:
+**Respuesta en inglés:**
+...
+
+**Traducción al español:**
+...
+
+**Correcciones:**
+...
+
+End with a natural question or comment to keep the conversation going.
 """
 
         try:
             completado = openai.ChatCompletion.create(
                 model="gpt-4o",
-                messages=[
-                    {"role": "system", "content": prompt}
-                ]
+                messages=[{"role": "user", "content": prompt}]
             )
-            respuesta_ia = completado.choices[0].message["content"]
+            respuesta_ia = completado.choices[0].message.content.strip()
+
+            # Guardar en historial
+            if texto_usuario:
+                chat_historial.append(("🧑", texto_usuario))
+            if respuesta_ia:
+                chat_historial.append(("🤖", respuesta_ia))
+
+            # Limitar historial a los últimos 10 mensajes
+            chat_historial = chat_historial[-10:]
+
         except Exception as e:
             respuesta_ia = f"[ERROR] No se pudo generar respuesta: {str(e)}"
 
+    # Convertir historial a HTML
+    historial_html = ""
+    for quien, mensaje in chat_historial:
+        clase = "user-msg" if quien == "🧑" else "ia-msg"
+        historial_html += f"<div class='bubble {clase}'>{quien} {mensaje}</div>"
+
     return render_template_string(HTML_SIMULA_INGLES,
                                   texto_usuario=texto_usuario,
-                                  contexto=contexto,
-                                  respuesta=respuesta_ia)
+                                  respuesta=respuesta_ia,
+                                  contexto=modo,
+                                  historial=historial_html)
+
 
 
 
