@@ -6,6 +6,7 @@ import fitz  # PyMuPDF
 import openai
 import os
 from werkzeug.utils import secure_filename
+from flask import url_for
 chat_historial = []
 
 
@@ -1219,7 +1220,7 @@ End with a natural question or comment to keep the conversation going.
 def reset_chat():
     global chat_historial
     chat_historial = []
-    return redirect("/simula-ingles")
+    return redirect(url_for('simula_ingles'))
 
 
 
