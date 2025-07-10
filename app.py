@@ -1,4 +1,4 @@
-from flask import Flask, request, send_file, render_template_string
+from flask import Flask, request, send_file, render_template_string, redirect, url_for
 from reportlab.lib.pagesizes import A4
 from io import BytesIO
 from PIL import Image
@@ -1218,9 +1218,13 @@ End with a natural question or comment to keep the conversation going.
 
 @app.route("/reset-chat")
 def reset_chat():
-    global chat_historial
-    chat_historial = []
-    return redirect(url_for('simula_ingles'))
+    try:
+        global chat_historial
+        chat_historial = []
+        return redirect(url_for('simula_ingles'))
+    except Exception as e:
+        return f"Error al resetear el chat: {e}", 500
+
 
 
 
