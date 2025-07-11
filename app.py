@@ -756,7 +756,7 @@ def montar_pdf(input_path, output_path, paginas_por_cara=4):
 
     total_paginas = len(doc)
     while total_paginas % 4 != 0:
-        doc.insert_page(-1)  # Añadir páginas en blanco si no es múltiplo de 4
+        doc.insert_page(-1)
         total_paginas += 1
 
     salida = fitz.open()
@@ -764,57 +764,49 @@ def montar_pdf(input_path, output_path, paginas_por_cara=4):
     paginas = list(range(1, total_paginas + 1))
     hojas = []
 
-    # Lógica de cuadernillos: frente/dorso según cosido a caballete
+    # Lógica de imposición para cosido a caballete
     while len(paginas) >= paginas_por_cara * 2:
-        mitad = paginas_por_cara
         frente = []
         dorso = []
+        mitad = paginas_por_cara
 
         for i in range(mitad):
-            if i % 2 == 0:
-                frente.append(paginas[-(i+1)])
-                dorso.append(paginas[i])
-            else:
-                frente.append(paginas[i])
-                dorso.append(paginas[-(i+1)])
+            frente.append(paginas[-(i+1)] if i % 2 == 0 else paginas[i])
+            dorso.append(paginas[i] if i % 2 == 0 else paginas[-(i+1)])
 
         hojas.append((frente, dorso))
         paginas = paginas[mitad:-mitad]
 
-    # Inserta páginas dentro de cada hoja nueva
-    def insertar_pagina(nueva_pagina, idx, pos, paginas_por_cara):
+    def insertar_pagina(nueva_pagina, idx, pos, paginas_por_cara, girar=False):
         if not idx or idx < 1 or idx > len(doc): return
         pagina = doc[idx - 1]
         pix = pagina.get_pixmap(matrix=fitz.Matrix(3, 3), alpha=False)
         img = Image.frombytes("RGB", [pix.width, pix.height], pix.samples)
+        if girar:
+            img = img.rotate(180)
+
         buffer = BytesIO()
         img.save(buffer, format="JPEG", quality=95)
         buffer.seek(0)
 
-        if paginas_por_cara == 4:
+        if paginas_por_cara == 2:
+            ancho = A4_HEIGHT
+            alto = A4_WIDTH
+            mitad = ancho / 2
+            x = pos * mitad
+            y = 0
+            rect = fitz.Rect(x, y, x + mitad, alto)
+        else:
             x = (pos % 2) * (A4_WIDTH / 2)
             y = (pos // 2) * (A4_HEIGHT / 2)
             rect = fitz.Rect(x, y, x + A4_WIDTH / 2, y + A4_HEIGHT / 2)
-            rotar = 180 if pos >= 2 else 0  # cabeza con cabeza
-        elif paginas_por_cara == 2:
-            ancho_paisaje = A4_HEIGHT  # horizontal
-            alto_paisaje = A4_WIDTH
-            mitad = ancho_paisaje / 2
-            x = pos * mitad
-            y = 0
-            rect = fitz.Rect(x, y, x + mitad, alto_paisaje)
-            rotar = 0
-        else:
-            rect = fitz.Rect(0, 0, A4_WIDTH, A4_HEIGHT)
-            rotar = 0
 
-        nueva_pagina.insert_image(rect, stream=buffer, rotate=rotar)
+        nueva_pagina.insert_image(rect, stream=buffer)
         buffer.close()
 
-    # Crear las hojas nuevas con orientación según el modo
     for frente, dorso in hojas:
         if paginas_por_cara == 2:
-            ancho = A4_HEIGHT  # horizontal
+            ancho = A4_HEIGHT
             alto = A4_WIDTH
         else:
             ancho = A4_WIDTH
@@ -822,13 +814,14 @@ def montar_pdf(input_path, output_path, paginas_por_cara=4):
 
         pag_frente = salida.new_page(width=ancho, height=alto)
         for j, idx in enumerate(frente):
-            insertar_pagina(pag_frente, idx, j, paginas_por_cara)
+            insertar_pagina(pag_frente, idx, j, paginas_por_cara, girar=False)
 
         pag_dorso = salida.new_page(width=ancho, height=alto)
         for j, idx in enumerate(dorso):
-            insertar_pagina(pag_dorso, idx, j, paginas_por_cara)
+            insertar_pagina(pag_dorso, idx, j, paginas_por_cara, girar=True)  # DORSO GIRADO
 
     salida.save(output_path)
+
 
 
 
