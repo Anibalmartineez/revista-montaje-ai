@@ -1345,7 +1345,7 @@ def generar_preview_interactivo(input_path, output_folder="preview_temp"):
   </form>
 
   <script>
-    const hojas = {str([[[f"pag_{i}.jpg" for i in frente], [f"pag_{i}.jpg" for i in dorso]] for frente, dorso in hojas])};
+    const hojas = {str([[[f"/preview_temp/pag_{i}.jpg" for i in frente], [f"/preview_temp/pag_{i}.jpg" for i in dorso]] for frente, dorso in hojas])};
     let indice = 0;
 
     function cargar() {{
@@ -1398,6 +1398,7 @@ def generar_preview_interactivo(input_path, output_folder="preview_temp"):
 </body>
 </html>
 """
+
 
     with open(os.path.join(output_folder, "preview.html"), "w", encoding="utf-8") as f:
         f.write(vista)
