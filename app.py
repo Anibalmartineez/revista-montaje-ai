@@ -7,6 +7,7 @@ import openai
 import os
 from werkzeug.utils import secure_filename
 from flask import url_for
+from flask import send_from_directory
 chat_historial = []
 
 
@@ -19,6 +20,7 @@ app = Flask(__name__)
 UPLOAD_FOLDER = "uploads"
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 os.makedirs("output", exist_ok=True)
+os.makedirs("preview_temp", exist_ok=True)
 output_pdf_path = "output/montado.pdf"
 
 HTML = """
@@ -1232,7 +1234,113 @@ def reset_chat():
 
 
 
+def generar_preview_interactivo(input_path, output_folder="preview_temp"):
+    import os
+    import fitz
+    from PIL import Image
 
+    os.makedirs(output_folder, exist_ok=True)
+    doc = fitz.open(input_path)
+    total_paginas = len(doc)
+    while total_paginas % 4 != 0:
+        doc.insert_page(-1)
+        total_paginas += 1
+
+    paginas = list(range(1, total_paginas + 1))
+    hojas = []
+    while len(paginas) >= 4:
+        frente = [paginas[0], paginas[-1]]
+        dorso = [paginas[1], paginas[-2]]
+        hojas.append((frente, dorso))
+        paginas = paginas[2:-2]
+
+    imagenes = {}
+    for i in range(1, total_paginas + 1):
+        page = doc[i - 1]
+        pix = page.get_pixmap(matrix=fitz.Matrix(1.5, 1.5), alpha=False)
+        img_path = os.path.join(output_folder, f"pag_{i}.jpg")
+        pix.save(img_path)
+        imagenes[i] = img_path
+
+    # Crear archivo HTML
+    vista = f"""
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <title>Vista previa del montaje</title>
+  <style>
+    body {{ font-family: sans-serif; background: #f0f0f0; text-align: center; }}
+    .hoja {{ display: flex; justify-content: center; gap: 20px; margin-top: 30px; }}
+    .pagina img {{ width: 300px; border: 2px solid #333; }}
+    #dorso {{ display: none; }}
+    button {{ margin: 20px; padding: 10px 20px; font-size: 16px; }}
+  </style>
+</head>
+<body>
+  <h1>Vista previa del Pliego <span id="nro"></span></h1>
+  <div id="frente" class="hoja"></div>
+  <div id="dorso" class="hoja"></div>
+  <div>
+    <button onclick="mostrarDorso()">Ver dorso</button>
+    <button onclick="anterior()">Anterior</button>
+    <button onclick="siguiente()">Siguiente</button>
+  </div>
+  <form action="/montar_pdf" method="POST">
+    <input type="hidden" name="ruta_pdf" value="{input_path}">
+    <input type="hidden" name="modo" value="2">
+    <button type="submit">Montar PDF final</button>
+  </form>
+  <script>
+    const hojas = {str([[[f"pag_{i}.jpg" for i in frente], [f"pag_{i}.jpg" for i in dorso]] for frente, dorso in hojas])};
+    let indice = 0;
+    function cargar() {{
+      document.getElementById("nro").innerText = indice + 1;
+      const frente = document.getElementById("frente");
+      const dorso = document.getElementById("dorso");
+      frente.innerHTML = "";
+      dorso.innerHTML = "";
+      hojas[indice][0].forEach(p => {{
+        frente.innerHTML += `<div class='pagina'><img src='${{p}}'><br>${{p}}</div>`;
+      }});
+      hojas[indice][1].forEach(p => {{
+        dorso.innerHTML += `<div class='pagina'><img src='${{p}}'><br>${{p}}</div>`;
+      }});
+      frente.style.display = "flex";
+      dorso.style.display = "none";
+    }}
+    function mostrarDorso() {{
+      document.getElementById("frente").style.display = "none";
+      document.getElementById("dorso").style.display = "flex";
+    }}
+    function siguiente() {{
+      if (indice < hojas.length - 1) {{ indice++; cargar(); }}
+    }}
+    function anterior() {{
+      if (indice > 0) {{ indice--; cargar(); }}
+    }}
+    cargar();
+  </script>
+</body>
+</html>
+"""
+    with open(os.path.join(output_folder, "preview.html"), "w", encoding="utf-8") as f:
+        f.write(vista)
+
+@app.route("/vista_previa", methods=["POST"])
+def vista_previa():
+    archivo = request.files["archivo"]
+    modo = int(request.form.get("modo", "2"))
+    filename = secure_filename(archivo.filename)
+    ruta_pdf = os.path.join("uploads", filename)
+    archivo.save(ruta_pdf)
+
+    if modo == 2:
+        generar_preview_interactivo(ruta_pdf)
+        return send_from_directory("preview_temp", "preview.html")
+    else:
+        montar_pdf(ruta_pdf, "output/montado.pdf", paginas_por_cara=modo)
+        return send_file("output/montado.pdf", as_attachment=True)
 
 
 if __name__ == '__main__':
