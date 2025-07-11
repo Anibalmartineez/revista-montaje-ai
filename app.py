@@ -1350,6 +1350,98 @@ def vista_previa():
     else:
         montar_pdf(ruta_pdf, "output/montado.pdf", paginas_por_cara=modo)
         return send_file("output/montado.pdf", as_attachment=True)
+from pdf2image import convert_from_path
+import base64
+
+def generar_preview_virtual(ruta_pdf):
+    from pathlib import Path
+    output_dir = "preview_temp"
+    os.makedirs(output_dir, exist_ok=True)
+
+    # Limpiar la carpeta anterior
+    for archivo in os.listdir(output_dir):
+        os.remove(os.path.join(output_dir, archivo))
+
+    # Convertir páginas del PDF a imágenes
+    paginas = convert_from_path(ruta_pdf, dpi=150)
+    for i, pagina in enumerate(paginas):
+        nombre = f"pag_{i+1}.jpg"
+        pagina.save(os.path.join(output_dir, nombre), "JPEG")
+@app.route('/preview_temp/<filename>')
+def mostrar_preview_temp(filename):
+    return send_from_directory('preview_temp', filename)
+@app.route("/preview")
+def vista_preview():
+    pagina = int(request.args.get("p", 1))
+    modo = int(request.args.get("modo", 2))
+
+    files = sorted(os.listdir("preview_temp"))
+    total = len(files)
+    total_paginas = total
+
+    pag1 = files[pagina - 1] if pagina - 1 < total else None
+    pag2 = files[pagina] if pagina < total else None
+
+    anterior = pagina - 2 if pagina > 2 else 1
+    siguiente = pagina + 2 if pagina + 1 < total else pagina
+
+    html = f"""
+    <!doctype html>
+    <html lang="es">
+    <head>
+        <meta charset="utf-8">
+        <title>Vista previa del Pliego</title>
+        <style>
+            body {{
+                font-family: sans-serif;
+                text-align: center;
+                padding: 20px;
+            }}
+            img {{
+                height: 480px;
+                margin: 0 10px;
+                border: 2px solid #ccc;
+                border-radius: 10px;
+            }}
+            .nav-buttons {{
+                margin-top: 20px;
+            }}
+            button {{
+                padding: 10px 20px;
+                font-size: 16px;
+                margin: 0 10px;
+            }}
+        </style>
+    </head>
+    <body>
+        <h1>Vista previa del Pliego {pagina // 2 + 1}</h1>
+        <div>
+            {f'<img src="/preview_temp/{pag1}">' if pag1 else ''}
+            {f'<img src="/preview_temp/{pag2}">' if pag2 else ''}
+        </div>
+        <div class="nav-buttons">
+            <a href="/preview?p={anterior}&modo={modo}"><button>Anterior</button></a>
+            <a href="/preview?p={siguiente}&modo={modo}"><button>Siguiente</button></a>
+        </div>
+        <form action="/generar_pdf_final" method="post">
+            <input type="hidden" name="modo_montaje" value="{modo}">
+            <button type="submit">Montar PDF final</button>
+        </form>
+    </body>
+    </html>
+    """
+    return html
+
+@app.route("/generar_pdf_final", methods=["POST"])
+def generar_pdf_final():
+    modo = int(request.form.get("modo_montaje", 2))
+    pdfs = [f for f in os.listdir("uploads") if f.endswith(".pdf")]
+    if not pdfs:
+        return "No hay archivo para montar."
+    path_pdf = os.path.join("uploads", pdfs[-1])
+    output_pdf_path = "output/montado.pdf"
+    montar_pdf(path_pdf, output_pdf_path, paginas_por_cara=modo)
+    return send_file(output_pdf_path, as_attachment=True)
 
 
 if __name__ == '__main__':
