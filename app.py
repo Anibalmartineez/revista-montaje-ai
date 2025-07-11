@@ -691,7 +691,6 @@ def index():
                     path_img = os.path.join(UPLOAD_FOLDER, secure_filename(imagen.filename))
                     imagen.save(path_img)
 
-                    #  Análisis gráfico técnico
                     estrategia, img_base64 = analizar_grafico_tecnico(path_img)
 
                     diagnostico = f"""
@@ -716,13 +715,21 @@ def index():
                 output_path = os.path.join("output", "montado.pdf")
 
                 if action == "montar":
-                    montar_pdf(path_pdf, output_path, paginas_por_cara=modo_montaje)
-                    output_pdf = True
+                    if modo_montaje == 2:
+                        # Mostrar vista previa interactiva antes de montar
+                        generar_preview_interactivo(path_pdf)
+                        return send_from_directory("preview_temp", "preview.html")
+                    else:
+                        montar_pdf(path_pdf, output_path, paginas_por_cara=modo_montaje)
+                        output_pdf = True
+
                 elif action == "diagnostico":
                     diagnostico = diagnosticar_pdf(path_pdf)
+
                 elif action == "corregir_sangrado":
                     corregir_sangrado(path_pdf, output_path)
                     output_pdf = True
+
                 elif action == "redimensionar":
                     if not nuevo_ancho:
                         raise Exception("Debes ingresar al menos un nuevo ancho.")
@@ -730,6 +737,7 @@ def index():
                     nuevo_alto = float(nuevo_alto) if nuevo_alto else None
                     redimensionar_pdf(path_pdf, output_path, nuevo_ancho, nuevo_alto)
                     output_pdf = True
+
                 else:
                     mensaje = "⚠ Función no implementada para esta acción."
 
@@ -737,6 +745,7 @@ def index():
             mensaje = f" Error al procesar el archivo: {str(e)}"
 
     return render_template_string(HTML, mensaje=mensaje, diagnostico=diagnostico, output_pdf=output_pdf)
+
 
 
 
