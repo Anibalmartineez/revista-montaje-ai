@@ -1278,6 +1278,9 @@ def generar_preview_interactivo(input_path, output_folder="preview_temp"):
 <head>
   <meta charset="UTF-8">
   <title>Vista previa del montaje</title>
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600&display=swap" rel="stylesheet">
+  <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/turn.js/4.1.0/turn.min.js"></script>
   <style>
     body {{
       font-family: 'Poppins', sans-serif;
@@ -1288,30 +1291,24 @@ def generar_preview_interactivo(input_path, output_folder="preview_temp"):
     }}
     h1 {{
       color: #333;
-      margin-bottom: 20px;
+      margin-bottom: 30px;
     }}
-    .hoja {{
-      display: flex;
-      justify-content: center;
-      gap: 30px;
-      margin: 30px auto;
+    #flipbook {{
+      width: 700px;
+      height: 500px;
+      margin: 20px auto;
     }}
-    .pagina {{
-      background: #fff;
-      box-shadow: 0 0 15px rgba(0,0,0,0.2);
-      padding: 10px;
-      border-radius: 12px;
-      transition: transform 0.3s;
-    }}
-    .pagina:hover {{
-      transform: scale(1.05);
-    }}
-    .pagina img {{
-      width: 300px;
-      border-radius: 8px;
+    #flipbook .page {{
+      width: 350px;
+      height: 500px;
+      background-color: white;
+      background-size: cover;
+      background-position: center;
+      border: 1px solid #ccc;
+      box-shadow: 0 0 8px rgba(0,0,0,0.2);
     }}
     button {{
-      margin: 8px;
+      margin: 10px;
       padding: 12px 24px;
       font-size: 16px;
       border: none;
@@ -1324,80 +1321,49 @@ def generar_preview_interactivo(input_path, output_folder="preview_temp"):
     button:hover {{
       background-color: #0056b3;
     }}
-    #dorso {{ display: none; }}
+    form {{
+      margin-top: 30px;
+    }}
   </style>
 </head>
 <body>
-  <h1>📰 Vista previa del Pliego <span id="nro">1</span></h1>
 
-  <div id="frente" class="hoja"></div>
-  <div id="dorso" class="hoja"></div>
+  <h1>📖 Vista previa interactiva del montaje</h1>
 
-  <div>
-    <button onclick="mostrarDorso()">Ver dorso</button>
-    <button onclick="anterior()">Anterior</button>
-    <button onclick="siguiente()">Siguiente</button>
-  </div>
+  <div id="flipbook"></div>
 
-  <form action="/generar_pdf_final" method="post" style="margin-top: 30px;">
+  <form action="/generar_pdf_final" method="post">
     <input type="hidden" name="modo_montaje" value="2">
     <button type="submit">🖨️ Montar PDF final</button>
   </form>
 
   <script>
     const hojas = {str([[[f"/preview_temp/pag_{i}.jpg" for i in frente], [f"/preview_temp/pag_{i}.jpg" for i in dorso]] for frente, dorso in hojas])};
-    let indice = 0;
+    const flipbook = document.getElementById("flipbook");
+    flipbook.innerHTML = "";
 
-    function cargar() {{
-      document.getElementById("nro").innerText = indice + 1;
-      const frente = document.getElementById("frente");
-      const dorso = document.getElementById("dorso");
-      frente.innerHTML = "";
-      dorso.innerHTML = "";
-
-      hojas[indice][0].forEach(p => {{
-        frente.innerHTML += `<div class='pagina'><img src='${{p}}'><br>${{p}}</div>`;
+    // Insertar frentes y dorsos como páginas del flipbook
+    hojas.forEach(par => {{
+      par[0].forEach(p => {{
+        flipbook.innerHTML += `<div class='page' style='background-image: url("${{p}}")'></div>`;
       }});
-
-      hojas[indice][1].forEach(p => {{
-        dorso.innerHTML += `<div class='pagina'><img src='${{p}}'><br>${{p}}</div>`;
+      par[1].forEach(p => {{
+        flipbook.innerHTML += `<div class='page' style='background-image: url("${{p}}")'></div>`;
       }});
+    }});
 
-      frente.style.display = "flex";
-      dorso.style.display = "none";
-    }}
-
-    function mostrarDorso() {{
-      const frente = document.getElementById("frente");
-      const dorso = document.getElementById("dorso");
-      if (frente.style.display === "flex") {{
-        frente.style.display = "none";
-        dorso.style.display = "flex";
-      }} else {{
-        dorso.style.display = "none";
-        frente.style.display = "flex";
-      }}
-    }}
-
-    function siguiente() {{
-      if (indice < hojas.length - 1) {{
-        indice++;
-        cargar();
-      }}
-    }}
-
-    function anterior() {{
-      if (indice > 0) {{
-        indice--;
-        cargar();
-      }}
-    }}
-
-    cargar();
+    // Inicializar flipbook
+    $('#flipbook').turn({{
+      width: 700,
+      height: 500,
+      autoCenter: true
+    }});
   </script>
+
 </body>
 </html>
 """
+
 
 
     with open(os.path.join(output_folder, "preview.html"), "w", encoding="utf-8") as f:
