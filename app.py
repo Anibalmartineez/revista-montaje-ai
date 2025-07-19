@@ -2,6 +2,7 @@ import sys
 import os
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 from flask import Flask, request, send_file, render_template, render_template_string, redirect, url_for
+import tempfile
 from montaje_flexo import generar_montaje
 from reportlab.lib.pagesizes import A4
 from io import BytesIO
@@ -1519,14 +1520,26 @@ def generar_pdf_final():
 @app.route('/montaje-flexo', methods=['GET', 'POST'])
 def montaje_flexo_view():
     if request.method == 'POST':
+        archivo_pdf = request.files['archivo']
+        if archivo_pdf.filename == '':
+            return "No se cargó ningún archivo", 400
+
+        # Guardar el archivo PDF temporalmente
+        with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as temp:
+            archivo_pdf.save(temp.name)
+            ruta_pdf = temp.name
+
+        # Obtener parámetros del formulario
         ancho = int(request.form['ancho'])
         alto = int(request.form['alto'])
         separacion = int(request.form['separacion'])
         bobina = int(request.form['bobina'])
         cantidad = int(request.form['cantidad'])
 
-        archivo = generar_montaje(ancho, alto, separacion, bobina, cantidad)
-        return send_file(archivo, as_attachment=True)
+        # Generar montaje
+        archivo_final = generar_montaje(ruta_pdf, ancho, alto, separacion, bobina, cantidad)
+
+        return send_file(archivo_final, as_attachment=True)
 
     return render_template('montaje_flexo.html')
 
