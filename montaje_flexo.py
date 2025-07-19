@@ -36,7 +36,7 @@ def generar_montaje(path_pdf_etiqueta, ancho, alto, separacion, bobina, cantidad
                 x = i * (ancho + separacion) * mm
                 y = j * (alto + separacion) * mm
                 rect = fitz.Rect(x, y, x + ancho * mm, y + alto * mm)
-                nueva_pagina.show_pdf_page(rect=rect, src=doc_origen, pno=0)
+                nueva_pagina.show_pdf_page(rect, doc_origen, 0)
 
     nombre_archivo = f"montaje_flexo_{os.path.basename(path_pdf_etiqueta)}"
     ruta_salida = os.path.join("output_flexo", nombre_archivo)
