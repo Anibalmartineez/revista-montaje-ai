@@ -1,75 +1,47 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
-  <meta charset="UTF-8">
-  <title>Montaje Flexo</title>
-  <style>
-    body {
-      font-family: Arial, sans-serif;
-      padding: 2rem;
-      background-color: #f9f9f9;
-    }
-    .form-container {
-      max-width: 500px;
-      margin: auto;
-      background: #fff;
-      padding: 2rem;
-      border-radius: 8px;
-      box-shadow: 0 0 10px rgba(0,0,0,0.1);
-    }
-    h2 {
-      text-align: center;
-      color: #222;
-    }
-    label {
-      display: block;
-      margin-top: 15px;
-      font-weight: bold;
-    }
-    input {
-      width: 100%;
-      padding: 8px;
-      margin-top: 5px;
-      border: 1px solid #ccc;
-      border-radius: 4px;
-    }
-    button {
-      margin-top: 20px;
-      width: 100%;
-      padding: 10px;
-      background-color: #cf1f46;
-      color: white;
-      border: none;
-      border-radius: 4px;
-      font-size: 16px;
-      cursor: pointer;
-    }
-    button:hover {
-      background-color: #a51636;
-    }
-  </style>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Montaje Automático para Flexografía</title>
+    <link rel="stylesheet" href="/static/css/style.css">
 </head>
 <body>
-  <div class="form-container">
-    <h2>Montaje Automático para Flexografía</h2>
-    <form method="post">
-      <label for="ancho">Ancho de etiqueta (mm)</label>
-      <input type="number" name="ancho" required>
+    <div class="container">
+        <h1>Montaje Automático para Flexografía</h1>
+        <form id="montajeForm" method="POST" enctype="multipart/form-data" onsubmit="return validarFormulario()">
+            <label for="archivo">Archivo PDF de la etiqueta:</label>
+            <input type="file" name="archivo" accept="application/pdf" required>
 
-      <label for="alto">Alto de etiqueta (mm)</label>
-      <input type="number" name="alto" required>
+            <label for="ancho">Ancho de etiqueta (mm):</label>
+            <input type="number" name="ancho" required>
 
-      <label for="separacion">Separación entre etiquetas (mm)</label>
-      <input type="number" name="separacion" value="2" required>
+            <label for="alto">Alto de etiqueta (mm):</label>
+            <input type="number" name="alto" required>
 
-      <label for="bobina">Ancho de bobina (mm)</label>
-      <input type="number" name="bobina" value="330" required>
+            <label for="separacion">Separación entre etiquetas (mm):</label>
+            <input type="number" name="separacion" value="2" required>
 
-      <label for="cantidad">Cantidad total de etiquetas</label>
-      <input type="number" name="cantidad" required>
+            <label for="bobina">Ancho de bobina (mm):</label>
+            <input type="number" name="bobina" value="330" required>
 
-      <button type="submit">Generar Montaje</button>
-    </form>
-  </div>
+            <label for="cantidad">Cantidad total de etiquetas:</label>
+            <input type="number" name="cantidad" required>
+
+            <button type="submit">Generar Montaje</button>
+        </form>
+        <p id="mensaje"></p>
+    </div>
+
+    <script>
+        function validarFormulario() {
+            const archivo = document.querySelector('input[name="archivo"]').files[0];
+            if (!archivo) {
+                alert("Por favor, cargá un archivo PDF antes de continuar.");
+                return false;
+            }
+            return true;
+        }
+    </script>
 </body>
 </html>
