@@ -28,6 +28,14 @@ os.makedirs("output", exist_ok=True)
 os.makedirs("preview_temp", exist_ok=True)
 output_pdf_path = "output/montado.pdf"
 
+# Carpetas específicas para flexografía
+UPLOAD_FOLDER_FLEXO = "uploads_flexo"
+OUTPUT_FOLDER_FLEXO = "output_flexo"
+
+os.makedirs(UPLOAD_FOLDER_FLEXO, exist_ok=True)
+os.makedirs(OUTPUT_FOLDER_FLEXO, exist_ok=True)
+
+
 HTML = """
 <!doctype html>
 <html lang="es">
@@ -1524,10 +1532,9 @@ def montaje_flexo_view():
         if archivo_pdf.filename == '':
             return "No se cargó ningún archivo", 400
 
-        # Guardar el archivo PDF temporalmente
-        with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as temp:
-            archivo_pdf.save(temp.name)
-            ruta_pdf = temp.name
+        # Guardar archivo en carpeta específica de flexografía
+        ruta_pdf = os.path.join(UPLOAD_FOLDER_FLEXO, archivo_pdf.filename)
+        archivo_pdf.save(ruta_pdf)
 
         # Obtener parámetros del formulario
         ancho = int(request.form['ancho'])
@@ -1536,12 +1543,15 @@ def montaje_flexo_view():
         bobina = int(request.form['bobina'])
         cantidad = int(request.form['cantidad'])
 
-        # Generar montaje
-        archivo_final = generar_montaje(ruta_pdf, ancho, alto, separacion, bobina, cantidad)
+        # Generar el montaje con ruta de entrada y de salida específica
+        archivo_final = generar_montaje(
+            ruta_pdf, ancho, alto, separacion, bobina, cantidad
+        )
 
         return send_file(archivo_final, as_attachment=True)
 
     return render_template('montaje_flexo.html')
+
 
 
 if __name__ == '__main__':
