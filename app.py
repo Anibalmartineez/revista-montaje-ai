@@ -1525,32 +1525,46 @@ def generar_pdf_final():
     montar_pdf(path_pdf, output_pdf_path, paginas_por_cara=modo)
     return send_file(output_pdf_path, as_attachment=True)
 
+from werkzeug.utils import secure_filename
+
 @app.route('/montaje-flexo', methods=['GET', 'POST'])
 def montaje_flexo_view():
+    mensaje = ""
     if request.method == 'POST':
-        archivo_pdf = request.files['archivo']
-        if archivo_pdf.filename == '':
-            return "No se cargó ningún archivo", 400
+        archivo_pdf = request.files.get('archivo')
+        if not archivo_pdf or archivo_pdf.filename == '':
+            mensaje = "⚠️ No se cargó ningún archivo PDF válido."
+            return render_template('montaje_flexo.html', mensaje=mensaje), 400
 
-        # Guardar archivo en carpeta específica de flexografía
-        ruta_pdf = os.path.join(UPLOAD_FOLDER_FLEXO, archivo_pdf.filename)
-        archivo_pdf.save(ruta_pdf)
+        try:
+            # Guardar el archivo PDF con nombre seguro
+            filename = secure_filename(archivo_pdf.filename)
+            ruta_pdf = os.path.join(UPLOAD_FOLDER_FLEXO, filename)
+            archivo_pdf.save(ruta_pdf)
 
-        # Obtener parámetros del formulario
-        ancho = int(request.form['ancho'])
-        alto = int(request.form['alto'])
-        separacion = int(request.form['separacion'])
-        bobina = int(request.form['bobina'])
-        cantidad = int(request.form['cantidad'])
+            # Obtener y validar parámetros
+            ancho = int(request.form['ancho'])
+            alto = int(request.form['alto'])
+            separacion = int(request.form['separacion'])
+            bobina = int(request.form['bobina'])
+            cantidad = int(request.form['cantidad'])
 
-        # Generar el montaje con ruta de entrada y de salida específica
-        archivo_final = generar_montaje(
-            ruta_pdf, ancho, alto, separacion, bobina, cantidad
-        )
+            if ancho <= 0 or alto <= 0 or bobina <= 0 or cantidad <= 0:
+                raise ValueError("Los valores ingresados deben ser mayores a cero.")
 
-        return send_file(archivo_final, as_attachment=True)
+            # Generar montaje
+            archivo_final = generar_montaje(
+                ruta_pdf, ancho, alto, separacion, bobina, cantidad
+            )
 
-    return render_template('montaje_flexo.html')
+            return send_file(archivo_final, as_attachment=True)
+
+        except Exception as e:
+            mensaje = f"❌ Error al procesar el montaje: {str(e)}"
+            return render_template('montaje_flexo.html', mensaje=mensaje), 500
+
+    return render_template('montaje_flexo.html', mensaje=mensaje)
+
 
 
 
