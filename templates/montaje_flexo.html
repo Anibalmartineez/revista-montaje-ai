@@ -1,28 +1,75 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
-    <meta charset="UTF-8">
-    <title>Montaje Flexográfico</title>
+  <meta charset="UTF-8">
+  <title>Montaje Flexo</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      padding: 2rem;
+      background-color: #f9f9f9;
+    }
+    .form-container {
+      max-width: 500px;
+      margin: auto;
+      background: #fff;
+      padding: 2rem;
+      border-radius: 8px;
+      box-shadow: 0 0 10px rgba(0,0,0,0.1);
+    }
+    h2 {
+      text-align: center;
+      color: #222;
+    }
+    label {
+      display: block;
+      margin-top: 15px;
+      font-weight: bold;
+    }
+    input {
+      width: 100%;
+      padding: 8px;
+      margin-top: 5px;
+      border: 1px solid #ccc;
+      border-radius: 4px;
+    }
+    button {
+      margin-top: 20px;
+      width: 100%;
+      padding: 10px;
+      background-color: #cf1f46;
+      color: white;
+      border: none;
+      border-radius: 4px;
+      font-size: 16px;
+      cursor: pointer;
+    }
+    button:hover {
+      background-color: #a51636;
+    }
+  </style>
 </head>
 <body>
+  <div class="form-container">
     <h2>Montaje Automático para Flexografía</h2>
     <form method="post">
-        <label>Ancho de etiqueta (mm):</label>
-        <input type="number" name="ancho" required><br>
+      <label for="ancho">Ancho de etiqueta (mm)</label>
+      <input type="number" name="ancho" required>
 
-        <label>Alto de etiqueta (mm):</label>
-        <input type="number" name="alto" required><br>
+      <label for="alto">Alto de etiqueta (mm)</label>
+      <input type="number" name="alto" required>
 
-        <label>Separación entre etiquetas (mm):</label>
-        <input type="number" name="separacion" value="2"><br>
+      <label for="separacion">Separación entre etiquetas (mm)</label>
+      <input type="number" name="separacion" value="2" required>
 
-        <label>Ancho de bobina (mm):</label>
-        <input type="number" name="bobina" value="330"><br>
+      <label for="bobina">Ancho de bobina (mm)</label>
+      <input type="number" name="bobina" value="330" required>
 
-        <label>Cantidad total de etiquetas:</label>
-        <input type="number" name="cantidad" required><br>
+      <label for="cantidad">Cantidad total de etiquetas</label>
+      <input type="number" name="cantidad" required>
 
-        <button type="submit">Generar Montaje</button>
+      <button type="submit">Generar Montaje</button>
     </form>
+  </div>
 </body>
 </html>
