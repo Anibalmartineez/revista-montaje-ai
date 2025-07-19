@@ -4,12 +4,72 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Montaje Automático para Flexografía</title>
-    <link rel="stylesheet" href="/static/css/style.css">
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #f4f4f4;
+            margin: 0;
+            padding: 0;
+        }
+
+        .container {
+            max-width: 600px;
+            margin: 50px auto;
+            background: white;
+            padding: 30px;
+            box-shadow: 0 0 10px rgba(0,0,0,0.1);
+            border-radius: 8px;
+        }
+
+        h1 {
+            text-align: center;
+            margin-bottom: 30px;
+            color: #333;
+        }
+
+        form label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+            margin-top: 15px;
+        }
+
+        form input[type="number"],
+        form input[type="file"] {
+            width: 100%;
+            padding: 10px;
+            margin-bottom: 10px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+        }
+
+        button {
+            display: block;
+            width: 100%;
+            padding: 12px;
+            background-color: #0056b3;
+            color: white;
+            font-weight: bold;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+
+        button:hover {
+            background-color: #003f80;
+        }
+
+        #mensaje {
+            text-align: center;
+            margin-top: 15px;
+            color: red;
+        }
+    </style>
 </head>
 <body>
     <div class="container">
         <h1>Montaje Automático para Flexografía</h1>
-        <form id="montajeForm" method="POST" enctype="multipart/form-data" onsubmit="return validarFormulario()">
+        <form id="montajeForm" method="POST" enctype="multipart/form-data">
             <label for="archivo">Archivo PDF de la etiqueta:</label>
             <input type="file" name="archivo" accept="application/pdf" required>
 
@@ -34,14 +94,26 @@
     </div>
 
     <script>
-        function validarFormulario() {
+        document.getElementById("montajeForm").addEventListener("submit", function (e) {
             const archivo = document.querySelector('input[name="archivo"]').files[0];
-            if (!archivo) {
-                alert("Por favor, cargá un archivo PDF antes de continuar.");
+            const ancho = document.querySelector('input[name="ancho"]').value;
+            const alto = document.querySelector('input[name="alto"]').value;
+            const cantidad = document.querySelector('input[name="cantidad"]').value;
+
+            if (!archivo || archivo.type !== "application/pdf") {
+                alert("Por favor cargá un archivo PDF válido.");
+                e.preventDefault();
                 return false;
             }
+
+            if (ancho <= 0 || alto <= 0 || cantidad <= 0) {
+                alert("Ingresá valores válidos para ancho, alto y cantidad.");
+                e.preventDefault();
+                return false;
+            }
+
             return true;
-        }
+        });
     </script>
 </body>
 </html>
