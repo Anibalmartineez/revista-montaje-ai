@@ -1,4 +1,5 @@
 from flask import Flask, request, send_file, render_template_string, redirect, url_for
+from montaje_flexo import generar_montaje
 from reportlab.lib.pagesizes import A4
 from io import BytesIO
 from PIL import Image
@@ -1511,6 +1512,20 @@ def generar_pdf_final():
     output_pdf_path = "output/montado.pdf"
     montar_pdf(path_pdf, output_pdf_path, paginas_por_cara=modo)
     return send_file(output_pdf_path, as_attachment=True)
+
+@app.route('/montaje-flexo', methods=['GET', 'POST'])
+def montaje_flexo_view():
+    if request.method == 'POST':
+        ancho = int(request.form['ancho'])
+        alto = int(request.form['alto'])
+        separacion = int(request.form['separacion'])
+        bobina = int(request.form['bobina'])
+        cantidad = int(request.form['cantidad'])
+
+        archivo = generar_montaje(ancho, alto, separacion, bobina, cantidad)
+        return send_file(archivo, as_attachment=True)
+
+    return render_template('montaje_flexo.html')
 
 
 if __name__ == '__main__':
