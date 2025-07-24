@@ -961,7 +961,7 @@ def diagnosticar_pdf(path):
 {resumen}"""
 
     try:
-        response = client.chat.completions.create(
+        response = openai.ChatCompletion.create(
             model="gpt-4o",
             messages=[{"role": "user", "content": prompt}]
         )
