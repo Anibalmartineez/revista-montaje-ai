@@ -777,6 +777,7 @@ def montar_pdf(input_path, output_path, paginas_por_cara=4):
     doc = fitz.open(input_path)
     if len(doc) == 0:
         raise Exception("El PDF está vacío o corrupto.")
+
     total_paginas = len(doc)
     while total_paginas % 4 != 0:
         doc.insert_page(-1)
@@ -794,8 +795,8 @@ def montar_pdf(input_path, output_path, paginas_por_cara=4):
             hojas.append((frente, dorso))
             paginas = paginas[4:-4]
         elif paginas_por_cara == 2 and len(paginas) >= 4:
-            frente = [paginas[0], paginas[-1]]
-            dorso = [paginas[1], paginas[-2]]
+            frente = [paginas[-1], paginas[0]]   # izquierda: última, derecha: primera
+            dorso = [paginas[1], paginas[-2]]   # izquierda: segunda, derecha: penúltima
             hojas.append((frente, dorso))
             paginas = paginas[2:-2]
         else:
@@ -805,12 +806,13 @@ def montar_pdf(input_path, output_path, paginas_por_cara=4):
             paginas = paginas[paginas_por_cara*2:]
 
     def insertar_pagina(nueva_pagina, idx, pos, paginas_por_cara, rotar=0):
-        if not idx or idx < 1 or idx > len(doc): return
+        if not idx or idx < 1 or idx > len(doc):
+            return
         pagina = doc[idx - 1]
         pix = pagina.get_pixmap(matrix=fitz.Matrix(3, 3), alpha=False)
         img = Image.frombytes("RGB", [pix.width, pix.height], pix.samples)
         if rotar != 0:
-            img = img.rotate(rotar)
+            img = img.rotate(rotar, expand=True)
 
         buffer = BytesIO()
         img.save(buffer, format="JPEG", quality=95)
@@ -850,6 +852,7 @@ def montar_pdf(input_path, output_path, paginas_por_cara=4):
             insertar_pagina(pag_dorso, idx, j, paginas_por_cara, rotar=rotacion)
 
     salida.save(output_path)
+
 
 
 
