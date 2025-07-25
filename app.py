@@ -862,8 +862,6 @@ def montar_pdf(input_path, output_path, paginas_por_cara=4):
 
 def diagnosticar_pdf(path):
     import fitz
-    from collections import defaultdict
-
     doc = fitz.open(path)
     first_page = doc[0]
     info = doc.metadata
@@ -888,7 +886,7 @@ def diagnosticar_pdf(path):
     def dentro_de_pagina(x0, y0, x1, y1):
         return 0 <= x0 <= page_width and 0 <= y0 <= page_height and 0 <= x1 <= page_width and 0 <= y1 <= page_height
 
-    #  Vectores visibles
+    # Vectores visibles
     for d in drawings:
         for item in d.get("items", []):
             if len(item) == 4:
@@ -896,7 +894,7 @@ def diagnosticar_pdf(path):
                 if dentro_de_pagina(x0, y0, x1, y1):
                     objetos_visibles.append((x0, y0, x1, y1))
 
-    #  Imágenes visibles
+    # Imágenes visibles
     for img in first_page.get_images(full=True):
         try:
             bbox = first_page.get_image_bbox(img)
@@ -905,32 +903,28 @@ def diagnosticar_pdf(path):
         except:
             continue
 
-    #  Bloques de texto visibles
+    # Bloques de texto visibles
     for bloque in contenido_dict.get("blocks", []):
         if "bbox" in bloque:
             x0, y0, x1, y1 = bloque["bbox"]
             if dentro_de_pagina(x0, y0, x1, y1):
                 objetos_visibles.append((x0, y0, x1, y1))
 
-    #  Calcular área útil visual
-    objetos_finales = []
-    for obj in objetos_visibles:
-        x0, y0, x1, y1 = obj
-        w = round((x1 - x0) * 25.4 / 72, 2)
-        h = round((y1 - y0) * 25.4 / 72, 2)
-        if w > 10 and h > 10:
-            objetos_finales.append((w, h))
-
-    if not objetos_finales:
+    # Calcular bbox total en mm
+    if not objetos_visibles:
         medida_util = "No se detectaron objetos visuales significativos."
     else:
-        grupos = defaultdict(int)
-        for w, h in objetos_finales:
-            clave = (round(w / 5) * 5, round(h / 5) * 5)
-            grupos[clave] += 1
-        medida_util = "; ".join([f"{v} objeto(s) de aprox. {k[0]}×{k[1]} mm" for k, v in grupos.items()])
+        x_min = min([x0 for x0, _, _, _ in objetos_visibles])
+        y_min = min([y0 for _, y0, _, _ in objetos_visibles])
+        x_max = max([x1 for _, _, x1, _ in objetos_visibles])
+        y_max = max([y1 for _, _, _, y1 in objetos_visibles])
 
-    #  DPI de la 1ra imagen
+        ancho_mm = round((x_max - x_min) * 25.4 / 72, 2)
+        alto_mm = round((y_max - y_min) * 25.4 / 72, 2)
+
+        medida_util = f"{ancho_mm} x {alto_mm} mm (área útil detectada visualmente)"
+
+    # DPI de la primera imagen
     dpi_info = "No se detectaron imágenes rasterizadas."
     image_list = first_page.get_images(full=True)
     if image_list:
@@ -968,6 +962,7 @@ def diagnosticar_pdf(path):
         return response.choices[0].message.content
     except Exception as e:
         return f"[ERROR] No se pudo generar el diagnóstico con OpenAI: {e}"
+
 
 
 
