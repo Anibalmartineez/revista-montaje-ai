@@ -866,13 +866,16 @@ def diagnosticar_pdf(path):
     first_page = doc[0]
     info = doc.metadata
 
-    crop = first_page.cropbox
-    trim = first_page.trimbox
-    bleed = first_page.bleedbox
-    art = first_page.artbox
+    # Usamos MediaBox como referencia base (más confiable)
+    media = first_page.rect
+    crop = first_page.cropbox or media
+    trim = first_page.trimbox or crop
+    bleed = first_page.bleedbox or crop
+    art = first_page.artbox or crop
 
     def pts_to_mm(p): return round(p.width * 25.4 / 72, 2), round(p.height * 25.4 / 72, 2)
 
+    media_mm = pts_to_mm(media)
     crop_mm = pts_to_mm(crop)
     trim_mm = pts_to_mm(trim)
     bleed_mm = pts_to_mm(bleed)
@@ -881,24 +884,24 @@ def diagnosticar_pdf(path):
     contenido_dict = first_page.get_text("dict")
     drawings = first_page.get_drawings()
     objetos_visibles = []
-    page_width, page_height = crop.width, crop.height
+    page_width, page_height = media.width, media.height
 
-    def dentro_de_pagina(x0, y0, x1, y1):
+    def dentro_de_media(x0, y0, x1, y1):
         return 0 <= x0 <= page_width and 0 <= y0 <= page_height and 0 <= x1 <= page_width and 0 <= y1 <= page_height
 
-    # Vectores visibles
+    # Vectores visibles y marcas de corte
     for d in drawings:
         for item in d.get("items", []):
             if len(item) == 4:
                 x0, y0, x1, y1 = item
-                if dentro_de_pagina(x0, y0, x1, y1):
+                if dentro_de_media(x0, y0, x1, y1):
                     objetos_visibles.append((x0, y0, x1, y1))
 
     # Imágenes visibles
     for img in first_page.get_images(full=True):
         try:
             bbox = first_page.get_image_bbox(img)
-            if dentro_de_pagina(bbox.x0, bbox.y0, bbox.x1, bbox.y1):
+            if dentro_de_media(bbox.x0, bbox.y0, bbox.x1, bbox.y1):
                 objetos_visibles.append((bbox.x0, bbox.y0, bbox.x1, bbox.y1))
         except:
             continue
@@ -907,7 +910,7 @@ def diagnosticar_pdf(path):
     for bloque in contenido_dict.get("blocks", []):
         if "bbox" in bloque:
             x0, y0, x1, y1 = bloque["bbox"]
-            if dentro_de_pagina(x0, y0, x1, y1):
+            if dentro_de_media(x0, y0, x1, y1):
                 objetos_visibles.append((x0, y0, x1, y1))
 
     # Calcular bbox total en mm
@@ -924,7 +927,7 @@ def diagnosticar_pdf(path):
 
         medida_util = f"{ancho_mm} x {alto_mm} mm (área útil detectada visualmente)"
 
-    # DPI de la primera imagen
+    # DPI de la primera imagen (si existe)
     dpi_info = "No se detectaron imágenes rasterizadas."
     image_list = first_page.get_images(full=True)
     if image_list:
@@ -932,8 +935,8 @@ def diagnosticar_pdf(path):
         base_image = doc.extract_image(xref)
         img_width = base_image["width"]
         img_height = base_image["height"]
-        width_inch = crop.width / 72
-        height_inch = crop.height / 72
+        width_inch = media.width / 72
+        height_inch = media.height / 72
         dpi_x = round(img_width / width_inch, 1)
         dpi_y = round(img_height / height_inch, 1)
         dpi_info = f"{dpi_x} x {dpi_y} DPI"
@@ -941,7 +944,8 @@ def diagnosticar_pdf(path):
     resumen = f"""
  Diagnóstico Técnico del PDF:
 
-1️⃣ Tamaño de página (CropBox): {crop_mm[0]} × {crop_mm[1]} mm
+📄 Tamaño real de página (MediaBox): {media_mm[0]} × {media_mm[1]} mm
+1️⃣ Tamaño visible (CropBox): {crop_mm[0]} × {crop_mm[1]} mm
 2️⃣ Área de corte final (TrimBox): {trim_mm[0]} × {trim_mm[1]} mm
 3️⃣ Zona de sangrado (BleedBox): {bleed_mm[0]} × {bleed_mm[1]} mm
 4️⃣ Área artística (ArtBox): {art_mm[0]} × {art_mm[1]} mm
@@ -962,6 +966,7 @@ def diagnosticar_pdf(path):
         return response.choices[0].message.content
     except Exception as e:
         return f"[ERROR] No se pudo generar el diagnóstico con OpenAI: {e}"
+
 
 
 
