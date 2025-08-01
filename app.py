@@ -3,7 +3,6 @@ import os
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 from flask import Flask, request, send_file, render_template, render_template_string, redirect, url_for
 import tempfile
-from montaje_flexo import generar_montaje
 from reportlab.lib.pagesizes import A4
 from io import BytesIO
 from PIL import Image
