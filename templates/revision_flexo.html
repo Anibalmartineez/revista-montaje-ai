@@ -21,30 +21,29 @@
       border-radius: 8px;
     }
 
-    h1, h2 {
+    h1 {
       text-align: center;
-      margin-bottom: 20px;
-      color: #333;
+      margin-bottom: 30px;
+      color: #003366;
     }
 
-    form label {
+    label {
       display: block;
-      margin-bottom: 5px;
       font-weight: bold;
       margin-top: 15px;
+      margin-bottom: 5px;
     }
 
-    form input[type="number"],
-    form input[type="file"] {
+    input[type="number"],
+    input[type="file"] {
       width: 100%;
       padding: 10px;
-      margin-bottom: 10px;
       border: 1px solid #ccc;
       border-radius: 4px;
+      margin-bottom: 15px;
     }
 
-    button[type="submit"] {
-      display: block;
+    button {
       width: 100%;
       padding: 12px;
       background-color: #0056b3;
@@ -56,19 +55,38 @@
       margin-top: 20px;
     }
 
-    button[type="submit"]:hover {
+    button:hover {
       background-color: #003f80;
     }
 
-    pre {
-      background: #f8f8f8;
+    .mensaje, .resultado {
+      margin-top: 25px;
       padding: 15px;
       border-radius: 6px;
+      font-family: monospace;
       white-space: pre-wrap;
-      word-wrap: break-word;
-      border: 1px solid #ccc;
-      margin-top: 20px;
     }
+
+    .mensaje {
+      background-color: #ffe0e0;
+      color: #a30000;
+      border: 1px solid #cc0000;
+    }
+
+    .resultado {
+      background-color: #f1faff;
+      color: #003366;
+      border: 1px solid #b0d4ef;
+    }
+
+    .icono {
+      font-weight: bold;
+      margin-right: 5px;
+    }
+
+    .ok { color: green; }
+    .warn { color: #e69500; }
+    .error { color: red; }
   </style>
 </head>
 <body>
@@ -88,8 +106,12 @@
       <button type="submit">Revisar diseño</button>
     </form>
 
+    {% if mensaje %}
+      <div class="mensaje">{{ mensaje }}</div>
+    {% endif %}
+
     {% if resultado_revision %}
-      <pre>{{ resultado_revision }}</pre>
+      <div class="resultado">{{ resultado_revision | safe }}</div>
     {% endif %}
   </div>
 </body>
