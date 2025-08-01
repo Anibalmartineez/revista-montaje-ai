@@ -1561,43 +1561,6 @@ def generar_pdf_final():
 
 from werkzeug.utils import secure_filename
 
-@app.route('/montaje-flexo', methods=['GET', 'POST'])
-def montaje_flexo_view():
-    mensaje = ""
-    if request.method == 'POST':
-        archivo_pdf = request.files.get('archivo')
-        if not archivo_pdf or archivo_pdf.filename == '':
-            mensaje = "⚠️ No se cargó ningún archivo PDF válido."
-            return render_template('montaje_flexo.html', mensaje=mensaje), 400
-
-        try:
-            # Guardar el archivo PDF con nombre seguro
-            filename = secure_filename(archivo_pdf.filename)
-            ruta_pdf = os.path.join(UPLOAD_FOLDER_FLEXO, filename)
-            archivo_pdf.save(ruta_pdf)
-
-            # Obtener y validar parámetros
-            ancho = int(request.form['ancho'])
-            alto = int(request.form['alto'])
-            separacion = int(request.form['separacion'])
-            bobina = int(request.form['bobina'])
-            cantidad = int(request.form['cantidad'])
-
-            if ancho <= 0 or alto <= 0 or bobina <= 0 or cantidad <= 0:
-                raise ValueError("Los valores ingresados deben ser mayores a cero.")
-
-            # Generar montaje
-            archivo_final = generar_montaje(
-                ruta_pdf, ancho, alto, separacion, bobina, cantidad
-            )
-
-            return send_file(archivo_final, as_attachment=True)
-
-        except Exception as e:
-            mensaje = f"❌ Error al procesar el montaje: {str(e)}"
-            return render_template('montaje_flexo.html', mensaje=mensaje), 500
-
-    return render_template('montaje_flexo.html', mensaje=mensaje)
 
 @app.route("/revision_flexo", methods=["POST"])
 def revision_flexo():
@@ -1621,7 +1584,7 @@ def revision_flexo():
     except Exception as e:
         mensaje = f"Error al revisar diseño: {str(e)}"
 
-    return render_template("montaje_flexo.html", mensaje=mensaje, resultado_revision=resultado_revision)
+    return render_template("revision_flexo.html", mensaje=mensaje, resultado_revision=resultado_revision)
 
 
 
