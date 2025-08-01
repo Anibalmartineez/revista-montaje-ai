@@ -1,54 +1,8 @@
-import os
 import fitz  # PyMuPDF
-import tempfile
-from PIL import Image
+import os
 import numpy as np
-import io
-from reportlab.pdfgen import canvas
-from reportlab.lib.units import mm
-from reportlab.lib.pagesizes import A4
-
-
-def generar_montaje(path_pdf_etiqueta, ancho, alto, separacion, bobina, cantidad):
-    etiquetas_x = bobina // (ancho + separacion)
-    etiquetas_y = 2  # Fijo por ahora
-
-    etiquetas_por_repeticion = etiquetas_x * etiquetas_y
-    if etiquetas_por_repeticion == 0:
-        raise ValueError("El ancho de bobina es muy pequeño para colocar al menos una etiqueta con la separación dada.")
-
-    repeticiones = (cantidad + etiquetas_por_repeticion - 1) // etiquetas_por_repeticion
-
-    doc_origen = fitz.open(path_pdf_etiqueta)
-    if len(doc_origen) == 0:
-        raise ValueError("El archivo PDF está vacío o es inválido.")
-
-    pagina_etiqueta = doc_origen[0]
-    output = fitz.open()
-
-    altura_pagina_mm = etiquetas_y * (alto + separacion)
-
-    for r in range(repeticiones):
-        nueva_pagina = output.new_page(
-            width=bobina * mm,
-            height=altura_pagina_mm * mm
-        )
-        for i in range(etiquetas_x):
-            for j in range(etiquetas_y):
-                x = i * (ancho + separacion) * mm
-                y = j * (alto + separacion) * mm
-                rect = fitz.Rect(x, y, x + ancho * mm, y + alto * mm)
-                nueva_pagina.show_pdf_page(rect, doc_origen, 0)
-
-    nombre_archivo = f"montaje_flexo_{os.path.basename(path_pdf_etiqueta)}"
-    ruta_salida = os.path.join("output_flexo", nombre_archivo)
-
-    output.save(ruta_salida)
-    output.close()
-    doc_origen.close()
-
-    return ruta_salida
-
+from pdf2image import convert_from_path
+import cv2
 
 def revisar_diseño_flexo(path_pdf, anilox_lpi, paso_mm):
     doc = fitz.open(path_pdf)
@@ -57,6 +11,7 @@ def revisar_diseño_flexo(path_pdf, anilox_lpi, paso_mm):
     contenido = pagina.get_text("dict")
     advertencias = []
 
+    # Medidas del diseño en mm
     ancho_mm = round(media.width * 25.4 / 72, 2)
     alto_mm = round(media.height * 25.4 / 72, 2)
 
@@ -77,22 +32,19 @@ def revisar_diseño_flexo(path_pdf, anilox_lpi, paso_mm):
             if w < 1 or h < 1:
                 advertencias.append(f"⚠️ Línea o trazo muy fino detectado: {round(w, 2)} x {round(h, 2)} pt.")
 
-    # 🔍 Análisis rasterizado adicional
-    try:
-        pix = pagina.get_pixmap(dpi=300)
-        img_data = pix.tobytes("png")
-        image = Image.open(io.BytesIO(img_data)).convert("L")  # Escala de grises
-        np_img = np.array(image)
+    # Rasterizado y análisis de imagen
+    imagenes = convert_from_path(path_pdf, dpi=300, first_page=1, last_page=1)
+    if imagenes:
+        imagen = imagenes[0].convert("RGB")
+        img_np = np.array(imagen)
+        img_gray = cv2.cvtColor(img_np, cv2.COLOR_RGB2GRAY)
 
-        contrast = np.std(np_img)
-        if contrast < 20:
+        # Calcular contraste como diferencia entre percentiles
+        p2, p98 = np.percentile(img_gray, (2, 98))
+        contraste = p98 - p2
+
+        if contraste < 30:
             advertencias.append("⚠️ Imagen con bajo contraste. Podría afectar la calidad de impresión.")
-
-        edges = np.sum(np_img < 30)  # píxeles muy oscuros
-        if edges < 500:
-            advertencias.append("⚠️ Muy pocos detalles oscuros detectados. El diseño podría estar muy claro para cliché.")
-    except Exception as e:
-        advertencias.append(f"⚠️ No se pudo analizar la imagen rasterizada: {str(e)}")
 
     if not advertencias:
         advertencias.append("✅ El diseño parece apto para impresión flexográfica con los parámetros ingresados.")
