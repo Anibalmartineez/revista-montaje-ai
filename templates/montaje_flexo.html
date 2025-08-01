@@ -1,156 +1,205 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Montaje Automático para Flexografía</title>
-    <style>
-        body {
-            font-family: Arial, sans-serif;
-            background-color: #f4f4f4;
-            margin: 0;
-            padding: 0;
-        }
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Flexografía | Montaje y Revisión</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      background-color: #f4f4f4;
+      margin: 0;
+      padding: 0;
+    }
 
-        .container {
-            max-width: 600px;
-            margin: 50px auto;
-            background: white;
-            padding: 30px;
-            box-shadow: 0 0 10px rgba(0,0,0,0.1);
-            border-radius: 8px;
-        }
+    .container {
+      max-width: 700px;
+      margin: 40px auto;
+      background: white;
+      padding: 30px;
+      box-shadow: 0 0 10px rgba(0,0,0,0.1);
+      border-radius: 8px;
+    }
 
-        h1, h2 {
-            text-align: center;
-            margin-bottom: 20px;
-            color: #333;
-        }
+    h1, h2 {
+      text-align: center;
+      margin-bottom: 20px;
+      color: #333;
+    }
 
-        form label {
-            display: block;
-            margin-bottom: 5px;
-            font-weight: bold;
-            margin-top: 15px;
-        }
+    .button-group {
+      display: flex;
+      justify-content: center;
+      margin-bottom: 25px;
+      gap: 15px;
+    }
 
-        form input[type="number"],
-        form input[type="file"] {
-            width: 100%;
-            padding: 10px;
-            margin-bottom: 10px;
-            border: 1px solid #ccc;
-            border-radius: 4px;
-        }
+    .button-group button {
+      padding: 10px 20px;
+      border: none;
+      background-color: #0056b3;
+      color: white;
+      font-weight: bold;
+      border-radius: 4px;
+      cursor: pointer;
+    }
 
-        button {
-            display: block;
-            width: 100%;
-            padding: 12px;
-            background-color: #0056b3;
-            color: white;
-            font-weight: bold;
-            border: none;
-            border-radius: 4px;
-            cursor: pointer;
-        }
+    .button-group button.active,
+    .button-group button:hover {
+      background-color: #003f80;
+    }
 
-        button:hover {
-            background-color: #003f80;
-        }
+    .form-section {
+      display: none;
+    }
 
-        #mensaje {
-            text-align: center;
-            margin-top: 15px;
-            color: red;
-        }
+    .form-section.active {
+      display: block;
+    }
 
-        pre {
-            background: #f8f8f8;
-            padding: 15px;
-            border-radius: 6px;
-            white-space: pre-wrap;
-            word-wrap: break-word;
-            border: 1px solid #ccc;
-            margin-top: 20px;
-        }
+    form label {
+      display: block;
+      margin-bottom: 5px;
+      font-weight: bold;
+      margin-top: 15px;
+    }
 
-        hr {
-            margin: 40px 0;
-            border: none;
-            border-top: 2px solid #eee;
-        }
-    </style>
+    form input[type="number"],
+    form input[type="file"] {
+      width: 100%;
+      padding: 10px;
+      margin-bottom: 10px;
+      border: 1px solid #ccc;
+      border-radius: 4px;
+    }
+
+    button[type="submit"] {
+      display: block;
+      width: 100%;
+      padding: 12px;
+      background-color: #0056b3;
+      color: white;
+      font-weight: bold;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+      margin-top: 20px;
+    }
+
+    button[type="submit"]:hover {
+      background-color: #003f80;
+    }
+
+    #mensaje {
+      text-align: center;
+      margin-top: 15px;
+      color: red;
+    }
+
+    pre {
+      background: #f8f8f8;
+      padding: 15px;
+      border-radius: 6px;
+      white-space: pre-wrap;
+      word-wrap: break-word;
+      border: 1px solid #ccc;
+      margin-top: 20px;
+    }
+
+    hr {
+      margin: 40px 0;
+      border: none;
+      border-top: 2px solid #eee;
+    }
+  </style>
 </head>
 <body>
-    <div class="container">
-        <h1>Montaje Automático para Flexografía</h1>
-        <form id="montajeForm" method="POST" enctype="multipart/form-data">
-            <label for="archivo">Archivo PDF de la etiqueta:</label>
-            <input type="file" name="archivo" accept="application/pdf" required>
+  <div class="container">
+    <h1>🧠 Herramientas para Flexografía</h1>
 
-            <label for="ancho">Ancho de etiqueta (mm):</label>
-            <input type="number" name="ancho" required>
-
-            <label for="alto">Alto de etiqueta (mm):</label>
-            <input type="number" name="alto" required>
-
-            <label for="separacion">Separación entre etiquetas (mm):</label>
-            <input type="number" name="separacion" value="2" required>
-
-            <label for="bobina">Ancho de bobina (mm):</label>
-            <input type="number" name="bobina" value="330" required>
-
-            <label for="cantidad">Cantidad total de etiquetas:</label>
-            <input type="number" name="cantidad" required>
-
-            <button type="submit">Generar Montaje</button>
-        </form>
-
-        <p id="mensaje">{% if mensaje %}{{ mensaje }}{% endif %}</p>
-
-        <hr>
-
-        <h2>🔍 Revisión previa al envío a clichés</h2>
-        <form action="/revision_flexo" method="POST" enctype="multipart/form-data">
-            <label for="archivo_revision">Archivo PDF del diseño:</label>
-            <input type="file" name="archivo_revision" accept="application/pdf" required>
-
-            <label for="anilox_lpi">Lineatura del Anilox (lpi):</label>
-            <input type="number" name="anilox_lpi" value="360" required>
-
-            <label for="paso_cilindro">Paso del cilindro (mm):</label>
-            <input type="number" name="paso_cilindro" value="330" required>
-
-            <button type="submit">Revisar diseño</button>
-        </form>
-
-        {% if resultado_revision %}
-            <pre>{{ resultado_revision }}</pre>
-        {% endif %}
+    <div class="button-group">
+      <button type="button" onclick="mostrarFormulario('montaje')" id="btnMontaje" class="active">🧩 Montaje</button>
+      <button type="button" onclick="mostrarFormulario('revision')" id="btnRevision">🔍 Revisión</button>
     </div>
 
-    <script>
-        document.getElementById("montajeForm").addEventListener("submit", function (e) {
-            const archivo = document.querySelector('input[name="archivo"]').files[0];
-            const ancho = document.querySelector('input[name="ancho"]').value;
-            const alto = document.querySelector('input[name="alto"]').value;
-            const cantidad = document.querySelector('input[name="cantidad"]').value;
+    <!-- 🧩 Formulario de Montaje -->
+    <div id="montaje" class="form-section active">
+      <h2>🧩 Montaje Automático para Flexografía</h2>
+      <form id="montajeForm" method="POST" enctype="multipart/form-data">
+        <label for="archivo">Archivo PDF de la etiqueta:</label>
+        <input type="file" name="archivo" accept="application/pdf" required>
 
-            if (!archivo || archivo.type !== "application/pdf") {
-                alert("Por favor cargá un archivo PDF válido.");
-                e.preventDefault();
-                return false;
-            }
+        <label for="ancho">Ancho de etiqueta (mm):</label>
+        <input type="number" name="ancho" required>
 
-            if (ancho <= 0 || alto <= 0 || cantidad <= 0) {
-                alert("Ingresá valores válidos para ancho, alto y cantidad.");
-                e.preventDefault();
-                return false;
-            }
+        <label for="alto">Alto de etiqueta (mm):</label>
+        <input type="number" name="alto" required>
 
-            return true;
-        });
-    </script>
+        <label for="separacion">Separación entre etiquetas (mm):</label>
+        <input type="number" name="separacion" value="2" required>
+
+        <label for="bobina">Ancho de bobina (mm):</label>
+        <input type="number" name="bobina" value="330" required>
+
+        <label for="cantidad">Cantidad total de etiquetas:</label>
+        <input type="number" name="cantidad" required>
+
+        <button type="submit">Generar Montaje</button>
+      </form>
+      <p id="mensaje">{% if mensaje %}{{ mensaje }}{% endif %}</p>
+    </div>
+
+    <!-- 🔍 Formulario de Revisión -->
+    <div id="revision" class="form-section">
+      <h2>🔍 Revisión previa al envío a clichés</h2>
+      <form action="/revision_flexo" method="POST" enctype="multipart/form-data">
+        <label for="archivo_revision">Archivo PDF del diseño:</label>
+        <input type="file" name="archivo_revision" accept="application/pdf" required>
+
+        <label for="anilox_lpi">Lineatura del Anilox (lpi):</label>
+        <input type="number" name="anilox_lpi" value="360" required>
+
+        <label for="paso_cilindro">Paso del cilindro (mm):</label>
+        <input type="number" name="paso_cilindro" value="330" required>
+
+        <button type="submit">Revisar diseño</button>
+      </form>
+
+      {% if resultado_revision %}
+        <pre>{{ resultado_revision }}</pre>
+      {% endif %}
+    </div>
+  </div>
+
+  <script>
+    function mostrarFormulario(id) {
+      document.querySelectorAll('.form-section').forEach(s => s.classList.remove('active'));
+      document.querySelector(`#${id}`).classList.add('active');
+
+      document.querySelectorAll('.button-group button').forEach(b => b.classList.remove('active'));
+      document.getElementById('btn' + id.charAt(0).toUpperCase() + id.slice(1)).classList.add('active');
+    }
+
+    document.getElementById("montajeForm").addEventListener("submit", function (e) {
+      const archivo = document.querySelector('input[name="archivo"]').files[0];
+      const ancho = parseFloat(document.querySelector('input[name="ancho"]').value);
+      const alto = parseFloat(document.querySelector('input[name="alto"]').value);
+      const cantidad = parseInt(document.querySelector('input[name="cantidad"]').value);
+
+      if (!archivo || archivo.type !== "application/pdf") {
+        alert("Por favor cargá un archivo PDF válido.");
+        e.preventDefault();
+        return false;
+      }
+
+      if (ancho <= 0 || alto <= 0 || cantidad <= 0) {
+        alert("Ingresá valores válidos para ancho, alto y cantidad.");
+        e.preventDefault();
+        return false;
+      }
+
+      return true;
+    });
+  </script>
 </body>
 </html>
