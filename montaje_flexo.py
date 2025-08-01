@@ -1,9 +1,13 @@
-import tempfile
+import os
 import fitz  # PyMuPDF
+import tempfile
+from PIL import Image
+import numpy as np
+import io
 from reportlab.pdfgen import canvas
 from reportlab.lib.units import mm
 from reportlab.lib.pagesizes import A4
-import os
+
 
 def generar_montaje(path_pdf_etiqueta, ancho, alto, separacion, bobina, cantidad):
     etiquetas_x = bobina // (ancho + separacion)
@@ -15,15 +19,13 @@ def generar_montaje(path_pdf_etiqueta, ancho, alto, separacion, bobina, cantidad
 
     repeticiones = (cantidad + etiquetas_por_repeticion - 1) // etiquetas_por_repeticion
 
-    # Abrir el PDF de la etiqueta
     doc_origen = fitz.open(path_pdf_etiqueta)
     if len(doc_origen) == 0:
         raise ValueError("El archivo PDF está vacío o es inválido.")
-    
+
     pagina_etiqueta = doc_origen[0]
     output = fitz.open()
 
-    # Altura dinámica basada en cantidad de filas
     altura_pagina_mm = etiquetas_y * (alto + separacion)
 
     for r in range(repeticiones):
@@ -47,9 +49,8 @@ def generar_montaje(path_pdf_etiqueta, ancho, alto, separacion, bobina, cantidad
 
     return ruta_salida
 
-def revisar_diseño_flexo(path_pdf, anilox_lpi, paso_mm):
-    import fitz
 
+def revisar_diseño_flexo(path_pdf, anilox_lpi, paso_mm):
     doc = fitz.open(path_pdf)
     pagina = doc[0]
     media = pagina.rect
@@ -75,6 +76,23 @@ def revisar_diseño_flexo(path_pdf, anilox_lpi, paso_mm):
             h = y1 - y0
             if w < 1 or h < 1:
                 advertencias.append(f"⚠️ Línea o trazo muy fino detectado: {round(w, 2)} x {round(h, 2)} pt.")
+
+    # 🔍 Análisis rasterizado adicional
+    try:
+        pix = pagina.get_pixmap(dpi=300)
+        img_data = pix.tobytes("png")
+        image = Image.open(io.BytesIO(img_data)).convert("L")  # Escala de grises
+        np_img = np.array(image)
+
+        contrast = np.std(np_img)
+        if contrast < 20:
+            advertencias.append("⚠️ Imagen con bajo contraste. Podría afectar la calidad de impresión.")
+
+        edges = np.sum(np_img < 30)  # píxeles muy oscuros
+        if edges < 500:
+            advertencias.append("⚠️ Muy pocos detalles oscuros detectados. El diseño podría estar muy claro para cliché.")
+    except Exception as e:
+        advertencias.append(f"⚠️ No se pudo analizar la imagen rasterizada: {str(e)}")
 
     if not advertencias:
         advertencias.append("✅ El diseño parece apto para impresión flexográfica con los parámetros ingresados.")
