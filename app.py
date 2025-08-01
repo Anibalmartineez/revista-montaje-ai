@@ -1561,29 +1561,31 @@ def generar_pdf_final():
 from werkzeug.utils import secure_filename
 
 
-@app.route("/revision_flexo", methods=["POST"])
+@app.route("/revision", methods=["GET", "POST"])
 def revision_flexo():
     from montaje_flexo import revisar_diseño_flexo
     mensaje = ""
     resultado_revision = ""
 
-    try:
-        archivo = request.files.get("archivo_revision")
-        anilox_lpi = int(request.form.get("anilox_lpi", 360))
-        paso_mm = int(request.form.get("paso_cilindro", 330))
+    if request.method == "POST":
+        try:
+            archivo = request.files.get("archivo_revision")
+            anilox_lpi = int(request.form.get("anilox_lpi", 360))
+            paso_mm = int(request.form.get("paso_cilindro", 330))
 
-        if archivo and archivo.filename.endswith(".pdf"):
-            filename = secure_filename(archivo.filename)
-            path = os.path.join("uploads_flexo", filename)
-            archivo.save(path)
+            if archivo and archivo.filename.endswith(".pdf"):
+                filename = secure_filename(archivo.filename)
+                path = os.path.join("uploads_flexo", filename)
+                archivo.save(path)
 
-            resultado_revision = revisar_diseño_flexo(path, anilox_lpi, paso_mm)
-        else:
-            mensaje = "Archivo inválido. Subí un PDF."
-    except Exception as e:
-        mensaje = f"Error al revisar diseño: {str(e)}"
+                resultado_revision = revisar_diseño_flexo(path, anilox_lpi, paso_mm)
+            else:
+                mensaje = "Archivo inválido. Subí un PDF."
+        except Exception as e:
+            mensaje = f"Error al revisar diseño: {str(e)}"
 
     return render_template("revision_flexo.html", mensaje=mensaje, resultado_revision=resultado_revision)
+
 
 
 
