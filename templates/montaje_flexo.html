@@ -21,9 +21,9 @@
             border-radius: 8px;
         }
 
-        h1 {
+        h1, h2 {
             text-align: center;
-            margin-bottom: 30px;
+            margin-bottom: 20px;
             color: #333;
         }
 
@@ -64,6 +64,22 @@
             margin-top: 15px;
             color: red;
         }
+
+        pre {
+            background: #f8f8f8;
+            padding: 15px;
+            border-radius: 6px;
+            white-space: pre-wrap;
+            word-wrap: break-word;
+            border: 1px solid #ccc;
+            margin-top: 20px;
+        }
+
+        hr {
+            margin: 40px 0;
+            border: none;
+            border-top: 2px solid #eee;
+        }
     </style>
 </head>
 <body>
@@ -90,7 +106,28 @@
 
             <button type="submit">Generar Montaje</button>
         </form>
-        <p id="mensaje"></p>
+
+        <p id="mensaje">{% if mensaje %}{{ mensaje }}{% endif %}</p>
+
+        <hr>
+
+        <h2>🔍 Revisión previa al envío a clichés</h2>
+        <form action="/revision_flexo" method="POST" enctype="multipart/form-data">
+            <label for="archivo_revision">Archivo PDF del diseño:</label>
+            <input type="file" name="archivo_revision" accept="application/pdf" required>
+
+            <label for="anilox_lpi">Lineatura del Anilox (lpi):</label>
+            <input type="number" name="anilox_lpi" value="360" required>
+
+            <label for="paso_cilindro">Paso del cilindro (mm):</label>
+            <input type="number" name="paso_cilindro" value="330" required>
+
+            <button type="submit">Revisar diseño</button>
+        </form>
+
+        {% if resultado_revision %}
+            <pre>{{ resultado_revision }}</pre>
+        {% endif %}
     </div>
 
     <script>
