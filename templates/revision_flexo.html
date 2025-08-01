@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Flexografía | Revisión previa a clichés</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      background-color: #f4f4f4;
+      margin: 0;
+      padding: 0;
+    }
+
+    .container {
+      max-width: 700px;
+      margin: 40px auto;
+      background: white;
+      padding: 30px;
+      box-shadow: 0 0 10px rgba(0,0,0,0.1);
+      border-radius: 8px;
+    }
+
+    h1, h2 {
+      text-align: center;
+      margin-bottom: 20px;
+      color: #333;
+    }
+
+    form label {
+      display: block;
+      margin-bottom: 5px;
+      font-weight: bold;
+      margin-top: 15px;
+    }
+
+    form input[type="number"],
+    form input[type="file"] {
+      width: 100%;
+      padding: 10px;
+      margin-bottom: 10px;
+      border: 1px solid #ccc;
+      border-radius: 4px;
+    }
+
+    button[type="submit"] {
+      display: block;
+      width: 100%;
+      padding: 12px;
+      background-color: #0056b3;
+      color: white;
+      font-weight: bold;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+      margin-top: 20px;
+    }
+
+    button[type="submit"]:hover {
+      background-color: #003f80;
+    }
+
+    pre {
+      background: #f8f8f8;
+      padding: 15px;
+      border-radius: 6px;
+      white-space: pre-wrap;
+      word-wrap: break-word;
+      border: 1px solid #ccc;
+      margin-top: 20px;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>🔍 Revisión previa al envío a clichés</h1>
+
+    <form action="/revision_flexo" method="POST" enctype="multipart/form-data">
+      <label for="archivo_revision">Archivo PDF del diseño:</label>
+      <input type="file" name="archivo_revision" accept="application/pdf" required>
+
+      <label for="anilox_lpi">Lineatura del Anilox (lpi):</label>
+      <input type="number" name="anilox_lpi" value="360" required>
+
+      <label for="paso_cilindro">Paso del cilindro (mm):</label>
+      <input type="number" name="paso_cilindro" value="330" required>
+
+      <button type="submit">Revisar diseño</button>
+    </form>
+
+    {% if resultado_revision %}
+      <pre>{{ resultado_revision }}</pre>
+    {% endif %}
+  </div>
+</body>
+</html>
