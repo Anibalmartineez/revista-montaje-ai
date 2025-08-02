@@ -205,12 +205,27 @@ def revisar_sangrado(pagina):
         advertencias.append("<span class='icono ok'>✔️</span> Margen de seguridad adecuado respecto al sangrado.")
     return advertencias
 
+def calcular_repeticiones_bobina(alto_diseño_mm, paso_cilindro_mm):
+    """
+    Calcula cuántas veces entra el diseño en el paso del cilindro flexográfico.
+    Retorna el número de repeticiones y el espacio sobrante.
+    """
+    if alto_diseño_mm <= 0:
+        return 0, paso_cilindro_mm
+    repeticiones = int(paso_cilindro_mm // alto_diseño_mm)
+    sobrante = round(paso_cilindro_mm - (repeticiones * alto_diseño_mm), 2)
+    return repeticiones, sobrante
 
 def revisar_diseño_flexo(path_pdf, anilox_lpi, paso_mm):
     doc = fitz.open(path_pdf)
     pagina = doc[0]
     contenido = pagina.get_text("dict")
     ancho_mm, alto_mm = obtener_info_basica(pagina)
+    repeticiones, sobrante = calcular_repeticiones_bobina(alto_mm, paso_mm)
+advertencias.append(
+    f"<span class='icono info'>🔁</span> El diseño entra <b>{repeticiones}</b> veces en el paso del cilindro de <b>{paso_mm} mm</b>. Sobrante: <b>{sobrante} mm</b>."
+)
+
 
     advertencias = []
     advertencias += verificar_dimensiones(ancho_mm, alto_mm, paso_mm)
