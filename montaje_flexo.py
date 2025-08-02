@@ -222,7 +222,7 @@ def revisar_diseño_flexo(path_pdf, anilox_lpi, paso_mm):
     contenido = pagina.get_text("dict")
     ancho_mm, alto_mm = obtener_info_basica(pagina)
     repeticiones, sobrante = calcular_repeticiones_bobina(alto_mm, paso_mm)
-advertencias.append(
+    advertencias.append(
     f"<span class='icono info'>🔁</span> El diseño entra <b>{repeticiones}</b> veces en el paso del cilindro de <b>{paso_mm} mm</b>. Sobrante: <b>{sobrante} mm</b>."
 )
 
