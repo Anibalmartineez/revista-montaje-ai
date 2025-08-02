@@ -88,6 +88,35 @@ def analizar_contraste(path_pdf):
         advertencias.append("<span class='icono warn'>⚠️</span> No se pudo analizar el contraste.")
     return advertencias
 
+def detectar_tramas_débiles(path_pdf):
+    advertencias = []
+    try:
+        imagen = convert_from_path(path_pdf, dpi=300, first_page=1, last_page=1)[0].convert("CMYK")
+        img_np = np.array(imagen)
+
+        umbral_trama = 13  # Aproximadamente 5% de 255
+        min_pixeles_relevantes = 0.02  # 2% del total
+
+        canales = ["Cian", "Magenta", "Amarillo", "Negro"]
+        h, w, _ = img_np.shape
+        total_pixeles = h * w
+
+        for i, nombre in enumerate(canales):
+            canal = img_np[:, :, i]
+            pixeles_debiles = np.sum(canal < umbral_trama)
+            proporcion = pixeles_debiles / total_pixeles
+            if proporcion > min_pixeles_relevantes:
+                advertencias.append(
+                    f"<span class='icono warn'>⚠️</span> Trama muy débil detectada en <b>{nombre}</b>: {round(proporcion * 100, 2)}% del área está por debajo del 5%. Riesgo de pérdida en impresión."
+                )
+
+        if not advertencias:
+            advertencias.append("<span class='icono ok'>✔️</span> No se detectaron tramas débiles en la imagen.")
+    except Exception as e:
+        advertencias.append(f"<span class='icono warn'>⚠️</span> No se pudo verificar la trama débil: {str(e)}")
+
+    return advertencias
+
 
 def verificar_modo_color(path_pdf):
     advertencias = []
@@ -130,6 +159,28 @@ def verificar_modo_color(path_pdf):
         advertencias.append(f"<span class='icono warn'>⚠️</span> No se pudo verificar el modo de color: {str(e)}")
     return advertencias
 
+def detectar_pantones_completamente(path_pdf):
+    pantones = set()
+    try:
+        reader = PdfReader(path_pdf)
+        for page in reader.pages:
+            resources = page.get("/Resources")
+            if isinstance(resources, IndirectObject):
+                resources = resources.get_object()
+
+            if resources and "/ColorSpace" in resources:
+                colorspaces = resources.get("/ColorSpace")
+                if isinstance(colorspaces, IndirectObject):
+                    colorspaces = colorspaces.get_object()
+                if isinstance(colorspaces, dict):
+                    for name, cs in colorspaces.items():
+                        cs_str = str(cs)
+                        if "Separation" in cs_str or "PANTONE" in cs_str.upper():
+                            pantones.add(name)
+    except Exception as e:
+        pantones.add(f"Error: {str(e)}")
+    return pantones
+
 
 def revisar_sangrado(pagina):
     sangrado_esperado = 3  # mm
@@ -166,6 +217,7 @@ def revisar_diseño_flexo(path_pdf, anilox_lpi, paso_mm):
     advertencias += verificar_textos_pequenos(contenido)
     advertencias += verificar_lineas_finas(contenido)
     advertencias += analizar_contraste(path_pdf)
+    advertencias += detectar_tramas_débiles(path_pdf)
     advertencias += verificar_modo_color(path_pdf)
     advertencias += revisar_sangrado(pagina)
 
