@@ -3,8 +3,8 @@ import os
 import numpy as np
 from pdf2image import convert_from_path
 import cv2
-import PyPDF2
-from PyPDF2.generic import NameObject
+from PyPDF2 import PdfReader
+from PyPDF2.generic import IndirectObject
 from collections import Counter
 import re
 from PIL import Image
@@ -77,20 +77,41 @@ def analizar_contraste(path_pdf):
 def verificar_modo_color(path_pdf):
     advertencias = []
     try:
-        with open(path_pdf, 'rb') as f:
-            reader = PyPDF2.PdfReader(f)
-            for i, page in enumerate(reader.pages):
-                resources = page.get("/Resources")
-                if resources and "/XObject" in resources:
-                    xobjects = resources["/XObject"]
-                    for obj in xobjects:
-                        sub_obj = xobjects[obj]
-                        if sub_obj.get("/ColorSpace") == NameObject("/DeviceRGB"):
-                            advertencias.append(
-                                f"<span class='icono error'>❌</span> Imagen en RGB detectada en la página {i+1}. Convertir a CMYK."
-                            )
+        reader = PdfReader(path_pdf)
+        for page_num, page in enumerate(reader.pages):
+            resources = page.get("/Resources")
+            if not resources:
+                continue
+
+            xobject = resources.get("/XObject")
+            if isinstance(xobject, IndirectObject):
+                xobject = xobject.get_object()
+
+            if not isinstance(xobject, dict):
+                continue
+
+            for obj_name, obj_ref in xobject.items():
+                obj = obj_ref.get_object()
+                if obj.get("/Subtype") == "/Image":
+                    color_space = obj.get("/ColorSpace")
+
+                    if isinstance(color_space, IndirectObject):
+                        color_space = color_space.get_object()
+
+                    if isinstance(color_space, list):
+                        color_model = color_space[0]
+                    else:
+                        color_model = color_space
+
+                    if color_model == "/DeviceRGB":
+                        advertencias.append(
+                            f"<span class='icono error'>❌</span> Imagen en RGB detectada en la página {page_num+1}. Convertir a CMYK."
+                        )
     except Exception as e:
-        advertencias.append(f"<span class='icono warn'>⚠️</span> No se pudo verificar el modo de color: {e}")
+        advertencias.append(
+            f"<span class='icono warn'>⚠️</span> No se pudo verificar el modo de color: {str(e)}"
+        )
+
     return advertencias
 
 
