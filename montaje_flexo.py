@@ -6,7 +6,6 @@ import cv2
 from PyPDF2 import PdfReader
 from PyPDF2.generic import IndirectObject
 from collections import Counter
-import re
 from PIL import Image
 
 
@@ -27,6 +26,10 @@ def verificar_dimensiones(ancho_mm, alto_mm, paso_mm):
         advertencias.append(
             f"<span class='icono error'>❌</span> El alto del diseño (<b>{alto_mm} mm</b>) es mayor al paso del cilindro (<b>{paso_mm} mm</b>)."
         )
+    if ancho_mm > 330:
+        advertencias.append(
+            f"<span class='icono warn'>⚠️</span> El ancho del diseño (<b>{ancho_mm} mm</b>) podría exceder el ancho útil de la máquina. Verificar configuración."
+        )
     return advertencias
 
 
@@ -37,9 +40,10 @@ def verificar_textos_pequenos(contenido):
             for l in bloque["lines"]:
                 for s in l["spans"]:
                     size = s.get("size", 0)
+                    fuente = s.get("font", "")
                     if size < 4:
                         advertencias.append(
-                            f"<span class='icono warn'>⚠️</span> Texto pequeño detectado: '<b>{s['text']}</b>' ({round(size, 1)} pt). Riesgo de pérdida en impresión."
+                            f"<span class='icono warn'>⚠️</span> Texto pequeño detectado: '<b>{s['text']}</b>' ({round(size, 1)} pt, fuente: {fuente}). Riesgo de pérdida en impresión."
                         )
     return advertencias
 
@@ -51,9 +55,9 @@ def verificar_lineas_finas(contenido):
             x0, y0, x1, y1 = bloque["bbox"]
             w = x1 - x0
             h = y1 - y0
-            if w < 1 or h < 1:
+            if (w < 0.3 or h < 0.3):
                 advertencias.append(
-                    f"<span class='icono warn'>⚠️</span> Línea o trazo muy fino detectado: <b>{round(w, 2)} x {round(h, 2)} pt</b>."
+                    f"<span class='icono warn'>⚠️</span> Línea o trazo muy fino detectado: <b>{round(w, 2)} x {round(h, 2)} pt</b>. Riesgo de pérdida."
                 )
     return advertencias
 
@@ -97,24 +101,23 @@ def verificar_modo_color(path_pdf):
                     color_space = obj.get("/ColorSpace")
                     if isinstance(color_space, IndirectObject):
                         color_space = color_space.get_object()
-
                     if isinstance(color_space, list):
                         color_model = color_space[0]
                     else:
                         color_model = color_space
-
                     if color_model == "/DeviceRGB":
                         advertencias.append(
                             f"<span class='icono error'>❌</span> Imagen en RGB detectada en la página {page_num+1}. Convertir a CMYK."
                         )
-
+                    if color_model == "/DeviceGray":
+                        advertencias.append(
+                            f"<span class='icono warn'>⚠️</span> Imagen en escala de grises detectada en la página {page_num+1}. Verificar si es intencional."
+                        )
     except Exception as e:
         advertencias.append(
             f"<span class='icono warn'>⚠️</span> No se pudo verificar el modo de color: {str(e)}"
         )
-
     return advertencias
-
 
 
 def revisar_sangrado(pagina):
@@ -137,20 +140,78 @@ def revisar_sangrado(pagina):
     return advertencias
 
 
+def verificar_resolucion_imagenes(path_pdf):
+    advertencias = []
+    try:
+        reader = PdfReader(path_pdf)
+        for page_num, page in enumerate(reader.pages):
+            resources = page.get("/Resources")
+            if isinstance(resources, IndirectObject):
+                resources = resources.get_object()
+            if not isinstance(resources, dict):
+                continue
+            xobjects = resources.get("/XObject")
+            if isinstance(xobjects, IndirectObject):
+                xobjects = xobjects.get_object()
+            if not isinstance(xobjects, dict):
+                continue
+            for obj_ref in xobjects.values():
+                obj = obj_ref.get_object()
+                if obj.get("/Subtype") == "/Image":
+                    width = obj.get("/Width", 0)
+                    height = obj.get("/Height", 0)
+                    if width < 300 or height < 300:
+                        advertencias.append(
+                            f"<span class='icono warn'>⚠️</span> Imagen con resolución baja detectada ({width}x{height} px)."
+                        )
+    except Exception as e:
+        advertencias.append(
+            f"<span class='icono warn'>⚠️</span> Error verificando resolución de imágenes: {str(e)}"
+        )
+    return advertencias
+
+
+def estimar_consumo_tinta(path_pdf):
+    resumen_tintas = []
+    try:
+        imagen = convert_from_path(path_pdf, dpi=300, first_page=1, last_page=1)[0]
+        img_cmyk = imagen.convert("CMYK")
+        canales = img_cmyk.split()
+        nombres = ['Cian', 'Magenta', 'Amarillo', 'Negro']
+        for i, canal in enumerate(canales):
+            np_canal = np.array(canal)
+            porcentaje = round(np.mean(np_canal) / 255 * 100, 2)
+            resumen_tintas.append(
+                f"<span class='icono tinta'>🖨️</span> Porcentaje estimado de cobertura de <b>{nombres[i]}</b>: <b>{100 - porcentaje:.2f}%</b>"
+            )
+    except Exception as e:
+        resumen_tintas.append(
+            f"<span class='icono warn'>⚠️</span> No se pudo estimar el consumo de tinta: {str(e)}"
+        )
+    return resumen_tintas
+
+
 def revisar_diseño_flexo(path_pdf, anilox_lpi, paso_mm):
     doc = fitz.open(path_pdf)
+    if len(doc) > 1:
+        advertencia_paginas = ["<span class='icono warn'>⚠️</span> El archivo contiene más de una página. Solo se analiza la primera."]
+    else:
+        advertencia_paginas = []
+
     pagina = doc[0]
     contenido = pagina.get_text("dict")
-    
     ancho_mm, alto_mm = obtener_info_basica(pagina)
 
     advertencias = []
+    advertencias += advertencia_paginas
     advertencias += verificar_dimensiones(ancho_mm, alto_mm, paso_mm)
     advertencias += verificar_textos_pequenos(contenido)
     advertencias += verificar_lineas_finas(contenido)
     advertencias += analizar_contraste(path_pdf)
     advertencias += verificar_modo_color(path_pdf)
+    advertencias += verificar_resolucion_imagenes(path_pdf)
     advertencias += revisar_sangrado(pagina)
+    advertencias += estimar_consumo_tinta(path_pdf)
 
     if not advertencias:
         advertencias.append(
