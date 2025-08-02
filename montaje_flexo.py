@@ -80,21 +80,21 @@ def verificar_modo_color(path_pdf):
         reader = PdfReader(path_pdf)
         for page_num, page in enumerate(reader.pages):
             resources = page.get("/Resources")
-            if not resources:
+            if isinstance(resources, IndirectObject):
+                resources = resources.get_object()
+            if not isinstance(resources, dict):
                 continue
 
-            xobject = resources.get("/XObject")
-            if isinstance(xobject, IndirectObject):
-                xobject = xobject.get_object()
-
-            if not isinstance(xobject, dict):
+            xobjects = resources.get("/XObject")
+            if isinstance(xobjects, IndirectObject):
+                xobjects = xobjects.get_object()
+            if not isinstance(xobjects, dict):
                 continue
 
-            for obj_name, obj_ref in xobject.items():
+            for obj_name, obj_ref in xobjects.items():
                 obj = obj_ref.get_object()
                 if obj.get("/Subtype") == "/Image":
                     color_space = obj.get("/ColorSpace")
-
                     if isinstance(color_space, IndirectObject):
                         color_space = color_space.get_object()
 
@@ -107,12 +107,14 @@ def verificar_modo_color(path_pdf):
                         advertencias.append(
                             f"<span class='icono error'>❌</span> Imagen en RGB detectada en la página {page_num+1}. Convertir a CMYK."
                         )
+
     except Exception as e:
         advertencias.append(
             f"<span class='icono warn'>⚠️</span> No se pudo verificar el modo de color: {str(e)}"
         )
 
     return advertencias
+
 
 
 def revisar_sangrado(pagina):
