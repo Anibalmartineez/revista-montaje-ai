@@ -35,6 +35,7 @@ def verificar_dimensiones(ancho_mm, alto_mm, paso_mm):
 
 def verificar_textos_pequenos(contenido):
     advertencias = []
+    encontrados = False
     for bloque in contenido.get("blocks", []):
         if "lines" in bloque:
             for l in bloque["lines"]:
@@ -42,23 +43,30 @@ def verificar_textos_pequenos(contenido):
                     size = s.get("size", 0)
                     fuente = s.get("font", "")
                     if size < 4:
+                        encontrados = True
                         advertencias.append(
                             f"<span class='icono warn'>⚠️</span> Texto pequeño detectado: '<b>{s['text']}</b>' ({round(size, 1)} pt, fuente: {fuente}). Riesgo de pérdida en impresión."
                         )
+    if not encontrados:
+        advertencias.append("<span class='icono ok'>✔️</span> No se encontraron textos menores a 4 pt.")
     return advertencias
 
 
 def verificar_lineas_finas(contenido):
     advertencias = []
+    encontrados = False
     for bloque in contenido.get("blocks", []):
         if "bbox" in bloque:
             x0, y0, x1, y1 = bloque["bbox"]
             w = x1 - x0
             h = y1 - y0
             if (w < 0.3 or h < 0.3):
+                encontrados = True
                 advertencias.append(
                     f"<span class='icono warn'>⚠️</span> Línea o trazo muy fino detectado: <b>{round(w, 2)} x {round(h, 2)} pt</b>. Riesgo de pérdida."
                 )
+    if not encontrados:
+        advertencias.append("<span class='icono ok'>✔️</span> No se detectaron líneas finas con riesgo de pérdida.")
     return advertencias
 
 
@@ -75,11 +83,16 @@ def analizar_contraste(path_pdf):
             advertencias.append(
                 f"<span class='icono warn'>⚠️</span> Imagen con bajo contraste (<b>{contraste}</b>). Podría afectar la calidad de impresión."
             )
+        else:
+            advertencias.append(f"<span class='icono ok'>✔️</span> Contraste adecuado: <b>{contraste}</b>.")
+    else:
+        advertencias.append("<span class='icono warn'>⚠️</span> No se pudo analizar el contraste.")
     return advertencias
 
 
 def verificar_modo_color(path_pdf):
     advertencias = []
+    encontrado = False
     try:
         reader = PdfReader(path_pdf)
         for page_num, page in enumerate(reader.pages):
@@ -88,13 +101,11 @@ def verificar_modo_color(path_pdf):
                 resources = resources.get_object()
             if not isinstance(resources, dict):
                 continue
-
             xobjects = resources.get("/XObject")
             if isinstance(xobjects, IndirectObject):
                 xobjects = xobjects.get_object()
             if not isinstance(xobjects, dict):
                 continue
-
             for obj_name, obj_ref in xobjects.items():
                 obj = obj_ref.get_object()
                 if obj.get("/Subtype") == "/Image":
@@ -106,17 +117,18 @@ def verificar_modo_color(path_pdf):
                     else:
                         color_model = color_space
                     if color_model == "/DeviceRGB":
+                        encontrado = True
                         advertencias.append(
                             f"<span class='icono error'>❌</span> Imagen en RGB detectada en la página {page_num+1}. Convertir a CMYK."
                         )
-                    if color_model == "/DeviceGray":
+                    elif color_model == "/DeviceGray":
                         advertencias.append(
                             f"<span class='icono warn'>⚠️</span> Imagen en escala de grises detectada en la página {page_num+1}. Verificar si es intencional."
                         )
+        if not encontrado:
+            advertencias.append("<span class='icono ok'>✔️</span> Todas las imágenes están en modo CMYK o escala de grises.")
     except Exception as e:
-        advertencias.append(
-            f"<span class='icono warn'>⚠️</span> No se pudo verificar el modo de color: {str(e)}"
-        )
+        advertencias.append(f"<span class='icono warn'>⚠️</span> No se pudo verificar el modo de color: {str(e)}")
     return advertencias
 
 
@@ -224,7 +236,7 @@ def revisar_diseño_flexo(path_pdf, anilox_lpi, paso_mm):
   <p><b>🧱 Paso del cilindro:</b> {paso_mm} mm</p>
   <p><b>🟡 Anilox:</b> {anilox_lpi} lpi</p>
   <hr>
-  {"<br>".join(advertencias)}
+  {'<br>'.join(advertencias)}
 </div>
 """
 
