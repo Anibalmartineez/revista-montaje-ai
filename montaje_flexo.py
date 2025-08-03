@@ -7,6 +7,9 @@ from PyPDF2 import PdfReader
 from PyPDF2.generic import IndirectObject
 from PIL import Image
 import re
+import matplotlib.pyplot as plt
+from io import BytesIO
+import base64
 
 
 def convertir_pts_a_mm(valor_pts):
@@ -255,6 +258,33 @@ def calcular_repeticiones_bobina(alto_diseño_mm, paso_cilindro_mm):
     sobrante = round(paso_cilindro_mm - (repeticiones * alto_diseño_mm), 2)
     return repeticiones, sobrante
 
+
+def generar_grafico_tinta(volumen_calculado, volumen_ideal, material):
+    etiquetas = ["Calculado", "Ideal"]
+    valores = [volumen_calculado, volumen_ideal]
+    colores = ["#0056b3", "#999999"]
+
+    plt.figure(figsize=(4, 3))
+    barras = plt.bar(etiquetas, valores, color=colores)
+    for barra, valor in zip(barras, valores):
+        plt.text(
+            barra.get_x() + barra.get_width() / 2,
+            barra.get_height(),
+            f"{valor} ml/min",
+            ha="center",
+            va="bottom",
+            fontsize=8,
+        )
+    plt.ylabel("ml/min")
+    plt.title(f"Transmisión de tinta ({material})")
+    buffer = BytesIO()
+    plt.tight_layout()
+    plt.savefig(buffer, format="png")
+    plt.close()
+    buffer.seek(0)
+    imagen_base64 = base64.b64encode(buffer.read()).decode("utf-8")
+    return imagen_base64
+
 def revisar_diseño_flexo(
     path_pdf,
     anilox_lpi,
@@ -387,6 +417,7 @@ def revisar_diseño_flexo(
         seccion_material = "<hr><p><b>Diagnóstico según material de impresión:</b></p><p>" + "<br>".join(diagnostico_material) + "</p>"
 
     seccion_tinta = ""
+    imagen_tinta = ""
     if (
         anilox_bcm is not None
         and velocidad_impresion is not None
@@ -416,6 +447,11 @@ def revisar_diseño_flexo(
                 "<div style='background:#ddd;border-radius:4px;width:100%;height:10px;'>"
                 f"<div style='background:#0056b3;width:{porcentaje_barra}%;height:100%;'></div></div>"
             )
+
+            valores_ideales = {"film": 120, "papel": 180, "etiqueta adhesiva": 150}
+            tinta_ideal = valores_ideales.get(material_norm, 150)
+            imagen_tinta = generar_grafico_tinta(tinta_ml, tinta_ideal, material)
+
             seccion_tinta = (
                 "<hr><p><b>🖌️ Simulación de transmisión de tinta</b></p>"
                 f"<p>Cantidad estimada de tinta transferida: <b>{tinta_ml} ml/min</b></p>"
@@ -439,4 +475,4 @@ def revisar_diseño_flexo(
   {seccion_tinta}
 </div>
 """
-    return resumen
+    return resumen, imagen_tinta

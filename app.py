@@ -1566,6 +1566,7 @@ def revision_flexo():
     from montaje_flexo import revisar_diseño_flexo
     mensaje = ""
     resultado_revision = ""
+    grafico_tinta = ""
 
     if request.method == "POST":
         try:
@@ -1589,7 +1590,7 @@ def revision_flexo():
                 path = os.path.join("uploads_flexo", filename)
                 archivo.save(path)
 
-                resultado_revision = revisar_diseño_flexo(
+                resultado_revision, grafico_tinta = revisar_diseño_flexo(
                     path,
                     anilox_lpi,
                     paso_mm,
@@ -1603,7 +1604,12 @@ def revision_flexo():
         except Exception as e:
             mensaje = f"Error al revisar diseño: {str(e)}"
 
-    return render_template("revision_flexo.html", mensaje=mensaje, resultado_revision=resultado_revision)
+    return render_template(
+        "revision_flexo.html",
+        mensaje=mensaje,
+        resultado_revision=resultado_revision,
+        grafico_tinta=grafico_tinta,
+    )
 
 
 

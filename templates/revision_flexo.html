@@ -128,6 +128,11 @@
 
     {% if resultado_revision %}
       <div class="resultado">{{ resultado_revision | safe }}</div>
+      {% if grafico_tinta %}
+        <div class="resultado" style="text-align:center;">
+          <img src="data:image/png;base64,{{ grafico_tinta }}" alt="Gráfico de tinta"/>
+        </div>
+      {% endif %}
     {% endif %}
   </div>
 </body>
