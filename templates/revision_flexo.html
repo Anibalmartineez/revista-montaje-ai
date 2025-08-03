@@ -133,6 +133,19 @@
           <img src="data:image/png;base64,{{ grafico_tinta }}" alt="Gráfico de tinta"/>
         </div>
       {% endif %}
+      <form action="/sugerencia_ia" method="POST">
+        <input type="hidden" name="diagnostico_texto_b64" value="{{ diagnostico_texto_b64 }}">
+        <input type="hidden" name="resultado_revision_b64" value="{{ resultado_revision_b64 }}">
+        <input type="hidden" name="grafico_tinta" value="{{ grafico_tinta }}">
+        <button type="submit">🧠 Obtener sugerencia IA</button>
+      </form>
+    {% endif %}
+
+    {% if sugerencia_ia %}
+      <div class="resultado">
+        <h2>🔍 Sugerencia de IA</h2>
+        <pre>{{ sugerencia_ia }}</pre>
+      </div>
     {% endif %}
   </div>
 </body>

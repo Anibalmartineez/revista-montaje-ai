@@ -1567,6 +1567,9 @@ def revision_flexo():
     mensaje = ""
     resultado_revision = ""
     grafico_tinta = ""
+    diagnostico_texto = ""
+    resultado_revision_b64 = ""
+    diagnostico_texto_b64 = ""
 
     if request.method == "POST":
         try:
@@ -1590,7 +1593,7 @@ def revision_flexo():
                 path = os.path.join("uploads_flexo", filename)
                 archivo.save(path)
 
-                resultado_revision, grafico_tinta = revisar_diseño_flexo(
+                resultado_revision, grafico_tinta, diagnostico_texto = revisar_diseño_flexo(
                     path,
                     anilox_lpi,
                     paso_mm,
@@ -1599,6 +1602,12 @@ def revision_flexo():
                     velocidad,
                     cobertura,
                 )
+                resultado_revision_b64 = base64.b64encode(
+                    resultado_revision.encode("utf-8")
+                ).decode("utf-8")
+                diagnostico_texto_b64 = base64.b64encode(
+                    diagnostico_texto.encode("utf-8")
+                ).decode("utf-8")
             else:
                 mensaje = "Archivo inválido. Subí un PDF."
         except Exception as e:
@@ -1609,6 +1618,51 @@ def revision_flexo():
         mensaje=mensaje,
         resultado_revision=resultado_revision,
         grafico_tinta=grafico_tinta,
+        diagnostico_texto=diagnostico_texto,
+        diagnostico_texto_b64=diagnostico_texto_b64,
+        resultado_revision_b64=resultado_revision_b64,
+    )
+
+
+@app.route("/sugerencia_ia", methods=["POST"])
+def sugerencia_ia():
+    resultado_revision_b64 = request.form.get("resultado_revision_b64", "")
+    diagnostico_texto_b64 = request.form.get("diagnostico_texto_b64", "")
+    grafico_tinta = request.form.get("grafico_tinta", "")
+
+    try:
+        resultado_revision = base64.b64decode(resultado_revision_b64).decode("utf-8")
+        diagnostico_texto = base64.b64decode(diagnostico_texto_b64).decode("utf-8")
+    except Exception:
+        resultado_revision = ""
+        diagnostico_texto = ""
+
+    sugerencia = ""
+    if diagnostico_texto:
+        try:
+            respuesta = openai.ChatCompletion.create(
+                model="gpt-4",
+                messages=[
+                    {
+                        "role": "system",
+                        "content": "Eres un experto en impresión flexográfica. Ofrece advertencias y 2 o 3 sugerencias técnicas basadas en el diagnóstico proporcionado.",
+                    },
+                    {"role": "user", "content": diagnostico_texto},
+                ],
+                temperature=0.3,
+            )
+            sugerencia = respuesta["choices"][0]["message"]["content"].strip()
+        except Exception as e:
+            sugerencia = f"Error al obtener sugerencia de IA: {str(e)}"
+
+    return render_template(
+        "revision_flexo.html",
+        resultado_revision=resultado_revision,
+        grafico_tinta=grafico_tinta,
+        diagnostico_texto=diagnostico_texto,
+        diagnostico_texto_b64=diagnostico_texto_b64,
+        resultado_revision_b64=resultado_revision_b64,
+        sugerencia_ia=sugerencia,
     )
 
 

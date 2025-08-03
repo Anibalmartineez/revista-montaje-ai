@@ -10,6 +10,7 @@ import re
 import matplotlib.pyplot as plt
 from io import BytesIO
 import base64
+from html import unescape
 
 
 def convertir_pts_a_mm(valor_pts):
@@ -512,4 +513,13 @@ def revisar_diseño_flexo(
   {seccion_tinta}
 </div>
 """
-    return resumen, imagen_tinta
+    diagnostico_texto = generar_diagnostico_texto(resumen)
+    return resumen, imagen_tinta, diagnostico_texto
+
+
+def generar_diagnostico_texto(html_diagnostico: str) -> str:
+    """Convierte el diagnóstico en HTML a un texto plano legible."""
+    texto = re.sub(r"<[^>]+>", "", html_diagnostico)
+    texto = unescape(texto)
+    lineas = [line.strip() for line in texto.splitlines() if line.strip()]
+    return "\n".join(lineas)
