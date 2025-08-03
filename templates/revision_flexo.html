@@ -100,6 +100,9 @@
       <label for="anilox_lpi">Lineatura del Anilox (lpi):</label>
       <input type="number" name="anilox_lpi" value="360" required>
 
+      <label for="anilox_bcm">BCM del anilox (cm³/m²):</label>
+      <input type="number" step="0.01" name="anilox_bcm" placeholder="3.5">
+
       <label for="paso_cilindro">Paso del cilindro (mm):</label>
       <input type="number" name="paso_cilindro" value="330" required>
 
@@ -109,6 +112,12 @@
         <option value="papel">Papel</option>
         <option value="etiqueta adhesiva">Etiqueta adhesiva</option>
       </select>
+
+      <label for="velocidad_impresion">Velocidad de impresión estimada (m/min):</label>
+      <input type="number" step="0.1" name="velocidad_impresion" placeholder="100">
+
+      <label for="cobertura_estimada">Cobertura estimada del diseño (%):</label>
+      <input type="number" name="cobertura_estimada" min="0" max="100" placeholder="60">
 
       <button type="submit">Revisar diseño</button>
     </form>

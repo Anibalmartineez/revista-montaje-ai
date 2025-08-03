@@ -255,7 +255,15 @@ def calcular_repeticiones_bobina(alto_diseño_mm, paso_cilindro_mm):
     sobrante = round(paso_cilindro_mm - (repeticiones * alto_diseño_mm), 2)
     return repeticiones, sobrante
 
-def revisar_diseño_flexo(path_pdf, anilox_lpi, paso_mm, material=""):
+def revisar_diseño_flexo(
+    path_pdf,
+    anilox_lpi,
+    paso_mm,
+    material="",
+    anilox_bcm=None,
+    velocidad_impresion=None,
+    cobertura_estimada=None,
+):
     doc = fitz.open(path_pdf)
     pagina = doc[0]
     contenido = pagina.get_text("dict")
@@ -263,8 +271,8 @@ def revisar_diseño_flexo(path_pdf, anilox_lpi, paso_mm, material=""):
     advertencias = []
     repeticiones, sobrante = calcular_repeticiones_bobina(alto_mm, paso_mm)
     advertencias.append(
-    f"<span class='icono info'>🔁</span> El diseño entra <b>{repeticiones}</b> veces en el paso del cilindro de <b>{paso_mm} mm</b>. Sobrante: <b>{sobrante} mm</b>."
-)
+        f"<span class='icono info'>🔁</span> El diseño entra <b>{repeticiones}</b> veces en el paso del cilindro de <b>{paso_mm} mm</b>. Sobrante: <b>{sobrante} mm</b>."
+    )
 
 
 
@@ -378,6 +386,48 @@ def revisar_diseño_flexo(path_pdf, anilox_lpi, paso_mm, material=""):
     if diagnostico_material:
         seccion_material = "<hr><p><b>Diagnóstico según material de impresión:</b></p><p>" + "<br>".join(diagnostico_material) + "</p>"
 
+    seccion_tinta = ""
+    if (
+        anilox_bcm is not None
+        and velocidad_impresion is not None
+        and cobertura_estimada is not None
+    ):
+        try:
+            factores = {"film": 0.7, "papel": 1.0, "etiqueta adhesiva": 0.85}
+            factor_material = factores.get(material_norm, 1.0)
+            cobertura_frac = float(cobertura_estimada) / 100.0
+            tinta_ml = anilox_bcm * cobertura_frac * velocidad_impresion * factor_material
+            tinta_ml = round(tinta_ml, 2)
+            umbral_bajo = 50
+            umbral_alto = 200
+            if tinta_ml < umbral_bajo:
+                advertencia_tinta = (
+                    "Riesgo de subcarga de tinta, posible pérdida de densidad o colores pálidos."
+                )
+            elif tinta_ml > umbral_alto:
+                advertencia_tinta = (
+                    "Riesgo de sobrecarga de tinta, puede generar ganancia de punto o tiempos de secado muy elevados."
+                )
+            else:
+                advertencia_tinta = "Transmisión de tinta estimada en rango seguro."
+
+            porcentaje_barra = min(tinta_ml / umbral_alto * 100, 100)
+            barra_html = (
+                "<div style='background:#ddd;border-radius:4px;width:100%;height:10px;'>"
+                f"<div style='background:#0056b3;width:{porcentaje_barra}%;height:100%;'></div></div>"
+            )
+            seccion_tinta = (
+                "<hr><p><b>🖌️ Simulación de transmisión de tinta</b></p>"
+                f"<p>Cantidad estimada de tinta transferida: <b>{tinta_ml} ml/min</b></p>"
+                f"{barra_html}"
+                f"<p>{advertencia_tinta}</p>"
+            )
+        except Exception as e:
+            seccion_tinta = (
+                "<hr><p><b>🖌️ Simulación de transmisión de tinta</b></p>"
+                f"<p>Error en la simulación: {str(e)}</p>"
+            )
+
     resumen = f"""
 <div>
   <p><b>📐 Tamaño del diseño:</b> {ancho_mm} x {alto_mm} mm</p>
@@ -386,6 +436,7 @@ def revisar_diseño_flexo(path_pdf, anilox_lpi, paso_mm, material=""):
   <hr>
   {'<br>'.join(advertencias)}
   {seccion_material}
+  {seccion_tinta}
 </div>
 """
     return resumen

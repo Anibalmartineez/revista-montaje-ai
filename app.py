@@ -1573,13 +1573,31 @@ def revision_flexo():
             anilox_lpi = int(request.form.get("anilox_lpi", 360))
             paso_mm = int(request.form.get("paso_cilindro", 330))
             material = request.form.get("material", "")
+            anilox_bcm = request.form.get("anilox_bcm")
+            velocidad = request.form.get("velocidad_impresion")
+            cobertura = request.form.get("cobertura_estimada")
+
+            if anilox_bcm and velocidad and cobertura:
+                anilox_bcm = float(anilox_bcm)
+                velocidad = float(velocidad)
+                cobertura = float(cobertura)
+            else:
+                anilox_bcm = velocidad = cobertura = None
 
             if archivo and archivo.filename.endswith(".pdf"):
                 filename = secure_filename(archivo.filename)
                 path = os.path.join("uploads_flexo", filename)
                 archivo.save(path)
 
-                resultado_revision = revisar_diseño_flexo(path, anilox_lpi, paso_mm, material)
+                resultado_revision = revisar_diseño_flexo(
+                    path,
+                    anilox_lpi,
+                    paso_mm,
+                    material,
+                    anilox_bcm,
+                    velocidad,
+                    cobertura,
+                )
             else:
                 mensaje = "Archivo inválido. Subí un PDF."
         except Exception as e:
