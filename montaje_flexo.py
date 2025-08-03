@@ -6,6 +6,7 @@ import cv2
 from PyPDF2 import PdfReader
 from PyPDF2.generic import IndirectObject
 from PIL import Image
+import re
 
 
 def convertir_pts_a_mm(valor_pts):
@@ -182,6 +183,44 @@ def detectar_pantones_completamente(path_pdf):
     return pantones
 
 
+def _contar_overprints_pagina(doc, page):
+    """Cuenta cuántas veces se aplica un estado gráfico con overprint en una página."""
+    conteo = 0
+    try:
+        page_dict = doc.xref_object(page.xref)
+        ext_match = re.search(r"/ExtGState\s*<<(.+?)>>", page_dict, re.S)
+        if not ext_match:
+            return 0
+        overprint_names = []
+        ext_content = ext_match.group(1)
+        for name, xref in re.findall(r"/(\w+)\s+(\d+)\s+0\s+R", ext_content):
+            obj = doc.xref_object(int(xref))
+            if re.search(r"/(OP|op)\s+true", obj):
+                overprint_names.append(name)
+        if not overprint_names:
+            return 0
+        content = page.read_contents() or b""
+        content_str = content.decode("latin-1", errors="ignore")
+        for name in overprint_names:
+            pattern = r"/" + re.escape(name) + r"\s+gs"
+            conteo += len(re.findall(pattern, content_str))
+    except Exception:
+        return 0
+    return conteo
+
+
+def detectar_overprints(path_pdf):
+    """Retorna el número total de objetos con overprint en el documento."""
+    total = 0
+    try:
+        with fitz.open(path_pdf) as doc:
+            for page in doc:
+                total += _contar_overprints_pagina(doc, page)
+    except Exception:
+        return 0
+    return total
+
+
 def revisar_sangrado(pagina):
     sangrado_esperado = 3  # mm
     advertencias = []
@@ -293,6 +332,12 @@ def revisar_diseño_flexo(path_pdf, anilox_lpi, paso_mm, material=""):
             advertencias.append("<span class='icono ok'>✔️</span> No se detectaron colores Pantone en el archivo.")
     except Exception as e:
         advertencias.append(f"<span class='icono warn'>⚠️</span> Error al verificar colores directos: {str(e)}")
+
+    overprint_count = detectar_overprints(path_pdf)
+    if overprint_count:
+        advertencias.append(
+            f"<span class='icono warn'>⚠️</span> Se detectaron <b>{overprint_count}</b> objetos con overprint habilitado. Posibles sobreimpresiones no intencionadas."
+        )
 
     if not advertencias:
         advertencias.append(
