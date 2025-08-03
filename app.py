@@ -1572,13 +1572,14 @@ def revision_flexo():
             archivo = request.files.get("archivo_revision")
             anilox_lpi = int(request.form.get("anilox_lpi", 360))
             paso_mm = int(request.form.get("paso_cilindro", 330))
+            material = request.form.get("material", "")
 
             if archivo and archivo.filename.endswith(".pdf"):
                 filename = secure_filename(archivo.filename)
                 path = os.path.join("uploads_flexo", filename)
                 archivo.save(path)
 
-                resultado_revision = revisar_diseño_flexo(path, anilox_lpi, paso_mm)
+                resultado_revision = revisar_diseño_flexo(path, anilox_lpi, paso_mm, material)
             else:
                 mensaje = "Archivo inválido. Subí un PDF."
         except Exception as e:
