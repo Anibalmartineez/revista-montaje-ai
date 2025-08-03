@@ -216,7 +216,7 @@ def calcular_repeticiones_bobina(alto_diseño_mm, paso_cilindro_mm):
     sobrante = round(paso_cilindro_mm - (repeticiones * alto_diseño_mm), 2)
     return repeticiones, sobrante
 
-def revisar_diseño_flexo(path_pdf, anilox_lpi, paso_mm):
+def revisar_diseño_flexo(path_pdf, anilox_lpi, paso_mm, material=""):
     doc = fitz.open(path_pdf)
     pagina = doc[0]
     contenido = pagina.get_text("dict")
@@ -228,16 +228,29 @@ def revisar_diseño_flexo(path_pdf, anilox_lpi, paso_mm):
 )
 
 
-    
-    advertencias += verificar_dimensiones(ancho_mm, alto_mm, paso_mm)
-    advertencias += verificar_textos_pequenos(contenido)
-    advertencias += verificar_lineas_finas(contenido)
-    advertencias += analizar_contraste(path_pdf)
-    advertencias += detectar_tramas_débiles(path_pdf)
-    advertencias += verificar_modo_color(path_pdf)
-    advertencias += revisar_sangrado(pagina)
+
+    dim_adv = verificar_dimensiones(ancho_mm, alto_mm, paso_mm)
+    textos_adv = verificar_textos_pequenos(contenido)
+    lineas_adv = verificar_lineas_finas(contenido)
+    contraste_adv = analizar_contraste(path_pdf)
+    tramas_adv = detectar_tramas_débiles(path_pdf)
+    modo_color_adv = verificar_modo_color(path_pdf)
+    sangrado_adv = revisar_sangrado(pagina)
+
+    advertencias += dim_adv
+    advertencias += textos_adv
+    advertencias += lineas_adv
+    advertencias += contraste_adv
+    advertencias += tramas_adv
+    advertencias += modo_color_adv
+    advertencias += sangrado_adv
+
+    textos_pequenos_flag = any("Texto pequeño" in a and "warn" in a for a in textos_adv)
+    lineas_finas_flag = any("Línea o trazo muy fino" in a and "warn" in a for a in lineas_adv)
+    tramas_debiles_flag = any("Trama muy débil" in a and "warn" in a for a in tramas_adv)
 
     # Cobertura de tinta CMYK
+    cobertura = {}
     try:
         img = convert_from_path(path_pdf, dpi=300, first_page=1, last_page=1)[0].convert("CMYK")
         img_np = np.array(img)
@@ -245,6 +258,7 @@ def revisar_diseño_flexo(path_pdf, anilox_lpi, paso_mm):
         for i, nombre in enumerate(canales):
             canal = img_np[:, :, i]
             porcentaje = round(np.mean(canal / 255) * 100, 2)
+            cobertura[nombre] = porcentaje
             advertencias.append(
                 f"<span class='icono ink'>🖨️</span> Porcentaje estimado de cobertura de <b>{nombre}</b>: <b>{porcentaje}%</b>"
             )
@@ -285,6 +299,40 @@ def revisar_diseño_flexo(path_pdf, anilox_lpi, paso_mm):
             "<span class='icono ok'>✔️</span> El diseño parece apto para impresión flexográfica con los parámetros ingresados."
         )
 
+    diagnostico_material = []
+    material_norm = material.lower().strip()
+    if material_norm == "film":
+        negro = cobertura.get("Negro", 0)
+        if negro > 50:
+            diagnostico_material.append(
+                f"<span class='icono warn'>⚠️</span> Cobertura alta de negro (<b>{negro}%</b>). Puede generar problemas de adherencia o secado en film."
+            )
+        else:
+            diagnostico_material.append("<span class='icono ok'>✔️</span> Cobertura de negro adecuada para impresión en film.")
+        if tramas_debiles_flag:
+            diagnostico_material.append("<span class='icono warn'>⚠️</span> Las tramas débiles podrían no transferirse correctamente sobre film.")
+    elif material_norm == "papel":
+        if textos_pequenos_flag or lineas_finas_flag:
+            diagnostico_material.append("<span class='icono warn'>⚠️</span> En papel, la ganancia de punto puede afectar textos pequeños y líneas finas.")
+        else:
+            diagnostico_material.append("<span class='icono ok'>✔️</span> No se detectaron elementos sensibles a la ganancia de punto en papel.")
+    elif material_norm == "etiqueta adhesiva":
+        total_cobertura = sum(cobertura.values())
+        if total_cobertura > 240:
+            diagnostico_material.append(
+                f"<span class='icono warn'>⚠️</span> Cobertura total alta (<b>{round(total_cobertura,2)}%</b>). Puede ocasionar problemas de secado en etiquetas adhesivas."
+            )
+        else:
+            diagnostico_material.append("<span class='icono ok'>✔️</span> Cobertura total adecuada para etiqueta adhesiva.")
+    elif material_norm:
+        diagnostico_material.append(
+            f"<span class='icono info'>ℹ️</span> Material '<b>{material}</b>' no reconocido. Sin recomendaciones específicas."
+        )
+
+    seccion_material = ""
+    if diagnostico_material:
+        seccion_material = "<hr><p><b>Diagnóstico según material de impresión:</b></p><p>" + "<br>".join(diagnostico_material) + "</p>"
+
     resumen = f"""
 <div>
   <p><b>📐 Tamaño del diseño:</b> {ancho_mm} x {alto_mm} mm</p>
@@ -292,6 +340,7 @@ def revisar_diseño_flexo(path_pdf, anilox_lpi, paso_mm):
   <p><b>🟡 Anilox:</b> {anilox_lpi} lpi</p>
   <hr>
   {'<br>'.join(advertencias)}
+  {seccion_material}
 </div>
 """
     return resumen
