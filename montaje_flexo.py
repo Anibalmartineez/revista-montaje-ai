@@ -186,6 +186,53 @@ def detectar_pantones_completamente(path_pdf):
     return pantones
 
 
+def _normalizar_nombre_tinta(nombre):
+    """Convierte nombres PDF como '/PANTONE#20394#20C' a 'PANTONE 294 C'."""
+    if nombre.startswith("/"):
+        nombre = nombre[1:]
+
+    def reemplazo(match):
+        return bytes.fromhex(match.group(1)).decode("latin-1")
+
+    nombre = re.sub(r"#([0-9A-Fa-f]{2})", reemplazo, nombre)
+    nombre = nombre.strip().upper()
+    nombre = re.sub(r"(\d+)([A-Z])$", r"\1 \2", nombre)
+    return nombre
+
+
+def detectar_tintas_pantone(doc):
+    """Devuelve una lista de nombres de tintas planas (Pantone/Spot) detectadas."""
+    tintas = set()
+    try:
+        for page in doc.pages:
+            resources = page.get("/Resources")
+            if isinstance(resources, IndirectObject):
+                resources = resources.get_object()
+            if not isinstance(resources, dict):
+                continue
+            colorspaces = resources.get("/ColorSpace")
+            if isinstance(colorspaces, IndirectObject):
+                colorspaces = colorspaces.get_object()
+            if not isinstance(colorspaces, dict):
+                continue
+            for _, cs in colorspaces.items():
+                if isinstance(cs, IndirectObject):
+                    cs = cs.get_object()
+                if isinstance(cs, list) and len(cs) > 1 and cs[0] == "/Separation":
+                    nombre = str(cs[1])
+                    nombre_norm = _normalizar_nombre_tinta(nombre)
+                    if re.search(r"(PANTONE|SPOT)", nombre_norm, re.IGNORECASE):
+                        tintas.add(nombre_norm)
+                else:
+                    nombre = str(cs)
+                    nombre_norm = _normalizar_nombre_tinta(nombre)
+                    if re.search(r"(PANTONE|SPOT)", nombre_norm, re.IGNORECASE):
+                        tintas.add(nombre_norm)
+    except Exception:
+        pass
+    return sorted(tintas)
+
+
 def _contar_overprints_pagina(doc, page):
     """Cuenta cuántas veces se aplica un estado gráfico con overprint en una página."""
     conteo = 0
@@ -344,32 +391,22 @@ def revisar_diseño_flexo(
             f"<span class='icono warn'>⚠️</span> No se pudo estimar la cobertura de tinta: {str(e)}"
         )
 
-    # Detección de colores Pantone
+    # Detección de tintas planas (Pantone/Spot)
     try:
-        reader = PdfReader(path_pdf)
-        pantones = set()
-        for page in reader.pages:
-            resources = page.get("/Resources")
-            if isinstance(resources, IndirectObject):
-                resources = resources.get_object()
-            if resources and "/ColorSpace" in resources:
-                colorspace_dict = resources.get("/ColorSpace")
-                if isinstance(colorspace_dict, IndirectObject):
-                    colorspace_dict = colorspace_dict.get_object()
-                if isinstance(colorspace_dict, dict):
-                    for name, cs in colorspace_dict.items():
-                        name_str = str(name)
-                        if "PANTONE" in name_str.upper():
-                            pantones.add(name_str)
-        if pantones:
-            for pant in pantones:
-                advertencias.append(
-                    f"<span class='icono warn'>🎨</span> Color directo detectado: <b>{pant}</b>. Confirmar si está habilitado para impresión."
-                )
+        reader_spot = PdfReader(path_pdf)
+        tintas_planas = detectar_tintas_pantone(reader_spot)
+        if tintas_planas:
+            advertencias.append(
+                f"<span class='icono warn'>🎨</span> Tintas planas detectadas: <b>{', '.join(tintas_planas)}</b>"
+            )
         else:
-            advertencias.append("<span class='icono ok'>✔️</span> No se detectaron colores Pantone en el archivo.")
+            advertencias.append(
+                "<span class='icono error'>❌</span> No se detectaron tintas planas (Pantone)"
+            )
     except Exception as e:
-        advertencias.append(f"<span class='icono warn'>⚠️</span> Error al verificar colores directos: {str(e)}")
+        advertencias.append(
+            f"<span class='icono warn'>⚠️</span> Error al verificar tintas planas: {str(e)}"
+        )
 
     overprint_count = detectar_overprints(path_pdf)
     if overprint_count:
