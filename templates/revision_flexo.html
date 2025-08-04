@@ -146,12 +146,25 @@
         <input type="hidden" name="grafico_tinta" value="{{ grafico_tinta }}">
         <button type="submit">🧠 Obtener sugerencia IA</button>
       </form>
+      <form action="/sugerencia_produccion" method="POST">
+        <input type="hidden" name="diagnostico_texto_b64" value="{{ diagnostico_texto_b64 }}">
+        <input type="hidden" name="resultado_revision_b64" value="{{ resultado_revision_b64 }}">
+        <input type="hidden" name="grafico_tinta" value="{{ grafico_tinta }}">
+        <button type="submit">🏭 Sugerencia de producción IA</button>
+      </form>
     {% endif %}
 
     {% if sugerencia_ia %}
       <div class="resultado">
         <h2>🔍 Sugerencia de IA</h2>
         <pre>{{ sugerencia_ia }}</pre>
+      </div>
+    {% endif %}
+
+    {% if sugerencia_produccion %}
+      <div class="resultado">
+        <h2>🏭 Sugerencia de producción IA</h2>
+        <pre>{{ sugerencia_produccion }}</pre>
       </div>
     {% endif %}
   </div>

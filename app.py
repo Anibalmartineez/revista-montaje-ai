@@ -1666,6 +1666,34 @@ def sugerencia_ia():
     )
 
 
+@app.route("/sugerencia_produccion", methods=["POST"])
+def sugerencia_produccion():
+    from montaje_flexo import generar_sugerencia_produccion
+
+    resultado_revision_b64 = request.form.get("resultado_revision_b64", "")
+    diagnostico_texto_b64 = request.form.get("diagnostico_texto_b64", "")
+    grafico_tinta = request.form.get("grafico_tinta", "")
+
+    try:
+        resultado_revision = base64.b64decode(resultado_revision_b64).decode("utf-8")
+        diagnostico_texto = base64.b64decode(diagnostico_texto_b64).decode("utf-8")
+    except Exception:
+        resultado_revision = ""
+        diagnostico_texto = ""
+
+    sugerencia = generar_sugerencia_produccion(diagnostico_texto, resultado_revision)
+
+    return render_template(
+        "revision_flexo.html",
+        resultado_revision=resultado_revision,
+        grafico_tinta=grafico_tinta,
+        diagnostico_texto=diagnostico_texto,
+        diagnostico_texto_b64=diagnostico_texto_b64,
+        resultado_revision_b64=resultado_revision_b64,
+        sugerencia_produccion=sugerencia,
+    )
+
+
 
 
 if __name__ == '__main__':
