@@ -11,6 +11,7 @@ import matplotlib.pyplot as plt
 from io import BytesIO
 import base64
 from html import unescape
+import openai
 
 
 def convertir_pts_a_mm(valor_pts):
@@ -523,3 +524,31 @@ def generar_diagnostico_texto(html_diagnostico: str) -> str:
     texto = unescape(texto)
     lineas = [line.strip() for line in texto.splitlines() if line.strip()]
     return "\n".join(lineas)
+
+
+def generar_sugerencia_produccion(diagnostico_texto: str, resultado_revision: str) -> str:
+    """Genera sugerencias prácticas de producción basadas en el diagnóstico."""
+    try:
+        mensajes = [
+            {
+                "role": "system",
+                "content": (
+                    "Eres un especialista en producción de impresión flexográfica. "
+                    "Brinda recomendaciones prácticas basadas en el diagnóstico entregado. "
+                    "Evalúa si el archivo está listo para impresión, riesgos en máquina, tipo de anilox según cobertura, "
+                    "cambios de técnica de impresión, uso de barniz, doble pasada o reducción de colores y ajustes de preprensa."
+                ),
+            },
+            {
+                "role": "user",
+                "content": f"Diagnóstico:\n{diagnostico_texto}\n\nResultado de la revisión:\n{resultado_revision}",
+            },
+        ]
+        respuesta = openai.ChatCompletion.create(
+            model="gpt-4",
+            messages=mensajes,
+            temperature=0.3,
+        )
+        return respuesta["choices"][0]["message"]["content"].strip()
+    except Exception as e:
+        return f"Error al obtener sugerencia de producción: {str(e)}"
