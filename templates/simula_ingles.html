@@ -1,0 +1,171 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <title>🗣️ Simulador de Conversación en Inglés</title>
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600&display=swap" rel="stylesheet">
+  <style>
+    body {
+      background: #f0f4ff;
+      font-family: 'Poppins', sans-serif;
+      margin: 0;
+      padding: 0;
+    }
+    .chat-container {
+      max-width: 700px;
+      margin: 50px auto;
+      background: #ffffff;
+      border-radius: 12px;
+      box-shadow: 0 0 20px rgba(0,0,0,0.1);
+      padding: 30px;
+    }
+    h1 {
+      text-align: center;
+      font-size: 26px;
+      margin-bottom: 20px;
+    }
+    .modo-buttons {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      justify-content: center;
+      margin-bottom: 20px;
+    }
+    .modo-buttons button {
+      padding: 10px 16px;
+      font-size: 14px;
+      border: none;
+      border-radius: 20px;
+      cursor: pointer;
+      background: #805dff;
+      color: white;
+      transition: transform 0.2s;
+    }
+    .modo-buttons button:hover {
+      transform: scale(1.05);
+      background: #6949d1;
+    }
+    form {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      margin-top: 20px;
+    }
+    textarea {
+      padding: 12px;
+      font-size: 15px;
+      border-radius: 8px;
+      border: 1px solid #ccc;
+      resize: none;
+    }
+    button.enviar {
+      background: #007bff;
+      color: white;
+      font-weight: bold;
+      border: none;
+      border-radius: 8px;
+      padding: 10px;
+      cursor: pointer;
+      transition: 0.3s;
+    }
+    button.enviar:hover {
+      background: #0056b3;
+    }
+    button.reset {
+      background: #dc3545;
+      color: white;
+      border: none;
+      border-radius: 8px;
+      padding: 8px 12px;
+      cursor: pointer;
+      font-size: 13px;
+    }
+    #respuesta, #chat-history {
+      margin-top: 25px;
+    }
+    .bubble {
+      border-radius: 12px;
+      padding: 12px;
+      margin-bottom: 10px;
+      max-width: 80%;
+      animation: fadeIn 0.3s ease-in-out;
+    }
+    .user-msg {
+      background: #dbeafe;
+      align-self: flex-end;
+    }
+    .ia-msg {
+      background: #e7fce4;
+      align-self: flex-start;
+    }
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(10px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+  </style>
+</head>
+<body>
+  <div class="chat-container">
+    <h1>🧠 Simulador de Conversación en Inglés</h1>
+    
+    <div class="modo-buttons">
+      <button type="button" onclick="setModo('turismo')">🧳 Turismo</button>
+      <button type="button" onclick="setModo('negocios')">💼 Negocios</button>
+      <button type="button" onclick="setModo('entrevista')">📋 Entrevista</button>
+      <button type="button" onclick="setModo('educacion')">📚 Educación</button>
+      <button type="button" onclick="setModo('vocabulario')">🧠 Vocabulario</button>
+      <button type="button" onclick="setModo('quiz')">🎯 Mini Quiz</button>
+    </div>
+
+    <form method="POST" onsubmit="scrollToBottom()">
+  <input type="hidden" name="modo" id="modo" value="{{ contexto }}">
+  <textarea name="texto" rows="3" placeholder="Escribí algo en inglés o español..." required>{{ texto_usuario }}</textarea>
+  <button type="submit" class="enviar">💬 Enviar</button>
+</form>
+
+<form method="GET" action="/reset-chat" style="margin-top: 10px;">
+  <button class="reset-btn" type="submit">🗑️ Reset</button>
+</form>
+
+
+    <div id="chat-history">
+      {{ historial|safe }}
+    </div>
+
+    <div id="respuesta">
+      {{ respuesta|safe }}
+    </div>
+  </div>
+
+  <script>
+    function setModo(m) {
+      document.getElementById('modo').value = m;
+    }
+
+    function resetChat() {
+      document.querySelector('textarea').value = "";
+      document.getElementById('chat-history').innerHTML = "";
+      document.getElementById('respuesta').innerHTML = "";
+    }
+
+    function scrollToBottom() {
+      setTimeout(() => {
+        window.scrollTo({
+          top: document.body.scrollHeight,
+          behavior: 'smooth'
+        });
+      }, 100);
+    }
+  </script>
+</body>
+</html>
+"""
+
+
+
+
+
+
+
+
+

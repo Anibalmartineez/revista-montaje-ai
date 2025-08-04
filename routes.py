@@ -1,0 +1,373 @@
+import os
+import base64
+from flask import request, send_file, render_template, render_template_string, redirect, url_for, send_from_directory
+from werkzeug.utils import secure_filename
+
+from app import app
+from montaje import montar_pdf
+from diagnostico import diagnosticar_pdf, analizar_grafico_tecnico
+from utils import corregir_sangrado, redimensionar_pdf
+from simulacion import generar_preview_interactivo, generar_preview_virtual
+from ia_sugerencias import chat_completion, transcribir_audio
+from montaje_flexo import revisar_diseño_flexo, generar_sugerencia_produccion
+
+UPLOAD_FOLDER = "uploads"
+os.makedirs(UPLOAD_FOLDER, exist_ok=True)
+os.makedirs("output", exist_ok=True)
+os.makedirs("preview_temp", exist_ok=True)
+UPLOAD_FOLDER_FLEXO = "uploads_flexo"
+OUTPUT_FOLDER_FLEXO = "output_flexo"
+os.makedirs(UPLOAD_FOLDER_FLEXO, exist_ok=True)
+os.makedirs(OUTPUT_FOLDER_FLEXO, exist_ok=True)
+
+chat_historial = []
+
+
+@app.route("/", methods=["GET", "POST"])
+def index():
+    mensaje = ""
+    diagnostico = None
+    output_pdf = False
+
+    if request.method == "POST":
+        try:
+            action = request.form.get("action")
+            modo_montaje = int(request.form.get("modo_montaje", 4) or 4)
+            nuevo_ancho = request.form.get("nuevo_ancho")
+            nuevo_alto = request.form.get("nuevo_alto")
+
+            if action == "analisis_grafico":
+                imagen = request.files.get("grafico")
+                if imagen and imagen.filename != '':
+                    path_img = os.path.join(UPLOAD_FOLDER, secure_filename(imagen.filename))
+                    imagen.save(path_img)
+                    estrategia, img_base64 = analizar_grafico_tecnico(path_img)
+                    diagnostico = f"""
+                    <h3 style='margin-top:20px;'> Gráfico Técnico Simulado</h3>
+                    <img src='data:image/png;base64,{img_base64}' style='width:100%;margin:15px 0;border:2px solid #007bff;border-radius:12px;'>
+                    <h3> Estrategia Sugerida (IA)</h3>
+                    <div style='background:#eef6ff;border-left:5px solid #007bff;padding:15px;border-radius:10px;font-size:15px;white-space:pre-wrap;'>{estrategia}</div>
+                    """
+                else:
+                    raise Exception("Debe subir una imagen válida para análisis técnico.")
+
+            elif action in ["montar", "diagnostico", "corregir_sangrado", "redimensionar"]:
+                if 'pdf' not in request.files or request.files['pdf'].filename == '':
+                    raise Exception("Debes subir un archivo PDF válido.")
+
+                archivo = request.files['pdf']
+                filename = secure_filename(archivo.filename)
+                path_pdf = os.path.join(UPLOAD_FOLDER, filename)
+                archivo.save(path_pdf)
+
+                output_path = os.path.join("output", "montado.pdf")
+
+                if action == "montar":
+                    if modo_montaje == 2:
+                        generar_preview_interactivo(path_pdf)
+                        return send_from_directory("preview_temp", "preview.html")
+                    else:
+                        montar_pdf(path_pdf, output_path, paginas_por_cara=modo_montaje)
+                        output_pdf = True
+                elif action == "diagnostico":
+                    diagnostico = diagnosticar_pdf(path_pdf)
+                elif action == "corregir_sangrado":
+                    corregir_sangrado(path_pdf, output_path)
+                    output_pdf = True
+                elif action == "redimensionar":
+                    if not nuevo_ancho:
+                        raise Exception("Debes ingresar al menos un nuevo ancho.")
+                    nuevo_ancho = float(nuevo_ancho)
+                    nuevo_alto = float(nuevo_alto) if nuevo_alto else None
+                    redimensionar_pdf(path_pdf, output_path, nuevo_ancho, nuevo_alto)
+                    output_pdf = True
+                else:
+                    mensaje = "⚠ Función no implementada para esta acción."
+        except Exception as e:
+            mensaje = f" Error al procesar el archivo: {str(e)}"
+
+    return render_template("index.html", mensaje=mensaje, diagnostico=diagnostico, output_pdf=output_pdf)
+
+
+@app.route('/descargar')
+def descargar_pdf():
+    return send_file("output/montado.pdf", as_attachment=True)
+
+
+@app.route("/habla-ingles", methods=["GET", "POST"])
+def habla_ingles():
+    mensaje = ""
+    transcripcion = ""
+    analisis = ""
+    if request.method == "POST":
+        audio = request.files.get("audio")
+        if audio and audio.filename.endswith(".mp3"):
+            try:
+                transcripcion = transcribir_audio(audio)
+                prompt = f"""
+El siguiente texto fue hablado por un estudiante de inglés. Analiza su nivel de pronunciación y gramática (en base al texto transcrito), y sugiere cómo podría mejorar. Sé claro, breve y amable. También indica el nivel estimado (A1, B1, C1, etc).
+
+Texto: "{transcripcion}"
+"""
+                analisis = chat_completion(prompt)
+            except Exception as e:
+                mensaje = f" Error al procesar audio: {str(e)}"
+        else:
+            mensaje = " Por favor, subí un archivo .mp3 válido."
+    return render_template("habla_ingles.html", mensaje=mensaje, transcripcion=transcripcion, analisis=analisis)
+
+
+@app.route("/simula-ingles", methods=["GET", "POST"])
+def simula_ingles():
+    global chat_historial
+    texto_usuario = ""
+    respuesta_ia = ""
+    modo = "general"
+
+    if request.method == "POST":
+        texto_usuario = request.form.get("texto", "").strip()
+        modo = request.form.get("modo", "general")
+        if modo == "quiz":
+            prompt = f"""
+Act as an English quiz coach. Based on the user's last message: "{texto_usuario}", create a 1-question multiple-choice quiz in English.
+Include:
+- The question
+- 3 answer choices (A, B, C)
+- Indicate the correct one
+- Explain why it's correct in Spanish
+"""
+        else:
+            contexto = {
+                "general": "Conversación general",
+                "turismo": "Viaje y turismo en el extranjero",
+                "negocios": "Negociación y negocios",
+                "entrevista": "Entrevista de trabajo",
+                "educacion": "Presentación o entorno educativo",
+                "vocabulario": "Práctica de nuevo vocabulario"
+            }.get(modo, "Conversación general")
+            prompt = f"""
+Act as a friendly English tutor for a Spanish-speaking student. Simulate a conversation in the context: "{contexto}".
+
+The student says: "{texto_usuario}"
+
+Your response should follow this format:
+**Respuesta en inglés:**
+...
+
+**Traducción al español:**
+...
+
+**Correcciones:**
+...
+
+End with a natural question or comment to keep the conversation going.
+"""
+        try:
+            respuesta_ia = chat_completion(prompt)
+            if texto_usuario:
+                chat_historial.append(("🧑", texto_usuario))
+            if respuesta_ia:
+                chat_historial.append(("🤖", respuesta_ia))
+            chat_historial = chat_historial[-10:]
+        except Exception as e:
+            respuesta_ia = f"[ERROR] No se pudo generar respuesta: {str(e)}"
+
+    historial_html = ""
+    for quien, mensaje in chat_historial:
+        clase = "user-msg" if quien == "🧑" else "ia-msg"
+        historial_html += f"<div class='bubble {clase}'>{quien} {mensaje}</div>"
+
+    return render_template("simula_ingles.html", texto_usuario=texto_usuario, respuesta=respuesta_ia, contexto=modo, historial=historial_html)
+
+
+@app.route("/reset-chat")
+def reset_chat():
+    global chat_historial
+    chat_historial = []
+    return redirect(url_for('simula_ingles'))
+
+
+@app.route("/vista_previa", methods=["POST"])
+def vista_previa():
+    archivo = request.files["archivo"]
+    modo = int(request.form.get("modo", "2"))
+    filename = secure_filename(archivo.filename)
+    ruta_pdf = os.path.join(UPLOAD_FOLDER, filename)
+    archivo.save(ruta_pdf)
+
+    if modo == 2:
+        generar_preview_interactivo(ruta_pdf)
+        return send_from_directory("preview_temp", "preview.html")
+    else:
+        montar_pdf(ruta_pdf, "output/montado.pdf", paginas_por_cara=modo)
+        return send_file("output/montado.pdf", as_attachment=True)
+
+
+@app.route('/preview_temp/<filename>')
+def mostrar_preview_temp(filename):
+    return send_from_directory('preview_temp', filename)
+
+
+@app.route("/preview")
+def vista_preview():
+    pagina = int(request.args.get("p", 1))
+    modo = int(request.args.get("modo", 2))
+    files = sorted(os.listdir("preview_temp"))
+    total = len(files)
+    pag1 = files[pagina - 1] if pagina - 1 < total else None
+    pag2 = files[pagina] if pagina < total else None
+    anterior = pagina - 2 if pagina > 2 else 1
+    siguiente = pagina + 2 if pagina + 1 < total else pagina
+    html = f"""
+    <!doctype html>
+    <html lang='es'>
+    <head>
+        <meta charset='utf-8'>
+        <title>Vista previa del Pliego</title>
+        <style>
+            body {{font-family: sans-serif; text-align: center; padding: 20px;}}
+            img {{height: 480px; margin: 0 10px; border: 2px solid #ccc; border-radius: 10px;}}
+            .nav-buttons {{margin-top: 20px;}}
+            button {{padding: 10px 20px; font-size: 16px; margin: 0 10px;}}
+        </style>
+    </head>
+    <body>
+        <h1>Vista previa del Pliego {pagina // 2 + 1}</h1>
+        <div>
+            {f'<img src="/preview_temp/{pag1}">' if pag1 else ''}
+            {f'<img src="/preview_temp/{pag2}">' if pag2 else ''}
+        </div>
+        <div class='nav-buttons'>
+            <a href='/preview?p={anterior}&modo={modo}'><button>Anterior</button></a>
+            <a href='/preview?p={siguiente}&modo={modo}'><button>Siguiente</button></a>
+        </div>
+        <form action='/generar_pdf_final' method='post'>
+            <input type='hidden' name='modo_montaje' value='{modo}'>
+            <button type='submit'>Montar PDF final</button>
+        </form>
+    </body>
+    </html>
+    """
+    return html
+
+
+@app.route("/generar_pdf_final", methods=["POST"])
+def generar_pdf_final():
+    modo = int(request.form.get("modo_montaje", 2))
+    pdfs = [f for f in os.listdir("uploads") if f.endswith(".pdf")]
+    if not pdfs:
+        return "No hay archivo para montar."
+    path_pdf = os.path.join("uploads", pdfs[-1])
+    output_pdf_path = "output/montado.pdf"
+    montar_pdf(path_pdf, output_pdf_path, paginas_por_cara=modo)
+    return send_file(output_pdf_path, as_attachment=True)
+
+
+@app.route("/revision", methods=["GET", "POST"])
+def revision_flexo():
+    mensaje = ""
+    resultado_revision = ""
+    grafico_tinta = ""
+    diagnostico_texto = ""
+    resultado_revision_b64 = ""
+    diagnostico_texto_b64 = ""
+
+    if request.method == "POST":
+        try:
+            archivo = request.files.get("archivo_revision")
+            anilox_lpi = int(request.form.get("anilox_lpi", 360))
+            paso_mm = int(request.form.get("paso_cilindro", 330))
+            material = request.form.get("material", "")
+            anilox_bcm = request.form.get("anilox_bcm")
+            velocidad = request.form.get("velocidad_impresion")
+            cobertura = request.form.get("cobertura_estimada")
+
+            if anilox_bcm and velocidad and cobertura:
+                anilox_bcm = float(anilox_bcm)
+                velocidad = float(velocidad)
+                cobertura = float(cobertura)
+            else:
+                anilox_bcm = velocidad = cobertura = None
+
+            if archivo and archivo.filename.endswith(".pdf"):
+                filename = secure_filename(archivo.filename)
+                path = os.path.join(UPLOAD_FOLDER_FLEXO, filename)
+                archivo.save(path)
+
+                resultado_revision, grafico_tinta, diagnostico_texto = revisar_diseño_flexo(
+                    path,
+                    anilox_lpi,
+                    paso_mm,
+                    material,
+                    anilox_bcm,
+                    velocidad,
+                    cobertura,
+                )
+                resultado_revision_b64 = base64.b64encode(resultado_revision.encode("utf-8")).decode("utf-8")
+                diagnostico_texto_b64 = base64.b64encode(diagnostico_texto.encode("utf-8")).decode("utf-8")
+            else:
+                mensaje = "Archivo inválido. Subí un PDF."
+        except Exception as e:
+            mensaje = f"Error al revisar diseño: {str(e)}"
+
+    return render_template(
+        "revision_flexo.html",
+        mensaje=mensaje,
+        resultado_revision=resultado_revision,
+        grafico_tinta=grafico_tinta,
+        diagnostico_texto=diagnostico_texto,
+        diagnostico_texto_b64=diagnostico_texto_b64,
+        resultado_revision_b64=resultado_revision_b64,
+    )
+
+
+@app.route("/sugerencia_ia", methods=["POST"])
+def sugerencia_ia():
+    resultado_revision_b64 = request.form.get("resultado_revision_b64", "")
+    diagnostico_texto_b64 = request.form.get("diagnostico_texto_b64", "")
+    grafico_tinta = request.form.get("grafico_tinta", "")
+    try:
+        resultado_revision = base64.b64decode(resultado_revision_b64).decode("utf-8")
+        diagnostico_texto = base64.b64decode(diagnostico_texto_b64).decode("utf-8")
+    except Exception:
+        resultado_revision = ""
+        diagnostico_texto = ""
+    sugerencia = ""
+    if diagnostico_texto:
+        try:
+            prompt = diagnostico_texto
+            sugerencia = chat_completion(prompt, model="gpt-4", temperature=0.3)
+        except Exception as e:
+            sugerencia = f"Error al obtener sugerencia de IA: {str(e)}"
+    return render_template(
+        "revision_flexo.html",
+        resultado_revision=resultado_revision,
+        grafico_tinta=grafico_tinta,
+        diagnostico_texto=diagnostico_texto,
+        diagnostico_texto_b64=diagnostico_texto_b64,
+        resultado_revision_b64=resultado_revision_b64,
+        sugerencia_ia=sugerencia,
+    )
+
+
+@app.route("/sugerencia_produccion", methods=["POST"])
+def sugerencia_produccion():
+    resultado_revision_b64 = request.form.get("resultado_revision_b64", "")
+    diagnostico_texto_b64 = request.form.get("diagnostico_texto_b64", "")
+    grafico_tinta = request.form.get("grafico_tinta", "")
+    try:
+        resultado_revision = base64.b64decode(resultado_revision_b64).decode("utf-8")
+        diagnostico_texto = base64.b64decode(diagnostico_texto_b64).decode("utf-8")
+    except Exception:
+        resultado_revision = ""
+        diagnostico_texto = ""
+    sugerencia = generar_sugerencia_produccion(diagnostico_texto, resultado_revision)
+    return render_template(
+        "revision_flexo.html",
+        resultado_revision=resultado_revision,
+        grafico_tinta=grafico_tinta,
+        diagnostico_texto=diagnostico_texto,
+        diagnostico_texto_b64=diagnostico_texto_b64,
+        resultado_revision_b64=resultado_revision_b64,
+        sugerencia_produccion=sugerencia,
+    )

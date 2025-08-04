@@ -1,0 +1,324 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <title>Creativa CTP – Diagnóstico y Montaje</title>
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --color-bg: #f5f9ff;
+      --color-primary: #007bff;
+      --color-secondary: #28a745;
+      --color-danger: #dc3545;
+      --color-gray: #6c757d;
+    }
+
+    body {
+      font-family: 'Poppins', sans-serif;
+      background: var(--color-bg);
+      margin: 0;
+      padding: 0;
+    }
+
+    .container {
+      max-width: 720px;
+      margin: 60px auto;
+      background: #fff;
+      border-radius: 20px;
+      padding: 40px 30px;
+      box-shadow: 0 12px 36px rgba(0, 0, 0, 0.1);
+      animation: fadeIn 1s ease-in-out;
+    }
+
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(30px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    h2 {
+      text-align: center;
+      color: #222;
+      font-size: 28px;
+      margin-bottom: 30px;
+    }
+
+    form {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 15px;
+    }
+
+    input[type="file"], input[type="number"] {
+      border: 2px dashed var(--color-primary);
+      padding: 14px;
+      border-radius: 12px;
+      width: 100%;
+      background: #f8fbff;
+      font-size: 15px;
+      cursor: pointer;
+    }
+
+    input[type="number"] {
+      border-style: solid;
+      border-color: #ccc;
+    }
+
+    button {
+      width: 100%;
+      max-width: 360px;
+      padding: 14px;
+      font-size: 16px;
+      border-radius: 10px;
+      border: none;
+      color: white;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.3s ease;
+    }
+
+    button[value="montar"] {
+      background-color: var(--color-primary);
+    }
+
+    button[value="montar"]:hover {
+      background-color: #0056b3;
+    }
+
+    button[value="diagnostico"] {
+      background-color: var(--color-secondary);
+    }
+
+    button[value="diagnostico"]:hover {
+      background-color: #1e7e34;
+    }
+
+    button[value="corregir_sangrado"] {
+      background-color: var(--color-danger);
+    }
+
+    button[value="corregir_sangrado"]:hover {
+      background-color: #bd2130;
+    }
+
+    button[value="redimensionar"] {
+      background-color: var(--color-gray);
+    }
+
+    button[value="redimensionar"]:hover {
+      background-color: #5a6268;
+    }
+    button[value="analisis_grafico"] {
+  background-color: #004aad;
+}
+
+button[value="analisis_grafico"]:hover {
+  background-color: #00367a;
+}
+
+
+    .mensaje {
+      text-align: center;
+      color: red;
+      font-weight: bold;
+      margin-top: 20px;
+    }
+
+    pre {
+      background: #f1f1f1;
+      padding: 20px;
+      border-radius: 10px;
+      font-size: 14px;
+      overflow-x: auto;
+      margin-top: 30px;
+      white-space: pre-wrap;
+    }
+
+    .diagnostico-titulo {
+      font-size: 20px;
+      margin-top: 35px;
+      color: var(--color-primary);
+      border-bottom: 2px solid var(--color-primary);
+      padding-bottom: 8px;
+    }
+
+    .descargar-link {
+      display: block;
+      text-align: center;
+      margin-top: 30px;
+      font-size: 16px;
+      text-decoration: none;
+      color: var(--color-primary);
+      font-weight: 600;
+    }
+
+    .descargar-link:hover {
+      text-decoration: underline;
+    }
+
+    @media (max-width: 600px) {
+      .container {
+        margin: 20px auto;
+        padding: 25px 20px;
+        border-radius: 14px;
+      }
+
+      h2 {
+        font-size: 24px;
+        margin-bottom: 20px;
+      }
+
+      input[type="file"], input[type="number"] {
+        font-size: 14px;
+        padding: 12px;
+      }
+
+      button {
+        font-size: 14px;
+        padding: 12px;
+        max-width: 100%;
+      }
+
+      pre {
+        font-size: 13px;
+        padding: 15px;
+      }
+
+      .diagnostico-titulo {
+        font-size: 18px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h2> Diagnóstico & Montaje de Revista PDF</h2>
+    <form method="post" enctype="multipart/form-data" id="formulario">
+      
+      <!-- Campo PDF -->
+      <div id="grupo-pdf">
+        <input type="file" name="pdf" id="pdf" required>
+      </div>
+
+      <!-- Campos de redimensionar -->
+      <div id="grupo-redimensionar" style="display: none;">
+        <input type="number" step="0.1" name="nuevo_ancho" placeholder="Nuevo ancho en mm (para redimensionar)">
+        <input type="number" step="0.1" name="nuevo_alto" placeholder="Nuevo alto en mm (opcional)">
+      </div>
+
+      <!-- Imagen para análisis gráfico -->
+      <div id="grupo-grafico" style="margin-bottom: 15px;">
+        <input type="file" name="grafico" id="grafico" accept="image/png, image/jpeg">
+      </div>
+
+      <!-- Selector modo montaje -->
+      <div id="grupo-montaje">
+        <select name="modo_montaje" id="modo_montaje" required style="padding: 12px; border-radius: 10px; border: 2px solid #ccc; font-size: 15px; width: 100%;">
+          <option value="4" selected> Montaje 4 páginas por cara (revista cosido a caballete)</option>
+          <option value="2"> Montaje 2 páginas por cara (libro frente/dorso)</option>
+        </select>
+      </div>
+
+      <!-- Botones de acción -->
+<button name='action' value='montar'>Montar Revista</button>
+<button name='action' value='diagnostico'>Diagnóstico Técnico (IA)</button>
+<button name='action' value='corregir_sangrado'>Corregir Márgenes y Sangrado</button>
+<button name='action' value='redimensionar'>Redimensionar PDF</button>
+<button name='action' value='analisis_grafico'>Analizar Gráfico Técnico</button>
+</form>
+
+<!-- Botones de acceso externo -->
+<a href="https://creativactp.com/habla-en-ingles-con-ia/" target="_blank">
+  <button style="background-color: #1e90ff; color: white; padding: 12px 25px; margin-top: 15px; border: none; border-radius: 8px; font-size: 16px; width: 100%;">
+    🎤 Hablar en Inglés con IA
+  </button>
+</a>
+
+<a href="https://creativactp.com/simular-conversacion-en-ingles/" target="_blank">
+  <button style="background-color: #00b894; color: white; padding: 12px 25px; margin-top: 10px; border: none; border-radius: 8px; font-size: 16px; width: 100%;">
+    🗣️ Simular Conversación en Inglés
+  </button>
+</a>
+
+
+    {% if mensaje %}
+      <p class="mensaje">{{ mensaje }}</p>
+    {% endif %}
+
+    {% if output_pdf %}
+      <a href="{{ url_for('descargar_pdf') }}" class="descargar-link"> Descargar PDF Procesado</a>
+    {% endif %}
+
+    {% if diagnostico %}
+      <h3 class="diagnostico-titulo"> Diagnóstico IA:</h3>
+      <pre>{{ diagnostico|safe }}</pre>
+    {% endif %}
+  </div>
+
+  <!-- Script para mostrar/ocultar campos -->
+<script>
+  function setModo(accion) {
+    const grupoPDF = document.getElementById("grupo-pdf");
+    const grupoGrafico = document.getElementById("grupo-grafico");
+    const grupoRedimensionar = document.getElementById("grupo-redimensionar");
+    const grupoMontaje = document.getElementById("grupo-montaje");
+
+    const inputPDF = document.getElementById("pdf");
+    const inputGrafico = document.getElementById("grafico");
+
+    // Reset visibilidad
+    grupoPDF.style.display = "block";
+    grupoGrafico.style.display = "none";
+    grupoRedimensionar.style.display = "none";
+    grupoMontaje.style.display = "block";
+
+    // Reset campos requeridos
+    if (inputPDF) inputPDF.required = true;
+    if (inputGrafico) inputGrafico.required = false;
+
+    // Mostrar u ocultar según la acción
+    if (accion === "analisis_grafico") {
+      grupoPDF.style.display = "none";
+      grupoGrafico.style.display = "block";
+      grupoMontaje.style.display = "none";
+      if (inputGrafico) inputGrafico.required = true;
+      if (inputPDF) inputPDF.required = false;
+    }
+
+    if (accion === "redimensionar") {
+      grupoRedimensionar.style.display = "block";
+    }
+
+    if (accion === "corregir_sangrado" || accion === "diagnostico") {
+      grupoMontaje.style.display = "none";
+    }
+  }
+
+  document.addEventListener("DOMContentLoaded", function () {
+    const formulario = document.getElementById("formulario");
+    const botones = formulario.querySelectorAll("button[name='action']");
+
+    botones.forEach(boton => {
+      boton.addEventListener("click", function () {
+        setModo(this.value);
+      });
+    });
+  });
+</script>
+<script>
+function validarFormulario() {
+  const accion = document.activeElement.value;
+  const archivoGrafico = document.getElementById("grafico");
+
+  if (accion === "analisis_grafico" && (!archivoGrafico.files || archivoGrafico.files.length === 0)) {
+    alert("Debes subir una imagen para análisis gráfico.");
+    return false;
+  }
+  return true;
+}
+</script>
+
+
+
+</body>
+</html>
