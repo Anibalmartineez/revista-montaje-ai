@@ -108,13 +108,32 @@
     button[value="redimensionar"]:hover {
       background-color: #5a6268;
     }
-    button[value="analisis_grafico"] {
+button[value="analisis_grafico"] {
   background-color: #004aad;
 }
 
 button[value="analisis_grafico"]:hover {
   background-color: #00367a;
 }
+
+    .boton-funcion {
+      display: block;
+      width: 100%;
+      background-color: var(--color-primary);
+      color: #fff;
+      padding: 12px 25px;
+      margin-top: 10px;
+      border-radius: 8px;
+      font-size: 16px;
+      text-decoration: none;
+      text-align: center;
+      font-weight: 600;
+      transition: background-color 0.3s ease;
+    }
+
+    .boton-funcion:hover {
+      background-color: #0056b3;
+    }
 
 
     .mensaje {
@@ -228,16 +247,14 @@ button[value="analisis_grafico"]:hover {
 </form>
 
 <!-- Botones de acceso externo -->
-<a href="https://creativactp.com/habla-en-ingles-con-ia/" target="_blank">
-  <button style="background-color: #1e90ff; color: white; padding: 12px 25px; margin-top: 15px; border: none; border-radius: 8px; font-size: 16px; width: 100%;">
+<a href="/montaje_offset" class="boton-funcion" style="margin-top:15px;">🟦 Montaje Offset</a>
+
+<a href="https://creativactp.com/habla-en-ingles-con-ia/" target="_blank" class="boton-funcion" style="background-color: #1e90ff;">
     🎤 Hablar en Inglés con IA
-  </button>
 </a>
 
-<a href="https://creativactp.com/simular-conversacion-en-ingles/" target="_blank">
-  <button style="background-color: #00b894; color: white; padding: 12px 25px; margin-top: 10px; border: none; border-radius: 8px; font-size: 16px; width: 100%;">
+<a href="https://creativactp.com/simular-conversacion-en-ingles/" target="_blank" class="boton-funcion" style="background-color: #00b894;">
     🗣️ Simular Conversación en Inglés
-  </button>
 </a>
 
 
