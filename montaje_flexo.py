@@ -12,8 +12,37 @@ from io import BytesIO
 import base64
 from html import unescape
 from openai import OpenAI
+import math
 
 client = OpenAI(api_key=os.environ.get("OPENAI_API_KEY"))
+
+
+def calcular_etiquetas_por_fila(
+    ancho_bobina: float,
+    ancho_etiqueta: float,
+    separacion_horizontal: float = 0,
+    margen_lateral: float = 0,
+) -> int:
+    """Calcula el número de etiquetas que caben horizontalmente en la bobina.
+
+    La fórmula considera el ancho utilizable de la bobina restando los márgenes
+    laterales y aplica la separación horizontal entre etiquetas. Se usa
+    ``math.floor`` para asegurar que el resultado sea siempre un número entero
+    correcto, incluso con valores decimales.
+
+    Formula:
+    ``floor((ancho_bobina - (2 * margen_lateral) + separacion_horizontal) /
+    (ancho_etiqueta + separacion_horizontal))``
+    """
+
+    ancho_disponible = ancho_bobina - (2 * margen_lateral)
+    if ancho_disponible <= 0 or (ancho_etiqueta + separacion_horizontal) <= 0:
+        return 0
+
+    return math.floor(
+        (ancho_disponible + separacion_horizontal)
+        / (ancho_etiqueta + separacion_horizontal)
+    )
 
 
 def corregir_sangrado_y_marcas(pdf_path: str) -> str:
