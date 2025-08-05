@@ -77,3 +77,26 @@ def redimensionar_pdf(input_path, output_path, nuevo_ancho_mm, nuevo_alto_mm=Non
         )
 
     nuevo_doc.save(output_path)
+
+
+def calcular_etiquetas_por_fila(
+    ancho_bobina: float,
+    ancho_etiqueta: float,
+    separacion_horizontal: float = 0,
+    margen_lateral: float = 0,
+) -> int:
+    """Calcula cuántas etiquetas caben en una fila de la bobina.
+
+    Se resta el margen lateral de ambos lados del ancho total y se considera la
+    separación horizontal entre etiquetas para obtener el número máximo de
+    etiquetas completas que pueden colocarse.
+    """
+
+    ancho_disponible = ancho_bobina - (2 * margen_lateral)
+    if ancho_disponible <= 0:
+        return 0
+
+    return int(
+        (ancho_disponible + separacion_horizontal)
+        // (ancho_etiqueta + separacion_horizontal)
+    )
