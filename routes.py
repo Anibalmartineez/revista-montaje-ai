@@ -107,6 +107,8 @@ def descargar_pdf():
 
 @routes_bp.route("/montaje_offset", methods=["GET", "POST"])
 def montaje_offset_view():
+    if request.method == "GET":
+        return render_template("montaje_offset.html")
     if request.method == "POST":
         archivos = request.files.getlist("pdfs")
         if not archivos:
