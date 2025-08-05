@@ -214,14 +214,21 @@ def montaje_flexo_avanzado():
     except ValueError:
         return "Dimensiones inválidas", 400
 
+    sangrado_izq = sangrado_der = 3 if auto_sangrado else 0
+    marcas_de_corte = 4 if auto_marcas else 0
+    ancho_total_etiqueta = ancho + sangrado_izq + sangrado_der + marcas_de_corte
     espacio_disponible = ancho_bobina - 2 * margen
     if espacio_disponible <= 0:
         return "Las dimensiones no permiten ninguna etiqueta", 400
 
-    pistas = int((espacio_disponible + sep_h) / (ancho + sep_h))
-    pistas = max(1, pistas)
+    cantidad_pistas = int(
+        (espacio_disponible + sep_h) / (ancho_total_etiqueta + sep_h)
+    )
+    cantidad_pistas = max(1, cantidad_pistas)
 
-    espacio_utilizado = (pistas * ancho) + ((pistas - 1) * sep_h)
+    espacio_utilizado = (
+        cantidad_pistas * ancho_total_etiqueta
+    ) + ((cantidad_pistas - 1) * sep_h)
 
     espacio_sobrante = espacio_disponible - espacio_utilizado
     if espacio_sobrante < 10:
@@ -236,12 +243,13 @@ def montaje_flexo_avanzado():
     else:
         offset_x = margen  # fallback
 
-    x_positions = []
-    for i in range(pistas):
-        x_positions.append(offset_x + i * (ancho + sep_h))
+    posiciones_x = []
+    for i in range(cantidad_pistas):
+        x = offset_x + i * (ancho_total_etiqueta + sep_h)
+        posiciones_x.append(x)
 
     filas = max(1, math.floor((paso + sep_v) / (alto + sep_v)))
-    etiquetas_por_repeticion = pistas * filas
+    etiquetas_por_repeticion = cantidad_pistas * filas
     if etiquetas_por_repeticion <= 0:
         return "Las dimensiones no permiten ninguna etiqueta", 400
     repeticiones = math.ceil(cantidad / etiquetas_por_repeticion)
@@ -255,11 +263,13 @@ def montaje_flexo_avanzado():
     output_pdf_path = os.path.join(OUTPUT_FOLDER_FLEXO, "montaje_flexo_avanzado.pdf")
     c = canvas.Canvas(output_pdf_path, pagesize=(ancho_bobina * mm, paso * mm))
 
-    for x_mm in x_positions:
+    for x_mm in posiciones_x:
         x = x_mm * mm
         for j in range(filas):
             y = (paso - alto - j * (alto + sep_v)) * mm
-            c.drawImage(label_img_path, x, y, ancho * mm, alto * mm)
+            c.drawImage(
+                label_img_path, x, y, ancho_total_etiqueta * mm, alto * mm
+            )
     c.save()
 
     preview_path = os.path.join(OUTPUT_FOLDER_FLEXO, "preview_flexo_avanzado.png")
@@ -277,7 +287,7 @@ def montaje_flexo_avanzado():
     with open(reporte_path, "w", encoding="utf-8") as f:
         f.write(
             f"""<html><body><h2>Reporte Montaje Flexo Avanzado</h2>{aviso}
-            <p>Pistas: {pistas}</p>
+            <p>Pistas: {cantidad_pistas}</p>
             <p>Etiquetas por repetición: {etiquetas_por_repeticion}</p>
             <p>Repeticiones necesarias: {repeticiones}</p>
             <p>Metros totales: {round(metros_totales, 2)} m</p>
@@ -291,7 +301,7 @@ def montaje_flexo_avanzado():
     return render_template(
         "montaje_flexo_avanzado.html",
         preview=preview_b64,
-        pistas=pistas,
+        pistas=cantidad_pistas,
         etiquetas_por_repeticion=etiquetas_por_repeticion,
         repeticiones=repeticiones,
         metros_totales=round(metros_totales, 2),
