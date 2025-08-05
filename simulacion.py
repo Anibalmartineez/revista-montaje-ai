@@ -29,18 +29,26 @@ def generar_preview_interactivo(input_path, output_folder="preview_temp"):
         pix.save(img_path)
         imagenes[i] = img_path
 
-    vista = f"""
-<!DOCTYPE html>
+    hojas_js = str(
+        [
+            [
+                [f"/preview_temp/pag_{i}.jpg" for i in frente],
+                [f"/preview_temp/pag_{i}.jpg" for i in dorso],
+            ]
+            for frente, dorso in hojas
+        ]
+    )
+    vista = """<!DOCTYPE html>
 <html lang='es'>
 <head>
 <meta charset='UTF-8'>
 <title>Vista previa del montaje</title>
 <style>
-body {{font-family:'Poppins',sans-serif;background:#f4f4f4;text-align:center;margin:0;padding:40px;}}
-.hoja {{display:flex;justify-content:center;gap:30px;margin:30px auto;}}
-.pagina {{background:#fff;box-shadow:0 0 15px rgba(0,0,0,0.2);padding:10px;border-radius:12px;}}
-.pagina img {{width:300px;border-radius:8px;}}
-button {{margin:8px;padding:12px 24px;font-size:16px;border:none;border-radius:8px;cursor:pointer;background-color:#007bff;color:white;}}
+body {font-family:'Poppins',sans-serif;background:#f4f4f4;text-align:center;margin:0;padding:40px;}
+.hoja {display:flex;justify-content:center;gap:30px;margin:30px auto;}
+.pagina {background:#fff;box-shadow:0 0 15px rgba(0,0,0,0.2);padding:10px;border-radius:12px;}
+.pagina img {width:300px;border-radius:8px;}
+button {margin:8px;padding:12px 24px;font-size:16px;border:none;border-radius:8px;cursor:pointer;background-color:#007bff;color:white;}
 </style>
 </head>
 <body>
@@ -57,7 +65,7 @@ button {{margin:8px;padding:12px 24px;font-size:16px;border:none;border-radius:8
   <button type='submit'>🖨️ Montar PDF final</button>
 </form>
 <script>
-const hojas = {str([[[f"/preview_temp/pag_{i}.jpg" for i in frente],[f"/preview_temp/pag_{i}.jpg" for i in dorso]] for frente,dorso in hojas])};
+const hojas = __HOJAS__;
 let indice = 0;
 function cargar(){
   document.getElementById('nro').innerText = indice + 1;
@@ -76,8 +84,8 @@ function anterior(){if(indice>0){indice--;cargar();}}
 cargar();
 </script>
 </body>
-</html>
-"""
+</html>"""
+    vista = vista.replace("__HOJAS__", hojas_js)
     with open(os.path.join(output_folder, "preview.html"), "w", encoding="utf-8") as f:
         f.write(vista)
 
