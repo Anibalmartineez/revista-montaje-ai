@@ -214,7 +214,32 @@ def montaje_flexo_avanzado():
     except ValueError:
         return "Dimensiones inválidas", 400
 
-    pistas = max(1, math.floor((ancho_bobina - 2 * margen + sep_h) / (ancho + sep_h)))
+    espacio_disponible = ancho_bobina - 2 * margen
+    if espacio_disponible <= 0:
+        return "Las dimensiones no permiten ninguna etiqueta", 400
+
+    pistas = int((espacio_disponible + sep_h) / (ancho + sep_h))
+    pistas = max(1, pistas)
+
+    espacio_utilizado = (pistas * ancho) + ((pistas - 1) * sep_h)
+
+    espacio_sobrante = espacio_disponible - espacio_utilizado
+    if espacio_sobrante < 10:
+        alignment = "center"
+    else:
+        alignment = "left"
+
+    if alignment == "left":
+        offset_x = margen
+    elif alignment == "center":
+        offset_x = (ancho_bobina - espacio_utilizado) / 2
+    else:
+        offset_x = margen  # fallback
+
+    x_positions = []
+    for i in range(pistas):
+        x_positions.append(offset_x + i * (ancho + sep_h))
+
     filas = max(1, math.floor((paso + sep_v) / (alto + sep_v)))
     etiquetas_por_repeticion = pistas * filas
     if etiquetas_por_repeticion <= 0:
@@ -229,20 +254,6 @@ def montaje_flexo_avanzado():
 
     output_pdf_path = os.path.join(OUTPUT_FOLDER_FLEXO, "montaje_flexo_avanzado.pdf")
     c = canvas.Canvas(output_pdf_path, pagesize=(ancho_bobina * mm, paso * mm))
-
-    total_row_width = pistas * ancho + (pistas - 1) * sep_h
-
-    ancho_util = ancho_bobina - 2 * margen
-    espacio_sobrante = max(0, ancho_util - total_row_width)
-
-    if espacio_sobrante < 10:
-        alignment = "center"
-        start_x = margen + espacio_sobrante / 2
-    else:
-        alignment = "left"
-        start_x = margen
-
-    x_positions = [start_x + i * (ancho + sep_h) for i in range(pistas)]
 
     for x_mm in x_positions:
         x = x_mm * mm
