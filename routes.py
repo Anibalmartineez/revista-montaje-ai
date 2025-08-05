@@ -208,7 +208,7 @@ def montaje_flexo_avanzado():
         paso = float(request.form.get("paso", 0))
         sep_h = float(request.form.get("sep_h", 0))
         sep_v = float(request.form.get("sep_v", 0))
-        alignment = request.form.get("alignment", "center")
+        # La alineación se determinará automáticamente más adelante
         cantidad = int(request.form.get("cantidad", 0))
         margen = float(request.form.get("margen_lateral", 0))
     except ValueError:
@@ -231,15 +231,18 @@ def montaje_flexo_avanzado():
     c = canvas.Canvas(output_pdf_path, pagesize=(ancho_bobina * mm, paso * mm))
 
     total_row_width = pistas * ancho + (pistas - 1) * sep_h
-    if alignment == "left":
-        start_x = margen
-        x_positions = [start_x + i * (ancho + sep_h) for i in range(pistas)]
-    elif alignment == "right":
-        start_x = ancho_bobina - margen - ancho
-        x_positions = [start_x - i * (ancho + sep_h) for i in range(pistas)]
+
+    ancho_util = ancho_bobina - 2 * margen
+    espacio_sobrante = max(0, ancho_util - total_row_width)
+
+    if espacio_sobrante < 10:
+        alignment = "center"
+        start_x = margen + espacio_sobrante / 2
     else:
-        start_x = (ancho_bobina - total_row_width) / 2
-        x_positions = [start_x + i * (ancho + sep_h) for i in range(pistas)]
+        alignment = "left"
+        start_x = margen
+
+    x_positions = [start_x + i * (ancho + sep_h) for i in range(pistas)]
 
     for x_mm in x_positions:
         x = x_mm * mm
