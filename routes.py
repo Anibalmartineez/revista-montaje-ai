@@ -195,6 +195,7 @@ def montaje_flexo_avanzado():
         paso = float(request.form.get("paso", 0))
         sep_h = float(request.form.get("sep_h", 0))
         sep_v = float(request.form.get("sep_v", 0))
+        alignment = request.form.get("alignment", "center")
         cantidad = int(request.form.get("cantidad", 0))
         margen = float(request.form.get("margen_lateral", 0))
     except ValueError:
@@ -215,8 +216,20 @@ def montaje_flexo_avanzado():
 
     output_pdf_path = os.path.join(OUTPUT_FOLDER_FLEXO, "montaje_flexo_avanzado.pdf")
     c = canvas.Canvas(output_pdf_path, pagesize=(ancho_bobina * mm, paso * mm))
-    for i in range(pistas):
-        x = (margen + i * (ancho + sep_h)) * mm
+
+    total_row_width = pistas * ancho + (pistas - 1) * sep_h
+    if alignment == "left":
+        start_x = margen
+        x_positions = [start_x + i * (ancho + sep_h) for i in range(pistas)]
+    elif alignment == "right":
+        start_x = ancho_bobina - margen - ancho
+        x_positions = [start_x - i * (ancho + sep_h) for i in range(pistas)]
+    else:
+        start_x = (ancho_bobina - total_row_width) / 2
+        x_positions = [start_x + i * (ancho + sep_h) for i in range(pistas)]
+
+    for x_mm in x_positions:
+        x = x_mm * mm
         for j in range(filas):
             y = (paso - alto - j * (alto + sep_v)) * mm
             c.drawImage(label_img_path, x, y, ancho * mm, alto * mm)
@@ -234,6 +247,7 @@ def montaje_flexo_avanzado():
             <p>Etiquetas por repetición: {etiquetas_por_repeticion}</p>
             <p>Repeticiones necesarias: {repeticiones}</p>
             <p>Metros totales: {round(metros_totales, 2)} m</p>
+            <p>Alineación: {alignment}</p>
             </body></html>"""
         )
 
@@ -247,6 +261,7 @@ def montaje_flexo_avanzado():
         etiquetas_por_repeticion=etiquetas_por_repeticion,
         repeticiones=repeticiones,
         metros_totales=round(metros_totales, 2),
+        alignment=alignment,
     )
 
 
