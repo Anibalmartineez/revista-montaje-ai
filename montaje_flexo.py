@@ -5,7 +5,7 @@ from pdf2image import convert_from_path
 import cv2
 from PyPDF2 import PdfReader
 from PyPDF2.generic import IndirectObject
-from PIL import Image
+from PIL import Image, ImageOps
 import re
 import matplotlib.pyplot as plt
 from io import BytesIO
@@ -21,9 +21,9 @@ def corregir_sangrado_y_marcas(pdf_path: str) -> str:
 
     Se analiza la primera página para comprobar si el contenido llega al borde
     (sangrado ≥ 3 mm) y si existen marcas de corte. Cuando falta alguno de los
-    dos, se crea una nueva página expandida 3 mm por lado, se replica un fondo
-    promedio y se añaden marcas de corte. Devuelve la ruta del PDF (corregido o
-    original).
+    dos, se crea una nueva página expandida 3 mm por lado, se replica un borde
+    espejado y se añaden marcas de corte profesionales. Devuelve la ruta del
+    PDF (corregido o original).
     """
 
     doc = fitz.open(pdf_path)
@@ -77,46 +77,145 @@ def corregir_sangrado_y_marcas(pdf_path: str) -> str:
 
     pix = page.get_pixmap(dpi=300)
     img = Image.frombytes("RGB", [pix.width, pix.height], pix.samples)
-    border = 10
-    np_img = np.array(img)
-
-    try:
-        top = np_img[:border, :, :].reshape(-1, 3)
-        bottom = np_img[-border:, :, :].reshape(-1, 3)
-        left = np_img[:, :border, :].reshape(-1, 3)
-        right = np_img[:, -border:, :].reshape(-1, 3)
-
-        border_pixels = np.concatenate([top, bottom, left, right], axis=0)
-        avg_color = tuple(border_pixels.mean(axis=0).astype(int))
-    except Exception as e:
-        doc.close()
-        raise RuntimeError(
-            f"Error al calcular el color promedio de los bordes: {e}"
-        )
-
     bleed_px = int(round(3 / 25.4 * 300))
-    expanded_img = Image.new(
-        "RGB", (img.width + 2 * bleed_px, img.height + 2 * bleed_px), avg_color
-    )
-    expanded_img.paste(img, (bleed_px, bleed_px))
 
     new_doc = fitz.open()
-    new_width = page_rect.width + 2 * bleed_pts
-    new_height = page_rect.height + 2 * bleed_pts
+    if not has_bleed:
+        new_width = page_rect.width + 2 * bleed_pts
+        new_height = page_rect.height + 2 * bleed_pts
+    else:
+        new_width = page_rect.width
+        new_height = page_rect.height
     new_page = new_doc.new_page(width=new_width, height=new_height)
 
-    img_bytes = BytesIO()
-    expanded_img.save(img_bytes, format="PNG", dpi=(300, 300))
-    img_bytes.seek(0)
-    new_page.insert_image(new_page.rect, stream=img_bytes.getvalue())
+    if not has_bleed:
+        # Espejar bordes sin deformar contenido
+        slice_img = ImageOps.mirror(img.crop((0, 0, bleed_px, img.height)))
+        buf = BytesIO()
+        slice_img.save(buf, format="PNG", dpi=(300, 300))
+        buf.seek(0)
+        rect = fitz.Rect(0, bleed_pts, bleed_pts, bleed_pts + page_rect.height)
+        new_page.insert_image(rect, stream=buf.getvalue())
+        buf.close()
+
+        slice_img = ImageOps.mirror(
+            img.crop((img.width - bleed_px, 0, img.width, img.height))
+        )
+        buf = BytesIO()
+        slice_img.save(buf, format="PNG", dpi=(300, 300))
+        buf.seek(0)
+        rect = fitz.Rect(
+            bleed_pts + page_rect.width,
+            bleed_pts,
+            2 * bleed_pts + page_rect.width,
+            bleed_pts + page_rect.height,
+        )
+        new_page.insert_image(rect, stream=buf.getvalue())
+        buf.close()
+
+        slice_img = ImageOps.flip(img.crop((0, 0, img.width, bleed_px)))
+        buf = BytesIO()
+        slice_img.save(buf, format="PNG", dpi=(300, 300))
+        buf.seek(0)
+        rect = fitz.Rect(bleed_pts, 0, bleed_pts + page_rect.width, bleed_pts)
+        new_page.insert_image(rect, stream=buf.getvalue())
+        buf.close()
+
+        slice_img = ImageOps.flip(
+            img.crop((0, img.height - bleed_px, img.width, img.height))
+        )
+        buf = BytesIO()
+        slice_img.save(buf, format="PNG", dpi=(300, 300))
+        buf.seek(0)
+        rect = fitz.Rect(
+            bleed_pts,
+            bleed_pts + page_rect.height,
+            bleed_pts + page_rect.width,
+            2 * bleed_pts + page_rect.height,
+        )
+        new_page.insert_image(rect, stream=buf.getvalue())
+        buf.close()
+
+        corners = [
+            (
+                ImageOps.flip(ImageOps.mirror(img.crop((0, 0, bleed_px, bleed_px)))),
+                fitz.Rect(0, 0, bleed_pts, bleed_pts),
+            ),
+            (
+                ImageOps.flip(
+                    ImageOps.mirror(
+                        img.crop((img.width - bleed_px, 0, img.width, bleed_px))
+                    )
+                ),
+                fitz.Rect(
+                    bleed_pts + page_rect.width,
+                    0,
+                    2 * bleed_pts + page_rect.width,
+                    bleed_pts,
+                ),
+            ),
+            (
+                ImageOps.flip(
+                    ImageOps.mirror(
+                        img.crop((0, img.height - bleed_px, bleed_px, img.height))
+                    )
+                ),
+                fitz.Rect(
+                    0,
+                    bleed_pts + page_rect.height,
+                    bleed_pts,
+                    2 * bleed_pts + page_rect.height,
+                ),
+            ),
+            (
+                ImageOps.flip(
+                    ImageOps.mirror(
+                        img.crop(
+                            (
+                                img.width - bleed_px,
+                                img.height - bleed_px,
+                                img.width,
+                                img.height,
+                            )
+                        )
+                    )
+                ),
+                fitz.Rect(
+                    bleed_pts + page_rect.width,
+                    bleed_pts + page_rect.height,
+                    2 * bleed_pts + page_rect.width,
+                    2 * bleed_pts + page_rect.height,
+                ),
+            ),
+        ]
+        for corner_img, rect in corners:
+            buf = BytesIO()
+            corner_img.save(buf, format="PNG", dpi=(300, 300))
+            buf.seek(0)
+            new_page.insert_image(rect, stream=buf.getvalue())
+            buf.close()
+
+    if not has_bleed:
+        target_rect = fitz.Rect(
+            bleed_pts, bleed_pts, bleed_pts + page_rect.width, bleed_pts + page_rect.height
+        )
+    else:
+        target_rect = fitz.Rect(0, 0, page_rect.width, page_rect.height)
+    new_page.show_pdf_page(target_rect, doc, page.number)
 
     if not has_marks:
-        mark_len = 5 * 72 / 25.4
+        mark_len = 3 * 72 / 25.4
         width = 0.25
-        x_left = bleed_pts
-        x_right = bleed_pts + page_rect.width
-        y_top = bleed_pts
-        y_bottom = bleed_pts + page_rect.height
+        if not has_bleed:
+            x_left = bleed_pts
+            x_right = bleed_pts + page_rect.width
+            y_top = bleed_pts
+            y_bottom = bleed_pts + page_rect.height
+        else:
+            x_left = bleed_pts
+            x_right = page_rect.width - bleed_pts
+            y_top = bleed_pts
+            y_bottom = page_rect.height - bleed_pts
         color = (0, 0, 0)
         new_page.draw_line((x_left, y_top - mark_len), (x_left, y_top), color=color, width=width)
         new_page.draw_line((x_left - mark_len, y_top), (x_left, y_top), color=color, width=width)
