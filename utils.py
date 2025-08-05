@@ -2,6 +2,7 @@ import fitz  # PyMuPDF
 from PIL import Image
 import numpy as np
 from io import BytesIO
+import math
 
 
 def corregir_sangrado(input_path, output_path):
@@ -93,10 +94,10 @@ def calcular_etiquetas_por_fila(
     """
 
     ancho_disponible = ancho_bobina - (2 * margen_lateral)
-    if ancho_disponible <= 0:
+    if ancho_disponible <= 0 or (ancho_etiqueta + separacion_horizontal) <= 0:
         return 0
 
-    return int(
+    return math.floor(
         (ancho_disponible + separacion_horizontal)
-        // (ancho_etiqueta + separacion_horizontal)
+        / (ancho_etiqueta + separacion_horizontal)
     )
