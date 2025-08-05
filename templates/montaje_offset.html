@@ -1,0 +1,135 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <title>Montaje Offset</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600&display=swap" rel="stylesheet">
+  <style>
+    body {
+      margin: 0;
+      font-family: 'Poppins', sans-serif;
+      background: #f5f9ff;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      min-height: 100vh;
+    }
+    .form-container {
+      background: #fff;
+      padding: 30px;
+      border-radius: 12px;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.1);
+      width: 100%;
+      max-width: 800px;
+    }
+    h2 {
+      text-align: center;
+      margin-bottom: 20px;
+      color: #222;
+    }
+    form {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      gap: 15px;
+    }
+    label {
+      font-weight: 600;
+      font-size: 14px;
+    }
+    input[type="number"], input[type="file"], select {
+      width: 100%;
+      padding: 10px;
+      border: 1px solid #ccc;
+      border-radius: 8px;
+      box-sizing: border-box;
+      font-size: 14px;
+    }
+    input[type="file"] {
+      padding: 7px;
+    }
+    .full-width {
+      grid-column: 1 / -1;
+    }
+    button {
+      grid-column: 1 / -1;
+      padding: 12px;
+      background: #007bff;
+      color: #fff;
+      border: none;
+      border-radius: 8px;
+      font-size: 16px;
+      cursor: pointer;
+      transition: background 0.3s;
+    }
+    button:hover {
+      background: #0056b3;
+    }
+  </style>
+</head>
+<body>
+  <div class="form-container">
+    <h2>Montaje de Pliegos Offset</h2>
+    <form method="POST" enctype="multipart/form-data">
+      <div class="full-width">
+        <label for="pdfs">Archivos PDF</label>
+        <input type="file" id="pdfs" name="pdfs" accept="application/pdf" multiple required>
+      </div>
+      <div>
+        <label for="formato_pliego">Formato del Pliego</label>
+        <select id="formato_pliego" name="formato_pliego">
+          <option value="700x1000">700 x 1000 mm</option>
+          <option value="640x880">640 x 880 mm</option>
+          <option value="500x700">500 x 700 mm</option>
+          <option value="450x640">450 x 640 mm</option>
+        </select>
+      </div>
+      <div>
+        <label for="ancho_trabajo">Ancho del trabajo (mm)</label>
+        <input type="number" id="ancho_trabajo" name="ancho_trabajo" min="0" step="0.1" required>
+      </div>
+      <div>
+        <label for="alto_trabajo">Alto del trabajo (mm)</label>
+        <input type="number" id="alto_trabajo" name="alto_trabajo" min="0" step="0.1" required>
+      </div>
+      <div>
+        <label for="margen_superior">Margen superior (mm)</label>
+        <input type="number" id="margen_superior" name="margen_superior" min="0" step="0.1" value="10">
+      </div>
+      <div>
+        <label for="margen_inferior">Margen inferior (mm)</label>
+        <input type="number" id="margen_inferior" name="margen_inferior" min="0" step="0.1" value="10">
+      </div>
+      <div>
+        <label for="margen_izquierdo">Margen izquierdo (mm)</label>
+        <input type="number" id="margen_izquierdo" name="margen_izquierdo" min="0" step="0.1" value="10">
+      </div>
+      <div>
+        <label for="margen_derecho">Margen derecho (mm)</label>
+        <input type="number" id="margen_derecho" name="margen_derecho" min="0" step="0.1" value="10">
+      </div>
+      <div>
+        <label for="espaciado_h">Espacio horizontal entre formas (mm)</label>
+        <input type="number" id="espaciado_h" name="espaciado_h" min="0" step="0.1" value="5">
+      </div>
+      <div>
+        <label for="espaciado_v">Espacio vertical entre formas (mm)</label>
+        <input type="number" id="espaciado_v" name="espaciado_v" min="0" step="0.1" value="5">
+      </div>
+      <div>
+        <label for="sangrado">Sangrado (mm)</label>
+        <input type="number" id="sangrado" name="sangrado" min="0" step="0.1" value="0">
+      </div>
+      <div>
+        <label for="modo_dorso">Modo de dorso</label>
+        <select id="modo_dorso" name="modo_dorso">
+          <option value="solo_frente">Solo frente</option>
+          <option value="tirada">Tirada</option>
+          <option value="retiracion">Retiración</option>
+        </select>
+      </div>
+      <button type="submit">Generar Montaje</button>
+    </form>
+  </div>
+</body>
+</html>
