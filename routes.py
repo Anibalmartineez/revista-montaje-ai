@@ -17,6 +17,7 @@ from utils import corregir_sangrado, redimensionar_pdf
 from simulacion import generar_preview_interactivo, generar_preview_virtual
 from ia_sugerencias import chat_completion, transcribir_audio
 from montaje_flexo import revisar_diseño_flexo, generar_sugerencia_produccion
+from montaje_offset import montar_pliego_offset
 
 UPLOAD_FOLDER = "uploads"
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
@@ -102,6 +103,71 @@ def index():
 @routes_bp.route('/descargar')
 def descargar_pdf():
     return send_file("output/montado.pdf", as_attachment=True)
+
+
+@routes_bp.route("/montaje_offset", methods=["GET", "POST"])
+def montaje_offset_view():
+    if request.method == "POST":
+        archivos = request.files.getlist("pdfs")
+        if not archivos:
+            return "No se cargaron PDFs", 400
+        formato = request.form.get("formato_pliego", "700x1000")
+        try:
+            ancho = float(request.form.get("ancho_trabajo", 0))
+            alto = float(request.form.get("alto_trabajo", 0))
+        except ValueError:
+            return "Dimensiones inválidas", 400
+        modo_dorso = request.form.get("modo_dorso")  # 'tirada' | 'retiracion'
+        margen_sup = float(request.form.get("margen_superior", 10))
+        margen_inf = float(request.form.get("margen_inferior", 10))
+        margen_izq = float(request.form.get("margen_izquierdo", 10))
+        margen_der = float(request.form.get("margen_derecho", 10))
+        espaciado_h = float(request.form.get("espaciado_h", 5))
+        espaciado_v = float(request.form.get("espaciado_v", 5))
+        sangrado = float(request.form.get("sangrado", 0))
+        file_paths = []
+        for f in archivos:
+            filename = secure_filename(f.filename)
+            path = os.path.join(UPLOAD_FOLDER, filename)
+            f.save(path)
+            file_paths.append(path)
+        pdf_path, preview_path, reporte_path = montar_pliego_offset(
+            file_paths,
+            formato,
+            (ancho, alto),
+            modo_dorso=modo_dorso,
+            margen_sup=margen_sup,
+            margen_inf=margen_inf,
+            margen_izq=margen_izq,
+            margen_der=margen_der,
+            espaciado_h=espaciado_h,
+            espaciado_v=espaciado_v,
+            sangrado=sangrado,
+        )
+        with open(preview_path, "rb") as img_f:
+            preview_b64 = base64.b64encode(img_f.read()).decode("utf-8")
+        return render_template_string(
+            """
+            <h2>Pliego generado</h2>
+            <a href='/descargar_pliego_offset'>Descargar PDF</a> |
+            <a href='/descargar_reporte_offset'>Reporte técnico</a>
+            <div style='margin-top:20px;'>
+                <img src='data:image/png;base64,{{preview}}' style='width:100%;max-width:800px;border:1px solid #ccc;'>
+            </div>
+            """,
+            preview=preview_b64,
+        )
+    return "Método no permitido", 405
+
+
+@routes_bp.route('/descargar_pliego_offset')
+def descargar_pliego_offset():
+    return send_file('output/pliego_offset.pdf', as_attachment=True)
+
+
+@routes_bp.route('/descargar_reporte_offset')
+def descargar_reporte_offset():
+    return send_file('output/reporte_tecnico.html', as_attachment=True)
 
 
 @routes_bp.route("/habla-ingles", methods=["GET", "POST"])
