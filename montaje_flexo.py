@@ -79,12 +79,20 @@ def corregir_sangrado_y_marcas(pdf_path: str) -> str:
     img = Image.frombytes("RGB", [pix.width, pix.height], pix.samples)
     border = 10
     np_img = np.array(img)
-    top = np_img[:border, :, :]
-    bottom = np_img[-border:, :, :]
-    left = np_img[:, :border, :]
-    right = np_img[:, -border:, :]
-    border_pixels = np.concatenate([top, bottom, left, right], axis=0)
-    avg_color = tuple(border_pixels.mean(axis=(0, 1)).astype(int))
+
+    try:
+        top = np_img[:border, :, :].reshape(-1, 3)
+        bottom = np_img[-border:, :, :].reshape(-1, 3)
+        left = np_img[:, :border, :].reshape(-1, 3)
+        right = np_img[:, -border:, :].reshape(-1, 3)
+
+        border_pixels = np.concatenate([top, bottom, left, right], axis=0)
+        avg_color = tuple(border_pixels.mean(axis=0).astype(int))
+    except Exception as e:
+        doc.close()
+        raise RuntimeError(
+            f"Error al calcular el color promedio de los bordes: {e}"
+        )
 
     bleed_px = int(round(3 / 25.4 * 300))
     expanded_img = Image.new(
