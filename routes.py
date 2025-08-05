@@ -1,5 +1,9 @@
 import os
 import base64
+import math
+import fitz
+from reportlab.pdfgen import canvas
+from reportlab.lib.units import mm
 from flask import (
     Blueprint,
     request,
@@ -170,6 +174,96 @@ def descargar_pliego_offset():
 @routes_bp.route('/descargar_reporte_offset')
 def descargar_reporte_offset():
     return send_file('output/reporte_tecnico.html', as_attachment=True)
+
+
+@routes_bp.route("/montaje_flexo_avanzado", methods=["GET", "POST"])
+def montaje_flexo_avanzado():
+    if request.method == "GET":
+        return render_template("montaje_flexo_avanzado.html")
+
+    archivo = request.files.get("pdf")
+    if not archivo or archivo.filename == "":
+        return "Debe subir un PDF", 400
+    filename = secure_filename(archivo.filename)
+    path_pdf = os.path.join(UPLOAD_FOLDER_FLEXO, filename)
+    archivo.save(path_pdf)
+
+    try:
+        ancho = float(request.form.get("ancho_etiqueta", 0))
+        alto = float(request.form.get("alto_etiqueta", 0))
+        ancho_bobina = float(request.form.get("ancho_bobina", 0))
+        paso = float(request.form.get("paso", 0))
+        sep_h = float(request.form.get("sep_h", 0))
+        sep_v = float(request.form.get("sep_v", 0))
+        cantidad = int(request.form.get("cantidad", 0))
+        margen = float(request.form.get("margen_lateral", 0))
+    except ValueError:
+        return "Dimensiones inválidas", 400
+
+    pistas = max(1, math.floor((ancho_bobina - 2 * margen + sep_h) / (ancho + sep_h)))
+    filas = max(1, math.floor((paso + sep_v) / (alto + sep_v)))
+    etiquetas_por_repeticion = pistas * filas
+    if etiquetas_por_repeticion <= 0:
+        return "Las dimensiones no permiten ninguna etiqueta", 400
+    repeticiones = math.ceil(cantidad / etiquetas_por_repeticion)
+    metros_totales = repeticiones * paso / 1000
+
+    doc = fitz.open(path_pdf)
+    label_pix = doc.load_page(0).get_pixmap()
+    label_img_path = os.path.join(OUTPUT_FOLDER_FLEXO, "temp_label.png")
+    label_pix.save(label_img_path)
+
+    output_pdf_path = os.path.join(OUTPUT_FOLDER_FLEXO, "montaje_flexo_avanzado.pdf")
+    c = canvas.Canvas(output_pdf_path, pagesize=(ancho_bobina * mm, paso * mm))
+    for i in range(pistas):
+        x = (margen + i * (ancho + sep_h)) * mm
+        for j in range(filas):
+            y = (paso - alto - j * (alto + sep_v)) * mm
+            c.drawImage(label_img_path, x, y, ancho * mm, alto * mm)
+    c.save()
+
+    preview_path = os.path.join(OUTPUT_FOLDER_FLEXO, "preview_flexo_avanzado.png")
+    out_doc = fitz.open(output_pdf_path)
+    out_doc.load_page(0).get_pixmap().save(preview_path)
+
+    reporte_path = os.path.join(OUTPUT_FOLDER_FLEXO, "reporte_flexo_avanzado.html")
+    with open(reporte_path, "w", encoding="utf-8") as f:
+        f.write(
+            f"""<html><body><h2>Reporte Montaje Flexo Avanzado</h2>
+            <p>Pistas: {pistas}</p>
+            <p>Etiquetas por repetición: {etiquetas_por_repeticion}</p>
+            <p>Repeticiones necesarias: {repeticiones}</p>
+            <p>Metros totales: {round(metros_totales, 2)} m</p>
+            </body></html>"""
+        )
+
+    with open(preview_path, "rb") as img_f:
+        preview_b64 = base64.b64encode(img_f.read()).decode("utf-8")
+
+    return render_template(
+        "montaje_flexo_avanzado.html",
+        preview=preview_b64,
+        pistas=pistas,
+        etiquetas_por_repeticion=etiquetas_por_repeticion,
+        repeticiones=repeticiones,
+        metros_totales=round(metros_totales, 2),
+    )
+
+
+@routes_bp.route("/descargar_montaje_flexo_avanzado")
+def descargar_montaje_flexo_avanzado():
+    return send_file(
+        os.path.join(OUTPUT_FOLDER_FLEXO, "montaje_flexo_avanzado.pdf"),
+        as_attachment=True,
+    )
+
+
+@routes_bp.route("/descargar_reporte_flexo_avanzado")
+def descargar_reporte_flexo_avanzado():
+    return send_file(
+        os.path.join(OUTPUT_FOLDER_FLEXO, "reporte_flexo_avanzado.html"),
+        as_attachment=True,
+    )
 
 
 @routes_bp.route("/habla-ingles", methods=["GET", "POST"])
