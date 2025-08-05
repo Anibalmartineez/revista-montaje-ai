@@ -11,7 +11,9 @@ import matplotlib.pyplot as plt
 from io import BytesIO
 import base64
 from html import unescape
-import openai
+from openai import OpenAI
+
+client = OpenAI(api_key=os.environ.get("OPENAI_API_KEY"))
 
 
 def convertir_pts_a_mm(valor_pts):
@@ -544,11 +546,11 @@ def generar_sugerencia_produccion(diagnostico_texto: str, resultado_revision: st
                 "content": f"Diagnóstico:\n{diagnostico_texto}\n\nResultado de la revisión:\n{resultado_revision}",
             },
         ]
-        respuesta = openai.ChatCompletion.create(
+        respuesta = client.chat.completions.create(
             model="gpt-4",
             messages=mensajes,
             temperature=0.3,
         )
-        return respuesta["choices"][0]["message"]["content"].strip()
+        return respuesta.choices[0].message.content.strip()
     except Exception as e:
         return f"Error al obtener sugerencia de producción: {str(e)}"

@@ -1,9 +1,16 @@
 import os
 import base64
-from flask import request, send_file, render_template, render_template_string, redirect, url_for, send_from_directory
+from flask import (
+    Blueprint,
+    request,
+    send_file,
+    render_template,
+    render_template_string,
+    redirect,
+    url_for,
+    send_from_directory,
+)
 from werkzeug.utils import secure_filename
-
-from app import app
 from montaje import montar_pdf
 from diagnostico import diagnosticar_pdf, analizar_grafico_tecnico
 from utils import corregir_sangrado, redimensionar_pdf
@@ -23,7 +30,10 @@ os.makedirs(OUTPUT_FOLDER_FLEXO, exist_ok=True)
 chat_historial = []
 
 
-@app.route("/", methods=["GET", "POST"])
+routes_bp = Blueprint("routes", __name__)
+
+
+@routes_bp.route("/", methods=["GET", "POST"])
 def index():
     mensaje = ""
     diagnostico = None
@@ -89,12 +99,12 @@ def index():
     return render_template("index.html", mensaje=mensaje, diagnostico=diagnostico, output_pdf=output_pdf)
 
 
-@app.route('/descargar')
+@routes_bp.route('/descargar')
 def descargar_pdf():
     return send_file("output/montado.pdf", as_attachment=True)
 
 
-@app.route("/habla-ingles", methods=["GET", "POST"])
+@routes_bp.route("/habla-ingles", methods=["GET", "POST"])
 def habla_ingles():
     mensaje = ""
     transcripcion = ""
@@ -117,7 +127,7 @@ Texto: "{transcripcion}"
     return render_template("habla_ingles.html", mensaje=mensaje, transcripcion=transcripcion, analisis=analisis)
 
 
-@app.route("/simula-ingles", methods=["GET", "POST"])
+@routes_bp.route("/simula-ingles", methods=["GET", "POST"])
 def simula_ingles():
     global chat_historial
     texto_usuario = ""
@@ -180,14 +190,14 @@ End with a natural question or comment to keep the conversation going.
     return render_template("simula_ingles.html", texto_usuario=texto_usuario, respuesta=respuesta_ia, contexto=modo, historial=historial_html)
 
 
-@app.route("/reset-chat")
+@routes_bp.route("/reset-chat")
 def reset_chat():
     global chat_historial
     chat_historial = []
-    return redirect(url_for('simula_ingles'))
+    return redirect(url_for('routes.simula_ingles'))
 
 
-@app.route("/vista_previa", methods=["POST"])
+@routes_bp.route("/vista_previa", methods=["POST"])
 def vista_previa():
     archivo = request.files["archivo"]
     modo = int(request.form.get("modo", "2"))
@@ -203,12 +213,12 @@ def vista_previa():
         return send_file("output/montado.pdf", as_attachment=True)
 
 
-@app.route('/preview_temp/<filename>')
+@routes_bp.route('/preview_temp/<filename>')
 def mostrar_preview_temp(filename):
     return send_from_directory('preview_temp', filename)
 
 
-@app.route("/preview")
+@routes_bp.route("/preview")
 def vista_preview():
     pagina = int(request.args.get("p", 1))
     modo = int(request.args.get("modo", 2))
@@ -251,7 +261,7 @@ def vista_preview():
     return html
 
 
-@app.route("/generar_pdf_final", methods=["POST"])
+@routes_bp.route("/generar_pdf_final", methods=["POST"])
 def generar_pdf_final():
     modo = int(request.form.get("modo_montaje", 2))
     pdfs = [f for f in os.listdir("uploads") if f.endswith(".pdf")]
@@ -263,7 +273,7 @@ def generar_pdf_final():
     return send_file(output_pdf_path, as_attachment=True)
 
 
-@app.route("/revision", methods=["GET", "POST"])
+@routes_bp.route("/revision", methods=["GET", "POST"])
 def revision_flexo():
     mensaje = ""
     resultado_revision = ""
@@ -321,7 +331,7 @@ def revision_flexo():
     )
 
 
-@app.route("/sugerencia_ia", methods=["POST"])
+@routes_bp.route("/sugerencia_ia", methods=["POST"])
 def sugerencia_ia():
     resultado_revision_b64 = request.form.get("resultado_revision_b64", "")
     diagnostico_texto_b64 = request.form.get("diagnostico_texto_b64", "")
@@ -350,7 +360,7 @@ def sugerencia_ia():
     )
 
 
-@app.route("/sugerencia_produccion", methods=["POST"])
+@routes_bp.route("/sugerencia_produccion", methods=["POST"])
 def sugerencia_produccion():
     resultado_revision_b64 = request.form.get("resultado_revision_b64", "")
     diagnostico_texto_b64 = request.form.get("diagnostico_texto_b64", "")

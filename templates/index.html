@@ -246,7 +246,7 @@ button[value="analisis_grafico"]:hover {
     {% endif %}
 
     {% if output_pdf %}
-      <a href="{{ url_for('descargar_pdf') }}" class="descargar-link"> Descargar PDF Procesado</a>
+      <a href="{{ url_for('routes.descargar_pdf') }}" class="descargar-link"> Descargar PDF Procesado</a>
     {% endif %}
 
     {% if diagnostico %}
