@@ -206,7 +206,15 @@ def montaje_flexo_avanzado():
     if etiquetas_por_repeticion <= 0:
         return "Las dimensiones no permiten ninguna etiqueta", 400
     repeticiones = math.ceil(cantidad / etiquetas_por_repeticion)
-    metros_totales = repeticiones * paso / 1000
+
+    # Cálculos de eficiencia y métricas adicionales
+    ancho_ocupado = pistas * ancho + max(pistas - 1, 0) * sep_h
+    espacio_desperdiciado = max(ancho_bobina - ancho_ocupado, 0)
+    uso_ancho = (ancho_ocupado / ancho_bobina * 100) if ancho_bobina > 0 else 0
+    etiquetas_por_metro = (
+        (1000 / paso) * etiquetas_por_repeticion if paso > 0 else 0
+    )
+    longitud_estimada = repeticiones * paso / 1000
 
     doc = fitz.open(path_pdf)
     label_pix = doc.load_page(0).get_pixmap()
@@ -230,10 +238,13 @@ def montaje_flexo_avanzado():
     with open(reporte_path, "w", encoding="utf-8") as f:
         f.write(
             f"""<html><body><h2>Reporte Montaje Flexo Avanzado</h2>
-            <p>Pistas: {pistas}</p>
-            <p>Etiquetas por repetición: {etiquetas_por_repeticion}</p>
-            <p>Repeticiones necesarias: {repeticiones}</p>
-            <p>Metros totales: {round(metros_totales, 2)} m</p>
+            <p><strong>Uso del ancho (%)</strong>: {uso_ancho:.2f}%</p>
+            <p><strong>Ancho ocupado (mm)</strong>: {ancho_ocupado:.2f}</p>
+            <p><strong>Espacio desperdiciado (mm)</strong>: {espacio_desperdiciado:.2f}</p>
+            <p><strong>Etiquetas por repetición</strong>: {etiquetas_por_repeticion}</p>
+            <p><strong>Repeticiones necesarias</strong>: {repeticiones}</p>
+            <p><strong>Etiquetas por metro</strong>: {etiquetas_por_metro:.2f}</p>
+            <p><strong>Longitud estimada (m)</strong>: {longitud_estimada:.2f}</p>
             </body></html>"""
         )
 
@@ -246,7 +257,12 @@ def montaje_flexo_avanzado():
         pistas=pistas,
         etiquetas_por_repeticion=etiquetas_por_repeticion,
         repeticiones=repeticiones,
-        metros_totales=round(metros_totales, 2),
+        metros_totales=round(longitud_estimada, 2),
+        uso_ancho=round(uso_ancho, 2),
+        ancho_ocupado=round(ancho_ocupado, 2),
+        espacio_desperdiciado=round(espacio_desperdiciado, 2),
+        etiquetas_por_metro=round(etiquetas_por_metro, 2),
+        longitud_estimada=round(longitud_estimada, 2),
     )
 
 
