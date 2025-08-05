@@ -17,7 +17,11 @@ from flask import (
 from werkzeug.utils import secure_filename
 from montaje import montar_pdf
 from diagnostico import diagnosticar_pdf, analizar_grafico_tecnico
-from utils import corregir_sangrado, redimensionar_pdf
+from utils import (
+    corregir_sangrado,
+    redimensionar_pdf,
+    calcular_etiquetas_por_fila,
+)
 from simulacion import generar_preview_interactivo, generar_preview_virtual
 from ia_sugerencias import chat_completion, transcribir_audio
 from montaje_flexo import (
@@ -221,8 +225,11 @@ def montaje_flexo_avanzado():
     if espacio_disponible <= 0:
         return "Las dimensiones no permiten ninguna etiqueta", 400
 
-    cantidad_pistas = int(
-        (espacio_disponible + sep_h) / (ancho_total_etiqueta + sep_h)
+    cantidad_pistas = calcular_etiquetas_por_fila(
+        ancho_bobina=ancho_bobina,
+        ancho_etiqueta=ancho_total_etiqueta,
+        separacion_horizontal=sep_h,
+        margen_lateral=margen,
     )
     cantidad_pistas = max(1, cantidad_pistas)
 
