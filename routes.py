@@ -20,7 +20,11 @@ from diagnostico import diagnosticar_pdf, analizar_grafico_tecnico
 from utils import corregir_sangrado, redimensionar_pdf
 from simulacion import generar_preview_interactivo, generar_preview_virtual
 from ia_sugerencias import chat_completion, transcribir_audio
-from montaje_flexo import revisar_diseño_flexo, generar_sugerencia_produccion
+from montaje_flexo import (
+    revisar_diseño_flexo,
+    generar_sugerencia_produccion,
+    corregir_sangrado_y_marcas,
+)
 from montaje_offset import montar_pliego_offset
 
 UPLOAD_FOLDER = "uploads"
@@ -188,6 +192,15 @@ def montaje_flexo_avanzado():
     path_pdf = os.path.join(UPLOAD_FOLDER_FLEXO, filename)
     archivo.save(path_pdf)
 
+    auto_sangrado = request.form.get("auto_sangrado") == "on"
+    auto_marcas = request.form.get("auto_marcas") == "on"
+    correccion_aplicada = False
+    if auto_sangrado or auto_marcas:
+        nuevo_pdf = corregir_sangrado_y_marcas(path_pdf)
+        if nuevo_pdf != path_pdf:
+            path_pdf = nuevo_pdf
+            correccion_aplicada = True
+
     try:
         ancho = float(request.form.get("ancho_etiqueta", 0))
         alto = float(request.form.get("alto_etiqueta", 0))
@@ -240,9 +253,16 @@ def montaje_flexo_avanzado():
     out_doc.load_page(0).get_pixmap().save(preview_path)
 
     reporte_path = os.path.join(OUTPUT_FOLDER_FLEXO, "reporte_flexo_avanzado.html")
+    aviso = ""
+    if correccion_aplicada:
+        aviso = (
+            "<div style='padding:10px;border:2px solid #f39c12;background:#fff3cd;margin-bottom:10px;'>"
+            "⚠️ Archivo original no contenía sangrado o marcas de corte.<br>"
+            "Se aplicó corrección automática antes del montaje." "</div>"
+        )
     with open(reporte_path, "w", encoding="utf-8") as f:
         f.write(
-            f"""<html><body><h2>Reporte Montaje Flexo Avanzado</h2>
+            f"""<html><body><h2>Reporte Montaje Flexo Avanzado</h2>{aviso}
             <p>Pistas: {pistas}</p>
             <p>Etiquetas por repetición: {etiquetas_por_repeticion}</p>
             <p>Repeticiones necesarias: {repeticiones}</p>

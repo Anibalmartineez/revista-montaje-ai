@@ -16,6 +16,116 @@ from openai import OpenAI
 client = OpenAI(api_key=os.environ.get("OPENAI_API_KEY"))
 
 
+def corregir_sangrado_y_marcas(pdf_path: str) -> str:
+    """Verifica sangrado y marcas de corte. Si faltan, genera un PDF corregido.
+
+    Se analiza la primera página para comprobar si el contenido llega al borde
+    (sangrado ≥ 3 mm) y si existen marcas de corte. Cuando falta alguno de los
+    dos, se crea una nueva página expandida 3 mm por lado, se replica un fondo
+    promedio y se añaden marcas de corte. Devuelve la ruta del PDF (corregido o
+    original).
+    """
+
+    doc = fitz.open(pdf_path)
+    page = doc[0]
+
+    page_rect = page.rect
+    text_info = page.get_text("dict")
+    x0, y0 = page_rect.x1, page_rect.y1
+    x1, y1 = page_rect.x0, page_rect.y0
+    for block in text_info.get("blocks", []):
+        bx0, by0, bx1, by1 = block.get("bbox", (0, 0, 0, 0))
+        x0, y0 = min(x0, bx0), min(y0, by0)
+        x1, y1 = max(x1, bx1), max(y1, by1)
+    content_rect = fitz.Rect(x0, y0, x1, y1)
+
+    bleed_pts = 3 * 72 / 25.4
+    margins = [
+        content_rect.x0 - page_rect.x0,
+        page_rect.x1 - content_rect.x1,
+        content_rect.y0 - page_rect.y0,
+        page_rect.y1 - content_rect.y1,
+    ]
+    has_bleed = all(m <= bleed_pts for m in margins)
+
+    has_marks = False
+    try:
+        for d in page.get_drawings():
+            for item in d.get("items", []):
+                if item[0] == "l":  # línea
+                    p0, p1 = item[1], item[2]
+                    if (
+                        p0.x < content_rect.x0
+                        or p0.x > content_rect.x1
+                        or p0.y < content_rect.y0
+                        or p0.y > content_rect.y1
+                        or p1.x < content_rect.x0
+                        or p1.x > content_rect.x1
+                        or p1.y < content_rect.y0
+                        or p1.y > content_rect.y1
+                    ):
+                        has_marks = True
+                        break
+            if has_marks:
+                break
+    except Exception:
+        has_marks = False
+
+    if has_bleed and has_marks:
+        doc.close()
+        return pdf_path
+
+    pix = page.get_pixmap(dpi=300)
+    img = Image.frombytes("RGB", [pix.width, pix.height], pix.samples)
+    border = 10
+    np_img = np.array(img)
+    top = np_img[:border, :, :]
+    bottom = np_img[-border:, :, :]
+    left = np_img[:, :border, :]
+    right = np_img[:, -border:, :]
+    border_pixels = np.concatenate([top, bottom, left, right], axis=0)
+    avg_color = tuple(border_pixels.mean(axis=(0, 1)).astype(int))
+
+    bleed_px = int(round(3 / 25.4 * 300))
+    expanded_img = Image.new(
+        "RGB", (img.width + 2 * bleed_px, img.height + 2 * bleed_px), avg_color
+    )
+    expanded_img.paste(img, (bleed_px, bleed_px))
+
+    new_doc = fitz.open()
+    new_width = page_rect.width + 2 * bleed_pts
+    new_height = page_rect.height + 2 * bleed_pts
+    new_page = new_doc.new_page(width=new_width, height=new_height)
+
+    img_bytes = BytesIO()
+    expanded_img.save(img_bytes, format="PNG", dpi=(300, 300))
+    img_bytes.seek(0)
+    new_page.insert_image(new_page.rect, stream=img_bytes.getvalue())
+
+    if not has_marks:
+        mark_len = 5 * 72 / 25.4
+        width = 0.25
+        x_left = bleed_pts
+        x_right = bleed_pts + page_rect.width
+        y_top = bleed_pts
+        y_bottom = bleed_pts + page_rect.height
+        color = (0, 0, 0)
+        new_page.draw_line((x_left, y_top - mark_len), (x_left, y_top), color=color, width=width)
+        new_page.draw_line((x_left - mark_len, y_top), (x_left, y_top), color=color, width=width)
+        new_page.draw_line((x_right, y_top - mark_len), (x_right, y_top), color=color, width=width)
+        new_page.draw_line((x_right + mark_len, y_top), (x_right, y_top), color=color, width=width)
+        new_page.draw_line((x_left, y_bottom), (x_left, y_bottom + mark_len), color=color, width=width)
+        new_page.draw_line((x_left - mark_len, y_bottom), (x_left, y_bottom), color=color, width=width)
+        new_page.draw_line((x_right, y_bottom), (x_right, y_bottom + mark_len), color=color, width=width)
+        new_page.draw_line((x_right + mark_len, y_bottom), (x_right, y_bottom), color=color, width=width)
+
+    corrected_path = os.path.join(os.path.dirname(pdf_path), "archivo_corregido.pdf")
+    new_doc.save(corrected_path)
+    new_doc.close()
+    doc.close()
+    return corrected_path
+
+
 def convertir_pts_a_mm(valor_pts):
     return round(valor_pts * 25.4 / 72, 2)
 
