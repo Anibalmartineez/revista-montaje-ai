@@ -124,6 +124,14 @@
         <input type="number" step="0.1" id="sep_v" name="sep_v" value="0" required>
       </div>
       <div>
+        <label for="alignment">Alignment</label>
+        <select id="alignment" name="alignment">
+          <option value="center">center</option>
+          <option value="left">left</option>
+          <option value="right">right</option>
+        </select>
+      </div>
+      <div>
         <label for="cantidad">Cantidad total de etiquetas</label>
         <input type="number" id="cantidad" name="cantidad" required>
       </div>
@@ -138,7 +146,7 @@
     <div class="preview">
       <h3>Vista previa</h3>
       <img src="data:image/png;base64,{{preview}}" alt="Vista previa del montaje">
-      <p>Pistas: {{pistas}} | Etiquetas por repetición: {{etiquetas_por_repeticion}} | Repeticiones: {{repeticiones}} | Metros: {{metros_totales}} m</p>
+      <p>Pistas: {{pistas}} | Etiquetas por repetición: {{etiquetas_por_repeticion}} | Repeticiones: {{repeticiones}} | Metros: {{metros_totales}} m | Alineación: {{alignment}}</p>
       <div class="descargas">
         <a href="/descargar_montaje_flexo_avanzado">Descargar Montaje PDF</a>
         <a href="/descargar_reporte_flexo_avanzado" style="background:#28a745;">Descargar Reporte</a>
