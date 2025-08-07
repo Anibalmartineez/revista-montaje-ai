@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <title>Montaje Offset Inteligente</title>
+</head>
+<body>
+  <h1>Montaje Offset Inteligente</h1>
+  <form method="POST" enctype="multipart/form-data">
+    <label>Subir de 1 a 5 archivos PDF:</label>
+    <input type="file" name="archivos[]" accept=".pdf" multiple required>
+    <br><br>
+    <label>Seleccionar tamaño de pliego:</label>
+    <select name="pliego">
+      <option value="640x880">640x880 mm</option>
+      <option value="700x1000">700x1000 mm</option>
+      <option value="personalizado">Personalizado</option>
+    </select>
+    <div id="pliego-personalizado" style="display:none;">
+      <label>Ancho del pliego (mm):</label>
+      <input type="number" name="ancho_pliego_custom" step="0.01">
+      <label>Alto del pliego (mm):</label>
+      <input type="number" name="alto_pliego_custom" step="0.01">
+    </div>
+    <br>
+    <button type="submit">Generar Montaje</button>
+  </form>
+  <script>
+    document.querySelector('select[name="pliego"]').addEventListener('change', function() {
+      document.getElementById('pliego-personalizado').style.display =
+        this.value === 'personalizado' ? 'block' : 'none';
+    });
+  </script>
+</body>
+</html>
