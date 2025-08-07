@@ -619,25 +619,34 @@ def revisar_diseño_flexo(
     pagina = doc[0]
     contenido = pagina.get_text("dict")
     ancho_mm, alto_mm = obtener_info_basica(pagina)
-    advertencias = []
+
+    diseno_info = [
+        f"<li><span class='icono design'>📐</span> Tamaño del diseño: <b>{ancho_mm} x {alto_mm} mm</b></li>",
+        f"<li><span class='icono anilox'>🟡</span> Anilox: <b>{anilox_lpi} lpi</b></li>",
+    ]
+    montaje_info = [
+        f"<li><span class='icono design'>🧱</span> Paso del cilindro: <b>{paso_mm} mm</b></li>",
+    ]
+    cobertura_info = []
+    riesgos_info = []
+
     cobertura_total = calcular_cobertura_total(path_pdf)
-    advertencias.append(
-        f"<span class='icono ink'>🖨️</span> Cobertura total estimada del diseño: <b>{cobertura_total}%</b>"
+    cobertura_info.append(
+        f"<li><span class='icono ink'>🖨️</span> Cobertura total estimada del diseño: <b>{cobertura_total}%</b></li>"
     )
     if cobertura_total > 85:
-        advertencias.append(
-            "<span class='icono warn'>⚠️</span> Cobertura muy alta. Riesgo de sobrecarga de tinta."
+        riesgos_info.append(
+            "<li><span class='icono warning'>⚠️</span> Cobertura muy alta. Riesgo de sobrecarga de tinta.</li>"
         )
     elif cobertura_total < 10:
-        advertencias.append(
-            "<span class='icono warn'>⚠️</span> Cobertura muy baja. Posible subcarga o diseño incompleto."
+        riesgos_info.append(
+            "<li><span class='icono warning'>⚠️</span> Cobertura muy baja. Posible subcarga o diseño incompleto.</li>"
         )
+
     repeticiones, sobrante = calcular_repeticiones_bobina(alto_mm, paso_mm)
-    advertencias.append(
-        f"<span class='icono info'>🔁</span> El diseño entra <b>{repeticiones}</b> veces en el paso del cilindro de <b>{paso_mm} mm</b>. Sobrante: <b>{sobrante} mm</b>."
+    montaje_info.append(
+        f"<li><span class='icono info'>🔁</span> El diseño entra <b>{repeticiones}</b> veces en el paso del cilindro de <b>{paso_mm} mm</b>. Sobrante: <b>{sobrante} mm</b>.</li>"
     )
-
-
 
     dim_adv = verificar_dimensiones(ancho_mm, alto_mm, paso_mm)
     textos_adv = verificar_textos_pequenos(contenido)
@@ -647,13 +656,8 @@ def revisar_diseño_flexo(
     modo_color_adv = verificar_modo_color(path_pdf)
     sangrado_adv = revisar_sangrado(pagina)
 
-    advertencias += dim_adv
-    advertencias += textos_adv
-    advertencias += lineas_adv
-    advertencias += contraste_adv
-    advertencias += tramas_adv
-    advertencias += modo_color_adv
-    advertencias += sangrado_adv
+    for lista in [dim_adv, textos_adv, lineas_adv, contraste_adv, tramas_adv, modo_color_adv, sangrado_adv]:
+        riesgos_info.extend([f"<li>{a}</li>" for a in lista])
 
     textos_pequenos_flag = any("Texto pequeño" in a and "warn" in a for a in textos_adv)
     lineas_finas_flag = any("Línea o trazo muy fino" in a and "warn" in a for a in lineas_adv)
@@ -669,12 +673,12 @@ def revisar_diseño_flexo(
             canal = img_np[:, :, i]
             porcentaje = round(np.mean(canal / 255) * 100, 2)
             cobertura[nombre] = porcentaje
-            advertencias.append(
-                f"<span class='icono ink'>🖨️</span> Porcentaje estimado de cobertura de <b>{nombre}</b>: <b>{porcentaje}%</b>"
+            cobertura_info.append(
+                f"<li><span class='icono ink'>🖨️</span> Porcentaje estimado de cobertura de <b>{nombre}</b>: <b>{porcentaje}%</b></li>"
             )
     except Exception as e:
-        advertencias.append(
-            f"<span class='icono warn'>⚠️</span> No se pudo estimar la cobertura de tinta: {str(e)}"
+        riesgos_info.append(
+            f"<li><span class='icono warning'>⚠️</span> No se pudo estimar la cobertura de tinta: {str(e)}</li>"
         )
 
     # Detección de tintas planas (Pantone/Spot)
@@ -682,27 +686,27 @@ def revisar_diseño_flexo(
         reader_spot = PdfReader(path_pdf)
         tintas_planas = detectar_tintas_pantone(reader_spot)
         if tintas_planas:
-            advertencias.append(
-                f"<span class='icono warn'>🎨</span> Tintas planas detectadas: <b>{', '.join(tintas_planas)}</b>"
+            cobertura_info.append(
+                f"<li><span class='icono warn'>🎨</span> Tintas planas detectadas: <b>{', '.join(tintas_planas)}</b></li>"
             )
         else:
-            advertencias.append(
-                "<span class='icono error'>❌</span> No se detectaron tintas planas (Pantone)"
+            cobertura_info.append(
+                "<li><span class='icono error'>❌</span> No se detectaron tintas planas (Pantone)</li>"
             )
     except Exception as e:
-        advertencias.append(
-            f"<span class='icono warn'>⚠️</span> Error al verificar tintas planas: {str(e)}"
+        riesgos_info.append(
+            f"<li><span class='icono warning'>⚠️</span> Error al verificar tintas planas: {str(e)}</li>"
         )
 
     overprint_count = detectar_overprints(path_pdf)
     if overprint_count:
-        advertencias.append(
-            f"<span class='icono warn'>⚠️</span> Se detectaron <b>{overprint_count}</b> objetos con overprint habilitado. Posibles sobreimpresiones no intencionadas."
+        riesgos_info.append(
+            f"<li><span class='icono warning'>⚠️</span> Se detectaron <b>{overprint_count}</b> objetos con overprint habilitado. Posibles sobreimpresiones no intencionadas.</li>"
         )
 
-    if not advertencias:
-        advertencias.append(
-            "<span class='icono ok'>✔️</span> El diseño parece apto para impresión flexográfica con los parámetros ingresados."
+    if not riesgos_info:
+        riesgos_info.append(
+            "<li><span class='icono ok'>✔️</span> El diseño parece apto para impresión flexográfica con los parámetros ingresados.</li>"
         )
 
     diagnostico_material = []
@@ -711,40 +715,51 @@ def revisar_diseño_flexo(
         negro = cobertura.get("Negro", 0)
         if negro > 50:
             diagnostico_material.append(
-                f"<span class='icono warn'>⚠️</span> Cobertura alta de negro (<b>{negro}%</b>). Puede generar problemas de adherencia o secado en film."
+                f"<li><span class='icono warn'>⚠️</span> Cobertura alta de negro (<b>{negro}%</b>). Puede generar problemas de adherencia o secado en film.</li>"
             )
         else:
-            diagnostico_material.append("<span class='icono ok'>✔️</span> Cobertura de negro adecuada para impresión en film.")
+            diagnostico_material.append(
+                "<li><span class='icono ok'>✔️</span> Cobertura de negro adecuada para impresión en film.</li>"
+            )
         if tramas_debiles_flag:
-            diagnostico_material.append("<span class='icono warn'>⚠️</span> Las tramas débiles podrían no transferirse correctamente sobre film.")
+            diagnostico_material.append(
+                "<li><span class='icono warn'>⚠️</span> Las tramas débiles podrían no transferirse correctamente sobre film.</li>"
+            )
     elif material_norm == "papel":
         if textos_pequenos_flag or lineas_finas_flag:
-            diagnostico_material.append("<span class='icono warn'>⚠️</span> En papel, la ganancia de punto puede afectar textos pequeños y líneas finas.")
+            diagnostico_material.append(
+                "<li><span class='icono warn'>⚠️</span> En papel, la ganancia de punto puede afectar textos pequeños y líneas finas.</li>"
+            )
         else:
-            diagnostico_material.append("<span class='icono ok'>✔️</span> No se detectaron elementos sensibles a la ganancia de punto en papel.")
+            diagnostico_material.append(
+                "<li><span class='icono ok'>✔️</span> No se detectaron elementos sensibles a la ganancia de punto en papel.</li>"
+            )
     elif material_norm == "etiqueta adhesiva":
         total_cobertura = sum(cobertura.values())
         if total_cobertura > 240:
             diagnostico_material.append(
-                f"<span class='icono warn'>⚠️</span> Cobertura total alta (<b>{round(total_cobertura,2)}%</b>). Puede ocasionar problemas de secado en etiquetas adhesivas."
+                f"<li><span class='icono warn'>⚠️</span> Cobertura total alta (<b>{round(total_cobertura,2)}%</b>). Puede ocasionar problemas de secado en etiquetas adhesivas.</li>"
             )
         else:
-            diagnostico_material.append("<span class='icono ok'>✔️</span> Cobertura total adecuada para etiqueta adhesiva.")
+            diagnostico_material.append(
+                "<li><span class='icono ok'>✔️</span> Cobertura total adecuada para etiqueta adhesiva.</li>"
+            )
     elif material_norm:
         diagnostico_material.append(
-            f"<span class='icono info'>ℹ️</span> Material '<b>{material}</b>' no reconocido. Sin recomendaciones específicas."
+            f"<li><span class='icono info'>ℹ️</span> Material '<b>{material}</b>' no reconocido. Sin recomendaciones específicas.</li>"
         )
 
-    seccion_material = ""
+    seccion_material_html = ""
     if diagnostico_material:
-        seccion_material = "<hr><p><b>Diagnóstico según material de impresión:</b></p><p>" + "<br>".join(diagnostico_material) + "</p>"
+        seccion_material_html = (
+            "<div class='card'><h3>🧪 Diagnóstico por material</h3><ul>"
+            + "\n".join(diagnostico_material)
+            + "</ul></div>"
+        )
 
-    seccion_tinta = ""
+    seccion_tinta_html = ""
     imagen_tinta = ""
-    if (
-        anilox_bcm is not None
-        and velocidad_impresion is not None
-    ):
+    if anilox_bcm is not None and velocidad_impresion is not None:
         try:
             if cobertura_estimada is None:
                 cobertura_estimada = cobertura_total
@@ -776,29 +791,37 @@ def revisar_diseño_flexo(
             tinta_ideal = valores_ideales.get(material_norm, 150)
             imagen_tinta = generar_grafico_tinta(tinta_ml, tinta_ideal, material)
 
-            seccion_tinta = (
-                "<hr><p><b>🖌️ Simulación de transmisión de tinta</b></p>"
+            seccion_tinta_html = (
+                "<div class='card'><h3>💧 Simulación de tinta</h3>"
                 f"<p>Cantidad estimada de tinta transferida: <b>{tinta_ml} ml/min</b></p>"
                 f"{barra_html}"
                 f"<p>{advertencia_tinta}</p>"
+                "</div>"
             )
         except Exception as e:
-            seccion_tinta = (
-                "<hr><p><b>🖌️ Simulación de transmisión de tinta</b></p>"
-                f"<p>Error en la simulación: {str(e)}</p>"
+            seccion_tinta_html = (
+                "<div class='card'><h3>💧 Simulación de tinta</h3>"
+                f"<p>Error en la simulación: {str(e)}</p></div>"
             )
 
-    resumen = f"""
-<div>
-  <p><b>📐 Tamaño del diseño:</b> {ancho_mm} x {alto_mm} mm</p>
-  <p><b>🧱 Paso del cilindro:</b> {paso_mm} mm</p>
-  <p><b>🟡 Anilox:</b> {anilox_lpi} lpi</p>
-  <hr>
-  {'<br>'.join(advertencias)}
-  {seccion_material}
-  {seccion_tinta}
-</div>
-"""
+    resumen = (
+        "<div class='diagnostico'>"
+        "<div class='card'><h3>📐 Diseño</h3><ul>"
+        + "\n".join(diseno_info)
+        + "</ul></div>"
+        + "<div class='card'><h3>🧱 Montaje</h3><ul>"
+        + "\n".join(montaje_info)
+        + "</ul></div>"
+        + "<div class='card'><h3>🖨️ Cobertura y tinta</h3><ul>"
+        + "\n".join(cobertura_info)
+        + "</ul></div>"
+        + "<div class='card'><h3>⚠️ Advertencias</h3><ul>"
+        + "\n".join(riesgos_info)
+        + "</ul></div>"
+        + seccion_material_html
+        + seccion_tinta_html
+        + "</div>"
+    )
     diagnostico_texto = generar_diagnostico_texto(resumen)
     return resumen, imagen_tinta, diagnostico_texto
 
