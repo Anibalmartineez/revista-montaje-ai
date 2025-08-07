@@ -435,8 +435,13 @@ def montar_pliego_offset_inteligente(
     if ordenar_tamano:
         grupos.sort(key=lambda g: g["ancho"], reverse=True)
 
-    # Calculamos bloques para cada grupo de diseño
-    bloques: List[Dict[str, float]] = []
+    # Distribuimos cada grupo de diseños en una grilla adaptable
+    posiciones: List[Dict[str, float]] = []
+    sobrantes: List[Dict[str, float]] = []
+
+    ancho_util = ancho_pliego - margen_izq - margen_der
+    y_cursor = alto_pliego - margen_sup
+
     for g in grupos:
         if doble_corte:
             unit_w = max_unit_w
@@ -445,57 +450,73 @@ def montar_pliego_offset_inteligente(
             unit_w = g["ancho"] + 2 * sangrado
             unit_h = g["alto"] + 2 * sangrado
 
-        cols, rows, block_w, block_h = _mejor_arreglo(
-            g["cantidad"], unit_w, unit_h, sep_h, sep_v, preferir_horizontal
-        )
+        # Si el diseño es más ancho que el área útil, no se puede colocar
+        if unit_w > ancho_util:
+            sobrantes.append({"archivo": g["archivo"], "cantidad": g["cantidad"]})
+            continue
 
-        bloques.append(
-            {
-                "archivo": g["archivo"],
-                "ancho": block_w,
-                "alto": block_h,
-                "cols": cols,
-                "rows": rows,
-                "cantidad": g["cantidad"],
-                "unit_w": unit_w,
-                "unit_h": unit_h,
-                "diseno_w": g["ancho"],
-                "diseno_h": g["alto"],
-            }
-        )
+        forms_x = int((ancho_util + sep_h) / (unit_w + sep_h))
+        forms_x = max(1, forms_x)
 
-    colocados, sobrantes = _colocar_bloques(
-        bloques,
-        ancho_pliego,
-        alto_pliego,
-        (margen_izq, margen_der, margen_sup, margen_inf),
-        sep_h,
-        sep_v,
-        centrar=centrar,
-    )
+        restante = g["cantidad"]
+        while restante > 0:
+            alto_disponible = y_cursor - margen_inf
+            max_rows = int((alto_disponible + sep_v) / (unit_h + sep_v))
+            if max_rows <= 0:
+                break
 
-    # Generamos posiciones finales de cada copia
-    posiciones: List[Dict[str, float]] = []
-    for bloque in colocados:
-        for idx in range(bloque["cantidad"]):
-            col = idx % bloque["cols"]
-            row = idx // bloque["cols"]
-            x = bloque["x"] + col * (bloque["unit_w"] + sep_h)
-            y = bloque["y"] + row * (bloque["unit_h"] + sep_v)
-            offset_x = 0.0
-            offset_y = 0.0
-            if doble_corte:
-                offset_x = (bloque["unit_w"] - (bloque["diseno_w"] + 2 * sangrado)) / 2
-                offset_y = (bloque["unit_h"] - (bloque["diseno_h"] + 2 * sangrado)) / 2
-            posiciones.append(
-                {
-                    "archivo": bloque["archivo"],
-                    "x": x + offset_x,
-                    "y": y + offset_y,
-                    "ancho": bloque["diseno_w"],
-                    "alto": bloque["diseno_h"],
-                }
-            )
+            forms_y = min(max_rows, math.ceil(restante / forms_x))
+            copias = min(restante, forms_x * forms_y)
+            top_y = y_cursor
+
+            for idx in range(copias):
+                col = idx % forms_x
+                row = idx // forms_x
+                x = margen_izq + col * (unit_w + sep_h)
+                y = top_y - unit_h - row * (unit_h + sep_v)
+
+                offset_x = 0.0
+                offset_y = 0.0
+                if doble_corte:
+                    offset_x = (unit_w - (g["ancho"] + 2 * sangrado)) / 2
+                    offset_y = (unit_h - (g["alto"] + 2 * sangrado)) / 2
+
+                posiciones.append(
+                    {
+                        "archivo": g["archivo"],
+                        "x": x + offset_x,
+                        "y": y + offset_y,
+                        "ancho": g["ancho"],
+                        "alto": g["alto"],
+                    }
+                )
+
+            block_height = forms_y * unit_h + (forms_y - 1) * sep_v
+            y_cursor = top_y - block_height - sep_v * 2
+            restante -= copias
+
+            if restante > 0 and y_cursor - margen_inf < unit_h:
+                break
+
+        if restante > 0:
+            sobrantes.append({"archivo": g["archivo"], "cantidad": restante})
+            if y_cursor - margen_inf < unit_h:
+                break
+
+    if centrar and posiciones:
+        min_x = min(p["x"] for p in posiciones)
+        max_x = max(p["x"] + p["ancho"] + 2 * sangrado for p in posiciones)
+        min_y = min(p["y"] for p in posiciones)
+        max_y = max(p["y"] + p["alto"] + 2 * sangrado for p in posiciones)
+        usado_w = max_x - min_x
+        usado_h = max_y - min_y
+        espacio_h = ancho_pliego - usado_w
+        espacio_v = alto_pliego - usado_h
+        desplaz_x = espacio_h / 2 - min_x
+        desplaz_y = espacio_v / 2 - min_y
+        for p in posiciones:
+            p["x"] += desplaz_x
+            p["y"] += desplaz_y
 
     # Creación del PDF final
     os.makedirs(os.path.dirname(output_path), exist_ok=True)
