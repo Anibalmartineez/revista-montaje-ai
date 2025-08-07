@@ -220,6 +220,8 @@ def montaje_offset_inteligente_view():
     ordenar_tamano = request.form.get("ordenar_tamano") == "on"
     alinear_filas = request.form.get("alinear_filas") == "on"
     centrar_montaje = request.form.get("centrar_montaje") == "on"
+    forzar_grilla = request.form.get("forzar_grilla") == "on"
+    debug_grilla = request.form.get("debug_grilla") == "on"
 
     output_path = os.path.join("output", "pliego_offset_inteligente.pdf")
     montar_pliego_offset_inteligente(
@@ -230,6 +232,8 @@ def montaje_offset_inteligente_view():
         ordenar_tamano=ordenar_tamano,
         alinear_filas=alinear_filas,
         centrar=centrar_montaje,
+        forzar_grilla=forzar_grilla,
+        debug_grilla=debug_grilla,
         output_path=output_path,
     )
     return send_file(output_path, as_attachment=True)

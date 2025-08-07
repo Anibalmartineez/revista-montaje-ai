@@ -88,3 +88,45 @@ def test_calcular_posiciones_alinear_filas():
     assert xs[2] - xs[1] == pytest.approx(54)
     ys = {p["y"] for p in posiciones}
     assert len(ys) == 1
+
+
+def test_calcular_posiciones_forzar_grilla():
+    disenos = (
+        [{"archivo": "a.pdf", "ancho": 100, "alto": 50}] * 6
+        + [{"archivo": "b.pdf", "ancho": 80, "alto": 60}] * 4
+    )
+    posiciones = calcular_posiciones(
+        disenos,
+        500,
+        400,
+        margen=10,
+        separacion=5,
+        sangrado=0,
+        forzar_grilla=True,
+        debug=True,
+    )
+    assert len(posiciones) == 10
+
+    # Comprobamos que las columnas tienen el mismo ancho y separación
+    from collections import defaultdict
+
+    columnas = defaultdict(list)
+    for pos in posiciones:
+        columnas[round(pos["x"], 5)].append(pos)
+
+    xs = sorted(columnas.keys())
+    for i in range(len(xs) - 1):
+        ancho_col = columnas[xs[i]][0]["celda_ancho"]
+        assert xs[i] + ancho_col + 5 == pytest.approx(xs[i + 1])
+
+    # Todas las filas comparten altura y separación vertical
+    filas = defaultdict(list)
+    for pos in posiciones:
+        # El borde superior de la fila coincide con el borde superior del diseño
+        top = pos["y"] + pos["alto"]
+        filas[round(top, 5)].append(pos)
+
+    tops = sorted(filas.keys(), reverse=True)
+    for i in range(len(tops) - 1):
+        alto_f = filas[tops[i]][0]["celda_alto"]
+        assert tops[i] - alto_f - 5 == pytest.approx(tops[i + 1])
