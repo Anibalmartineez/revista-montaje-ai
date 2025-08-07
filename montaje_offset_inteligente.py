@@ -64,63 +64,96 @@ def calcular_posiciones(
     ancho_pliego: float,
     alto_pliego: float,
     margen: float = 10,
-    espacio: float = 5,
+    separacion: float = 5,
     sangrado: float = 0,
-    centrar_vertical: bool = False,
+    centrar: bool = False,
+    alinear_filas: bool = False,
 ) -> List[Dict[str, float]]:
     """Calcula posiciones de cada diseño evitando solapamientos.
 
-    Los diseños se colocan en filas y columnas comenzando desde la parte
-    superior izquierda del pliego. Cuando un diseño no entra horizontalmente
-    se pasa a la siguiente fila. Si ``centrar_vertical`` es ``True`` se
-    distribuyen las filas para que el espacio libre inferior y superior sea el
-    mismo.
+    Cuando ``alinear_filas`` es ``True`` se construye una grilla uniforme
+    utilizando el ancho y alto máximos de los diseños para determinar el tamaño
+    de cada celda. Si ``centrar`` es ``True`` el bloque resultante se centra en
+    el pliego tanto horizontal como verticalmente.
     """
 
     posiciones: List[Dict[str, float]] = []
 
-    # Comenzamos desde la esquina superior izquierda
-    x_cursor = margen
-    y_cursor = alto_pliego - margen
-    fila_max_altura = 0
+    if alinear_filas and disenos:
+        ancho_celda = max(d["ancho"] + 2 * sangrado for d in disenos)
+        alto_celda = max(d["alto"] + 2 * sangrado for d in disenos)
+        ancho_disponible = ancho_pliego - 2 * margen
+        max_columnas = max(1, int(ancho_disponible / (ancho_celda + separacion)))
 
-    for diseno in disenos:
-        ancho_total = diseno["ancho"] + 2 * sangrado
-        alto_total = diseno["alto"] + 2 * sangrado
+        for idx, diseno in enumerate(disenos):
+            columna = idx % max_columnas
+            fila = idx // max_columnas
+            x = margen + columna * (ancho_celda + separacion)
+            y = (
+                alto_pliego
+                - margen
+                - alto_celda
+                - fila * (alto_celda + separacion)
+            )
+            if y < margen:
+                break
+            posiciones.append(
+                {
+                    "archivo": diseno["archivo"],
+                    "x": x,
+                    "y": y,
+                    "ancho": diseno["ancho"],
+                    "alto": diseno["alto"],
+                }
+            )
+    else:
+        # Comenzamos desde la esquina superior izquierda
+        x_cursor = margen
+        y_cursor = alto_pliego - margen
+        fila_max_altura = 0
 
-        # Si no entra en la fila actual pasamos a la siguiente fila
-        if x_cursor + ancho_total > ancho_pliego - margen:
-            x_cursor = margen
-            y_cursor -= fila_max_altura + espacio
-            fila_max_altura = 0
+        for diseno in disenos:
+            ancho_total = diseno["ancho"] + 2 * sangrado
+            alto_total = diseno["alto"] + 2 * sangrado
 
-        # Si no entra verticalmente dejamos de colocar diseños
-        if y_cursor - alto_total < margen:
-            break
+            # Si no entra en la fila actual pasamos a la siguiente fila
+            if x_cursor + ancho_total > ancho_pliego - margen:
+                x_cursor = margen
+                y_cursor -= fila_max_altura + separacion
+                fila_max_altura = 0
 
-        posiciones.append(
-            {
-                "archivo": diseno["archivo"],
-                "x": x_cursor,
-                # Convertimos a coordenadas de origen inferior izquierdo
-                "y": y_cursor - alto_total,
-                "ancho": diseno["ancho"],
-                "alto": diseno["alto"],
-            }
-        )
+            # Si no entra verticalmente dejamos de colocar diseños
+            if y_cursor - alto_total < margen:
+                break
 
-        x_cursor += ancho_total + espacio
-        fila_max_altura = max(fila_max_altura, alto_total)
+            posiciones.append(
+                {
+                    "archivo": diseno["archivo"],
+                    "x": x_cursor,
+                    # Convertimos a coordenadas de origen inferior izquierdo
+                    "y": y_cursor - alto_total,
+                    "ancho": diseno["ancho"],
+                    "alto": diseno["alto"],
+                }
+            )
 
-    if centrar_vertical and posiciones:
-        # Calculamos el espacio libre y desplazamos las filas al centro
+            x_cursor += ancho_total + separacion
+            fila_max_altura = max(fila_max_altura, alto_total)
+
+    if centrar and posiciones:
+        min_x = min(p["x"] for p in posiciones)
+        max_x = max(p["x"] + p["ancho"] + 2 * sangrado for p in posiciones)
         min_y = min(p["y"] for p in posiciones)
-        used_height = (alto_pliego - margen) - min_y
-        espacio_libre = (alto_pliego - 2 * margen) - used_height
-        if espacio_libre > 0:
-            desplazamiento = espacio_libre / 2
-            for p in posiciones:
-                p["y"] -= desplazamiento
+        max_y = max(p["y"] + p["alto"] + 2 * sangrado for p in posiciones)
+        usado_w = max_x - min_x
+        usado_h = max_y - min_y
+        espacio_h = ancho_pliego - usado_w
+        espacio_v = alto_pliego - usado_h
+        desplaz_x = espacio_h / 2 - min_x
+        desplaz_y = espacio_v / 2 - min_y
+        for p in posiciones:
+            p["x"] += desplaz_x
+            p["y"] += desplaz_y
 
     # Reporte simple de aprovechamiento
     area_total_util = (ancho_pliego - 2 * margen) * (alto_pliego - 2 * margen)
@@ -153,8 +186,11 @@ def montar_pliego_offset_inteligente(
     ancho_pliego: float,
     alto_pliego: float,
     margen: float = 10,
-    espacio: float = 5,
+    separacion: float = 4,
     sangrado: float = 3,
+    ordenar_tamano: bool = False,
+    alinear_filas: bool = False,
+    centrar: bool = False,
     output_path: str = "output/pliego_offset_inteligente.pdf",
 ) -> str:
     """Genera un PDF montado acomodando diseños de distintos tamaños."""
@@ -164,15 +200,19 @@ def montar_pliego_offset_inteligente(
         for _ in range(cantidad):
             disenos.append({"archivo": path, "ancho": ancho, "alto": alto})
 
-    disenos.sort(key=lambda d: d["ancho"] * d["alto"], reverse=True)
+    if ordenar_tamano:
+        disenos.sort(key=lambda d: d["ancho"], reverse=True)
+    else:
+        disenos.sort(key=lambda d: d["ancho"] * d["alto"], reverse=True)
     posiciones = calcular_posiciones(
         disenos,
         ancho_pliego,
         alto_pliego,
         margen=margen,
-        espacio=espacio,
+        separacion=separacion,
         sangrado=sangrado,
-        centrar_vertical=True,
+        centrar=centrar,
+        alinear_filas=alinear_filas,
     )
 
     sheet_w_pt = mm_to_pt(ancho_pliego)

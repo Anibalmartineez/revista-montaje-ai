@@ -216,9 +216,22 @@ def montaje_offset_inteligente_view():
 
         repeticiones = int(request.form.get(f"repeticiones_{i}", 1))
         diseños.append((path, repeticiones))
+    separacion = float(request.form.get("separacion", 4))
+    ordenar_tamano = request.form.get("ordenar_tamano") == "on"
+    alinear_filas = request.form.get("alinear_filas") == "on"
+    centrar_montaje = request.form.get("centrar_montaje") == "on"
 
     output_path = os.path.join("output", "pliego_offset_inteligente.pdf")
-    montar_pliego_offset_inteligente(diseños, ancho_pliego, alto_pliego, output_path=output_path)
+    montar_pliego_offset_inteligente(
+        diseños,
+        ancho_pliego,
+        alto_pliego,
+        separacion=separacion,
+        ordenar_tamano=ordenar_tamano,
+        alinear_filas=alinear_filas,
+        centrar=centrar_montaje,
+        output_path=output_path,
+    )
     return send_file(output_path, as_attachment=True)
 
 

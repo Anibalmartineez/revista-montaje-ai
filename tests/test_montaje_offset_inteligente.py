@@ -1,4 +1,5 @@
 import tempfile
+import tempfile
 from pathlib import Path
 
 from reportlab.pdfgen import canvas
@@ -7,6 +8,7 @@ from reportlab.lib.units import mm
 import sys
 sys.path.append(str(Path(__file__).resolve().parents[1]))
 
+import pytest
 from montaje_offset_inteligente import obtener_dimensiones_pdf, calcular_posiciones
 
 
@@ -25,7 +27,9 @@ def test_calcular_posiciones_no_overlap():
         {"archivo": "a.pdf", "ancho": 100, "alto": 50},
         {"archivo": "b.pdf", "ancho": 80, "alto": 40},
     ]
-    posiciones = calcular_posiciones(disenos, 300, 200, margen=10, espacio=5, sangrado=0)
+    posiciones = calcular_posiciones(
+        disenos, 300, 200, margen=10, separacion=5, sangrado=0
+    )
     assert len(posiciones) == 2
     a, b = posiciones
     overlap = not (
@@ -41,7 +45,7 @@ def test_calcular_posiciones_no_overlap():
         assert pos["y"] + pos["alto"] <= 200 - 10
 
 
-def test_calcular_posiciones_centrado_vertical():
+def test_calcular_posiciones_centrado():
     disenos = [
         {"archivo": "a.pdf", "ancho": 100, "alto": 50},
         {"archivo": "b.pdf", "ancho": 80, "alto": 40},
@@ -51,13 +55,36 @@ def test_calcular_posiciones_centrado_vertical():
         300,
         200,
         margen=10,
-        espacio=5,
+        separacion=5,
         sangrado=0,
-        centrar_vertical=True,
+        centrar=True,
     )
     assert len(posiciones) == 2
     top = max(p["y"] + p["alto"] for p in posiciones)
     bottom = min(p["y"] for p in posiciones)
-    # Con centrado vertical los márgenes superior e inferior deben ser iguales
-    assert top - bottom == 50  # altura utilizada
+    assert top - bottom == 50
     assert abs(bottom - (200 - top)) < 1e-6
+
+
+def test_calcular_posiciones_alinear_filas():
+    disenos = [
+        {"archivo": "a.pdf", "ancho": 50, "alto": 40},
+        {"archivo": "b.pdf", "ancho": 50, "alto": 40},
+        {"archivo": "c.pdf", "ancho": 50, "alto": 40},
+    ]
+    posiciones = calcular_posiciones(
+        disenos,
+        200,
+        200,
+        margen=10,
+        separacion=4,
+        sangrado=0,
+        alinear_filas=True,
+    )
+    assert len(posiciones) == 3
+    # Todas las etiquetas deben estar en la misma fila con separación uniforme
+    xs = [p["x"] for p in posiciones]
+    assert xs[1] - xs[0] == pytest.approx(54)
+    assert xs[2] - xs[1] == pytest.approx(54)
+    ys = {p["y"] for p in posiciones}
+    assert len(ys) == 1
