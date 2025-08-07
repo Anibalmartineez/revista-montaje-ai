@@ -66,29 +66,44 @@ def calcular_posiciones(
     margen: float = 10,
     espacio: float = 5,
     sangrado: float = 0,
+    centrar_vertical: bool = False,
 ) -> List[Dict[str, float]]:
-    """Calcula posiciones de cada diseño evitando solapamientos."""
+    """Calcula posiciones de cada diseño evitando solapamientos.
+
+    Los diseños se colocan en filas y columnas comenzando desde la parte
+    superior izquierda del pliego. Cuando un diseño no entra horizontalmente
+    se pasa a la siguiente fila. Si ``centrar_vertical`` es ``True`` se
+    distribuyen las filas para que el espacio libre inferior y superior sea el
+    mismo.
+    """
+
     posiciones: List[Dict[str, float]] = []
-    x_cursor, y_cursor = margen, margen
+
+    # Comenzamos desde la esquina superior izquierda
+    x_cursor = margen
+    y_cursor = alto_pliego - margen
     fila_max_altura = 0
 
     for diseno in disenos:
         ancho_total = diseno["ancho"] + 2 * sangrado
         alto_total = diseno["alto"] + 2 * sangrado
 
+        # Si no entra en la fila actual pasamos a la siguiente fila
         if x_cursor + ancho_total > ancho_pliego - margen:
             x_cursor = margen
-            y_cursor += fila_max_altura + espacio
+            y_cursor -= fila_max_altura + espacio
             fila_max_altura = 0
 
-        if y_cursor + alto_total > alto_pliego - margen:
+        # Si no entra verticalmente dejamos de colocar diseños
+        if y_cursor - alto_total < margen:
             break
 
         posiciones.append(
             {
                 "archivo": diseno["archivo"],
                 "x": x_cursor,
-                "y": y_cursor,
+                # Convertimos a coordenadas de origen inferior izquierdo
+                "y": y_cursor - alto_total,
                 "ancho": diseno["ancho"],
                 "alto": diseno["alto"],
             }
@@ -96,6 +111,28 @@ def calcular_posiciones(
 
         x_cursor += ancho_total + espacio
         fila_max_altura = max(fila_max_altura, alto_total)
+
+    if centrar_vertical and posiciones:
+        # Calculamos el espacio libre y desplazamos las filas al centro
+        min_y = min(p["y"] for p in posiciones)
+        used_height = (alto_pliego - margen) - min_y
+        espacio_libre = (alto_pliego - 2 * margen) - used_height
+        if espacio_libre > 0:
+            desplazamiento = espacio_libre / 2
+            for p in posiciones:
+                p["y"] -= desplazamiento
+
+    # Reporte simple de aprovechamiento
+    area_total_util = (ancho_pliego - 2 * margen) * (alto_pliego - 2 * margen)
+    area_usada = sum(
+        (p["ancho"] + 2 * sangrado) * (p["alto"] + 2 * sangrado)
+        for p in posiciones
+    )
+    if area_total_util > 0:
+        porcentaje = area_usada / area_total_util * 100
+        print(
+            f"Se colocaron {len(posiciones)} diseños, ocupando {porcentaje:.1f}% del área útil"
+        )
 
     return posiciones
 
@@ -128,7 +165,13 @@ def montar_pliego_offset_inteligente(
 
     disenos.sort(key=lambda d: d["ancho"] * d["alto"], reverse=True)
     posiciones = calcular_posiciones(
-        disenos, ancho_pliego, alto_pliego, margen=margen, espacio=espacio, sangrado=sangrado
+        disenos,
+        ancho_pliego,
+        alto_pliego,
+        margen=margen,
+        espacio=espacio,
+        sangrado=sangrado,
+        centrar_vertical=True,
     )
 
     sheet_w_pt = mm_to_pt(ancho_pliego)

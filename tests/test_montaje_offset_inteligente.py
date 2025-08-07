@@ -39,3 +39,25 @@ def test_calcular_posiciones_no_overlap():
         assert pos["x"] >= 10 and pos["y"] >= 10
         assert pos["x"] + pos["ancho"] <= 300 - 10
         assert pos["y"] + pos["alto"] <= 200 - 10
+
+
+def test_calcular_posiciones_centrado_vertical():
+    disenos = [
+        {"archivo": "a.pdf", "ancho": 100, "alto": 50},
+        {"archivo": "b.pdf", "ancho": 80, "alto": 40},
+    ]
+    posiciones = calcular_posiciones(
+        disenos,
+        300,
+        200,
+        margen=10,
+        espacio=5,
+        sangrado=0,
+        centrar_vertical=True,
+    )
+    assert len(posiciones) == 2
+    top = max(p["y"] + p["alto"] for p in posiciones)
+    bottom = min(p["y"] for p in posiciones)
+    # Con centrado vertical los márgenes superior e inferior deben ser iguales
+    assert top - bottom == 50  # altura utilizada
+    assert abs(bottom - (200 - top)) < 1e-6
