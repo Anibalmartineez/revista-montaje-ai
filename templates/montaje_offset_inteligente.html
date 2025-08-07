@@ -9,6 +9,25 @@
   <form method="POST" enctype="multipart/form-data">
     <label>Subir de 1 a 5 archivos PDF:</label>
     <input type="file" name="archivos[]" accept=".pdf" multiple required>
+    <div id="repeticiones-container"></div>
+    <script>
+      document
+        .querySelector('input[name="archivos[]"]')
+        .addEventListener('change', function (e) {
+          const container = document.getElementById('repeticiones-container');
+          container.innerHTML = '';
+          [...this.files].forEach((file, index) => {
+            const div = document.createElement('div');
+            div.innerHTML = `
+        <label>${file.name} - Cantidad de repeticiones:</label>
+        <input type="number" name="repeticiones_${index}" min="1" value="1" required>
+        <input type="hidden" name="nombre_archivo_${index}" value="${file.name}">
+        <br><br>
+      `;
+            container.appendChild(div);
+          });
+        });
+    </script>
     <br><br>
     <label>Seleccionar tamaño de pliego:</label>
     <select name="pliego">
