@@ -96,6 +96,7 @@ def _mejor_arreglo(
     unit_h: float,
     sep_h: float,
     sep_v: float,
+    preferir_horizontal: bool = False,
 ) -> Tuple[int, int, float, float]:
     """Calcula filas y columnas óptimas para un bloque de copias.
 
@@ -110,7 +111,9 @@ def _mejor_arreglo(
         height = rows * unit_h + (rows - 1) * sep_v
         horizontal = width >= height
         area = width * height
-        score = area * (10 if not horizontal else 1)
+        score = area * (
+            10 if (preferir_horizontal and not horizontal) else 1
+        )
         if mejor is None or score < mejor[0]:
             mejor = (score, cols, rows, width, height)
     _, cols, rows, width, height = mejor
@@ -371,7 +374,6 @@ def montar_pliego_offset_inteligente(
     diseños: List[Tuple[str, int]],
     ancho_pliego: float,
     alto_pliego: float,
-    margen: float | Dict[str, float] = 10,
     separacion: float | Tuple[float, float] = 4,
     sangrado: float = 3,
     ordenar_tamano: bool = False,
@@ -379,6 +381,13 @@ def montar_pliego_offset_inteligente(
     centrar: bool = False,
     forzar_grilla: bool = False,  # compatibilidad con versiones previas
     debug_grilla: bool = False,
+    espaciado_horizontal: float = 0,
+    espaciado_vertical: float = 0,
+    margen_izq: float = 10,
+    margen_der: float = 10,
+    margen_sup: float = 10,
+    margen_inf: float = 10,
+    preferir_horizontal: bool = False,
     doble_corte: bool | None = None,
     output_path: str = "output/pliego_offset_inteligente.pdf",
     preview_path: str | None = None,
@@ -394,8 +403,17 @@ def montar_pliego_offset_inteligente(
     if doble_corte is None:
         doble_corte = forzar_grilla
 
-    margen_izq, margen_der, margen_sup, margen_inf = _parse_margenes(margen)
-    sep_h, sep_v = _parse_separacion(separacion)
+    if espaciado_horizontal or espaciado_vertical:
+        sep_h, sep_v = espaciado_horizontal, espaciado_vertical
+    else:
+        sep_h, sep_v = _parse_separacion(separacion)
+
+    margen_izq, margen_der, margen_sup, margen_inf = (
+        float(margen_izq),
+        float(margen_der),
+        float(margen_sup),
+        float(margen_inf),
+    )
 
     # Recolectamos dimensiones de cada diseño
     grupos = []
@@ -428,7 +446,7 @@ def montar_pliego_offset_inteligente(
             unit_h = g["alto"] + 2 * sangrado
 
         cols, rows, block_w, block_h = _mejor_arreglo(
-            g["cantidad"], unit_w, unit_h, sep_h, sep_v
+            g["cantidad"], unit_w, unit_h, sep_h, sep_v, preferir_horizontal
         )
 
         bloques.append(
