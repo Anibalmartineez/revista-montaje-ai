@@ -63,8 +63,6 @@
       margin-top: 25px;
       padding: 15px;
       border-radius: 6px;
-      font-family: monospace;
-      white-space: pre-wrap;
     }
 
     .mensaje {
@@ -86,14 +84,42 @@
       margin: 0;
     }
 
+    .diagnostico {
+      display: flex;
+      flex-direction: column;
+      gap: 20px;
+    }
+
+    .card {
+      background: #fff;
+      border-radius: 8px;
+      box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+      padding: 15px;
+    }
+
+    .card h3 {
+      margin-top: 0;
+      color: #003366;
+    }
+
+    .card ul {
+      padding-left: 20px;
+      margin: 0;
+    }
+
     .icono {
       font-weight: bold;
       margin-right: 5px;
     }
 
     .ok { color: green; }
-    .warn { color: #e69500; }
+    .warn, .warning { color: #e69500; }
     .error { color: red; }
+
+    .print-btn {
+      margin-top: 20px;
+      text-align: right;
+    }
   </style>
 </head>
 <body>
@@ -131,7 +157,10 @@
     {% endif %}
 
     {% if resultado_revision %}
-      <div class="resultado">{{ resultado_revision | safe }}</div>
+      <div class="resultado">
+        {{ resultado_revision | safe }}
+        <div class="print-btn"><button onclick="window.print()">🖨️ Imprimir Diagnóstico</button></div>
+      </div>
       {% if grafico_tinta %}
         <div class="resultado" style="text-align:center;">
           <img src="data:image/png;base64,{{ grafico_tinta }}" alt="Gráfico de tinta"/>
