@@ -518,14 +518,13 @@ def revision_flexo():
             material = request.form.get("material", "")
             anilox_bcm = request.form.get("anilox_bcm")
             velocidad = request.form.get("velocidad_impresion")
-            cobertura = request.form.get("cobertura_estimada")
+            cobertura = None
 
-            if anilox_bcm and velocidad and cobertura:
+            if anilox_bcm and velocidad:
                 anilox_bcm = float(anilox_bcm)
                 velocidad = float(velocidad)
-                cobertura = float(cobertura)
             else:
-                anilox_bcm = velocidad = cobertura = None
+                anilox_bcm = velocidad = None
 
             if archivo and archivo.filename.endswith(".pdf"):
                 filename = secure_filename(archivo.filename)
