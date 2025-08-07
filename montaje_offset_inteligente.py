@@ -278,6 +278,7 @@ def montar_pliego_offset_inteligente(
     separacion: float | Tuple[float, float] = 4,
     sangrado: float = 3,
     ordenar_tamano: bool = False,
+    permitir_rotacion: bool = False,
     alinear_filas: bool = False,  # compatibilidad, no usado
     centrar: bool = False,
     forzar_grilla: bool = False,  # compatibilidad con versiones previas
@@ -297,7 +298,8 @@ def montar_pliego_offset_inteligente(
 
     Devuelve la ruta del PDF generado. También puede generar una imagen de
     vista previa y un reporte HTML si se indican las rutas ``preview_path`` y
-    ``resumen_path``.
+    ``resumen_path``. Si ``permitir_rotacion`` es ``True`` se evaluará rotar
+    cada diseño 90° para aumentar la cantidad de copias por fila.
     """
 
     if doble_corte is None:
@@ -315,22 +317,37 @@ def montar_pliego_offset_inteligente(
         float(margen_inf),
     )
 
-    # Recolectamos dimensiones de cada diseño
+    ancho_util = ancho_pliego - margen_izq - margen_der
+
+    # Recolectamos dimensiones de cada diseño evaluando rotación
     grupos = []
     max_unit_w = 0.0
     max_unit_h = 0.0
     for path, cantidad in diseños:
         ancho, alto = obtener_dimensiones_pdf(path)
+        rotado = False
+        if permitir_rotacion:
+            unit_w = ancho + 2 * sangrado
+            unit_w_rot = alto + 2 * sangrado
+            forms_x = int((ancho_util + sep_h) / (unit_w + sep_h))
+            forms_x_rot = int((ancho_util + sep_h) / (unit_w_rot + sep_h))
+            if forms_x_rot > forms_x:
+                rotado = True
+        real_ancho = alto if rotado else ancho
+        real_alto = ancho if rotado else alto
         grupos.append(
             {
                 "archivo": path,
                 "ancho": ancho,
                 "alto": alto,
+                "ancho_real": real_ancho,
+                "alto_real": real_alto,
                 "cantidad": int(cantidad),
+                "rotado": rotado,
             }
         )
-        max_unit_w = max(max_unit_w, ancho + 2 * sangrado)
-        max_unit_h = max(max_unit_h, alto + 2 * sangrado)
+        max_unit_w = max(max_unit_w, real_ancho + 2 * sangrado)
+        max_unit_h = max(max_unit_h, real_alto + 2 * sangrado)
 
     if ordenar_tamano:
         grupos.sort(key=lambda g: g["ancho"], reverse=True)
@@ -339,7 +356,6 @@ def montar_pliego_offset_inteligente(
     posiciones: List[Dict[str, float]] = []
     sobrantes: List[Dict[str, float]] = []
 
-    ancho_util = ancho_pliego - margen_izq - margen_der
     y_cursor = alto_pliego - margen_sup
 
     for g in grupos:
@@ -347,8 +363,8 @@ def montar_pliego_offset_inteligente(
             unit_w = max_unit_w
             unit_h = max_unit_h
         else:
-            unit_w = g["ancho"] + 2 * sangrado
-            unit_h = g["alto"] + 2 * sangrado
+            unit_w = g["ancho_real"] + 2 * sangrado
+            unit_h = g["alto_real"] + 2 * sangrado
 
         # Si el diseño es más ancho que el área útil, no se puede colocar
         if unit_w > ancho_util:
@@ -378,16 +394,17 @@ def montar_pliego_offset_inteligente(
                 offset_x = 0.0
                 offset_y = 0.0
                 if doble_corte:
-                    offset_x = (unit_w - (g["ancho"] + 2 * sangrado)) / 2
-                    offset_y = (unit_h - (g["alto"] + 2 * sangrado)) / 2
+                    offset_x = (unit_w - (g["ancho_real"] + 2 * sangrado)) / 2
+                    offset_y = (unit_h - (g["alto_real"] + 2 * sangrado)) / 2
 
                 posiciones.append(
                     {
                         "archivo": g["archivo"],
                         "x": x + offset_x,
                         "y": y + offset_y,
-                        "ancho": g["ancho"],
-                        "alto": g["alto"],
+                        "ancho": g["ancho_real"],
+                        "alto": g["alto_real"],
+                        "rotado": g["rotado"],
                     }
                 )
 
@@ -435,7 +452,14 @@ def montar_pliego_offset_inteligente(
         total_h_pt = mm_to_pt(pos["alto"] + 2 * sangrado)
         x_pt = mm_to_pt(pos["x"])
         y_pt = mm_to_pt(pos["y"])
-        c.drawImage(img, x_pt, y_pt, width=total_w_pt, height=total_h_pt)
+        if pos.get("rotado"):
+            c.saveState()
+            c.translate(x_pt + total_w_pt / 2, y_pt + total_h_pt / 2)
+            c.rotate(90)
+            c.drawImage(img, -total_h_pt / 2, -total_w_pt / 2, width=total_h_pt, height=total_w_pt)
+            c.restoreState()
+        else:
+            c.drawImage(img, x_pt, y_pt, width=total_w_pt, height=total_h_pt)
 
         # Marcas de corte
         left = x_pt + mm_to_pt(sangrado)

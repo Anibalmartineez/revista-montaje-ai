@@ -13,8 +13,11 @@ os.environ.setdefault("OPENAI_API_KEY", "test")
 
 import pytest
 from app import app
-import montaje_offset_inteligente
-from montaje_offset_inteligente import obtener_dimensiones_pdf, calcular_posiciones
+from montaje_offset_inteligente import (
+    obtener_dimensiones_pdf,
+    calcular_posiciones,
+    montar_pliego_offset_inteligente,
+)
 
 
 def test_obtener_dimensiones_pdf():
@@ -174,6 +177,53 @@ def test_calcular_posiciones_forzar_grilla():
         alto_f = filas[tops[i]][0]["celda_alto"]
         assert tops[i] - alto_f - 5 == pytest.approx(tops[i + 1])
 
+
+def _crear_pdf_temporal(ancho_mm: float, alto_mm: float) -> str:
+    tmp = tempfile.NamedTemporaryFile(suffix=".pdf", delete=False)
+    c = canvas.Canvas(tmp.name, pagesize=(ancho_mm * mm, alto_mm * mm))
+    c.drawString(10, 10, "test")
+    c.save()
+    tmp.close()
+    return tmp.name
+
+
+def test_montar_pliego_sin_rotacion_generando_sobrantes(tmp_path):
+    pdf = _crear_pdf_temporal(70, 50)
+    resumen = tmp_path / "resumen.html"
+    montar_pliego_offset_inteligente(
+        [(pdf, 2)],
+        130,
+        90,
+        separacion=0,
+        sangrado=1,
+        margen_izq=10,
+        margen_der=10,
+        margen_sup=5,
+        margen_inf=5,
+        resumen_path=str(resumen),
+    )
+    contenido = resumen.read_text(encoding="utf-8")
+    assert "No se pudieron colocar" in contenido
+
+
+def test_montar_pliego_con_rotacion_coloca_todas(tmp_path):
+    pdf = _crear_pdf_temporal(70, 50)
+    resumen = tmp_path / "resumen.html"
+    montar_pliego_offset_inteligente(
+        [(pdf, 2)],
+        130,
+        90,
+        separacion=0,
+        sangrado=1,
+        margen_izq=10,
+        margen_der=10,
+        margen_sup=5,
+        margen_inf=5,
+        permitir_rotacion=True,
+        resumen_path=str(resumen),
+    )
+    contenido = resumen.read_text(encoding="utf-8")
+    assert "No se pudieron colocar" not in contenido
 
 def test_montar_pliego_offset_cache(monkeypatch, tmp_path):
     pdf1 = tmp_path / "a.pdf"
