@@ -1,5 +1,7 @@
 import io
-from typing import List, Dict, Tuple
+import math
+import os
+from typing import Dict, List, Tuple
 
 import fitz  # PyMuPDF
 from PIL import Image, ImageOps
@@ -57,6 +59,117 @@ def _pdf_a_imagen_con_sangrado(path: str, sangrado_mm: float) -> ImageReader:
     img_byte_arr.seek(0)
     doc.close()
     return ImageReader(img_byte_arr)
+
+
+def _parse_margenes(margen: float | Dict[str, float]) -> Tuple[float, float, float, float]:
+    """Convierte un valor de margen en márgenes por lado."""
+    if isinstance(margen, dict):
+        izquierda = float(margen.get("izquierdo", margen.get("left", 0)))
+        derecha = float(margen.get("derecho", margen.get("right", izquierda)))
+        superior = float(margen.get("superior", margen.get("top", izquierda)))
+        inferior = float(margen.get("inferior", margen.get("bottom", superior)))
+    elif isinstance(margen, (list, tuple)) and len(margen) == 4:
+        izquierda, derecha, superior, inferior = map(float, margen)
+    else:
+        izquierda = derecha = superior = inferior = float(margen)
+    return izquierda, derecha, superior, inferior
+
+
+def _parse_separacion(separacion: float | Tuple[float, float] | Dict[str, float]) -> Tuple[float, float]:
+    """Devuelve separación horizontal y vertical en mm."""
+    if isinstance(separacion, dict):
+        sep_h = float(separacion.get("horizontal", separacion.get("x", 0)))
+        sep_v = float(separacion.get("vertical", separacion.get("y", sep_h)))
+    elif isinstance(separacion, (list, tuple)):
+        if len(separacion) == 2:
+            sep_h, sep_v = map(float, separacion)
+        else:
+            sep_h = sep_v = float(separacion[0])
+    else:
+        sep_h = sep_v = float(separacion)
+    return sep_h, sep_v
+
+
+def _mejor_arreglo(
+    cantidad: int,
+    unit_w: float,
+    unit_h: float,
+    sep_h: float,
+    sep_v: float,
+) -> Tuple[int, int, float, float]:
+    """Calcula filas y columnas óptimas para un bloque de copias.
+
+    Se prueban todas las combinaciones posibles y se elige la que produce
+    un bloque lo más horizontal posible con el área más pequeña.
+    """
+
+    mejor = None
+    for cols in range(1, cantidad + 1):
+        rows = math.ceil(cantidad / cols)
+        width = cols * unit_w + (cols - 1) * sep_h
+        height = rows * unit_h + (rows - 1) * sep_v
+        horizontal = width >= height
+        area = width * height
+        score = area * (10 if not horizontal else 1)
+        if mejor is None or score < mejor[0]:
+            mejor = (score, cols, rows, width, height)
+    _, cols, rows, width, height = mejor
+    return cols, rows, width, height
+
+
+def _colocar_bloques(
+    bloques: List[Dict[str, float]],
+    ancho_pliego: float,
+    alto_pliego: float,
+    margenes: Tuple[float, float, float, float],
+    sep_h: float,
+    sep_v: float,
+    centrar: bool = False,
+) -> Tuple[List[Dict[str, float]], List[Dict[str, float]]]:
+    """Coloca bloques sobre el pliego en orden secuencial.
+
+    Devuelve una lista con los bloques colocados y otra con los que no
+    pudieron ubicarse por falta de espacio.
+    """
+
+    margen_izq, margen_der, margen_sup, margen_inf = margenes
+    x_cursor = margen_izq
+    y_cursor = alto_pliego - margen_sup
+    fila_max = 0.0
+    colocados: List[Dict[str, float]] = []
+    sobrantes: List[Dict[str, float]] = []
+
+    for bloque in bloques:
+        ancho = bloque["ancho"]
+        alto = bloque["alto"]
+        if x_cursor + ancho > ancho_pliego - margen_der:
+            x_cursor = margen_izq
+            y_cursor -= fila_max + sep_v
+            fila_max = 0.0
+
+        if y_cursor - alto < margen_inf:
+            sobrantes.append(bloque)
+            continue
+
+        bloque["x"] = x_cursor
+        bloque["y"] = y_cursor - alto
+        colocados.append(bloque)
+
+        x_cursor += ancho + sep_h
+        fila_max = max(fila_max, alto)
+
+    if centrar and colocados:
+        min_x = min(b["x"] for b in colocados)
+        max_x = max(b["x"] + b["ancho"] for b in colocados)
+        min_y = min(b["y"] for b in colocados)
+        max_y = max(b["y"] + b["alto"] for b in colocados)
+        dx = (ancho_pliego - (max_x - min_x)) / 2 - min_x
+        dy = (alto_pliego - (max_y - min_y)) / 2 - min_y
+        for b in colocados:
+            b["x"] += dx
+            b["y"] += dy
+
+    return colocados, sobrantes
 
 
 def calcular_posiciones(
@@ -258,44 +371,121 @@ def montar_pliego_offset_inteligente(
     diseños: List[Tuple[str, int]],
     ancho_pliego: float,
     alto_pliego: float,
-    margen: float = 10,
-    separacion: float = 4,
+    margen: float | Dict[str, float] = 10,
+    separacion: float | Tuple[float, float] = 4,
     sangrado: float = 3,
     ordenar_tamano: bool = False,
-    alinear_filas: bool = False,
+    alinear_filas: bool = False,  # compatibilidad, no usado
     centrar: bool = False,
-    forzar_grilla: bool = False,
+    forzar_grilla: bool = False,  # compatibilidad con versiones previas
     debug_grilla: bool = False,
+    doble_corte: bool | None = None,
     output_path: str = "output/pliego_offset_inteligente.pdf",
+    preview_path: str | None = None,
+    resumen_path: str | None = None,
 ) -> str:
-    """Genera un PDF montado acomodando diseños de distintos tamaños."""
-    disenos: List[Dict[str, float]] = []
+    """Genera un PDF montando múltiples diseños con lógica profesional.
+
+    Devuelve la ruta del PDF generado. También puede generar una imagen de
+    vista previa y un reporte HTML si se indican las rutas ``preview_path`` y
+    ``resumen_path``.
+    """
+
+    if doble_corte is None:
+        doble_corte = forzar_grilla
+
+    margen_izq, margen_der, margen_sup, margen_inf = _parse_margenes(margen)
+    sep_h, sep_v = _parse_separacion(separacion)
+
+    # Recolectamos dimensiones de cada diseño
+    grupos = []
+    max_unit_w = 0.0
+    max_unit_h = 0.0
     for path, cantidad in diseños:
         ancho, alto = obtener_dimensiones_pdf(path)
-        for _ in range(cantidad):
-            disenos.append({"archivo": path, "ancho": ancho, "alto": alto})
+        grupos.append(
+            {
+                "archivo": path,
+                "ancho": ancho,
+                "alto": alto,
+                "cantidad": int(cantidad),
+            }
+        )
+        max_unit_w = max(max_unit_w, ancho + 2 * sangrado)
+        max_unit_h = max(max_unit_h, alto + 2 * sangrado)
 
     if ordenar_tamano:
-        disenos.sort(key=lambda d: d["ancho"], reverse=True)
-    else:
-        disenos.sort(key=lambda d: d["ancho"] * d["alto"], reverse=True)
-    posiciones = calcular_posiciones(
-        disenos,
+        grupos.sort(key=lambda g: g["ancho"], reverse=True)
+
+    # Calculamos bloques para cada grupo de diseño
+    bloques: List[Dict[str, float]] = []
+    for g in grupos:
+        if doble_corte:
+            unit_w = max_unit_w
+            unit_h = max_unit_h
+        else:
+            unit_w = g["ancho"] + 2 * sangrado
+            unit_h = g["alto"] + 2 * sangrado
+
+        cols, rows, block_w, block_h = _mejor_arreglo(
+            g["cantidad"], unit_w, unit_h, sep_h, sep_v
+        )
+
+        bloques.append(
+            {
+                "archivo": g["archivo"],
+                "ancho": block_w,
+                "alto": block_h,
+                "cols": cols,
+                "rows": rows,
+                "cantidad": g["cantidad"],
+                "unit_w": unit_w,
+                "unit_h": unit_h,
+                "diseno_w": g["ancho"],
+                "diseno_h": g["alto"],
+            }
+        )
+
+    colocados, sobrantes = _colocar_bloques(
+        bloques,
         ancho_pliego,
         alto_pliego,
-        margen=margen,
-        separacion=separacion,
-        sangrado=sangrado,
+        (margen_izq, margen_der, margen_sup, margen_inf),
+        sep_h,
+        sep_v,
         centrar=centrar,
-        alinear_filas=alinear_filas,
-        forzar_grilla=forzar_grilla,
-        debug=debug_grilla,
     )
 
+    # Generamos posiciones finales de cada copia
+    posiciones: List[Dict[str, float]] = []
+    for bloque in colocados:
+        for idx in range(bloque["cantidad"]):
+            col = idx % bloque["cols"]
+            row = idx // bloque["cols"]
+            x = bloque["x"] + col * (bloque["unit_w"] + sep_h)
+            y = bloque["y"] + row * (bloque["unit_h"] + sep_v)
+            offset_x = 0.0
+            offset_y = 0.0
+            if doble_corte:
+                offset_x = (bloque["unit_w"] - (bloque["diseno_w"] + 2 * sangrado)) / 2
+                offset_y = (bloque["unit_h"] - (bloque["diseno_h"] + 2 * sangrado)) / 2
+            posiciones.append(
+                {
+                    "archivo": bloque["archivo"],
+                    "x": x + offset_x,
+                    "y": y + offset_y,
+                    "ancho": bloque["diseno_w"],
+                    "alto": bloque["diseno_h"],
+                }
+            )
+
+    # Creación del PDF final
+    os.makedirs(os.path.dirname(output_path), exist_ok=True)
     sheet_w_pt = mm_to_pt(ancho_pliego)
     sheet_h_pt = mm_to_pt(alto_pliego)
     c = canvas.Canvas(output_path, pagesize=(sheet_w_pt, sheet_h_pt))
 
+    area_usada = 0.0
     for pos in posiciones:
         img = _pdf_a_imagen_con_sangrado(pos["archivo"], sangrado)
         total_w_pt = mm_to_pt(pos["ancho"] + 2 * sangrado)
@@ -303,20 +493,6 @@ def montar_pliego_offset_inteligente(
         x_pt = mm_to_pt(pos["x"])
         y_pt = mm_to_pt(pos["y"])
         c.drawImage(img, x_pt, y_pt, width=total_w_pt, height=total_h_pt)
-
-        if debug_grilla and "celda_ancho" in pos and "celda_alto" in pos:
-            # Dibujamos la celda completa para visualizar la grilla
-            c.setStrokeColorRGB(0, 0.6, 0)
-            c.setLineWidth(0.3)
-            c.rect(
-                x_pt,
-                y_pt - mm_to_pt(pos["celda_alto"] - (pos["alto"] + 2 * sangrado)),
-                mm_to_pt(pos["celda_ancho"]),
-                mm_to_pt(pos["celda_alto"]),
-                stroke=1,
-                fill=0,
-            )
-            c.setStrokeColorRGB(0, 0, 0)
 
         # Marcas de corte
         left = x_pt + mm_to_pt(sangrado)
@@ -336,6 +512,46 @@ def montar_pliego_offset_inteligente(
         c.line(right, top, right, top + mark_len)
         c.setStrokeColorRGB(0, 0, 0)
 
+        area_usada += (pos["ancho"] + 2 * sangrado) * (pos["alto"] + 2 * sangrado)
+
     agregar_marcas_registro(c, sheet_w_pt, sheet_h_pt)
     c.save()
+
+    # Vista previa PNG opcional
+    if preview_path:
+        doc = fitz.open(output_path)
+        pix = doc[0].get_pixmap(dpi=150, alpha=False)
+        os.makedirs(os.path.dirname(preview_path), exist_ok=True)
+        pix.save(preview_path)
+        doc.close()
+
+    # Resumen HTML opcional
+    if resumen_path:
+        total_disenos = sum(c[1] for c in diseños)
+        colocados_total = len(posiciones)
+        area_total = (ancho_pliego - margen_izq - margen_der) * (
+            alto_pliego - margen_sup - margen_inf
+        )
+        porcentaje = 0.0
+        if area_total > 0:
+            porcentaje = area_usada / area_total * 100
+        advertencias = ""
+        if sobrantes:
+            faltantes = ", ".join(
+                f"{s['archivo']} ({s['cantidad']} copias)" for s in sobrantes
+            )
+            advertencias = f"No se pudieron colocar: {faltantes}"
+        resumen_html = f"""
+        <html><body>
+        <h1>Resumen de montaje</h1>
+        <p>Pliego: {ancho_pliego} x {alto_pliego} mm</p>
+        <p>Diseños colocados: {colocados_total} de {total_disenos}</p>
+        <p>Uso del pliego: {porcentaje:.1f}%</p>
+        <p>{advertencias}</p>
+        </body></html>
+        """
+        os.makedirs(os.path.dirname(resumen_path), exist_ok=True)
+        with open(resumen_path, "w", encoding="utf-8") as f:
+            f.write(resumen_html)
+
     return output_path
