@@ -30,6 +30,7 @@ from montaje_flexo import (
     corregir_sangrado_y_marcas,
 )
 from montaje_offset import montar_pliego_offset
+from montaje_offset_inteligente import montar_pliego_offset_inteligente
 
 UPLOAD_FOLDER = "uploads"
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
@@ -182,6 +183,41 @@ def descargar_pliego_offset():
 @routes_bp.route('/descargar_reporte_offset')
 def descargar_reporte_offset():
     return send_file('output/reporte_tecnico.html', as_attachment=True)
+
+
+@routes_bp.route("/montaje_offset_inteligente", methods=["GET", "POST"])
+def montaje_offset_inteligente_view():
+    if request.method == "GET":
+        return render_template("montaje_offset_inteligente.html")
+
+    archivos = request.files.getlist("archivos[]")
+    if not archivos or len(archivos) > 5:
+        return "Debe subir entre 1 y 5 archivos PDF", 400
+
+    pliego = request.form.get("pliego", "700x1000")
+    if pliego == "640x880":
+        ancho_pliego, alto_pliego = 640.0, 880.0
+    elif pliego == "700x1000":
+        ancho_pliego, alto_pliego = 700.0, 1000.0
+    elif pliego == "personalizado":
+        try:
+            ancho_pliego = float(request.form.get("ancho_pliego_custom"))
+            alto_pliego = float(request.form.get("alto_pliego_custom"))
+        except (TypeError, ValueError):
+            return "Dimensiones de pliego inválidas", 400
+    else:
+        return "Formato de pliego inválido", 400
+
+    file_paths = []
+    for f in archivos:
+        filename = secure_filename(f.filename)
+        path = os.path.join(UPLOAD_FOLDER, filename)
+        f.save(path)
+        file_paths.append(path)
+
+    output_path = os.path.join("output", "pliego_offset_inteligente.pdf")
+    montar_pliego_offset_inteligente(file_paths, ancho_pliego, alto_pliego, output_path=output_path)
+    return send_file(output_path, as_attachment=True)
 
 
 @routes_bp.route("/montaje_flexo_avanzado", methods=["GET", "POST"])
