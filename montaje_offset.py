@@ -1,9 +1,10 @@
 import os
-from io import BytesIO
+import io
 from typing import Dict, List, Tuple
 from datetime import datetime
 
 import fitz  # PyMuPDF
+from PIL import Image, ImageOps
 from reportlab.pdfgen import canvas
 from reportlab.lib.utils import ImageReader
 
@@ -20,13 +21,38 @@ def mm_to_pt(valor: float) -> float:
     return valor * MM_TO_PT
 
 
-def _pdf_a_pixmap(path: str) -> fitz.Pixmap:
+def _pdf_a_imagen_con_sangrado(path: str, sangrado_mm: float) -> ImageReader:
     doc = fitz.open(path)
-    page = doc[0]
-    matrix = fitz.Matrix(300 / 72, 300 / 72)
-    pix = page.get_pixmap(matrix=matrix, alpha=False)
+    page = doc.load_page(0)
+    pix = page.get_pixmap(dpi=300, alpha=False)
+    img = Image.frombytes("RGB", [pix.width, pix.height], pix.samples)
+
+    sangrado_px = int((sangrado_mm / 25.4) * 300)
+    img_con_sangrado = ImageOps.expand(img, border=sangrado_px)
+
+    w, h = img.width, img.height
+    left = img.crop((0, 0, 1, h)).resize((sangrado_px, h))
+    img_con_sangrado.paste(left, (0, sangrado_px))
+    right = img.crop((w - 1, 0, w, h)).resize((sangrado_px, h))
+    img_con_sangrado.paste(right, (sangrado_px + w, sangrado_px))
+    top = img.crop((0, 0, w, 1)).resize((w, sangrado_px))
+    img_con_sangrado.paste(top, (sangrado_px, 0))
+    bottom = img.crop((0, h - 1, w, h)).resize((w, sangrado_px))
+    img_con_sangrado.paste(bottom, (sangrado_px, sangrado_px + h))
+    tl = img.crop((0, 0, 1, 1)).resize((sangrado_px, sangrado_px))
+    img_con_sangrado.paste(tl, (0, 0))
+    tr = img.crop((w - 1, 0, w, 1)).resize((sangrado_px, sangrado_px))
+    img_con_sangrado.paste(tr, (sangrado_px + w, 0))
+    bl = img.crop((0, h - 1, 1, h)).resize((sangrado_px, sangrado_px))
+    img_con_sangrado.paste(bl, (0, sangrado_px + h))
+    br = img.crop((w - 1, h - 1, w, h)).resize((sangrado_px, sangrado_px))
+    img_con_sangrado.paste(br, (sangrado_px + w, sangrado_px + h))
+
+    img_byte_arr = io.BytesIO()
+    img_con_sangrado.save(img_byte_arr, format="PNG")
+    img_byte_arr.seek(0)
     doc.close()
-    return pix
+    return ImageReader(img_byte_arr)
 
 
 def calcular_distribucion(sheet_w: float, sheet_h: float,
@@ -43,7 +69,7 @@ def calcular_distribucion(sheet_w: float, sheet_h: float,
     return cols, rows, cols * rows
 
 
-def dibujar_formas(c: canvas.Canvas, pixmaps: List[fitz.Pixmap],
+def dibujar_formas(c: canvas.Canvas, imagenes: List[ImageReader],
                    cols: int, rows: int,
                    job_w_pt: float, job_h_pt: float, sangrado_pt: float,
                    margen_izq_pt: float, margen_inf_pt: float,
@@ -53,9 +79,7 @@ def dibujar_formas(c: canvas.Canvas, pixmaps: List[fitz.Pixmap],
     total_h = job_h_pt + 2 * sangrado_pt
     for r in range(rows):
         for c_idx in range(cols):
-            pix = pixmaps[idx % len(pixmaps)]
-            img_bytes = pix.tobytes("png")
-            img = ImageReader(BytesIO(img_bytes))
+            img = imagenes[idx % len(imagenes)]
             x = margen_izq_pt + c_idx * (total_w + espaciado_h_pt)
             y = margen_inf_pt + r * (total_h + espaciado_v_pt)
             c.drawImage(img, x, y, width=total_w, height=total_h)
@@ -104,7 +128,7 @@ def agregar_marcas_registro(c: canvas.Canvas, sheet_w_pt: float, sheet_h_pt: flo
         c.circle(x, y, mm_to_pt(1), stroke=1, fill=0)
 
 
-def generar_dorso(c: canvas.Canvas, pixmaps: List[fitz.Pixmap],
+def generar_dorso(c: canvas.Canvas, imagenes: List[ImageReader],
                   cols: int, rows: int,
                   job_w_pt: float, job_h_pt: float, sangrado_pt: float,
                   margen_izq_pt: float, margen_inf_pt: float,
@@ -115,13 +139,13 @@ def generar_dorso(c: canvas.Canvas, pixmaps: List[fitz.Pixmap],
         c.saveState()
         c.translate(sheet_w_pt, 0)
         c.scale(-1, 1)
-        dibujar_formas(c, pixmaps, cols, rows, job_w_pt, job_h_pt, sangrado_pt,
+        dibujar_formas(c, imagenes, cols, rows, job_w_pt, job_h_pt, sangrado_pt,
                        margen_izq_pt, margen_inf_pt, espaciado_h_pt, espaciado_v_pt)
         agregar_marcas_corte(c, cols, rows, job_w_pt, job_h_pt, sangrado_pt,
                              margen_izq_pt, margen_inf_pt, espaciado_h_pt, espaciado_v_pt)
         c.restoreState()
     else:  # tirada
-        dibujar_formas(c, pixmaps, cols, rows, job_w_pt, job_h_pt, sangrado_pt,
+        dibujar_formas(c, imagenes, cols, rows, job_w_pt, job_h_pt, sangrado_pt,
                        margen_izq_pt, margen_inf_pt, espaciado_h_pt, espaciado_v_pt)
         agregar_marcas_corte(c, cols, rows, job_w_pt, job_h_pt, sangrado_pt,
                              margen_izq_pt, margen_inf_pt, espaciado_h_pt, espaciado_v_pt)
@@ -171,7 +195,7 @@ def montar_pliego_offset(file_paths: List[str], formato_pliego: str,
                                               margen_izq, margen_der,
                                               espaciado_h, espaciado_v, sangrado)
 
-    pixmaps = [_pdf_a_pixmap(p) for p in file_paths]
+    imagenes = [_pdf_a_imagen_con_sangrado(p, sangrado) for p in file_paths]
 
     sheet_w_pt = mm_to_pt(sheet_w)
     sheet_h_pt = mm_to_pt(sheet_h)
@@ -190,7 +214,7 @@ def montar_pliego_offset(file_paths: List[str], formato_pliego: str,
     reporte_path = os.path.join(output_dir, "reporte_tecnico.html")
 
     c = canvas.Canvas(pdf_path, pagesize=(sheet_w_pt, sheet_h_pt))
-    dibujar_formas(c, pixmaps, cols, rows, job_w_pt, job_h_pt, sangrado_pt,
+    dibujar_formas(c, imagenes, cols, rows, job_w_pt, job_h_pt, sangrado_pt,
                    margen_izq_pt, margen_inf_pt, espaciado_h_pt, espaciado_v_pt)
     agregar_marcas_corte(c, cols, rows, job_w_pt, job_h_pt, sangrado_pt,
                          margen_izq_pt, margen_inf_pt, espaciado_h_pt, espaciado_v_pt)
@@ -198,7 +222,7 @@ def montar_pliego_offset(file_paths: List[str], formato_pliego: str,
 
     if modo_dorso in ("tirada", "retiracion"):
         c.showPage()
-        generar_dorso(c, pixmaps, cols, rows, job_w_pt, job_h_pt, sangrado_pt,
+        generar_dorso(c, imagenes, cols, rows, job_w_pt, job_h_pt, sangrado_pt,
                       margen_izq_pt, margen_inf_pt, espaciado_h_pt, espaciado_v_pt,
                       sheet_w_pt, sheet_h_pt, modo_dorso)
 
