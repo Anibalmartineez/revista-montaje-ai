@@ -16,3 +16,4 @@ def test_calcular_etiquetas_por_fila_decimales():
     """Funciona con tamaños y separaciones decimales."""
     resultado = calcular_etiquetas_por_fila(500, 123.3, 2.5, 10)
     assert resultado == 3
+
