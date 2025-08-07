@@ -425,8 +425,12 @@ def montar_pliego_offset_inteligente(
     c = canvas.Canvas(output_path, pagesize=(sheet_w_pt, sheet_h_pt))
 
     area_usada = 0.0
+    image_cache: Dict[str, ImageReader] = {}
     for pos in posiciones:
-        img = _pdf_a_imagen_con_sangrado(pos["archivo"], sangrado)
+        archivo = pos["archivo"]
+        if archivo not in image_cache:
+            image_cache[archivo] = _pdf_a_imagen_con_sangrado(archivo, sangrado)
+        img = image_cache[archivo]
         total_w_pt = mm_to_pt(pos["ancho"] + 2 * sangrado)
         total_h_pt = mm_to_pt(pos["alto"] + 2 * sangrado)
         x_pt = mm_to_pt(pos["x"])
@@ -453,6 +457,7 @@ def montar_pliego_offset_inteligente(
 
         area_usada += (pos["ancho"] + 2 * sangrado) * (pos["alto"] + 2 * sangrado)
 
+    image_cache.clear()
     agregar_marcas_registro(c, sheet_w_pt, sheet_h_pt)
     c.save()
 

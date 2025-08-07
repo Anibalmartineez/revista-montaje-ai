@@ -13,6 +13,7 @@ os.environ.setdefault("OPENAI_API_KEY", "test")
 
 import pytest
 from app import app
+import montaje_offset_inteligente
 from montaje_offset_inteligente import obtener_dimensiones_pdf, calcular_posiciones
 
 
@@ -172,3 +173,34 @@ def test_calcular_posiciones_forzar_grilla():
     for i in range(len(tops) - 1):
         alto_f = filas[tops[i]][0]["celda_alto"]
         assert tops[i] - alto_f - 5 == pytest.approx(tops[i + 1])
+
+
+def test_montar_pliego_offset_cache(monkeypatch, tmp_path):
+    pdf1 = tmp_path / "a.pdf"
+    pdf2 = tmp_path / "b.pdf"
+
+    for pdf in (pdf1, pdf2):
+        c = canvas.Canvas(str(pdf), pagesize=(50 * mm, 50 * mm))
+        c.drawString(10, 10, "test")
+        c.save()
+
+    original = montaje_offset_inteligente._pdf_a_imagen_con_sangrado
+    calls = {"count": 0}
+
+    def wrapper(path, sangrado):
+        calls["count"] += 1
+        return original(path, sangrado)
+
+    monkeypatch.setattr(
+        montaje_offset_inteligente, "_pdf_a_imagen_con_sangrado", wrapper
+    )
+
+    output = tmp_path / "out.pdf"
+    montaje_offset_inteligente.montar_pliego_offset_inteligente(
+        [(str(pdf1), 3), (str(pdf2), 2)],
+        300,
+        300,
+        output_path=str(output),
+    )
+    assert calls["count"] == 2
+    assert output.exists()
