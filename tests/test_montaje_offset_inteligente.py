@@ -1,4 +1,4 @@
-import tempfile
+import io
 import tempfile
 from pathlib import Path
 
@@ -8,7 +8,11 @@ from reportlab.lib.units import mm
 import sys
 sys.path.append(str(Path(__file__).resolve().parents[1]))
 
+import os
+os.environ.setdefault("OPENAI_API_KEY", "test")
+
 import pytest
+from app import app
 from montaje_offset_inteligente import obtener_dimensiones_pdf, calcular_posiciones
 
 
@@ -88,6 +92,44 @@ def test_calcular_posiciones_alinear_filas():
     assert xs[2] - xs[1] == pytest.approx(54)
     ys = {p["y"] for p in posiciones}
     assert len(ys) == 1
+
+
+@pytest.fixture
+def client():
+    app.config["TESTING"] = True
+    with app.test_client() as client:
+        yield client
+
+
+def test_montaje_offset_inteligente_con_parametros(client):
+    pdf_bytes = io.BytesIO()
+    c = canvas.Canvas(pdf_bytes, pagesize=(100 * mm, 100 * mm))
+    c.drawString(10, 10, "test")
+    c.save()
+    pdf_bytes.seek(0)
+
+    data = {
+        "pliego": "personalizado",
+        "ancho_pliego_custom": "700",
+        "alto_pliego_custom": "1000",
+        "espaciado_horizontal": "5",
+        "espaciado_vertical": "5",
+        "margen_izq": "10",
+        "margen_der": "10",
+        "margen_sup": "10",
+        "margen_inf": "10",
+        "preferir_horizontal": "on",
+        "separacion": "4",
+    }
+    data["archivos[]"] = (pdf_bytes, "ejemplo.pdf")
+    data["repeticiones_0"] = "2"
+
+    response = client.post(
+        "/montaje_offset_inteligente",
+        data=data,
+        content_type="multipart/form-data",
+    )
+    assert response.status_code == 200
 
 
 def test_calcular_posiciones_forzar_grilla():

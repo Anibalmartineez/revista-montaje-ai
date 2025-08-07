@@ -222,6 +222,13 @@ def montaje_offset_inteligente_view():
     centrar_montaje = request.form.get("centrar_montaje") == "on"
     forzar_grilla = request.form.get("forzar_grilla") == "on"
     debug_grilla = request.form.get("debug_grilla") == "on"
+    espaciado_horizontal = float(request.form.get("espaciado_horizontal", 0))
+    espaciado_vertical = float(request.form.get("espaciado_vertical", 0))
+    margen_izq = float(request.form.get("margen_izq", 10))
+    margen_der = float(request.form.get("margen_der", 10))
+    margen_sup = float(request.form.get("margen_sup", 10))
+    margen_inf = float(request.form.get("margen_inf", 10))
+    preferir_horizontal = bool(request.form.get("preferir_horizontal"))
 
     output_path = os.path.join("output", "pliego_offset_inteligente.pdf")
     montar_pliego_offset_inteligente(
@@ -234,6 +241,13 @@ def montaje_offset_inteligente_view():
         centrar=centrar_montaje,
         forzar_grilla=forzar_grilla,
         debug_grilla=debug_grilla,
+        espaciado_horizontal=espaciado_horizontal,
+        espaciado_vertical=espaciado_vertical,
+        margen_izq=margen_izq,
+        margen_der=margen_der,
+        margen_sup=margen_sup,
+        margen_inf=margen_inf,
+        preferir_horizontal=preferir_horizontal,
         output_path=output_path,
     )
     return send_file(output_path, as_attachment=True)
