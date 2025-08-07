@@ -217,6 +217,7 @@ def montaje_offset_inteligente_view():
         repeticiones = int(request.form.get(f"repeticiones_{i}", 1))
         diseños.append((path, repeticiones))
     separacion = float(request.form.get("separacion", 4))
+    sangrado = float(request.form.get("sangrado", 3))
     ordenar_tamano = request.form.get("ordenar_tamano") == "on"
     alinear_filas = request.form.get("alinear_filas") == "on"
     centrar_montaje = request.form.get("centrar_montaje") == "on"
@@ -229,6 +230,9 @@ def montaje_offset_inteligente_view():
     margen_sup = float(request.form.get("margen_sup", 10))
     margen_inf = float(request.form.get("margen_inf", 10))
     preferir_horizontal = bool(request.form.get("preferir_horizontal"))
+    permitir_rotacion = request.form.get("permitir_rotacion") == "on"
+    numerar_disenos = request.form.get("numerar_disenos") == "on"
+    balance_color = request.form.get("balance_color") == "on"
 
     output_path = os.path.join("output", "pliego_offset_inteligente.pdf")
     montar_pliego_offset_inteligente(
@@ -236,6 +240,7 @@ def montaje_offset_inteligente_view():
         ancho_pliego,
         alto_pliego,
         separacion=separacion,
+        sangrado=sangrado,
         ordenar_tamano=ordenar_tamano,
         alinear_filas=alinear_filas,
         centrar=centrar_montaje,
@@ -248,6 +253,9 @@ def montaje_offset_inteligente_view():
         margen_sup=margen_sup,
         margen_inf=margen_inf,
         preferir_horizontal=preferir_horizontal,
+        permitir_rotacion=permitir_rotacion,
+        numerar_disenos=numerar_disenos,
+        balance_color=balance_color,
         output_path=output_path,
     )
     return send_file(output_path, as_attachment=True)
