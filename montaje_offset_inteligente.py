@@ -61,20 +61,6 @@ def _pdf_a_imagen_con_sangrado(path: str, sangrado_mm: float) -> ImageReader:
     return ImageReader(img_byte_arr)
 
 
-def _parse_margenes(margen: float | Dict[str, float]) -> Tuple[float, float, float, float]:
-    """Convierte un valor de margen en márgenes por lado."""
-    if isinstance(margen, dict):
-        izquierda = float(margen.get("izquierdo", margen.get("left", 0)))
-        derecha = float(margen.get("derecho", margen.get("right", izquierda)))
-        superior = float(margen.get("superior", margen.get("top", izquierda)))
-        inferior = float(margen.get("inferior", margen.get("bottom", superior)))
-    elif isinstance(margen, (list, tuple)) and len(margen) == 4:
-        izquierda, derecha, superior, inferior = map(float, margen)
-    else:
-        izquierda = derecha = superior = inferior = float(margen)
-    return izquierda, derecha, superior, inferior
-
-
 def _parse_separacion(separacion: float | Tuple[float, float] | Dict[str, float]) -> Tuple[float, float]:
     """Devuelve separación horizontal y vertical en mm."""
     if isinstance(separacion, dict):
@@ -88,91 +74,6 @@ def _parse_separacion(separacion: float | Tuple[float, float] | Dict[str, float]
     else:
         sep_h = sep_v = float(separacion)
     return sep_h, sep_v
-
-
-def _mejor_arreglo(
-    cantidad: int,
-    unit_w: float,
-    unit_h: float,
-    sep_h: float,
-    sep_v: float,
-    preferir_horizontal: bool = False,
-) -> Tuple[int, int, float, float]:
-    """Calcula filas y columnas óptimas para un bloque de copias.
-
-    Se prueban todas las combinaciones posibles y se elige la que produce
-    un bloque lo más horizontal posible con el área más pequeña.
-    """
-
-    mejor = None
-    for cols in range(1, cantidad + 1):
-        rows = math.ceil(cantidad / cols)
-        width = cols * unit_w + (cols - 1) * sep_h
-        height = rows * unit_h + (rows - 1) * sep_v
-        horizontal = width >= height
-        area = width * height
-        score = area * (
-            10 if (preferir_horizontal and not horizontal) else 1
-        )
-        if mejor is None or score < mejor[0]:
-            mejor = (score, cols, rows, width, height)
-    _, cols, rows, width, height = mejor
-    return cols, rows, width, height
-
-
-def _colocar_bloques(
-    bloques: List[Dict[str, float]],
-    ancho_pliego: float,
-    alto_pliego: float,
-    margenes: Tuple[float, float, float, float],
-    sep_h: float,
-    sep_v: float,
-    centrar: bool = False,
-) -> Tuple[List[Dict[str, float]], List[Dict[str, float]]]:
-    """Coloca bloques sobre el pliego en orden secuencial.
-
-    Devuelve una lista con los bloques colocados y otra con los que no
-    pudieron ubicarse por falta de espacio.
-    """
-
-    margen_izq, margen_der, margen_sup, margen_inf = margenes
-    x_cursor = margen_izq
-    y_cursor = alto_pliego - margen_sup
-    fila_max = 0.0
-    colocados: List[Dict[str, float]] = []
-    sobrantes: List[Dict[str, float]] = []
-
-    for bloque in bloques:
-        ancho = bloque["ancho"]
-        alto = bloque["alto"]
-        if x_cursor + ancho > ancho_pliego - margen_der:
-            x_cursor = margen_izq
-            y_cursor -= fila_max + sep_v
-            fila_max = 0.0
-
-        if y_cursor - alto < margen_inf:
-            sobrantes.append(bloque)
-            continue
-
-        bloque["x"] = x_cursor
-        bloque["y"] = y_cursor - alto
-        colocados.append(bloque)
-
-        x_cursor += ancho + sep_h
-        fila_max = max(fila_max, alto)
-
-    if centrar and colocados:
-        min_x = min(b["x"] for b in colocados)
-        max_x = max(b["x"] + b["ancho"] for b in colocados)
-        min_y = min(b["y"] for b in colocados)
-        max_y = max(b["y"] + b["alto"] for b in colocados)
-        dx = (ancho_pliego - (max_x - min_x)) / 2 - min_x
-        dy = (alto_pliego - (max_y - min_y)) / 2 - min_y
-        for b in colocados:
-            b["x"] += dx
-            b["y"] += dy
-
-    return colocados, sobrantes
 
 
 def calcular_posiciones(
@@ -388,7 +289,6 @@ def montar_pliego_offset_inteligente(
     margen_der: float = 10,
     margen_sup: float = 10,
     margen_inf: float = 10,
-    preferir_horizontal: bool = False,
     doble_corte: bool | None = None,
     output_path: str = "output/pliego_offset_inteligente.pdf",
     preview_path: str | None = None,
@@ -542,8 +442,12 @@ def montar_pliego_offset_inteligente(
     c = canvas.Canvas(output_path, pagesize=(sheet_w_pt, sheet_h_pt))
 
     area_usada = 0.0
+    image_cache: Dict[str, ImageReader] = {}
     for pos in posiciones:
-        img = _pdf_a_imagen_con_sangrado(pos["archivo"], sangrado)
+        archivo = pos["archivo"]
+        if archivo not in image_cache:
+            image_cache[archivo] = _pdf_a_imagen_con_sangrado(archivo, sangrado)
+        img = image_cache[archivo]
         total_w_pt = mm_to_pt(pos["ancho"] + 2 * sangrado)
         total_h_pt = mm_to_pt(pos["alto"] + 2 * sangrado)
         x_pt = mm_to_pt(pos["x"])
@@ -577,6 +481,7 @@ def montar_pliego_offset_inteligente(
 
         area_usada += (pos["ancho"] + 2 * sangrado) * (pos["alto"] + 2 * sangrado)
 
+    image_cache.clear()
     agregar_marcas_registro(c, sheet_w_pt, sheet_h_pt)
     c.save()
 

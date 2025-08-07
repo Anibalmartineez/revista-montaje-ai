@@ -224,3 +224,33 @@ def test_montar_pliego_con_rotacion_coloca_todas(tmp_path):
     )
     contenido = resumen.read_text(encoding="utf-8")
     assert "No se pudieron colocar" not in contenido
+
+def test_montar_pliego_offset_cache(monkeypatch, tmp_path):
+    pdf1 = tmp_path / "a.pdf"
+    pdf2 = tmp_path / "b.pdf"
+
+    for pdf in (pdf1, pdf2):
+        c = canvas.Canvas(str(pdf), pagesize=(50 * mm, 50 * mm))
+        c.drawString(10, 10, "test")
+        c.save()
+
+    original = montaje_offset_inteligente._pdf_a_imagen_con_sangrado
+    calls = {"count": 0}
+
+    def wrapper(path, sangrado):
+        calls["count"] += 1
+        return original(path, sangrado)
+
+    monkeypatch.setattr(
+        montaje_offset_inteligente, "_pdf_a_imagen_con_sangrado", wrapper
+    )
+
+    output = tmp_path / "out.pdf"
+    montaje_offset_inteligente.montar_pliego_offset_inteligente(
+        [(str(pdf1), 3), (str(pdf2), 2)],
+        300,
+        300,
+        output_path=str(output),
+    )
+    assert calls["count"] == 2
+    assert output.exists()
