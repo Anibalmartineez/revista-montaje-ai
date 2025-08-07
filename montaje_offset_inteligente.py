@@ -68,18 +68,87 @@ def calcular_posiciones(
     sangrado: float = 0,
     centrar: bool = False,
     alinear_filas: bool = False,
+    forzar_grilla: bool = False,
+    debug: bool = False,
 ) -> List[Dict[str, float]]:
     """Calcula posiciones de cada diseño evitando solapamientos.
 
-    Cuando ``alinear_filas`` es ``True`` se construye una grilla uniforme
-    utilizando el ancho y alto máximos de los diseños para determinar el tamaño
-    de cada celda. Si ``centrar`` es ``True`` el bloque resultante se centra en
-    el pliego tanto horizontal como verticalmente.
+    Parámetros
+    ----------
+    disenos: lista de dicts con ``archivo``, ``ancho`` y ``alto``.
+    forzar_grilla: cuando es ``True`` se genera una grilla tipo tabla donde
+        * cada columna tiene el ancho del diseño más grande de esa columna y
+        * cada fila tiene la altura del diseño más alto de esa fila.
+        Esto garantiza cortes rectos y alineados aun con tamaños diferentes.
+    debug: si está activo se devuelve en cada posición el tamaño de la celda
+        calculada (``celda_ancho`` y ``celda_alto``) para poder dibujar guías.
     """
 
     posiciones: List[Dict[str, float]] = []
 
-    if alinear_filas and disenos:
+    if forzar_grilla and disenos:
+        # Primero distribuimos los diseños en filas según el ancho disponible
+        ancho_disponible = ancho_pliego - 2 * margen
+        filas: List[List[Dict[str, float]]] = []
+        fila_actual: List[Dict[str, float]] = []
+        ancho_acumulado = 0.0
+        for d in disenos:
+            ancho_total = d["ancho"] + 2 * sangrado
+            if fila_actual and ancho_acumulado + ancho_total > ancho_disponible:
+                filas.append(fila_actual)
+                fila_actual = []
+                ancho_acumulado = 0.0
+            fila_actual.append({**d, "ancho_total": ancho_total, "alto_total": d["alto"] + 2 * sangrado})
+            ancho_acumulado += ancho_total + separacion
+        if fila_actual:
+            filas.append(fila_actual)
+
+        # Calculamos altos por fila y anchos por columna para definir la grilla
+        altos_fila = [max(f["alto_total"] for f in fila) for fila in filas]
+        num_columnas = max(len(fila) for fila in filas)
+        anchos_columna: List[float] = []
+        for col in range(num_columnas):
+            max_ancho = 0.0
+            for fila in filas:
+                if len(fila) > col:
+                    max_ancho = max(max_ancho, fila[col]["ancho_total"])
+            anchos_columna.append(max_ancho)
+
+        # Posiciones acumuladas de cada columna y fila
+        x_cols = []
+        x_cursor = margen
+        for ancho_col in anchos_columna:
+            x_cols.append(x_cursor)
+            x_cursor += ancho_col + separacion
+
+        y_filas = []
+        y_cursor = alto_pliego - margen
+        for alto_f in altos_fila:
+            y_filas.append(y_cursor)
+            y_cursor -= alto_f + separacion
+        # Si no cabe verticalmente, dejamos de colocar filas excedentes
+
+        for i, fila in enumerate(filas):
+            if y_filas[i] - altos_fila[i] < margen:
+                break
+            for j, diseno in enumerate(fila):
+                if j >= len(x_cols):
+                    break
+                x = x_cols[j]
+                top_y = y_filas[i]
+                y = top_y - diseno["alto_total"]  # alineado al borde superior
+                pos = {
+                    "archivo": diseno["archivo"],
+                    "x": x,
+                    "y": y,
+                    "ancho": diseno["ancho"],
+                    "alto": diseno["alto"],
+                }
+                if debug:
+                    pos["celda_ancho"] = anchos_columna[j]
+                    pos["celda_alto"] = altos_fila[i]
+                posiciones.append(pos)
+    elif alinear_filas and disenos:
         ancho_celda = max(d["ancho"] + 2 * sangrado for d in disenos)
         alto_celda = max(d["alto"] + 2 * sangrado for d in disenos)
         ancho_disponible = ancho_pliego - 2 * margen
@@ -97,17 +166,19 @@ def calcular_posiciones(
             )
             if y < margen:
                 break
-            posiciones.append(
-                {
-                    "archivo": diseno["archivo"],
-                    "x": x,
-                    "y": y,
-                    "ancho": diseno["ancho"],
-                    "alto": diseno["alto"],
-                }
-            )
+            pos = {
+                "archivo": diseno["archivo"],
+                "x": x,
+                "y": y,
+                "ancho": diseno["ancho"],
+                "alto": diseno["alto"],
+            }
+            if debug:
+                pos["celda_ancho"] = ancho_celda
+                pos["celda_alto"] = alto_celda
+            posiciones.append(pos)
     else:
-        # Comenzamos desde la esquina superior izquierda
+        # Comenzamos desde la esquina superior izquierda (orden tradicional)
         x_cursor = margen
         y_cursor = alto_pliego - margen
         fila_max_altura = 0
@@ -126,16 +197,18 @@ def calcular_posiciones(
             if y_cursor - alto_total < margen:
                 break
 
-            posiciones.append(
-                {
-                    "archivo": diseno["archivo"],
-                    "x": x_cursor,
-                    # Convertimos a coordenadas de origen inferior izquierdo
-                    "y": y_cursor - alto_total,
-                    "ancho": diseno["ancho"],
-                    "alto": diseno["alto"],
-                }
-            )
+            pos = {
+                "archivo": diseno["archivo"],
+                "x": x_cursor,
+                # Convertimos a coordenadas de origen inferior izquierdo
+                "y": y_cursor - alto_total,
+                "ancho": diseno["ancho"],
+                "alto": diseno["alto"],
+            }
+            if debug:
+                pos["celda_ancho"] = ancho_total
+                pos["celda_alto"] = alto_total
+            posiciones.append(pos)
 
             x_cursor += ancho_total + separacion
             fila_max_altura = max(fila_max_altura, alto_total)
@@ -191,6 +264,8 @@ def montar_pliego_offset_inteligente(
     ordenar_tamano: bool = False,
     alinear_filas: bool = False,
     centrar: bool = False,
+    forzar_grilla: bool = False,
+    debug_grilla: bool = False,
     output_path: str = "output/pliego_offset_inteligente.pdf",
 ) -> str:
     """Genera un PDF montado acomodando diseños de distintos tamaños."""
@@ -213,6 +288,8 @@ def montar_pliego_offset_inteligente(
         sangrado=sangrado,
         centrar=centrar,
         alinear_filas=alinear_filas,
+        forzar_grilla=forzar_grilla,
+        debug=debug_grilla,
     )
 
     sheet_w_pt = mm_to_pt(ancho_pliego)
@@ -226,6 +303,20 @@ def montar_pliego_offset_inteligente(
         x_pt = mm_to_pt(pos["x"])
         y_pt = mm_to_pt(pos["y"])
         c.drawImage(img, x_pt, y_pt, width=total_w_pt, height=total_h_pt)
+
+        if debug_grilla and "celda_ancho" in pos and "celda_alto" in pos:
+            # Dibujamos la celda completa para visualizar la grilla
+            c.setStrokeColorRGB(0, 0.6, 0)
+            c.setLineWidth(0.3)
+            c.rect(
+                x_pt,
+                y_pt - mm_to_pt(pos["celda_alto"] - (pos["alto"] + 2 * sangrado)),
+                mm_to_pt(pos["celda_ancho"]),
+                mm_to_pt(pos["celda_alto"]),
+                stroke=1,
+                fill=0,
+            )
+            c.setStrokeColorRGB(0, 0, 0)
 
         # Marcas de corte
         left = x_pt + mm_to_pt(sangrado)
