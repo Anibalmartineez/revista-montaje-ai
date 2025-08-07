@@ -17,6 +17,30 @@ import math
 client = OpenAI(api_key=os.environ.get("OPENAI_API_KEY"))
 
 
+def calcular_cobertura_total(pdf_path):
+    """Calcula la cobertura total estimada del diseño como porcentaje de píxeles con tinta."""
+    try:
+        images = convert_from_path(pdf_path, dpi=300)
+        total_pixels = 0
+        ink_pixels = 0
+
+        for img in images:
+            gray = cv2.cvtColor(np.array(img), cv2.COLOR_RGB2GRAY)
+            _, thresh = cv2.threshold(gray, 250, 255, cv2.THRESH_BINARY_INV)
+            ink_pixels += cv2.countNonZero(thresh)
+            total_pixels += thresh.shape[0] * thresh.shape[1]
+
+        if total_pixels == 0:
+            return 0.0
+
+        cobertura = (ink_pixels / total_pixels) * 100
+        return round(cobertura, 2)
+
+    except Exception as e:
+        print(f"Error al calcular cobertura: {e}")
+        return 0.0
+
+
 def calcular_etiquetas_por_fila(
     ancho_bobina: float,
     ancho_etiqueta: float,
@@ -596,6 +620,18 @@ def revisar_diseño_flexo(
     contenido = pagina.get_text("dict")
     ancho_mm, alto_mm = obtener_info_basica(pagina)
     advertencias = []
+    cobertura_total = calcular_cobertura_total(path_pdf)
+    advertencias.append(
+        f"<span class='icono ink'>🖨️</span> Cobertura total estimada del diseño: <b>{cobertura_total}%</b>"
+    )
+    if cobertura_total > 85:
+        advertencias.append(
+            "<span class='icono warn'>⚠️</span> Cobertura muy alta. Riesgo de sobrecarga de tinta."
+        )
+    elif cobertura_total < 10:
+        advertencias.append(
+            "<span class='icono warn'>⚠️</span> Cobertura muy baja. Posible subcarga o diseño incompleto."
+        )
     repeticiones, sobrante = calcular_repeticiones_bobina(alto_mm, paso_mm)
     advertencias.append(
         f"<span class='icono info'>🔁</span> El diseño entra <b>{repeticiones}</b> veces en el paso del cilindro de <b>{paso_mm} mm</b>. Sobrante: <b>{sobrante} mm</b>."
@@ -708,9 +744,10 @@ def revisar_diseño_flexo(
     if (
         anilox_bcm is not None
         and velocidad_impresion is not None
-        and cobertura_estimada is not None
     ):
         try:
+            if cobertura_estimada is None:
+                cobertura_estimada = cobertura_total
             factores = {"film": 0.7, "papel": 1.0, "etiqueta adhesiva": 0.85}
             factor_material = factores.get(material_norm, 1.0)
             cobertura_frac = float(cobertura_estimada) / 100.0
