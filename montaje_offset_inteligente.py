@@ -149,7 +149,7 @@ def agregar_marcas_registro(c: canvas.Canvas, sheet_w_pt: float, sheet_h_pt: flo
 
 
 def montar_pliego_offset_inteligente(
-    file_paths: List[str],
+    diseños: List[Tuple[str, int]],
     ancho_pliego: float,
     alto_pliego: float,
     margen: float = 10,
@@ -159,9 +159,10 @@ def montar_pliego_offset_inteligente(
 ) -> str:
     """Genera un PDF montado acomodando diseños de distintos tamaños."""
     disenos: List[Dict[str, float]] = []
-    for path in file_paths:
+    for path, cantidad in diseños:
         ancho, alto = obtener_dimensiones_pdf(path)
-        disenos.append({"archivo": path, "ancho": ancho, "alto": alto})
+        for _ in range(cantidad):
+            disenos.append({"archivo": path, "ancho": ancho, "alto": alto})
 
     disenos.sort(key=lambda d: d["ancho"] * d["alto"], reverse=True)
     posiciones = calcular_posiciones(

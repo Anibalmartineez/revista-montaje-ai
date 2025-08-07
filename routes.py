@@ -208,15 +208,17 @@ def montaje_offset_inteligente_view():
     else:
         return "Formato de pliego inválido", 400
 
-    file_paths = []
-    for f in archivos:
+    diseños = []
+    for i, f in enumerate(archivos):
         filename = secure_filename(f.filename)
         path = os.path.join(UPLOAD_FOLDER, filename)
         f.save(path)
-        file_paths.append(path)
+
+        repeticiones = int(request.form.get(f"repeticiones_{i}", 1))
+        diseños.append((path, repeticiones))
 
     output_path = os.path.join("output", "pliego_offset_inteligente.pdf")
-    montar_pliego_offset_inteligente(file_paths, ancho_pliego, alto_pliego, output_path=output_path)
+    montar_pliego_offset_inteligente(diseños, ancho_pliego, alto_pliego, output_path=output_path)
     return send_file(output_path, as_attachment=True)
 
 
