@@ -6,7 +6,7 @@ import builtins
 from typing import Dict, List, Tuple
 
 import fitz  # PyMuPDF
-from PIL import Image, ImageOps, ImageDraw
+from PIL import Image, ImageOps
 from reportlab.pdfgen import canvas
 from reportlab.lib.utils import ImageReader
 
@@ -658,11 +658,17 @@ def montar_pliego_offset_inteligente(
     """
 
     if preview_only:
-        ppm = 6
+        # Render simple a PNG usando PIL (no guardar en disco)
+        from PIL import Image, ImageDraw
+        import io
+
+        ppm = 6  # ~150 dpi (6 px por mm)
         W = int(round(ancho_pliego * ppm))
         H = int(round(alto_pliego * ppm))
         im = Image.new("RGB", (W, H), "white")
         d = ImageDraw.Draw(im)
+
+        # Marco área útil (márgenes)
         d.rectangle(
             [
                 (margen_izq * ppm, margen_inf * ppm),
@@ -671,12 +677,15 @@ def montar_pliego_offset_inteligente(
             outline="black",
             width=2,
         )
+
+        # Dibujar cada forma (marco con sangrado)
         for p in posiciones:
             x = int(round(p["x"] * ppm))
             y = int(round(p["y"] * ppm))
             w = int(round((p["ancho"] + 2 * sangrado) * ppm))
             h = int(round((p["alto"] + 2 * sangrado) * ppm))
             d.rectangle([(x, y), (x + w, y + h)], outline="black", width=2)
+
         bio = io.BytesIO()
         im.save(bio, format="PNG")
         png_bytes = bio.getvalue()

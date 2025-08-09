@@ -128,7 +128,7 @@
       resumenPanel.innerHTML = '';
       try {
         const fd = new FormData(form);
-        const resp = await fetch('{{ url_for("montaje_offset_preview") }}', {
+        const resp = await fetch('{{ url_for("routes.montaje_offset_preview") }}', {
           method: 'POST',
           body: fd
         });
