@@ -6,7 +6,7 @@ import builtins
 from typing import Dict, List, Tuple
 
 import fitz  # PyMuPDF
-from PIL import Image, ImageOps
+from PIL import Image, ImageOps, ImageDraw
 from reportlab.pdfgen import canvas
 from reportlab.lib.utils import ImageReader
 
@@ -403,10 +403,11 @@ def montar_pliego_offset_inteligente(
     columnas: int = 0,
     celda_ancho: float = 0,
     celda_alto: float = 0,
+    preview_only: bool = False,
     output_path: str = "output/pliego_offset_inteligente.pdf",
     preview_path: str | None = None,
     resumen_path: str | None = None,
-) -> str:
+) -> str | Tuple[bytes, str]:
     """Genera un PDF montando múltiples diseños con lógica profesional.
 
     Devuelve la ruta del PDF generado. También puede generar una imagen de
@@ -628,13 +629,65 @@ def montar_pliego_offset_inteligente(
             p["x"] += desplaz_x
             p["y"] += desplaz_y
 
+    area_usada = sum(
+        (p["ancho"] + 2 * sangrado) * (p["alto"] + 2 * sangrado) for p in posiciones
+    )
+
+    total_disenos = sum(c[1] for c in diseños)
+    colocados_total = len(posiciones)
+    area_total = (ancho_pliego - margen_izq - margen_der) * (
+        alto_pliego - margen_sup - margen_inf
+    )
+    porcentaje = 0.0
+    if area_total > 0:
+        porcentaje = area_usada / area_total * 100
+    advertencias = ""
+    if sobrantes:
+        faltantes = ", ".join(
+            f"{s['archivo']} ({s['cantidad']} copias)" for s in sobrantes
+        )
+        advertencias = f"No se pudieron colocar: {faltantes}"
+    resumen_html = f"""
+    <html><body>
+    <h1>Resumen de montaje</h1>
+    <p>Pliego: {ancho_pliego} x {alto_pliego} mm</p>
+    <p>Diseños colocados: {colocados_total} de {total_disenos}</p>
+    <p>Uso del pliego: {porcentaje:.1f}%</p>
+    <p>{advertencias}</p>
+    </body></html>
+    """
+
+    if preview_only:
+        ppm = 6
+        W = int(round(ancho_pliego * ppm))
+        H = int(round(alto_pliego * ppm))
+        im = Image.new("RGB", (W, H), "white")
+        d = ImageDraw.Draw(im)
+        d.rectangle(
+            [
+                (margen_izq * ppm, margen_inf * ppm),
+                ((ancho_pliego - margen_der) * ppm, (alto_pliego - margen_sup) * ppm),
+            ],
+            outline="black",
+            width=2,
+        )
+        for p in posiciones:
+            x = int(round(p["x"] * ppm))
+            y = int(round(p["y"] * ppm))
+            w = int(round((p["ancho"] + 2 * sangrado) * ppm))
+            h = int(round((p["alto"] + 2 * sangrado) * ppm))
+            d.rectangle([(x, y), (x + w, y + h)], outline="black", width=2)
+        bio = io.BytesIO()
+        im.save(bio, format="PNG")
+        png_bytes = bio.getvalue()
+        return png_bytes, resumen_html
+
     # Creación del PDF final
     os.makedirs(os.path.dirname(output_path), exist_ok=True)
     sheet_w_pt = mm_to_pt(ancho_pliego)
     sheet_h_pt = mm_to_pt(alto_pliego)
     c = canvas.Canvas(output_path, pagesize=(sheet_w_pt, sheet_h_pt))
 
-    area_usada = 0.0
     image_cache: Dict[str, ImageReader] = {}
     for pos in posiciones:
         archivo = pos["archivo"]
@@ -672,8 +725,6 @@ def montar_pliego_offset_inteligente(
         c.line(right, top, right, top + mark_len)
         c.setStrokeColorRGB(0, 0, 0)
 
-        area_usada += (pos["ancho"] + 2 * sangrado) * (pos["alto"] + 2 * sangrado)
-
     image_cache.clear()
     agregar_marcas_registro(c, sheet_w_pt, sheet_h_pt)
     c.save()
@@ -688,29 +739,6 @@ def montar_pliego_offset_inteligente(
 
     # Resumen HTML opcional
     if resumen_path:
-        total_disenos = sum(c[1] for c in diseños)
-        colocados_total = len(posiciones)
-        area_total = (ancho_pliego - margen_izq - margen_der) * (
-            alto_pliego - margen_sup - margen_inf
-        )
-        porcentaje = 0.0
-        if area_total > 0:
-            porcentaje = area_usada / area_total * 100
-        advertencias = ""
-        if sobrantes:
-            faltantes = ", ".join(
-                f"{s['archivo']} ({s['cantidad']} copias)" for s in sobrantes
-            )
-            advertencias = f"No se pudieron colocar: {faltantes}"
-        resumen_html = f"""
-        <html><body>
-        <h1>Resumen de montaje</h1>
-        <p>Pliego: {ancho_pliego} x {alto_pliego} mm</p>
-        <p>Diseños colocados: {colocados_total} de {total_disenos}</p>
-        <p>Uso del pliego: {porcentaje:.1f}%</p>
-        <p>{advertencias}</p>
-        </body></html>
-        """
         os.makedirs(os.path.dirname(resumen_path), exist_ok=True)
         with open(resumen_path, "w", encoding="utf-8") as f:
             f.write(resumen_html)

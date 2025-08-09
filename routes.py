@@ -1,5 +1,6 @@
 import os
 import base64
+import io
 import math
 import fitz
 from reportlab.pdfgen import canvas
@@ -13,6 +14,7 @@ from flask import (
     redirect,
     url_for,
     send_from_directory,
+    jsonify,
 )
 from werkzeug.utils import secure_filename
 from montaje import montar_pdf
@@ -185,80 +187,120 @@ def descargar_reporte_offset():
     return send_file('output/reporte_tecnico.html', as_attachment=True)
 
 
-@routes_bp.route("/montaje_offset_inteligente", methods=["GET", "POST"])
-def montaje_offset_inteligente_view():
-    if request.method == "GET":
-        return render_template("montaje_offset_inteligente.html")
-
-    archivos = request.files.getlist("archivos[]")
+def _parse_montaje_offset_form(req):
+    archivos = req.files.getlist("archivos[]")
     if not archivos or len(archivos) > 5:
-        return "Debe subir entre 1 y 5 archivos PDF", 400
+        raise ValueError("Debe subir entre 1 y 5 archivos PDF")
 
-    pliego = request.form.get("pliego", "700x1000")
+    pliego = req.form.get("pliego", "700x1000")
     if pliego == "640x880":
         ancho_pliego, alto_pliego = 640.0, 880.0
     elif pliego == "700x1000":
         ancho_pliego, alto_pliego = 700.0, 1000.0
     elif pliego == "personalizado":
-        try:
-            ancho_pliego = float(request.form.get("ancho_pliego_custom"))
-            alto_pliego = float(request.form.get("alto_pliego_custom"))
-        except (TypeError, ValueError):
-            return "Dimensiones de pliego inválidas", 400
+        ancho_pliego = float(req.form.get("ancho_pliego_custom"))
+        alto_pliego = float(req.form.get("alto_pliego_custom"))
     else:
-        return "Formato de pliego inválido", 400
+        raise ValueError("Formato de pliego inválido")
 
     diseños = []
     for i, f in enumerate(archivos):
         filename = secure_filename(f.filename)
         path = os.path.join(UPLOAD_FOLDER, filename)
         f.save(path)
-
-        repeticiones = int(request.form.get(f"repeticiones_{i}", 1))
+        repeticiones = int(req.form.get(f"repeticiones_{i}", 1))
         diseños.append((path, repeticiones))
-    separacion = float(request.form.get("separacion", 4))
-    ordenar_tamano = request.form.get("ordenar_tamano") == "on"
-    alinear_filas = request.form.get("alinear_filas") == "on"
-    centrar_montaje = request.form.get("centrar_montaje") == "on"
-    forzar_grilla = request.form.get("forzar_grilla") == "on"
-    debug_grilla = request.form.get("debug_grilla") == "on"
-    espaciado_horizontal = float(request.form.get("espaciado_horizontal", 0))
-    espaciado_vertical = float(request.form.get("espaciado_vertical", 0))
-    margen_izq = float(request.form.get("margen_izq", 10))
-    margen_der = float(request.form.get("margen_der", 10))
-    margen_sup = float(request.form.get("margen_sup", 10))
-    margen_inf = float(request.form.get("margen_inf", 10))
-    estrategia = request.form.get("estrategia", "flujo")
-    filas = int(request.form.get("filas", 0) or 0)
-    columnas = int(request.form.get("columnas", 0) or 0)
-    celda_ancho = float(request.form.get("celda_ancho", 0) or 0)
-    celda_alto = float(request.form.get("celda_alto", 0) or 0)
+
+    params = {
+        "separacion": float(req.form.get("separacion", 4)),
+        "ordenar_tamano": req.form.get("ordenar_tamano") == "on",
+        "alinear_filas": req.form.get("alinear_filas") == "on",
+        "centrar_montaje": req.form.get("centrar_montaje") == "on",
+        "forzar_grilla": req.form.get("forzar_grilla") == "on",
+        "debug_grilla": req.form.get("debug_grilla") == "on",
+        "espaciado_horizontal": float(req.form.get("espaciado_horizontal", 0)),
+        "espaciado_vertical": float(req.form.get("espaciado_vertical", 0)),
+        "margen_izq": float(req.form.get("margen_izq", 10)),
+        "margen_der": float(req.form.get("margen_der", 10)),
+        "margen_sup": float(req.form.get("margen_sup", 10)),
+        "margen_inf": float(req.form.get("margen_inf", 10)),
+        "estrategia": req.form.get("estrategia", "flujo"),
+        "filas": int(req.form.get("filas", 0) or 0),
+        "columnas": int(req.form.get("columnas", 0) or 0),
+        "celda_ancho": float(req.form.get("celda_ancho", 0) or 0),
+        "celda_alto": float(req.form.get("celda_alto", 0) or 0),
+    }
+
+    return diseños, ancho_pliego, alto_pliego, params
+
+
+@routes_bp.route("/montaje_offset_inteligente", methods=["GET", "POST"])
+def montaje_offset_inteligente_view():
+    if request.method == "GET":
+        return render_template("montaje_offset_inteligente.html")
+    try:
+        diseños, ancho_pliego, alto_pliego, params = _parse_montaje_offset_form(request)
+    except Exception as e:
+        return str(e), 400
 
     output_path = os.path.join("output", "pliego_offset_inteligente.pdf")
     montar_pliego_offset_inteligente(
         diseños,
         ancho_pliego,
         alto_pliego,
-        separacion=separacion,
-        ordenar_tamano=ordenar_tamano,
-        alinear_filas=alinear_filas,
-        centrar=centrar_montaje,
-        forzar_grilla=forzar_grilla,
-        debug_grilla=debug_grilla,
-        espaciado_horizontal=espaciado_horizontal,
-        espaciado_vertical=espaciado_vertical,
-        margen_izq=margen_izq,
-        margen_der=margen_der,
-        margen_sup=margen_sup,
-        margen_inf=margen_inf,
-        estrategia=estrategia,
-        filas=filas,
-        columnas=columnas,
-        celda_ancho=celda_ancho,
-        celda_alto=celda_alto,
+        separacion=params["separacion"],
+        ordenar_tamano=params["ordenar_tamano"],
+        alinear_filas=params["alinear_filas"],
+        centrar=params["centrar_montaje"],
+        forzar_grilla=params["forzar_grilla"],
+        debug_grilla=params["debug_grilla"],
+        espaciado_horizontal=params["espaciado_horizontal"],
+        espaciado_vertical=params["espaciado_vertical"],
+        margen_izq=params["margen_izq"],
+        margen_der=params["margen_der"],
+        margen_sup=params["margen_sup"],
+        margen_inf=params["margen_inf"],
+        estrategia=params["estrategia"],
+        filas=params["filas"],
+        columnas=params["columnas"],
+        celda_ancho=params["celda_ancho"],
+        celda_alto=params["celda_alto"],
         output_path=output_path,
     )
     return send_file(output_path, as_attachment=True)
+
+
+@routes_bp.route("/montaje_offset/preview", methods=["POST"])
+def montaje_offset_preview():
+    try:
+        diseños, ancho_pliego, alto_pliego, params = _parse_montaje_offset_form(request)
+        png_bytes, resumen_html = montar_pliego_offset_inteligente(
+            diseños,
+            ancho_pliego,
+            alto_pliego,
+            separacion=params["separacion"],
+            ordenar_tamano=params["ordenar_tamano"],
+            alinear_filas=params["alinear_filas"],
+            centrar=params["centrar_montaje"],
+            forzar_grilla=params["forzar_grilla"],
+            debug_grilla=params["debug_grilla"],
+            espaciado_horizontal=params["espaciado_horizontal"],
+            espaciado_vertical=params["espaciado_vertical"],
+            margen_izq=params["margen_izq"],
+            margen_der=params["margen_der"],
+            margen_sup=params["margen_sup"],
+            margen_inf=params["margen_inf"],
+            estrategia=params["estrategia"],
+            filas=params["filas"],
+            columnas=params["columnas"],
+            celda_ancho=params["celda_ancho"],
+            celda_alto=params["celda_alto"],
+            preview_only=True,
+        )
+        b64 = base64.b64encode(png_bytes).decode("ascii")
+        return jsonify({"ok": True, "preview_data": f"data:image/png;base64,{b64}", "resumen_html": resumen_html or ""})
+    except Exception as e:
+        return jsonify({"ok": False, "error": str(e)}), 400
 
 
 @routes_bp.route("/montaje_flexo_avanzado", methods=["GET", "POST"])
