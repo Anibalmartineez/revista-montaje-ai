@@ -70,12 +70,34 @@
     <label><input type="checkbox" name="forzar_grilla"> Forzar grilla</label><br>
     <label><input type="checkbox" name="debug_grilla"> Mostrar guías (debug)</label>
     <br>
+    <label>Estrategia de montaje:</label>
+    <select name="estrategia" id="estrategia">
+      <option value="flujo">Flujo (auto)</option>
+      <option value="grid">Grid (filas/columnas o celda fija)</option>
+      <option value="maxrects">MaxRects (anidado eficiente)</option>
+    </select>
+    <div id="grid-options" style="display:none;">
+      <label>Filas:</label>
+      <input type="number" name="filas" min="0" value="0">
+      <label>Columnas:</label>
+      <input type="number" name="columnas" min="0" value="0">
+      <br>
+      <label>Ancho celda (mm):</label>
+      <input type="number" name="celda_ancho" step="0.01">
+      <label>Alto celda (mm):</label>
+      <input type="number" name="celda_alto" step="0.01">
+    </div>
+    <br>
     <button type="submit">Generar Montaje</button>
   </form>
   <script>
     document.querySelector('select[name="pliego"]').addEventListener('change', function() {
       document.getElementById('pliego-personalizado').style.display =
         this.value === 'personalizado' ? 'block' : 'none';
+    });
+    document.getElementById('estrategia').addEventListener('change', function() {
+      document.getElementById('grid-options').style.display =
+        this.value === 'grid' ? 'block' : 'none';
     });
   </script>
 </body>
