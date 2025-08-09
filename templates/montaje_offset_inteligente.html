@@ -63,30 +63,57 @@
     <label>Margen inferior (mm):</label>
     <input type="number" name="margen_inf" value="10" step="0.01">
     <br>
-    <label><input type="checkbox" name="preferir_horizontal"> Preferir orientación horizontal</label><br>
-    <label><input type="checkbox" name="ordenar_tamano"> Ordenar por tamaño</label><br>
-    <label><input type="checkbox" name="alinear_filas"> Alinear por filas</label><br>
-    <label><input type="checkbox" name="centrar_montaje"> Centrar montaje en pliego</label><br>
-    <label><input type="checkbox" name="forzar_grilla"> Forzar grilla</label><br>
-    <label><input type="checkbox" name="debug_grilla"> Mostrar guías (debug)</label>
-    <br>
+    <label><input type="checkbox" name="centrar" checked> Centrar montaje en pliego</label><br>
     <label>Estrategia de montaje:</label>
-    <select name="estrategia" id="estrategia">
+    <select name="estrategia">
       <option value="flujo">Flujo (auto)</option>
       <option value="grid">Grid (filas/columnas o celda fija)</option>
       <option value="maxrects">MaxRects (anidado eficiente)</option>
     </select>
-    <div id="grid-options" style="display:none;">
-      <label>Filas:</label>
-      <input type="number" name="filas" min="0" value="0">
-      <label>Columnas:</label>
-      <input type="number" name="columnas" min="0" value="0">
-      <br>
-      <label>Ancho celda (mm):</label>
-      <input type="number" name="celda_ancho" step="0.01">
-      <label>Alto celda (mm):</label>
-      <input type="number" name="celda_alto" step="0.01">
+
+    <!-- Controles comunes: mantener márgenes, separaciones, etc. -->
+
+    <!-- Grupo Flujo -->
+    <div id="grupo-flujo">
+      <label><input type="checkbox" name="alinear_filas" checked title="Alinea por la altura mayor de cada fila"> Alinear por filas</label>
+      <label><input type="checkbox" name="preferir_horizontal" title="Si hay rotación, prioriza ancho>alto"> Preferir orientación horizontal</label>
     </div>
+
+    <!-- Grupo Grid -->
+    <div id="grupo-grid" style="display:none;">
+      <div>
+        <label>Filas (opcional): <input type="number" name="filas" min="0" step="1" value="0"></label>
+        <label>Columnas (opcional): <input type="number" name="columnas" min="0" step="1" value="0"></label>
+      </div>
+      <div>
+        <small>O usar celda fija (sin reescalar):</small><br>
+        <label>Ancho celda (mm): <input type="number" name="celda_ancho" min="0" step="0.1" value="0"></label>
+        <label>Alto celda (mm): <input type="number" name="celda_alto" min="0" step="0.1" value="0"></label>
+      </div>
+      <label><input type="checkbox" name="preferir_horizontal" title="Si hay rotación, prioriza ancho>alto"> Preferir orientación horizontal</label>
+    </div>
+
+    <!-- Grupo MaxRects -->
+    <div id="grupo-maxrects" style="display:none;">
+      <small>Consejo: activar “Ordenar por tamaño” para mejor aprovechamiento.</small><br>
+      <label><input type="checkbox" name="ordenar_tamano" checked title="Coloca primero piezas grandes para reducir huecos"> Ordenar por tamaño</label>
+    </div>
+
+    <details style="margin-top:12px;">
+      <summary>Opciones avanzadas (Offset)</summary>
+      <div style="margin-top:8px;">
+        <label>Reserva pinza (mm): <input type="number" name="pinza_mm" min="0" step="0.1" value="0" title="Reserva en el borde de pinza (parte inferior del pliego en orientación de trabajo)"></label>
+        <label>Reserva lateral (mm): <input type="number" name="lateral_mm" min="0" step="0.1" value="0" title="Reserva lateral para pinza/guía lateral"></label>
+        <div style="margin-top:6px;">
+          <label><input type="checkbox" name="marcas_registro"> Añadir marcas de registro</label>
+          <label><input type="checkbox" name="marcas_corte"> Añadir marcas de corte</label>
+        </div>
+        <div style="margin-top:6px;">
+          <label><input type="checkbox" name="debug_grilla"> Mostrar guías (debug)</label>
+        </div>
+      </div>
+    </details>
+
     <br>
     <div style="margin-top:12px; display:flex; gap:8px; flex-wrap:wrap;">
       <button id="btn-preview" type="button">Vista previa</button>
@@ -108,10 +135,40 @@
       document.getElementById('pliego-personalizado').style.display =
         this.value === 'personalizado' ? 'block' : 'none';
     });
-    document.getElementById('estrategia').addEventListener('change', function() {
-      document.getElementById('grid-options').style.display =
-        this.value === 'grid' ? 'block' : 'none';
-    });
+
+    const selE = document.querySelector('select[name="estrategia"]');
+    const gFlujo = document.getElementById('grupo-flujo');
+    const gGrid = document.getElementById('grupo-grid');
+    const gMR = document.getElementById('grupo-maxrects');
+    const celdaAncho = document.querySelector('input[name="celda_ancho"]');
+    const celdaAlto = document.querySelector('input[name="celda_alto"]');
+    const filas = document.querySelector('input[name="filas"]');
+    const columnas = document.querySelector('input[name="columnas"]');
+
+    function setGroupState(group, active) {
+      group.style.display = active ? 'block' : 'none';
+      group.querySelectorAll('input').forEach(inp => inp.disabled = !active);
+    }
+
+    function toggleByStrategy() {
+      const v = selE.value;
+      setGroupState(gFlujo, v === 'flujo');
+      setGroupState(gGrid, v === 'grid');
+      setGroupState(gMR, v === 'maxrects');
+      if (v === 'grid') toggleGridInputs();
+    }
+
+    function toggleGridInputs() {
+      const usarCelda = parseFloat(celdaAncho.value) > 0 || parseFloat(celdaAlto.value) > 0;
+      filas.disabled = usarCelda;
+      columnas.disabled = usarCelda;
+    }
+
+    selE.addEventListener('change', toggleByStrategy);
+    celdaAncho.addEventListener('input', toggleGridInputs);
+    celdaAlto.addEventListener('input', toggleGridInputs);
+    toggleByStrategy();
+    toggleGridInputs();
 
     const form = document.querySelector('form');
     const btnPreview = document.getElementById('btn-preview');
