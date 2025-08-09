@@ -146,7 +146,7 @@
     {% if preview %}
     <div class="preview">
       <h3>Vista previa</h3>
-      <img src="data:image/png;base64,{{preview}}" alt="Vista previa del montaje">
+        <img src="{{ preview }}" alt="Vista previa del montaje">
       <p>Pistas: {{pistas}} | Etiquetas por repetición: {{etiquetas_por_repeticion}} | Repeticiones: {{repeticiones}} | Metros: {{metros_totales}} m | Alineación: {{alignment}}</p>
       <div class="descargas">
         <a href="/descargar_montaje_flexo_avanzado">Descargar Montaje PDF</a>
