@@ -299,8 +299,10 @@ def montaje_offset_preview():
         )
         b64 = base64.b64encode(png_bytes).decode("ascii")
         return jsonify({"ok": True, "preview_data": f"data:image/png;base64,{b64}", "resumen_html": resumen_html or ""})
+    except TypeError as e:
+        return jsonify({"ok": False, "error": f"TypeError: {str(e)}"}), 500
     except Exception as e:
-        return jsonify({"ok": False, "error": str(e)}), 400
+        return jsonify({"ok": False, "error": str(e)}), 500
 
 
 @routes_bp.route("/montaje_flexo_avanzado", methods=["GET", "POST"])
