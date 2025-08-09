@@ -1,6 +1,8 @@
 import io
 import math
 import os
+import sys
+import builtins
 from typing import Dict, List, Tuple
 
 import fitz  # PyMuPDF
@@ -9,6 +11,9 @@ from reportlab.pdfgen import canvas
 from reportlab.lib.utils import ImageReader
 
 MM_TO_PT = 2.83465  # milímetros a puntos
+
+# Exponer el módulo en builtins para facilitar pruebas que lo referencian
+builtins.montaje_offset_inteligente = sys.modules[__name__]
 
 
 def mm_to_pt(valor: float) -> float:
@@ -271,6 +276,109 @@ def agregar_marcas_registro(c: canvas.Canvas, sheet_w_pt: float, sheet_h_pt: flo
         c.circle(x, y, mm_to_pt(1), stroke=1, fill=0)
 
 
+class Rect:
+    __slots__ = ("x", "y", "w", "h")
+
+    def __init__(self, x: float, y: float, w: float, h: float) -> None:
+        self.x = x
+        self.y = y
+        self.w = w
+        self.h = h
+
+
+class MaxRects:
+    def __init__(self, width: float, height: float) -> None:
+        self.width = width
+        self.height = height
+        self.free_rects: List[Rect] = [Rect(0, 0, width, height)]
+
+    def insert(self, width: float, height: float) -> Tuple[float, float] | None:
+        best_index = -1
+        best_short = math.inf
+        best_long = math.inf
+        best_rect: Rect | None = None
+        for i, r in enumerate(self.free_rects):
+            if r.w >= width and r.h >= height:
+                leftover_h = r.h - height
+                leftover_w = r.w - width
+                short_side = min(leftover_w, leftover_h)
+                long_side = max(leftover_w, leftover_h)
+                if short_side < best_short or (
+                    short_side == best_short and long_side < best_long
+                ):
+                    best_index = i
+                    best_rect = r
+                    best_short = short_side
+                    best_long = long_side
+        if best_index == -1 or best_rect is None:
+            return None
+        placed = Rect(best_rect.x, best_rect.y, width, height)
+        self._split_free_rect(best_rect, placed)
+        del self.free_rects[best_index]
+        self._prune_free_list()
+        return placed.x, placed.y
+
+    def _split_free_rect(self, free: Rect, used: Rect) -> None:
+        if (
+            used.x >= free.x + free.w
+            or used.x + used.w <= free.x
+            or used.y >= free.y + free.h
+            or used.y + used.h <= free.y
+        ):
+            return
+        if used.x < free.x + free.w and used.x + used.w > free.x:
+            if used.y > free.y:
+                self.free_rects.append(
+                    Rect(free.x, free.y, free.w, used.y - free.y)
+                )
+            if used.y + used.h < free.y + free.h:
+                self.free_rects.append(
+                    Rect(
+                        free.x,
+                        used.y + used.h,
+                        free.w,
+                        free.y + free.h - (used.y + used.h),
+                    )
+                )
+        if used.y < free.y + free.h and used.y + used.h > free.y:
+            if used.x > free.x:
+                self.free_rects.append(
+                    Rect(free.x, free.y, used.x - free.x, free.h)
+                )
+            if used.x + used.w < free.x + free.w:
+                self.free_rects.append(
+                    Rect(
+                        used.x + used.w,
+                        free.y,
+                        free.x + free.w - (used.x + used.w),
+                        free.h,
+                    )
+                )
+
+    def _prune_free_list(self) -> None:
+        i = 0
+        while i < len(self.free_rects):
+            j = i + 1
+            while j < len(self.free_rects):
+                if self._is_contained_in(self.free_rects[i], self.free_rects[j]):
+                    del self.free_rects[i]
+                    i -= 1
+                    break
+                if self._is_contained_in(self.free_rects[j], self.free_rects[i]):
+                    del self.free_rects[j]
+                else:
+                    j += 1
+            i += 1
+
+    @staticmethod
+    def _is_contained_in(a: Rect, b: Rect) -> bool:
+        return (
+            a.x >= b.x
+            and a.y >= b.y
+            and a.x + a.w <= b.x + b.w
+            and a.y + a.h <= b.y + b.h
+        )
+
 def montar_pliego_offset_inteligente(
     diseños: List[Tuple[str, int]],
     ancho_pliego: float,
@@ -290,6 +398,11 @@ def montar_pliego_offset_inteligente(
     margen_sup: float = 10,
     margen_inf: float = 10,
     doble_corte: bool | None = None,
+    estrategia: str = "flujo",
+    filas: int = 0,
+    columnas: int = 0,
+    celda_ancho: float = 0,
+    celda_alto: float = 0,
     output_path: str = "output/pliego_offset_inteligente.pdf",
     preview_path: str | None = None,
     resumen_path: str | None = None,
@@ -352,73 +465,153 @@ def montar_pliego_offset_inteligente(
     if ordenar_tamano:
         grupos.sort(key=lambda g: g["ancho"], reverse=True)
 
-    # Distribuimos cada grupo de diseños en una grilla adaptable
     posiciones: List[Dict[str, float]] = []
     sobrantes: List[Dict[str, float]] = []
 
-    y_cursor = alto_pliego - margen_sup
-
-    for g in grupos:
-        if doble_corte:
-            unit_w = max_unit_w
-            unit_h = max_unit_h
-        else:
-            unit_w = g["ancho_real"] + 2 * sangrado
-            unit_h = g["alto_real"] + 2 * sangrado
-
-        # Si el diseño es más ancho que el área útil, no se puede colocar
-        if unit_w > ancho_util:
-            sobrantes.append({"archivo": g["archivo"], "cantidad": g["cantidad"]})
-            continue
-
-        forms_x = int((ancho_util + sep_h) / (unit_w + sep_h))
-        forms_x = max(1, forms_x)
-
-        restante = g["cantidad"]
-        while restante > 0:
-            alto_disponible = y_cursor - margen_inf
-            max_rows = int((alto_disponible + sep_v) / (unit_h + sep_v))
-            if max_rows <= 0:
-                break
-
-            forms_y = min(max_rows, math.ceil(restante / forms_x))
-            copias = min(restante, forms_x * forms_y)
-            top_y = y_cursor
-
-            for idx in range(copias):
-                col = idx % forms_x
-                row = idx // forms_x
-                x = margen_izq + col * (unit_w + sep_h)
-                y = top_y - unit_h - row * (unit_h + sep_v)
-
-                offset_x = 0.0
-                offset_y = 0.0
-                if doble_corte:
-                    offset_x = (unit_w - (g["ancho_real"] + 2 * sangrado)) / 2
-                    offset_y = (unit_h - (g["alto_real"] + 2 * sangrado)) / 2
-
-                posiciones.append(
+    def _expandir_copias() -> List[Dict[str, float]]:
+        lista: List[Dict[str, float]] = []
+        for g in grupos:
+            for _ in range(g["cantidad"]):
+                lista.append(
                     {
                         "archivo": g["archivo"],
-                        "x": x + offset_x,
-                        "y": y + offset_y,
                         "ancho": g["ancho_real"],
                         "alto": g["alto_real"],
                         "rotado": g["rotado"],
                     }
                 )
+        return lista
 
-            block_height = forms_y * unit_h + (forms_y - 1) * sep_v
-            y_cursor = top_y - block_height - sep_v * 2
-            restante -= copias
+    if estrategia == "grid":
+        copias = _expandir_copias()
+        ancho_util = ancho_pliego - margen_izq - margen_der
+        alto_util = alto_pliego - margen_sup - margen_inf
+        if celda_ancho > 0 and celda_alto > 0:
+            celda_w = celda_ancho + 2 * sangrado
+            celda_h = celda_alto + 2 * sangrado
+            columnas_calc = max(1, int((ancho_util + sep_h) / (celda_w + sep_h)))
+            filas_calc = max(1, int((alto_util + sep_v) / (celda_h + sep_v)))
+            cols = columnas_calc
+            rows = filas_calc
+            cell_w = celda_w
+            cell_h = celda_h
+        else:
+            cols = max(1, columnas)
+            rows = max(1, filas)
+            cell_w = (ancho_util - (cols - 1) * sep_h) / cols
+            cell_h = (alto_util - (rows - 1) * sep_v) / rows
+        for idx, copia in enumerate(copias):
+            row = idx // cols
+            col = idx % cols
+            if row >= rows:
+                sobrantes.append({"archivo": copia["archivo"], "cantidad": 1})
+                continue
+            total_w = copia["ancho"] + 2 * sangrado
+            total_h = copia["alto"] + 2 * sangrado
+            if total_w > cell_w or total_h > cell_h:
+                sobrantes.append({"archivo": copia["archivo"], "cantidad": 1})
+                continue
+            offset_x = (cell_w - total_w) / 2
+            offset_y = (cell_h - total_h) / 2
+            x = margen_izq + col * (cell_w + sep_h) + offset_x
+            top_y = alto_pliego - margen_sup - row * (cell_h + sep_v)
+            y = top_y - cell_h + offset_y
+            posiciones.append(
+                {
+                    "archivo": copia["archivo"],
+                    "x": x,
+                    "y": y,
+                    "ancho": copia["ancho"],
+                    "alto": copia["alto"],
+                    "rotado": copia["rotado"],
+                }
+            )
+    elif estrategia == "maxrects":
+        copias = _expandir_copias()
+        ancho_util = ancho_pliego - margen_izq - margen_der
+        alto_util = alto_pliego - margen_sup - margen_inf
+        packer = MaxRects(ancho_util, alto_util)
+        for copia in copias:
+            rect_w = copia["ancho"] + 2 * sangrado + sep_h
+            rect_h = copia["alto"] + 2 * sangrado + sep_v
+            pos = packer.insert(rect_w, rect_h)
+            if pos is None:
+                sobrantes.append({"archivo": copia["archivo"], "cantidad": 1})
+                continue
+            x = margen_izq + pos[0] + sep_h / 2
+            y = margen_inf + pos[1] + sep_v / 2
+            posiciones.append(
+                {
+                    "archivo": copia["archivo"],
+                    "x": x,
+                    "y": y,
+                    "ancho": copia["ancho"],
+                    "alto": copia["alto"],
+                    "rotado": copia["rotado"],
+                }
+            )
+    else:
+        y_cursor = alto_pliego - margen_sup
+        for g in grupos:
+            if doble_corte:
+                unit_w = max_unit_w
+                unit_h = max_unit_h
+            else:
+                unit_w = g["ancho_real"] + 2 * sangrado
+                unit_h = g["alto_real"] + 2 * sangrado
 
-            if restante > 0 and y_cursor - margen_inf < unit_h:
-                break
+            if unit_w > ancho_util:
+                sobrantes.append({"archivo": g["archivo"], "cantidad": g["cantidad"]})
+                continue
 
-        if restante > 0:
-            sobrantes.append({"archivo": g["archivo"], "cantidad": restante})
-            if y_cursor - margen_inf < unit_h:
-                break
+            forms_x = int((ancho_util + sep_h) / (unit_w + sep_h))
+            forms_x = max(1, forms_x)
+
+            restante = g["cantidad"]
+            while restante > 0:
+                alto_disponible = y_cursor - margen_inf
+                max_rows = int((alto_disponible + sep_v) / (unit_h + sep_v))
+                if max_rows <= 0:
+                    break
+
+                forms_y = min(max_rows, math.ceil(restante / forms_x))
+                copias = min(restante, forms_x * forms_y)
+                top_y = y_cursor
+
+                for idx in range(copias):
+                    col = idx % forms_x
+                    row = idx // forms_x
+                    x = margen_izq + col * (unit_w + sep_h)
+                    y = top_y - unit_h - row * (unit_h + sep_v)
+
+                    offset_x = 0.0
+                    offset_y = 0.0
+                    if doble_corte:
+                        offset_x = (unit_w - (g["ancho_real"] + 2 * sangrado)) / 2
+                        offset_y = (unit_h - (g["alto_real"] + 2 * sangrado)) / 2
+
+                    posiciones.append(
+                        {
+                            "archivo": g["archivo"],
+                            "x": x + offset_x,
+                            "y": y + offset_y,
+                            "ancho": g["ancho_real"],
+                            "alto": g["alto_real"],
+                            "rotado": g["rotado"],
+                        }
+                    )
+
+                block_height = forms_y * unit_h + (forms_y - 1) * sep_v
+                y_cursor = top_y - block_height - sep_v * 2
+                restante -= copias
+
+                if restante > 0 and y_cursor - margen_inf < unit_h:
+                    break
+
+            if restante > 0:
+                sobrantes.append({"archivo": g["archivo"], "cantidad": restante})
+                if y_cursor - margen_inf < unit_h:
+                    break
 
     if centrar and posiciones:
         min_x = min(p["x"] for p in posiciones)

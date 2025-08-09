@@ -228,6 +228,11 @@ def montaje_offset_inteligente_view():
     margen_der = float(request.form.get("margen_der", 10))
     margen_sup = float(request.form.get("margen_sup", 10))
     margen_inf = float(request.form.get("margen_inf", 10))
+    estrategia = request.form.get("estrategia", "flujo")
+    filas = int(request.form.get("filas", 0) or 0)
+    columnas = int(request.form.get("columnas", 0) or 0)
+    celda_ancho = float(request.form.get("celda_ancho", 0) or 0)
+    celda_alto = float(request.form.get("celda_alto", 0) or 0)
 
     output_path = os.path.join("output", "pliego_offset_inteligente.pdf")
     montar_pliego_offset_inteligente(
@@ -246,6 +251,11 @@ def montaje_offset_inteligente_view():
         margen_der=margen_der,
         margen_sup=margen_sup,
         margen_inf=margen_inf,
+        estrategia=estrategia,
+        filas=filas,
+        columnas=columnas,
+        celda_ancho=celda_ancho,
+        celda_alto=celda_alto,
         output_path=output_path,
     )
     return send_file(output_path, as_attachment=True)
