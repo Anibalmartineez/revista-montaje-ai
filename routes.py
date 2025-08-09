@@ -365,36 +365,43 @@ def montaje_offset_inteligente_view():
 @routes_bp.route("/montaje_offset/preview", methods=["POST"])
 def montaje_offset_preview():
     try:
-        diseños, ancho_pliego, alto_pliego, params = _parse_montaje_offset_form(request)
-        png_bytes, resumen_html = montar_pliego_offset_inteligente(
-            diseños,
-            ancho_pliego,
-            alto_pliego,
-            separacion=params["separacion"],
-            ordenar_tamano=params["ordenar_tamano"],
-            alinear_filas=params["alinear_filas"],
-            preferir_horizontal=params["preferir_horizontal"],
-            centrar=params["centrar"],
-            debug_grilla=params["debug_grilla"],
-            espaciado_horizontal=params["espaciado_horizontal"],
-            espaciado_vertical=params["espaciado_vertical"],
-            margen_izq=params["margen_izq"],
-            margen_der=params["margen_der"],
-            margen_sup=params["margen_sup"],
-            margen_inf=params["margen_inf"],
-            estrategia=params["estrategia"],
-            filas=params["filas"],
-            columnas=params["columnas"],
-            celda_ancho=params["celda_ancho"],
-            celda_alto=params["celda_alto"],
-            pinza_mm=params["pinza_mm"],
-            lateral_mm=params["lateral_mm"],
-            marcas_registro=params["marcas_registro"],
-            marcas_corte=params["marcas_corte"],
-            preview_only=True,
-        )
+        with heavy_lock:
+            diseños, ancho_pliego, alto_pliego, params = _parse_montaje_offset_form(request)
+            png_bytes, resumen_html = montar_pliego_offset_inteligente(
+                diseños,
+                ancho_pliego,
+                alto_pliego,
+                separacion=params["separacion"],
+                ordenar_tamano=params["ordenar_tamano"],
+                alinear_filas=params["alinear_filas"],
+                preferir_horizontal=params["preferir_horizontal"],
+                centrar=params["centrar"],
+                debug_grilla=params["debug_grilla"],
+                espaciado_horizontal=params["espaciado_horizontal"],
+                espaciado_vertical=params["espaciado_vertical"],
+                margen_izq=params["margen_izq"],
+                margen_der=params["margen_der"],
+                margen_sup=params["margen_sup"],
+                margen_inf=params["margen_inf"],
+                estrategia=params["estrategia"],
+                filas=params["filas"],
+                columnas=params["columnas"],
+                celda_ancho=params["celda_ancho"],
+                celda_alto=params["celda_alto"],
+                pinza_mm=params["pinza_mm"],
+                lateral_mm=params["lateral_mm"],
+                marcas_registro=params["marcas_registro"],
+                marcas_corte=params["marcas_corte"],
+                preview_only=True,
+            )
         b64 = base64.b64encode(png_bytes).decode("ascii")
-        return jsonify({"ok": True, "preview_data": f"data:image/png;base64,{b64}", "resumen_html": resumen_html or ""})
+        return jsonify(
+            {
+                "ok": True,
+                "preview_data": f"data:image/jpeg;base64,{b64}",
+                "resumen_html": resumen_html or "",
+            }
+        )
     except TypeError as e:
         return jsonify({"ok": False, "error": f"TypeError: {str(e)}"}), 500
     except Exception as e:
@@ -524,7 +531,7 @@ def montaje_flexo_avanzado():
 
     return render_template(
         "montaje_flexo_avanzado.html",
-        preview=preview_b64,
+        preview=f"data:image/png;base64,{preview_b64}",
         pistas=cantidad_pistas,
         etiquetas_por_repeticion=etiquetas_por_repeticion,
         repeticiones=repeticiones,

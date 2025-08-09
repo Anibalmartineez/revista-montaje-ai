@@ -698,9 +698,13 @@ def montar_pliego_offset_inteligente(
             d.rectangle([(x, y), (x + w, y + h)], outline="black", width=2)
 
         bio = io.BytesIO()
-        im.save(bio, format="PNG")
-        png_bytes = bio.getvalue()
-        return png_bytes, resumen_html
+        # JPEG liviano
+        im.save(bio, format="JPEG", quality=70, optimize=True, progressive=True)
+        jpg_bytes = bio.getvalue()
+        # liberar
+        im.close(); del im
+        bio.close()
+        return jpg_bytes, resumen_html
 
     # Creación del PDF final
     os.makedirs(os.path.dirname(output_path), exist_ok=True)
