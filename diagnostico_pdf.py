@@ -1,287 +1,261 @@
+import base64
+import io
+from typing import Dict, List, Tuple
+
 import fitz  # PyMuPDF
-from ia_sugerencias import chat_completion
+import numpy as np
+import cv2
+from PIL import Image, ImageDraw
+
+try:
+    from ia_sugerencias import chat_completion
+except Exception:  # pragma: no cover - fallback when API not configured
+    def chat_completion(*args, **kwargs):
+        return ""
+
+PT_PER_MM = 72 / 25.4
 
 
-def pts_to_mm(v: float) -> float:
-    """Convierte puntos tipográficos a milímetros."""
-    return round(v * 25.4 / 72, 2)
+def pt_to_mm(v: float) -> float:
+    return round(v / PT_PER_MM, 2)
 
 
-def agrupar_bboxes(bboxes, margen=0):
-    """Agrupa cajas que se superponen para detectar objetos independientes."""
-    clusters = []
-    for box in bboxes:
-        merged = False
-        for i, cl in enumerate(clusters):
-            if not (
-                box[2] < cl[0] - margen
-                or box[0] > cl[2] + margen
-                or box[3] < cl[1] - margen
-                or box[1] > cl[3] + margen
-            ):
-                clusters[i] = (
-                    min(cl[0], box[0]),
-                    min(cl[1], box[1]),
-                    max(cl[2], box[2]),
-                    max(cl[3], box[3]),
-                )
-                merged = True
-                break
-        if not merged:
-            clusters.append(box)
-
-    changed = True
-    while changed:
-        changed = False
-        for i in range(len(clusters)):
-            for j in range(i + 1, len(clusters)):
-                a, b = clusters[i], clusters[j]
-                if not (
-                    a[2] < b[0] - margen
-                    or a[0] > b[2] + margen
-                    or a[3] < b[1] - margen
-                    or a[1] > b[3] + margen
-                ):
-                    clusters[i] = (
-                        min(a[0], b[0]),
-                        min(a[1], b[1]),
-                        max(a[2], b[2]),
-                        max(a[3], b[3]),
-                    )
-                    clusters.pop(j)
-                    changed = True
-                    break
-            if changed:
-                break
-    return clusters
+def mm_to_pt(v: float) -> float:
+    return v * PT_PER_MM
 
 
-def rgb_to_cmyk(r: float, g: float, b: float):
-    """Convierte valores RGB (0-1) a CMYK (0-100)."""
-    c = 1 - r
-    m = 1 - g
-    y = 1 - b
-    k = min(c, m, y)
-    if k < 1:
-        c = (c - k) / (1 - k)
-        m = (m - k) / (1 - k)
-        y = (y - k) / (1 - k)
-    else:
-        c = m = y = 0
-    return c * 100, m * 100, y * 100, k * 100
+def clamp_rect(rect: fitz.Rect, page_w: float, page_h: float) -> fitz.Rect:
+    return fitz.Rect(
+        max(0, rect.x0),
+        max(0, rect.y0),
+        min(page_w, rect.x1),
+        min(page_h, rect.y1),
+    )
 
 
-def detectar_marcas_corte(page, margen=15):
-    """Detecta marcas de corte visuales y retorna el área interna entre ellas."""
-    drawings = page.get_drawings()
-    width, height = page.rect.width, page.rect.height
-    bleed = page.bleedbox or page.rect
-    marcas = {"left": [], "right": [], "top": [], "bottom": []}
-    objetos = []
-    advertencias = []
+def rect_size_mm(rect: fitz.Rect) -> Dict[str, float]:
+    return {"w": pt_to_mm(rect.width), "h": pt_to_mm(rect.height)}
 
-    for d in drawings:
-        wline = d.get("width", 0)
-        color = d.get("stroke") or d.get("color")
-        if not color:
-            bbox = d.get("bbox")
-            if bbox:
-                objetos.append(bbox)
+
+def get_pdf_boxes(page: fitz.Page) -> Dict[str, fitz.Rect]:
+    return {
+        "mediabox": getattr(page, "mediabox", page.rect),
+        "cropbox": page.cropbox or page.rect,
+        "trimbox": page.trimbox,
+        "bleedbox": page.bleedbox,
+    }
+
+
+def detect_dieline_vector(doc: fitz.Document, page: fitz.Page):
+    rects: List[fitz.Rect] = []
+    page_area = page.rect.get_area()
+    for d in page.get_drawings():
+        if d.get("fill"):
             continue
-        if not (0.1 <= wline <= 0.3):
-            bbox = d.get("bbox")
-            if bbox:
-                objetos.append(bbox)
+        if d.get("width", 0) > 1.0:
             continue
-        r, g, b = color[:3]
-        c, m, y, k = rgb_to_cmyk(r, g, b)
-        if c + m + y + k < 280:
-            bbox = d.get("bbox")
-            if bbox:
-                objetos.append(bbox)
+        stroke = d.get("stroke") or d.get("color")
+        if not stroke:
+            continue
+        bbox = d.get("bbox") or d.get("rect")
+        if not bbox:
+            continue
+        r = fitz.Rect(bbox)
+        if r.width < 10 or r.height < 10:
+            continue
+        if r.get_area() / page_area < 0.3:
+            continue
+        rects.append(r)
+    if not rects:
+        return None, [], 0.0, {}
+    largest = max(rects, key=lambda r: r.get_area())
+    return largest, rects, 0.85, {"source": "DieLine"}
+
+
+def detect_cropmarks_vector(page: fitz.Page, page_w: float, page_h: float):
+    vert_x: List[float] = []
+    horiz_y: List[float] = []
+    for d in page.get_drawings():
+        stroke = d.get("stroke") or d.get("color")
+        if not stroke:
+            continue
+        if d.get("width", 0) > 1.0:
             continue
         for item in d.get("items", []):
-            if len(item) != 4:
-                continue
-            x0, y0, x1, y1 = item
-            minx, miny = min(x0, x1), min(y0, y1)
-            maxx, maxy = max(x0, x1), max(y0, y1)
-
-            if abs(x0 - x1) < 0.2 and maxy - miny > 5:  # vertical
-                if maxx <= bleed.x0 + 1 and minx >= bleed.x0 - margen and (
-                    miny <= bleed.y0 + margen or maxy >= bleed.y1 - margen
-                ):
-                    marcas["left"].append(maxx)
-                elif minx >= bleed.x1 - 1 and maxx <= bleed.x1 + margen and (
-                    miny <= bleed.y0 + margen or maxy >= bleed.y1 - margen
-                ):
-                    marcas["right"].append(minx)
-                else:
-                    objetos.append((minx, miny, maxx, maxy))
-            elif abs(y0 - y1) < 0.2 and maxx - minx > 5:  # horizontal
-                if maxy <= bleed.y0 + 1 and miny >= bleed.y0 - margen and (
-                    minx <= bleed.x0 + margen or maxx >= bleed.x1 - margen
-                ):
-                    marcas["top"].append(maxy)
-                elif miny >= bleed.y1 - 1 and maxy <= bleed.y1 + margen and (
-                    minx <= bleed.x0 + margen or maxx >= bleed.x1 - margen
-                ):
-                    marcas["bottom"].append(miny)
-                else:
-                    objetos.append((minx, miny, maxx, maxy))
+            if len(item) == 4:
+                x0, y0, x1, y1 = item
+            elif len(item) == 3 and item[0] == 'l':
+                p0, p1 = item[1], item[2]
+                x0, y0, x1, y1 = p0.x, p0.y, p1.x, p1.y
             else:
-                objetos.append((minx, miny, maxx, maxy))
-
-    rect = None
-    misalign = []
-    if all(marcas.values()):
-        rect = fitz.Rect(
-            max(marcas["left"]),
-            max(marcas["top"]),
-            min(marcas["right"]),
-            min(marcas["bottom"]),
-        )
-        tol = 1
-        if any(abs(x - rect.x0) > tol for x in marcas["left"]) or \
-           any(abs(x - rect.x1) > tol for x in marcas["right"]) or \
-           any(abs(y - rect.y0) > tol for y in marcas["top"]) or \
-           any(abs(y - rect.y1) > tol for y in marcas["bottom"]):
-            misalign.append("⚠️ Las marcas de corte no están alineadas correctamente.")
-    num_marks = sum(len(v) for v in marcas.values())
-    return rect, objetos, num_marks, misalign
+                continue
+            if abs(x0 - x1) < 0.5:
+                length = abs(y1 - y0)
+                if 3 <= pt_to_mm(length) <= 15:
+                    vert_x.append((x0 + x1) / 2)
+            elif abs(y0 - y1) < 0.5:
+                length = abs(x1 - x0)
+                if 3 <= pt_to_mm(length) <= 15:
+                    horiz_y.append((y0 + y1) / 2)
+    if len(vert_x) >= 2 and len(horiz_y) >= 2:
+        rect = fitz.Rect(min(vert_x), min(horiz_y), max(vert_x), max(horiz_y))
+        rect = clamp_rect(rect, page_w, page_h)
+        return rect, [], 0.6, {"source": "CropMarks"}
+    return None, [], 0.0, {}
 
 
-def obtener_bboxes(page, extra_drawings):
-    """Obtiene todas las cajas visibles (texto, imágenes, etc.)."""
-    width, height = page.rect.width, page.rect.height
-    bboxes = list(extra_drawings)
-
-    def dentro(x0, y0, x1, y1):
-        return not (x1 < 0 or x0 > width or y1 < 0 or y0 > height)
-
-    for img in page.get_images(full=True):
-        try:
-            bbox = page.get_image_bbox(img)
-            if dentro(bbox.x0, bbox.y0, bbox.x1, bbox.y1):
-                bboxes.append((bbox.x0, bbox.y0, bbox.x1, bbox.y1))
-        except Exception:
-            pass
-
-    contenido = page.get_text("rawdict")
-    for bloque in contenido.get("blocks", []):
-        if "bbox" in bloque:
-            x0, y0, x1, y1 = bloque["bbox"]
-            if dentro(x0, y0, x1, y1):
-                bboxes.append((x0, y0, x1, y1))
-
-    return bboxes
+def detect_trim_raster(page: fitz.Page):
+    zoom = 300 / 72.0
+    mat = fitz.Matrix(zoom, zoom)
+    pix = page.get_pixmap(matrix=mat, alpha=False)
+    img = np.frombuffer(pix.samples, dtype=np.uint8).reshape(pix.height, pix.width, pix.n)
+    if pix.n == 4:
+        img = cv2.cvtColor(img, cv2.COLOR_BGRA2BGR)
+    gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+    edges = cv2.Canny(gray, 50, 150)
+    coords = cv2.findNonZero(edges)
+    if coords is None:
+        return None, [], 0.0, {}
+    x, y, w, h = cv2.boundingRect(coords)
+    x0, y0 = x / zoom, y / zoom
+    x1, y1 = (x + w) / zoom, (y + h) / zoom
+    rect = fitz.Rect(x0, y0, x1, y1)
+    return rect, [], 0.4, {"source": "RasterBBox"}
 
 
-def diagnosticar_pdf(path):
-    """Analiza un PDF y genera un diagnóstico técnico usando IA."""
-    doc = fitz.open(path)
-    page = doc[0]
+def compute_final_area(page: fitz.Page):
+    page_w, page_h = page.rect.width, page.rect.height
+    boxes = get_pdf_boxes(page)
+    notes: List[str] = []
+    components: List[fitz.Rect] = []
 
-    media = page.rect
-    crop = page.cropbox or media
-    bleed = page.bleedbox or crop
+    tb = boxes.get("trimbox")
+    if tb and tb != page.rect and tb.width > 0 and tb.height > 0:
+        tb = clamp_rect(tb, page_w, page_h)
+        return tb, 0.9, {"source": "TrimBox"}, components, notes
 
-    rect_corte, dibujos_objetos, marcas_detectadas, adv_marcas = detectar_marcas_corte(page)
-    bboxes = obtener_bboxes(page, dibujos_objetos)
-    clusters = agrupar_bboxes(bboxes)
+    rect, comps, conf, info = detect_dieline_vector(page.parent, page)
+    if rect:
+        components = comps
+        if len(comps) > 1:
+            union = comps[0]
+            for r in comps[1:]:
+                union = union | r
+            rect = union
+            notes.append("Se detectaron varios troqueles.")
+        rect = clamp_rect(rect, page_w, page_h)
+        return rect, conf, info, components, notes
 
-    if clusters:
-        union_rect = fitz.Rect(
-            min(b[0] for b in clusters),
-            min(b[1] for b in clusters),
-            max(b[2] for b in clusters),
-            max(b[3] for b in clusters),
-        )
-    else:
-        union_rect = fitz.Rect(0, 0, 0, 0)
+    rect, comps, conf, info = detect_cropmarks_vector(page, page_w, page_h)
+    if rect:
+        rect = clamp_rect(rect, page_w, page_h)
+        return rect, conf, info, components, notes
 
-    area_final = rect_corte or union_rect
+    rect, comps, conf, info = detect_trim_raster(page)
+    if rect:
+        components = comps
+        rect = clamp_rect(rect, page_w, page_h)
+        return rect, conf, info, components, notes
 
-    media_mm = (pts_to_mm(media.width), pts_to_mm(media.height))
-    trim_mm = (pts_to_mm(area_final.width), pts_to_mm(area_final.height))
-    contenido_mm = (pts_to_mm(union_rect.width), pts_to_mm(union_rect.height))
-    bleed_mm = (pts_to_mm(bleed.width), pts_to_mm(bleed.height))
+    cb = boxes.get("cropbox")
+    if cb and (cb.width != page_w or cb.height != page_h):
+        cb = clamp_rect(cb, page_w, page_h)
+        return cb, 0.3, {"source": "CropBox"}, components, notes
 
-    advertencias = list(adv_marcas)
-    if rect_corte is None:
-        advertencias.append("❌ No se detectaron marcas de corte.")
-    else:
-        advertencias.append(f"✅ Se detectaron {marcas_detectadas} marcas de corte.")
+    mb = boxes.get("mediabox") or page.rect
+    mb = clamp_rect(mb, page_w, page_h)
+    return mb, 0.2, {"source": "MediaBox"}, components, notes
 
-    if union_rect.x0 < 0 or union_rect.y0 < 0 or union_rect.x1 > media.x1 or union_rect.y1 > media.y1:
-        advertencias.append("❌ El contenido útil excede el tamaño de la página.")
-    if rect_corte and (
-        union_rect.x0 < rect_corte.x0
-        or union_rect.y0 < rect_corte.y0
-        or union_rect.x1 > rect_corte.x1
-        or union_rect.y1 > rect_corte.y1
-    ):
-        advertencias.append("⚠️ El contenido se extiende fuera del área útil detectada.")
-    if len(clusters) > 1:
-        advertencias.append(
-            f"⚠️ Se detectaron {len(clusters)} objetos independientes en la página."
-        )
 
-    objetos_descript = []
-    for i, cl in enumerate(clusters, 1):
-        w_mm = pts_to_mm(cl[2] - cl[0])
-        h_mm = pts_to_mm(cl[3] - cl[1])
-        objetos_descript.append(f"Objeto {i}: {w_mm} x {h_mm} mm")
-        if rect_corte and not rect_corte.contains(fitz.Rect(cl)):
-            advertencias.append(f"⚠️ El objeto {i} sobresale del área útil.")
+def measure_bleed(page: fitz.Page, final_rect: fitz.Rect):
+    content_rect, _, _, _ = detect_trim_raster(page)
+    if not content_rect:
+        return {"top": 0.0, "right": 0.0, "bottom": 0.0, "left": 0.0}
+    top = max(0, final_rect.y0 - content_rect.y0)
+    bottom = max(0, content_rect.y1 - final_rect.y1)
+    left = max(0, final_rect.x0 - content_rect.x0)
+    right = max(0, content_rect.x1 - final_rect.x1)
+    return {
+        "top": round(pt_to_mm(top), 1),
+        "right": round(pt_to_mm(right), 1),
+        "bottom": round(pt_to_mm(bottom), 1),
+        "left": round(pt_to_mm(left), 1),
+    }
 
-    objetos_resumen = "\n".join(objetos_descript) if objetos_descript else "Sin objetos detectados."
 
-    dpi_list = []
-    for img in page.get_images(full=True):
-        try:
-            bbox = page.get_image_bbox(img)
-            pix = doc.extract_image(img[0])
-            w_px, h_px = pix["width"], pix["height"]
-            dpi_x = w_px / (bbox.width / 72)
-            dpi_y = h_px / (bbox.height / 72)
-            dpi = min(dpi_x, dpi_y)
-            dpi_list.append(dpi)
-            if dpi < 300:
-                advertencias.append(
-                    f"⚠️ Imagen con baja resolución ({round(dpi)} DPI)."
-                )
-        except Exception:
-            continue
+def diagnostico_offset_pro(pdf_path: str, page_index: int = 0):
+    doc = fitz.open(pdf_path)
+    page = doc[page_index]
+    page_w, page_h = page.rect.width, page.rect.height
+    page_size_mm = {"w": pt_to_mm(page_w), "h": pt_to_mm(page_h)}
 
-    dpi_info = ", ".join(f"{round(d)} DPI" for d in dpi_list) if dpi_list else "No se detectaron imágenes rasterizadas."
+    final_rect, confidence, info, components, notes = compute_final_area(page)
+    bleed = measure_bleed(page, final_rect)
 
-    tabla = f"""
-📏 **Medidas del archivo (en milímetros):**
+    if confidence < 0.6:
+        notes.append("Verificar recorte (confianza media/baja).")
+    if any(v < 3 for v in bleed.values()):
+        notes.append("Alerta: sangrado menor a 3 mm en alguno de los lados.")
 
-| Elemento                  | Ancho     | Alto      |
-|--------------------------|-----------|-----------|
-| Página (MediaBox)        | {media_mm[0]} mm | {media_mm[1]} mm |
-| Área útil (corte a corte)| {trim_mm[0]} mm | {trim_mm[1]} mm |
-| Área ocupada por contenido| {contenido_mm[0]} mm | {contenido_mm[1]} mm |
-| Sangrado (BleedBox)      | {bleed_mm[0]} mm | {bleed_mm[1]} mm |
-| Resolución estimada      | {dpi_info} |
-"""
+    final_size_mm = rect_size_mm(final_rect)
+    final_origin_mm = {"x": pt_to_mm(final_rect.x0), "y": pt_to_mm(final_rect.y0)}
 
-    observaciones = "\n".join(advertencias)
+    components_mm = [
+        (pt_to_mm(r.x0), pt_to_mm(r.y0), pt_to_mm(r.x1), pt_to_mm(r.y1))
+        for r in components
+    ]
 
-    prompt = f"""
-Sos jefe de control de calidad en una imprenta. Evaluá el siguiente archivo PDF. Indicá si el diseño está bien armado para impresión: tamaño correcto, contenido bien ubicado, marcas de corte, resolución e indicaciones importantes para evitar errores.
+    out_dict = {
+        "page_size_mm": page_size_mm,
+        "final_size_mm": final_size_mm,
+        "final_origin_mm": final_origin_mm,
+        "detected_by": info.get("source", ""),
+        "confidence": confidence,
+        "bleed_mm": bleed,
+        "components_count": len(components_mm) if components_mm else 1,
+        "final_components": components_mm,
+        "notes": notes,
+    }
 
-{tabla}
+    zoom = 110 / 72.0
+    mat = fitz.Matrix(zoom, zoom)
+    pix = page.get_pixmap(matrix=mat, alpha=False)
+    img = Image.frombytes("RGB", [pix.width, pix.height], pix.samples)
+    draw = ImageDraw.Draw(img)
+    draw.rectangle([0, 0, pix.width - 1, pix.height - 1], outline="black", width=2)
+    draw.rectangle(
+        [
+            final_rect.x0 * zoom,
+            final_rect.y0 * zoom,
+            final_rect.x1 * zoom,
+            final_rect.y1 * zoom,
+        ],
+        outline="red",
+        width=3,
+    )
+    buf = io.BytesIO()
+    img.save(buf, format="PNG")
+    preview_b64 = base64.b64encode(buf.getvalue()).decode("ascii")
 
-📦 **Objetos detectados:**
-{objetos_resumen}
-
-🛠️ **Observaciones técnicas**:
-{observaciones}
-"""
+    ai_summary = ""
     try:
-        return chat_completion(prompt)
-    except Exception as e:
-        return f"[ERROR] No se pudo generar el diagnóstico con IA: {e}"
+        prompt = (
+            f"Tamaño final: {final_size_mm['w']} x {final_size_mm['h']} mm. "
+            f"Detectado por: {info.get('source')}. "
+            f"Confianza: {confidence}. Sangrado: {bleed}. "
+            f"Notas: {', '.join(notes)}"
+        )
+        ai_summary = chat_completion(prompt)
+    except Exception:
+        pass
+    out_dict["ai_summary"] = ai_summary
+
+    return out_dict, preview_b64
+
+
+def diagnosticar_pdf(path: str) -> str:
+    resultado, _ = diagnostico_offset_pro(path)
+    return resultado.get("ai_summary", "")
+
+
+__all__ = ["diagnostico_offset_pro", "diagnosticar_pdf"]

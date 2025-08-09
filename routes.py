@@ -19,6 +19,7 @@ from flask import (
 from werkzeug.utils import secure_filename
 from montaje import montar_pdf
 from diagnostico import diagnosticar_pdf, analizar_grafico_tecnico
+from diagnostico_pdf import diagnostico_offset_pro
 from utils import (
     corregir_sangrado,
     redimensionar_pdf,
@@ -113,6 +114,36 @@ def index():
             mensaje = f" Error al procesar el archivo: {str(e)}"
 
     return render_template("index.html", mensaje=mensaje, diagnostico=diagnostico, output_pdf=output_pdf)
+
+
+@routes_bp.route("/diagnostico_offset", methods=["POST"])
+def diagnostico_offset_endpoint():
+    archivo = request.files.get("pdf")
+    if not archivo or archivo.filename == "":
+        return jsonify({"ok": False, "error": "Debe subir un PDF"}), 400
+    filename = secure_filename(archivo.filename)
+    path_pdf = os.path.join(UPLOAD_FOLDER, filename)
+    archivo.save(path_pdf)
+
+    report, preview_b64 = diagnostico_offset_pro(path_pdf)
+    bleed = report.get("bleed_mm", {})
+    summary_html = (
+        "<table border='1' cellpadding='4'>"
+        f"<tr><th>Método</th><td>{report['detected_by']}</td></tr>"
+        f"<tr><th>Confianza</th><td>{report['confidence']:.2f}</td></tr>"
+        f"<tr><th>Tamaño final (mm)</th><td>{report['final_size_mm']['w']} x {report['final_size_mm']['h']}</td></tr>"
+        f"<tr><th>Sangrado (mm)</th><td>Top {bleed.get('top',0)} | Right {bleed.get('right',0)} | Bottom {bleed.get('bottom',0)} | Left {bleed.get('left',0)}</td></tr>"
+        "</table>"
+    )
+
+    return jsonify(
+        {
+            "ok": True,
+            "report": report,
+            "preview_data": f"data:image/png;base64,{preview_b64}",
+            "summary_html": summary_html,
+        }
+    )
 
 
 @routes_bp.route('/descargar')
