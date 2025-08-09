@@ -3,6 +3,7 @@ reportlab==4.1.0
 Pillow==10.4.0
 PyMuPDF==1.26.1
 gunicorn==21.2.0
+nginx
 openai>=1.3.5
 numpy==1.26.4
 opencv-python-headless==4.9.0.80
