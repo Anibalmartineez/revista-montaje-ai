@@ -1,11 +1,9 @@
-import base64
-import io
+import io, gc, base64
 from typing import Dict, List, Tuple
 
 import fitz  # PyMuPDF
-import numpy as np
-import cv2
 from PIL import Image, ImageDraw
+from utils_img import dpi_for_preview, dpi_for_raster_ops
 
 try:
     from ia_sugerencias import chat_completion
@@ -104,22 +102,37 @@ def detect_cropmarks_vector(page: fitz.Page, page_w: float, page_h: float):
     return None, [], 0.0, {}
 
 
-def detect_trim_raster(page: fitz.Page):
-    zoom = 300 / 72.0
-    mat = fitz.Matrix(zoom, zoom)
+def raster_fallback(page: fitz.Page, page_mm):
+    dpi = dpi_for_raster_ops(page_mm)
+    mat = fitz.Matrix(dpi / 72, dpi / 72)
     pix = page.get_pixmap(matrix=mat, alpha=False)
-    img = np.frombuffer(pix.samples, dtype=np.uint8).reshape(pix.height, pix.width, pix.n)
+
+    import numpy as np, cv2
+    arr = np.frombuffer(pix.samples, dtype=np.uint8)
+    arr = arr.reshape(pix.height, pix.width, pix.n)
+
     if pix.n == 4:
-        img = cv2.cvtColor(img, cv2.COLOR_BGRA2BGR)
-    gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+        arr = cv2.cvtColor(arr, cv2.COLOR_BGRA2BGR)
+    gray = cv2.cvtColor(arr, cv2.COLOR_BGR2GRAY)
     edges = cv2.Canny(gray, 50, 150)
     coords = cv2.findNonZero(edges)
     if coords is None:
+        del arr
+        pix = None
+        fitz.TOOLS.store_shrink(1)
+        gc.collect()
         return None, [], 0.0, {}
+
     x, y, w, h = cv2.boundingRect(coords)
-    x0, y0 = x / zoom, y / zoom
-    x1, y1 = (x + w) / zoom, (y + h) / zoom
+    scale = 72 / dpi
+    x0, y0 = x * scale, y * scale
+    x1, y1 = (x + w) * scale, (y + h) * scale
     rect = fitz.Rect(x0, y0, x1, y1)
+
+    del arr
+    pix = None
+    fitz.TOOLS.store_shrink(1)
+    gc.collect()
     return rect, [], 0.4, {"source": "RasterBBox"}
 
 
@@ -151,7 +164,7 @@ def compute_final_area(page: fitz.Page):
         rect = clamp_rect(rect, page_w, page_h)
         return rect, conf, info, components, notes
 
-    rect, comps, conf, info = detect_trim_raster(page)
+    rect, comps, conf, info = raster_fallback(page, (pt_to_mm(page_w), pt_to_mm(page_h)))
     if rect:
         components = comps
         rect = clamp_rect(rect, page_w, page_h)
@@ -168,7 +181,7 @@ def compute_final_area(page: fitz.Page):
 
 
 def measure_bleed(page: fitz.Page, final_rect: fitz.Rect):
-    content_rect, _, _, _ = detect_trim_raster(page)
+    content_rect, _, _, _ = raster_fallback(page, (pt_to_mm(page.rect.width), pt_to_mm(page.rect.height)))
     if not content_rect:
         return {"top": 0.0, "right": 0.0, "bottom": 0.0, "left": 0.0}
     top = max(0, final_rect.y0 - content_rect.y0)
@@ -181,6 +194,42 @@ def measure_bleed(page: fitz.Page, final_rect: fitz.Rect):
         "bottom": round(pt_to_mm(bottom), 1),
         "left": round(pt_to_mm(left), 1),
     }
+
+
+def generar_preview_jpg(page, final_rect_pt=None, page_mm=(210, 297), draw_overlay=True):
+    # 1) DPI dinámico para preview
+    dpi = dpi_for_preview(page_mm)
+    mat = fitz.Matrix(dpi / 72, dpi / 72)
+    pix = page.get_pixmap(matrix=mat, alpha=False)
+
+    # 2) PIL Image
+    im = Image.frombytes("RGB", [pix.width, pix.height], pix.samples)
+    draw = ImageDraw.Draw(im)
+
+    # 3) Overlays (opcional)
+    if draw_overlay and final_rect_pt:
+        def pt2px(v):
+            return int(round(v * (dpi / 72)))
+
+        x0, y0, x1, y1 = final_rect_pt
+        draw.rectangle([pt2px(x0), pt2px(y0), pt2px(x1), pt2px(y1)], outline="red", width=3)
+        draw.rectangle([0, 0, pix.width - 1, pix.height - 1], outline="black", width=1)
+
+    # 4) Exportar JPEG optimizado (reduce RAM y base64)
+    bio = io.BytesIO()
+    im.save(bio, format="JPEG", quality=70, optimize=True, progressive=True)
+    preview_bytes = bio.getvalue()
+
+    # 5) Liberar memoria agresivo
+    im.close()
+    del im
+    bio.close()
+    pix = None
+    del pix
+    fitz.TOOLS.store_shrink(1)
+    gc.collect()
+
+    return preview_bytes
 
 
 def diagnostico_offset_pro(pdf_path: str, page_index: int = 0):
@@ -216,26 +265,11 @@ def diagnostico_offset_pro(pdf_path: str, page_index: int = 0):
         "final_components": components_mm,
         "notes": notes,
     }
-
-    zoom = 110 / 72.0
-    mat = fitz.Matrix(zoom, zoom)
-    pix = page.get_pixmap(matrix=mat, alpha=False)
-    img = Image.frombytes("RGB", [pix.width, pix.height], pix.samples)
-    draw = ImageDraw.Draw(img)
-    draw.rectangle([0, 0, pix.width - 1, pix.height - 1], outline="black", width=2)
-    draw.rectangle(
-        [
-            final_rect.x0 * zoom,
-            final_rect.y0 * zoom,
-            final_rect.x1 * zoom,
-            final_rect.y1 * zoom,
-        ],
-        outline="red",
-        width=3,
+    preview_bytes = generar_preview_jpg(
+        page,
+        (final_rect.x0, final_rect.y0, final_rect.x1, final_rect.y1),
+        (page_size_mm["w"], page_size_mm["h"]),
     )
-    buf = io.BytesIO()
-    img.save(buf, format="PNG")
-    preview_b64 = base64.b64encode(buf.getvalue()).decode("ascii")
 
     ai_summary = ""
     try:
@@ -249,8 +283,9 @@ def diagnostico_offset_pro(pdf_path: str, page_index: int = 0):
     except Exception:
         pass
     out_dict["ai_summary"] = ai_summary
+    doc.close()
 
-    return out_dict, preview_b64
+    return out_dict, preview_bytes
 
 
 def diagnosticar_pdf(path: str) -> str:
