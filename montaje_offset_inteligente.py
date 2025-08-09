@@ -387,9 +387,9 @@ def montar_pliego_offset_inteligente(
     sangrado: float = 3,
     ordenar_tamano: bool = False,
     permitir_rotacion: bool = False,
-    alinear_filas: bool = False,  # compatibilidad, no usado
-    centrar: bool = False,
-    forzar_grilla: bool = False,  # compatibilidad con versiones previas
+    alinear_filas: bool = False,
+    preferir_horizontal: bool = False,
+    centrar: bool = True,
     debug_grilla: bool = False,
     espaciado_horizontal: float = 0,
     espaciado_vertical: float = 0,
@@ -397,12 +397,15 @@ def montar_pliego_offset_inteligente(
     margen_der: float = 10,
     margen_sup: float = 10,
     margen_inf: float = 10,
-    doble_corte: bool | None = None,
     estrategia: str = "flujo",
     filas: int = 0,
     columnas: int = 0,
     celda_ancho: float = 0,
     celda_alto: float = 0,
+    pinza_mm: float = 0.0,
+    lateral_mm: float = 0.0,
+    marcas_registro: bool = False,
+    marcas_corte: bool = False,
     preview_only: bool = False,
     output_path: str = "output/pliego_offset_inteligente.pdf",
     preview_path: str | None = None,
@@ -416,22 +419,23 @@ def montar_pliego_offset_inteligente(
     cada diseño 90° para aumentar la cantidad de copias por fila.
     """
 
-    if doble_corte is None:
-        doble_corte = forzar_grilla
-
     if espaciado_horizontal or espaciado_vertical:
         sep_h, sep_v = espaciado_horizontal, espaciado_vertical
     else:
         sep_h, sep_v = _parse_separacion(separacion)
 
-    margen_izq, margen_der, margen_sup, margen_inf = (
-        float(margen_izq),
-        float(margen_der),
-        float(margen_sup),
-        float(margen_inf),
-    )
+    margen_izq = float(margen_izq) + lateral_mm
+    margen_der = float(margen_der)
+    margen_sup = float(margen_sup)
+    margen_inf = float(margen_inf) + pinza_mm
 
     ancho_util = ancho_pliego - margen_izq - margen_der
+
+    if estrategia == "maxrects":
+        preferir_horizontal = False
+        alinear_filas = False
+    elif estrategia == "grid":
+        alinear_filas = False
 
     # Recolectamos dimensiones de cada diseño evaluando rotación
     grupos = []
@@ -445,7 +449,10 @@ def montar_pliego_offset_inteligente(
             unit_w_rot = alto + 2 * sangrado
             forms_x = int((ancho_util + sep_h) / (unit_w + sep_h))
             forms_x_rot = int((ancho_util + sep_h) / (unit_w_rot + sep_h))
-            if forms_x_rot > forms_x:
+            if preferir_horizontal:
+                if alto > ancho and forms_x_rot >= forms_x:
+                    rotado = True
+            elif forms_x_rot > forms_x:
                 rotado = True
         real_ancho = alto if rotado else ancho
         real_alto = ancho if rotado else alto
@@ -464,7 +471,7 @@ def montar_pliego_offset_inteligente(
         max_unit_h = max(max_unit_h, real_alto + 2 * sangrado)
 
     if ordenar_tamano:
-        grupos.sort(key=lambda g: g["ancho"], reverse=True)
+        grupos.sort(key=lambda g: g["ancho_real"] * g["alto_real"], reverse=True)
 
     posiciones: List[Dict[str, float]] = []
     sobrantes: List[Dict[str, float]] = []
@@ -554,12 +561,10 @@ def montar_pliego_offset_inteligente(
     else:
         y_cursor = alto_pliego - margen_sup
         for g in grupos:
-            if doble_corte:
-                unit_w = max_unit_w
+            unit_w = g["ancho_real"] + 2 * sangrado
+            unit_h = g["alto_real"] + 2 * sangrado
+            if alinear_filas:
                 unit_h = max_unit_h
-            else:
-                unit_w = g["ancho_real"] + 2 * sangrado
-                unit_h = g["alto_real"] + 2 * sangrado
 
             if unit_w > ancho_util:
                 sobrantes.append({"archivo": g["archivo"], "cantidad": g["cantidad"]})
@@ -585,16 +590,14 @@ def montar_pliego_offset_inteligente(
                     x = margen_izq + col * (unit_w + sep_h)
                     y = top_y - unit_h - row * (unit_h + sep_v)
 
-                    offset_x = 0.0
                     offset_y = 0.0
-                    if doble_corte:
-                        offset_x = (unit_w - (g["ancho_real"] + 2 * sangrado)) / 2
+                    if alinear_filas:
                         offset_y = (unit_h - (g["alto_real"] + 2 * sangrado)) / 2
 
                     posiciones.append(
                         {
                             "archivo": g["archivo"],
-                            "x": x + offset_x,
+                            "x": x,
                             "y": y + offset_y,
                             "ancho": g["ancho_real"],
                             "alto": g["alto_real"],
@@ -647,12 +650,20 @@ def montar_pliego_offset_inteligente(
             f"{s['archivo']} ({s['cantidad']} copias)" for s in sobrantes
         )
         advertencias = f"No se pudieron colocar: {faltantes}"
+    marcas = []
+    if marcas_registro:
+        marcas.append("registro")
+    if marcas_corte:
+        marcas.append("corte")
+    marcas_txt = ", ".join(marcas) if marcas else "ninguna"
     resumen_html = f"""
     <html><body>
     <h1>Resumen de montaje</h1>
     <p>Pliego: {ancho_pliego} x {alto_pliego} mm</p>
     <p>Diseños colocados: {colocados_total} de {total_disenos}</p>
     <p>Uso del pliego: {porcentaje:.1f}%</p>
+    <p>Reserva pinza: {pinza_mm} mm, lateral: {lateral_mm} mm</p>
+    <p>Marcas añadidas: {marcas_txt}</p>
     <p>{advertencias}</p>
     </body></html>
     """
@@ -716,26 +727,34 @@ def montar_pliego_offset_inteligente(
         else:
             c.drawImage(img, x_pt, y_pt, width=total_w_pt, height=total_h_pt)
 
-        # Marcas de corte
-        left = x_pt + mm_to_pt(sangrado)
-        bottom = y_pt + mm_to_pt(sangrado)
-        right = left + mm_to_pt(pos["ancho"])
-        top = bottom + mm_to_pt(pos["alto"])
-        mark_len = mm_to_pt(3)
-        c.setLineWidth(0.3)
-        c.setStrokeColorRGB(1, 0, 0)
-        c.line(left - mark_len, bottom, left, bottom)
-        c.line(left, bottom - mark_len, left, bottom)
-        c.line(right, bottom - mark_len, right, bottom)
-        c.line(right, bottom, right + mark_len, bottom)
-        c.line(left - mark_len, top, left, top)
-        c.line(left, top, left, top + mark_len)
-        c.line(right, top, right + mark_len, top)
-        c.line(right, top, right, top + mark_len)
-        c.setStrokeColorRGB(0, 0, 0)
-
     image_cache.clear()
-    agregar_marcas_registro(c, sheet_w_pt, sheet_h_pt)
+    if not preview_only:
+        left = mm_to_pt(margen_izq)
+        bottom = mm_to_pt(margen_inf)
+        right = sheet_w_pt - mm_to_pt(margen_der)
+        top = sheet_h_pt - mm_to_pt(margen_sup)
+        if marcas_registro:
+            def cross(x: float, y: float, s_mm: float = 5) -> None:
+                s = mm_to_pt(s_mm)
+                c.line(x - s, y, x + s, y)
+                c.line(x, y - s, x, y + s)
+            c.setLineWidth(0.3)
+            cross(left, bottom)
+            cross(left, top)
+            cross(right, bottom)
+            cross(right, top)
+        if marcas_corte:
+            mark = mm_to_pt(5)
+            c.setLineWidth(0.3)
+            c.line(left, bottom - mark, left, bottom)
+            c.line(left - mark, bottom, left, bottom)
+            c.line(right, bottom - mark, right, bottom)
+            c.line(right + mark, bottom, right, bottom)
+            c.line(left, top, left, top + mark)
+            c.line(left - mark, top, left, top)
+            c.line(right, top, right, top + mark)
+            c.line(right, top, right + mark, top)
+        c.setStrokeColorRGB(0, 0, 0)
     c.save()
 
     # Vista previa PNG opcional

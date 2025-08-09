@@ -211,24 +211,61 @@ def _parse_montaje_offset_form(req):
         repeticiones = int(req.form.get(f"repeticiones_{i}", 1))
         diseños.append((path, repeticiones))
 
+    estrategia = req.form.get("estrategia", "flujo")
+    if req.form.get("forzar_grilla"):
+        estrategia = "grid"
+
+    ordenar_tamano = bool(req.form.get("ordenar_tamano"))
+    alinear_filas = bool(req.form.get("alinear_filas"))
+    preferir_horizontal = bool(req.form.get("preferir_horizontal"))
+
+    centrar = True
+    if "centrar" in req.form or "centrar_montaje" in req.form:
+        centrar = bool(req.form.get("centrar") or req.form.get("centrar_montaje"))
+
+    filas = int(req.form.get("filas", 0) or 0)
+    columnas = int(req.form.get("columnas", 0) or 0)
+    celda_ancho = float(req.form.get("celda_ancho", 0) or 0)
+    celda_alto = float(req.form.get("celda_alto", 0) or 0)
+
+    pinza_mm = float(req.form.get("pinza_mm", 0) or 0)
+    lateral_mm = float(req.form.get("lateral_mm", 0) or 0)
+    marcas_registro = bool(req.form.get("marcas_registro"))
+    marcas_corte = bool(req.form.get("marcas_corte"))
+    debug_grilla = bool(req.form.get("debug_grilla"))
+
+    if estrategia == "flujo":
+        ordenar_tamano = False if "ordenar_tamano" not in req.form else ordenar_tamano
+        alinear_filas = True if "alinear_filas" not in req.form else alinear_filas
+    elif estrategia == "grid":
+        alinear_filas = False
+    elif estrategia == "maxrects":
+        ordenar_tamano = True if "ordenar_tamano" not in req.form else ordenar_tamano
+        alinear_filas = False
+        preferir_horizontal = False
+
     params = {
         "separacion": float(req.form.get("separacion", 4)),
-        "ordenar_tamano": req.form.get("ordenar_tamano") == "on",
-        "alinear_filas": req.form.get("alinear_filas") == "on",
-        "centrar_montaje": req.form.get("centrar_montaje") == "on",
-        "forzar_grilla": req.form.get("forzar_grilla") == "on",
-        "debug_grilla": req.form.get("debug_grilla") == "on",
+        "ordenar_tamano": ordenar_tamano,
+        "alinear_filas": alinear_filas,
+        "preferir_horizontal": preferir_horizontal,
+        "centrar": centrar,
+        "debug_grilla": debug_grilla,
         "espaciado_horizontal": float(req.form.get("espaciado_horizontal", 0)),
         "espaciado_vertical": float(req.form.get("espaciado_vertical", 0)),
         "margen_izq": float(req.form.get("margen_izq", 10)),
         "margen_der": float(req.form.get("margen_der", 10)),
         "margen_sup": float(req.form.get("margen_sup", 10)),
         "margen_inf": float(req.form.get("margen_inf", 10)),
-        "estrategia": req.form.get("estrategia", "flujo"),
-        "filas": int(req.form.get("filas", 0) or 0),
-        "columnas": int(req.form.get("columnas", 0) or 0),
-        "celda_ancho": float(req.form.get("celda_ancho", 0) or 0),
-        "celda_alto": float(req.form.get("celda_alto", 0) or 0),
+        "estrategia": estrategia,
+        "filas": filas,
+        "columnas": columnas,
+        "celda_ancho": celda_ancho,
+        "celda_alto": celda_alto,
+        "pinza_mm": pinza_mm,
+        "lateral_mm": lateral_mm,
+        "marcas_registro": marcas_registro,
+        "marcas_corte": marcas_corte,
     }
 
     return diseños, ancho_pliego, alto_pliego, params
@@ -251,8 +288,8 @@ def montaje_offset_inteligente_view():
         separacion=params["separacion"],
         ordenar_tamano=params["ordenar_tamano"],
         alinear_filas=params["alinear_filas"],
-        centrar=params["centrar_montaje"],
-        forzar_grilla=params["forzar_grilla"],
+        preferir_horizontal=params["preferir_horizontal"],
+        centrar=params["centrar"],
         debug_grilla=params["debug_grilla"],
         espaciado_horizontal=params["espaciado_horizontal"],
         espaciado_vertical=params["espaciado_vertical"],
@@ -265,6 +302,10 @@ def montaje_offset_inteligente_view():
         columnas=params["columnas"],
         celda_ancho=params["celda_ancho"],
         celda_alto=params["celda_alto"],
+        pinza_mm=params["pinza_mm"],
+        lateral_mm=params["lateral_mm"],
+        marcas_registro=params["marcas_registro"],
+        marcas_corte=params["marcas_corte"],
         output_path=output_path,
     )
     return send_file(output_path, as_attachment=True)
@@ -281,8 +322,8 @@ def montaje_offset_preview():
             separacion=params["separacion"],
             ordenar_tamano=params["ordenar_tamano"],
             alinear_filas=params["alinear_filas"],
-            centrar=params["centrar_montaje"],
-            forzar_grilla=params["forzar_grilla"],
+            preferir_horizontal=params["preferir_horizontal"],
+            centrar=params["centrar"],
             debug_grilla=params["debug_grilla"],
             espaciado_horizontal=params["espaciado_horizontal"],
             espaciado_vertical=params["espaciado_vertical"],
@@ -295,6 +336,10 @@ def montaje_offset_preview():
             columnas=params["columnas"],
             celda_ancho=params["celda_ancho"],
             celda_alto=params["celda_alto"],
+            pinza_mm=params["pinza_mm"],
+            lateral_mm=params["lateral_mm"],
+            marcas_registro=params["marcas_registro"],
+            marcas_corte=params["marcas_corte"],
             preview_only=True,
         )
         b64 = base64.b64encode(png_bytes).decode("ascii")
