@@ -88,8 +88,21 @@
       <input type="number" name="celda_alto" step="0.01">
     </div>
     <br>
-    <button type="submit">Generar Montaje</button>
+    <div style="margin-top:12px; display:flex; gap:8px; flex-wrap:wrap;">
+      <button id="btn-preview" type="button">Vista previa</button>
+      <button id="btn-generate" type="submit">Generar PDF</button>
+      <button id="btn-reset" type="reset">Actualizar formulario</button>
+    </div>
   </form>
+
+  <hr>
+
+  <div id="preview-wrap">
+    <div id="loader" style="display:none;">Generando vista previa...</div>
+    <div id="preview-panel" style="margin-top:10px;"></div>
+    <div id="resumen-panel" style="margin-top:10px;"></div>
+  </div>
+
   <script>
     document.querySelector('select[name="pliego"]').addEventListener('change', function() {
       document.getElementById('pliego-personalizado').style.display =
@@ -98,6 +111,58 @@
     document.getElementById('estrategia').addEventListener('change', function() {
       document.getElementById('grid-options').style.display =
         this.value === 'grid' ? 'block' : 'none';
+    });
+
+    const form = document.querySelector('form');
+    const btnPreview = document.getElementById('btn-preview');
+    const btnGenerate = document.getElementById('btn-generate');
+    const btnReset = document.getElementById('btn-reset');
+    const loader = document.getElementById('loader');
+    const previewPanel = document.getElementById('preview-panel');
+    const resumenPanel = document.getElementById('resumen-panel');
+
+    // Al hacer vista previa, llamamos al endpoint /montaje_offset/preview
+    btnPreview.addEventListener('click', async () => {
+      loader.style.display = 'block';
+      previewPanel.innerHTML = '';
+      resumenPanel.innerHTML = '';
+      try {
+        const fd = new FormData(form);
+        const resp = await fetch('{{ url_for("montaje_offset_preview") }}', {
+          method: 'POST',
+          body: fd
+        });
+        const data = await resp.json();
+        if (!data.ok) throw new Error(data.error || 'No se pudo generar vista previa');
+
+        // Imagen
+        const img = document.createElement('img');
+        img.src = data.preview_data;  // "data:image/png;base64,...."
+        img.style.maxWidth = '100%';
+        img.alt = 'Vista previa del montaje';
+        previewPanel.appendChild(img);
+
+        // Resumen (HTML seguro generado del servidor)
+        if (data.resumen_html) {
+          resumenPanel.innerHTML = data.resumen_html;
+        }
+
+        // (Opcional) habilita generación solamente luego de la vista previa:
+        // btnGenerate.disabled = false;
+
+      } catch (e) {
+        alert(e.message);
+      } finally {
+        loader.style.display = 'none';
+      }
+    });
+
+    // Reset: limpia panels
+    btnReset.addEventListener('click', () => {
+      previewPanel.innerHTML = '';
+      resumenPanel.innerHTML = '';
+      // (Opcional) volver a deshabilitar generar:
+      // btnGenerate.disabled = false; // o true si querés forzar preview antes
     });
   </script>
 </body>
