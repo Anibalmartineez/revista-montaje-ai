@@ -36,6 +36,7 @@ from montaje_flexo import (
 )
 from montaje_offset import montar_pliego_offset
 from montaje_offset_inteligente import montar_pliego_offset_inteligente
+from montaje_offset_personalizado import montar_pliego_offset_personalizado
 from imposicion_offset_auto import imponer_pliego_offset_auto
 
 UPLOAD_FOLDER = "uploads"
@@ -346,45 +347,119 @@ def _parse_montaje_offset_form(req):
 def montaje_offset_inteligente_view():
     if request.method == "GET":
         return render_template("montaje_offset_inteligente.html")
-    try:
-        diseños, ancho_pliego, alto_pliego, params = _parse_montaje_offset_form(request)
-        export_area_util = request.form.get("export_area_util") == "on"
-        opciones_extra = {"export_area_util": export_area_util}
-    except Exception as e:
-        return str(e), 400
+    mode = request.form.get("mode", "std")
+    if mode != "pro":
+        try:
+            diseños, ancho_pliego, alto_pliego, params = _parse_montaje_offset_form(request)
+            export_area_util = request.form.get("export_area_util") == "on"
+            opciones_extra = {"export_area_util": export_area_util}
+        except Exception as e:
+            return str(e), 400
 
-    output_path = os.path.join("output", "pliego_offset_inteligente.pdf")
-    montar_pliego_offset_inteligente(
-        diseños,
-        ancho_pliego,
-        alto_pliego,
-        separacion=params["separacion"],
-        sangrado=params["sangrado"],
-        usar_trimbox=params["usar_trimbox"],
-        ordenar_tamano=params["ordenar_tamano"],
-        alinear_filas=params["alinear_filas"],
-        preferir_horizontal=params["preferir_horizontal"],
-        centrar=params["centrar"],
-        debug_grilla=params["debug_grilla"],
-        espaciado_horizontal=params["espaciado_horizontal"],
-        espaciado_vertical=params["espaciado_vertical"],
-        margen_izq=params["margen_izq"],
-        margen_der=params["margen_der"],
-        margen_sup=params["margen_sup"],
-        margen_inf=params["margen_inf"],
-        estrategia=params["estrategia"],
-        filas=params["filas"],
-        columnas=params["columnas"],
-        celda_ancho=params["celda_ancho"],
-        celda_alto=params["celda_alto"],
-        pinza_mm=params["pinza_mm"],
-        lateral_mm=params["lateral_mm"],
-        marcas_registro=params["marcas_registro"],
-        marcas_corte=params["marcas_corte"],
-        cutmarks_por_forma=params["cutmarks_por_forma"],
-        output_path=output_path,
-        **opciones_extra,
-    )
+        output_path = os.path.join("output", "pliego_offset_inteligente.pdf")
+        montar_pliego_offset_inteligente(
+            diseños,
+            ancho_pliego,
+            alto_pliego,
+            separacion=params["separacion"],
+            sangrado=params["sangrado"],
+            usar_trimbox=params["usar_trimbox"],
+            ordenar_tamano=params["ordenar_tamano"],
+            alinear_filas=params["alinear_filas"],
+            preferir_horizontal=params["preferir_horizontal"],
+            centrar=params["centrar"],
+            debug_grilla=params["debug_grilla"],
+            espaciado_horizontal=params["espaciado_horizontal"],
+            espaciado_vertical=params["espaciado_vertical"],
+            margen_izq=params["margen_izq"],
+            margen_der=params["margen_der"],
+            margen_sup=params["margen_sup"],
+            margen_inf=params["margen_inf"],
+            estrategia=params["estrategia"],
+            filas=params["filas"],
+            columnas=params["columnas"],
+            celda_ancho=params["celda_ancho"],
+            celda_alto=params["celda_alto"],
+            pinza_mm=params["pinza_mm"],
+            lateral_mm=params["lateral_mm"],
+            marcas_registro=params["marcas_registro"],
+            marcas_corte=params["marcas_corte"],
+            cutmarks_por_forma=params["cutmarks_por_forma"],
+            output_path=output_path,
+            **opciones_extra,
+        )
+        return send_file(output_path, as_attachment=True)
+
+    # === MODO PRO ===
+    files = request.files.getlist("pro_files")
+    filenames = request.form.getlist("pro_filename[]")
+    reps = [(x.strip() or None) for x in request.form.getlist("pro_reps[]")]
+    rotate = [(x == "on") for x in request.form.getlist("pro_rotate[]")]
+    bleeds = [
+        (float(x) if x.strip() else None) for x in request.form.getlist("pro_bleed_mm[]")
+    ]
+    cutmarks = [(x == "on") for x in request.form.getlist("pro_cutmarks[]")]
+    priority = [
+        int(x) if x.strip() else (i + 1)
+        for i, x in enumerate(request.form.getlist("pro_priority[]"))
+    ]
+    aligns = request.form.getlist("pro_align[]")
+
+    pliego = request.form.get("pro_pliego")
+    if pliego == "640x880":
+        ancho_pliego, alto_pliego = 640.0, 880.0
+    elif pliego == "700x1000":
+        ancho_pliego, alto_pliego = 700.0, 1000.0
+    elif pliego == "personalizado":
+        ancho_pliego = float(request.form.get("pro_ancho_pliego_custom", 0) or 0)
+        alto_pliego = float(request.form.get("pro_alto_pliego_custom", 0) or 0)
+    else:
+        return "Formato de pliego inválido", 400
+
+    margen_izq = float(request.form.get("pro_margen_izq", 10) or 10)
+    margen_der = float(request.form.get("pro_margen_der", 10) or 10)
+    margen_sup = float(request.form.get("pro_margen_sup", 10) or 10)
+    margen_inf = float(request.form.get("pro_margen_inf", 10) or 10)
+    separacion = float(request.form.get("pro_separacion", 4) or 4)
+    esp_h = float(request.form.get("pro_espaciado_horizontal", 0) or 0)
+    esp_v = float(request.form.get("pro_espaciado_vertical", 0) or 0)
+    export_area_util = request.form.get("pro_export_area_util") == "on"
+    cutmarks_global = request.form.get("pro_cutmarks") == "on"
+
+    specs = []
+    for i, f in enumerate(files):
+        specs.append(
+            {
+                "file": f,
+                "filename": filenames[i]
+                if i < len(filenames)
+                else getattr(f, "filename", f"file_{i+1}.pdf"),
+                "reps": int(reps[i]) if (i < len(reps) and reps[i]) else None,
+                "rotate": rotate[i] if i < len(rotate) else False,
+                "bleed_mm": bleeds[i] if i < len(bleeds) else None,
+                "cutmarks": cutmarks[i] if i < len(cutmarks) else False,
+                "priority": priority[i] if i < len(priority) else i + 1,
+                "align": aligns[i] if i < len(aligns) else "center",
+            }
+        )
+
+    specs.sort(key=lambda s: s["priority"])
+
+    pro_config = {
+        "ancho_pliego": ancho_pliego,
+        "alto_pliego": alto_pliego,
+        "margen_izq": margen_izq,
+        "margen_der": margen_der,
+        "margen_sup": margen_sup,
+        "margen_inf": margen_inf,
+        "separacion": separacion,
+        "espaciado_horizontal": esp_h,
+        "espaciado_vertical": esp_v,
+        "export_area_util": export_area_util,
+        "cutmarks_global": cutmarks_global,
+    }
+
+    output_path = montar_pliego_offset_personalizado(specs=specs, pro_config=pro_config)
     return send_file(output_path, as_attachment=True)
 
 
