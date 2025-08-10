@@ -1,0 +1,72 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <title>Imposición Offset Automática</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <style>
+    body { font-family: system-ui, Arial, sans-serif; padding: 20px; }
+    .card { max-width: 720px; margin: 0 auto; padding: 16px; border: 1px solid #ddd; border-radius: 12px; }
+    .row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+    label { font-weight: 600; font-size: 14px; }
+    input, select { width: 100%; padding: 8px; border: 1px solid #ccc; border-radius: 8px; }
+    .full { grid-column: 1 / -1; }
+    button { padding: 10px 16px; border: 0; border-radius: 10px; background: #0d6efd; color: white; cursor: pointer; }
+    .help { font-size: 12px; color: #666; }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <h2>Imposición Offset Automática</h2>
+    <form action="{{ url_for('routes.imposicion_offset_auto_route') }}" method="post" enctype="multipart/form-data">
+      <div class="row">
+        <div class="full">
+          <label>Archivo PDF (1 página)</label>
+          <input type="file" name="file" required>
+        </div>
+        <div>
+          <label>Cantidad</label>
+          <input type="number" name="cantidad" value="1000" min="1" required>
+        </div>
+        <div>
+          <label>Permitir rotar 90°</label>
+          <select name="permitir_rotar_90">
+            <option value="true" selected>Sí</option>
+            <option value="false">No</option>
+          </select>
+        </div>
+        <div>
+          <label>Margen (mm)</label>
+          <input type="number" name="margen_mm" value="10" step="0.1">
+        </div>
+        <div>
+          <label>Pinza (mm)</label>
+          <input type="number" name="pinza_mm" value="12" step="0.1">
+        </div>
+        <div>
+          <label>Gap X (mm)</label>
+          <input type="number" name="gap_x_mm" value="3" step="0.1">
+        </div>
+        <div>
+          <label>Gap Y (mm)</label>
+          <input type="number" name="gap_y_mm" value="3" step="0.1">
+        </div>
+        <div>
+          <label>Guía lateral</label>
+          <select name="guia_lateral">
+            <option value="izquierda" selected>Izquierda</option>
+            <option value="derecha">Derecha</option>
+          </select>
+        </div>
+        <div class="full">
+          <label>Formatos de pliego (opcional)</label>
+          <input type="text" name="formatos_pliego_mm" placeholder="Ej: 700x1000,640x880">
+          <div class="help">Si lo dejas vacío se usan [700x1000], [640x880], [500x700]</div>
+        </div>
+      </div>
+      <br>
+      <button type="submit">Generar pliego automático</button>
+    </form>
+  </div>
+</body>
+</html>

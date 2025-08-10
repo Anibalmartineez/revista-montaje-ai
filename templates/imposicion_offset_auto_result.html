@@ -1,0 +1,9 @@
+<!doctype html>
+<html lang="es"><head><meta charset="utf-8"><title>Resultado</title></head>
+<body>
+  <h2>Resultado de Imposición Offset Automática</h2>
+  {% set r = data.get('resumen', {}) %}
+  <p><strong>Pliego PDF:</strong> {{ data.pliego_pdf }}</p>
+  <p><img src="{{ data.preview_png | replace('\\', '/') }}" alt="preview" style="max-width: 80%; border:1px solid #ccc;"></p>
+  <pre>{{ r | tojson(indent=2) }}</pre>
+</body></html>
