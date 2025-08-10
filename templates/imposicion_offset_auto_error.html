@@ -1,0 +1,11 @@
+<!doctype html>
+<html lang="es"><head><meta charset="utf-8"><title>Error</title></head>
+<body>
+  <h2>No se pudo generar el pliego</h2>
+  <p>{{ data.error }}</p>
+  {% if data.sugerencias %}
+    <ul>
+      {% for s in data.sugerencias %}<li>{{ s }}</li>{% endfor %}
+    </ul>
+  {% endif %}
+</body></html>

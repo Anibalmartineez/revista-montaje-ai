@@ -36,6 +36,7 @@ from montaje_flexo import (
 )
 from montaje_offset import montar_pliego_offset
 from montaje_offset_inteligente import montar_pliego_offset_inteligente
+from imposicion_offset_auto import imponer_pliego_offset_auto
 
 UPLOAD_FOLDER = "uploads"
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
@@ -832,3 +833,73 @@ def sugerencia_produccion():
         resultado_revision_b64=resultado_revision_b64,
         sugerencia_produccion=sugerencia,
     )
+
+
+@routes_bp.route("/imposicion_offset_auto", methods=["GET", "POST"])
+def imposicion_offset_auto_route():
+    if request.method == "GET":
+        return render_template("imposicion_offset_auto.html")
+
+    file = request.files.get("file")
+    if not file:
+        return jsonify({"ok": False, "error": "Falta archivo PDF."}), 400
+
+    filename = secure_filename(file.filename or "pieza.pdf")
+    job_dir = os.path.join("uploads", "imposicion_auto")
+    os.makedirs(job_dir, exist_ok=True)
+    pdf_path = os.path.join(job_dir, filename)
+    file.save(pdf_path)
+
+    def _get_float(name, default):
+        try:
+            return float(request.form.get(name, default))
+        except:
+            return default
+
+    def _get_bool(name, default):
+        v = (request.form.get(name, str(default)).lower().strip())
+        return v in ("1", "true", "t", "yes", "si", "on")
+
+    cantidad = int(request.form.get("cantidad", "1000"))
+    permitir_rotar_90 = _get_bool("permitir_rotar_90", True)
+    margen_mm = _get_float("margen_mm", 10.0)
+    pinza_mm = _get_float("pinza_mm", 12.0)
+    gap_x_mm = _get_float("gap_x_mm", 3.0)
+    gap_y_mm = _get_float("gap_y_mm", 3.0)
+    guia_lateral = request.form.get("guia_lateral", "izquierda")
+
+    formatos_pliego_mm = request.form.get("formatos_pliego_mm", "")
+    if formatos_pliego_mm:
+        pares = []
+        for tok in formatos_pliego_mm.split(","):
+            tok = tok.strip().lower().replace("mm", "")
+            if "x" in tok:
+                a, b = tok.split("x")
+                pares.append([float(a), float(b)])
+        if not pares:
+            pares = [[700, 1000], [640, 880], [500, 700]]
+    else:
+        pares = [[700, 1000], [640, 880], [500, 700]]
+
+    res = imponer_pliego_offset_auto(
+        pdf_path=pdf_path,
+        cantidad=cantidad,
+        formatos_pliego_mm=pares,
+        margen_mm=margen_mm,
+        pinza_mm=pinza_mm,
+        guia_lateral=guia_lateral,
+        gap_x_mm=gap_x_mm,
+        gap_y_mm=gap_y_mm,
+        permitir_rotar_90=permitir_rotar_90,
+        agregar_marcas=True,
+        agregar_colorbar=True,
+        salida_dir="outputs",
+    )
+
+    if request.headers.get("Accept") == "application/json":
+        return jsonify(res)
+
+    if res.get("ok"):
+        return render_template("imposicion_offset_auto_result.html", data=res)
+    else:
+        return render_template("imposicion_offset_auto_error.html", data=res), 400
