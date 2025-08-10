@@ -10,7 +10,7 @@ from PIL import Image, ImageOps
 from reportlab.pdfgen import canvas
 from reportlab.lib.utils import ImageReader
 
-MM_TO_PT = 2.83465  # milímetros a puntos
+MM_TO_PT = 72.0 / 25.4  # milímetros a puntos
 
 # Exponer el módulo en builtins para facilitar pruebas que lo referencian
 builtins.montaje_offset_inteligente = sys.modules[__name__]
@@ -18,6 +18,65 @@ builtins.montaje_offset_inteligente = sys.modules[__name__]
 
 def mm_to_pt(valor: float) -> float:
     return valor * MM_TO_PT
+
+
+def draw_cutmarks_around_form_reportlab(canvas, x_pt, y_pt, w_pt, h_pt, bleed_mm, stroke_pt=0.25):
+    """
+    Dibuja 8 líneas (horizontales y verticales) en las 4 esquinas alrededor del
+    rectángulo de corte (Trim) definido por ``x_pt``, ``y_pt``, ``w_pt`` y
+    ``h_pt``. La longitud de cada marca es ``bleed_mm`` y siempre se dibuja hacia
+    afuera del área útil. No se dibuja nada si ``bleed_mm`` es cero o negativo.
+    """
+    if bleed_mm is None or bleed_mm <= 0:
+        return
+    L = bleed_mm * MM_TO_PT
+    if L <= 0:
+        return
+
+    c = canvas
+    c.saveState()
+    c.setLineWidth(stroke_pt)
+    x0, y0 = x_pt, y_pt
+    x1, y1 = x_pt + w_pt, y_pt + h_pt
+
+    # horizontales
+    c.line(x0 - L, y0, x0, y0)
+    c.line(x1, y0, x1 + L, y0)
+    c.line(x0 - L, y1, x0, y1)
+    c.line(x1, y1, x1 + L, y1)
+
+    # verticales
+    c.line(x0, y0 - L, x0, y0)
+    c.line(x1, y0 - L, x1, y0)
+    c.line(x0, y1, x0, y1 + L)
+    c.line(x1, y1, x1, y1 + L)
+
+    c.restoreState()
+
+
+def detectar_sangrado_pdf(path: str) -> float:
+    """Devuelve el sangrado existente en un PDF en milímetros.
+
+    Se calcula como la diferencia entre ``BleedBox`` y ``TrimBox``. Si no se
+    encuentran dichas cajas o el resultado es negativo se devuelve ``0``.
+    """
+    doc = fitz.open(path)
+    page = doc[0]
+    try:
+        bleed = page.bleedbox
+        trim = page.trimbox
+    except AttributeError:
+        doc.close()
+        return 0.0
+    if not bleed or not trim:
+        doc.close()
+        return 0.0
+    width_diff = (bleed.width - trim.width) / 2
+    height_diff = (bleed.height - trim.height) / 2
+    bleed_pt = min(width_diff, height_diff)
+    doc.close()
+    bleed_mm = bleed_pt * 25.4 / 72.0
+    return bleed_mm if bleed_mm > 0 else 0.0
 
 
 def obtener_dimensiones_pdf(path: str, usar_trimbox: bool = False) -> Tuple[float, float]:
@@ -444,6 +503,7 @@ def montar_pliego_offset_inteligente(
     lateral_mm: float = 0.0,
     marcas_registro: bool = False,
     marcas_corte: bool = False,
+    cutmarks_por_forma: bool = False,
     preview_only: bool = False,
     output_path: str = "output/pliego_offset_inteligente.pdf",
     preview_path: str | None = None,
@@ -754,6 +814,7 @@ def montar_pliego_offset_inteligente(
     c = canvas.Canvas(output_path, pagesize=(sheet_w_pt, sheet_h_pt))
 
     image_cache: Dict[str, ImageReader] = {}
+    bleed_cache: Dict[str, float] = {}
     for pos in posiciones:
         archivo = pos["archivo"]
         if archivo not in image_cache:
@@ -773,6 +834,31 @@ def montar_pliego_offset_inteligente(
             c.restoreState()
         else:
             c.drawImage(img, x_pt, y_pt, width=total_w_pt, height=total_h_pt)
+
+        if cutmarks_por_forma:
+            bleed_eff = sangrado
+            if sangrado <= 0:
+                if archivo not in bleed_cache:
+                    bleed_cache[archivo] = detectar_sangrado_pdf(archivo)
+                bleed_eff = bleed_cache[archivo]
+            if bleed_eff > 0:
+                x_trim_pt = x_pt + mm_to_pt(bleed_eff)
+                y_trim_pt = y_pt + mm_to_pt(bleed_eff)
+                if sangrado > 0:
+                    w_trim_pt = mm_to_pt(pos["ancho"])
+                    h_trim_pt = mm_to_pt(pos["alto"])
+                else:
+                    w_trim_pt = mm_to_pt(pos["ancho"] - 2 * bleed_eff)
+                    h_trim_pt = mm_to_pt(pos["alto"] - 2 * bleed_eff)
+                draw_cutmarks_around_form_reportlab(
+                    canvas=c,
+                    x_pt=x_trim_pt,
+                    y_pt=y_trim_pt,
+                    w_pt=w_trim_pt,
+                    h_pt=h_trim_pt,
+                    bleed_mm=bleed_eff,
+                    stroke_pt=0.25,
+                )
 
     image_cache.clear()
     if not preview_only:
