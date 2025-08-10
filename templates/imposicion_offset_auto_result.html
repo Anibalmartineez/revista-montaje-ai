@@ -3,7 +3,9 @@
 <body>
   <h2>Resultado de Imposición Offset Automática</h2>
   {% set r = data.get('resumen', {}) %}
-  <p><strong>Pliego PDF:</strong> {{ data.pliego_pdf }}</p>
-  <p><img src="{{ data.preview_png | replace('\\', '/') }}" alt="preview" style="max-width: 80%; border:1px solid #ccc;"></p>
+  {% set pdf_rel = data.pliego_pdf.split('outputs/')[1] %}
+  {% set png_rel = data.preview_png.split('outputs/')[1] %}
+  <p><a href="{{ url_for('routes.outputs_static', filename=pdf_rel) }}" target="_blank">Descargar PDF</a></p>
+  <p><img src="{{ url_for('routes.outputs_static', filename=png_rel) }}" alt="preview" style="max-width: 80%; border:1px solid #ccc;"></p>
   <pre>{{ r | tojson(indent=2) }}</pre>
 </body></html>
