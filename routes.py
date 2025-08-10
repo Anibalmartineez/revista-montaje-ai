@@ -289,6 +289,7 @@ def _parse_montaje_offset_form(req):
     lateral_mm = float(req.form.get("lateral_mm", 0) or 0)
     marcas_registro = bool(req.form.get("marcas_registro"))
     marcas_corte = bool(req.form.get("marcas_corte"))
+    cutmarks_por_forma = bool(req.form.get("cutmarks_por_forma"))
     debug_grilla = bool(req.form.get("debug_grilla"))
 
     # Opciones de sangrado
@@ -333,6 +334,7 @@ def _parse_montaje_offset_form(req):
         "lateral_mm": lateral_mm,
         "marcas_registro": marcas_registro,
         "marcas_corte": marcas_corte,
+        "cutmarks_por_forma": cutmarks_por_forma,
         "sangrado": sangrado_mm,
         "usar_trimbox": usar_trimbox,
     }
@@ -377,6 +379,7 @@ def montaje_offset_inteligente_view():
         lateral_mm=params["lateral_mm"],
         marcas_registro=params["marcas_registro"],
         marcas_corte=params["marcas_corte"],
+        cutmarks_por_forma=params["cutmarks_por_forma"],
         output_path=output_path,
     )
     return send_file(output_path, as_attachment=True)
@@ -414,6 +417,7 @@ def montaje_offset_preview():
                 lateral_mm=params["lateral_mm"],
                 marcas_registro=params["marcas_registro"],
                 marcas_corte=params["marcas_corte"],
+                cutmarks_por_forma=params["cutmarks_por_forma"],
                 preview_only=True,
             )
         b64 = base64.b64encode(png_bytes).decode("ascii")
