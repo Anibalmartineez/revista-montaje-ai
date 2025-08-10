@@ -8,7 +8,7 @@ import uuid
 from typing import Tuple, Dict, List
 
 import fitz  # PyMuPDF
-from pdf2image import convert_from_path
+from utils_img import render_pdf_first_page_to_png
 
 PT_PER_MM = 72.0 / 25.4
 
@@ -89,10 +89,12 @@ def computar_capacidad_en_pliego(
         guia_lateral = "izquierda"
 
     for orient, (w, h) in orientaciones:
-        # margen guía se reserva en el lado indicado
-        margen_guia = margen_mm
-
-        W_util = W - 2 * margen_mm - margen_guia
+        guia = (guia_lateral or "izquierda").lower().strip()
+        if guia not in ("izquierda", "derecha"):
+            guia = "izquierda"
+        left_margin = margen_mm + (margen_mm if guia == "izquierda" else 0.0)
+        right_margin = margen_mm + (margen_mm if guia == "derecha" else 0.0)
+        W_util = W - left_margin - right_margin
         H_util = H - pinza_mm - margen_mm
 
         if W_util <= 0 or H_util <= 0:
@@ -120,7 +122,7 @@ def computar_capacidad_en_pliego(
 
         total_w = cols * w + (cols - 1) * gap_x_mm
         total_h = filas * h + (filas - 1) * gap_y_mm
-        start_x = margen_mm + margen_guia + (W_util - total_w) / 2.0
+        start_x = left_margin + (W_util - total_w) / 2.0
         start_y = pinza_mm + (H_util - total_h) / 2.0
 
         cand = {
@@ -145,11 +147,14 @@ def computar_capacidad_en_pliego(
 
 
 def _draw_registration_marks(page: fitz.Page, W_pt: float, H_pt: float) -> None:
-    # Marcas simples en esquinas del pliego
-    r = 6  # radio
-    for (cx, cy) in [(10, 10), (W_pt - 10, 10), (10, H_pt - 10), (W_pt - 10, H_pt - 10)]:
-        rect = fitz.Rect(cx - r, cy - r, cx + r, cy + r)
-        page.draw_circle(rect, color=(0, 0, 0), fill=None, width=0.7)
+    r = 6.0
+    for (cx, cy) in [
+        (10.0, 10.0),
+        (W_pt - 10.0, 10.0),
+        (10.0, H_pt - 10.0),
+        (W_pt - 10.0, H_pt - 10.0),
+    ]:
+        page.draw_circle(fitz.Point(cx, cy), r, color=(0, 0, 0), fill=None, width=0.7)
 
 
 def _draw_cut_marks(page: fitz.Page, x_pt: float, y_pt: float, w_pt: float, h_pt: float) -> None:
@@ -236,9 +241,7 @@ def generar_pliego_pdf(
 
 
 def generar_preview_png(pliego_pdf_path: str, salida_png_path: str, dpi: int = 150) -> None:
-    imgs = convert_from_path(pliego_pdf_path, dpi=dpi, first_page=1, last_page=1)
-    if imgs:
-        imgs[0].save(salida_png_path)
+    render_pdf_first_page_to_png(pliego_pdf_path, salida_png_path, dpi=dpi)
 
 
 def resumen_json(

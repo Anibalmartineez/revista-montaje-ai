@@ -172,6 +172,11 @@ def descargar_pdf():
     return send_file("output/montado.pdf", as_attachment=True)
 
 
+@routes_bp.route('/outputs/<path:filename>')
+def outputs_static(filename):
+    return send_from_directory('outputs', filename)
+
+
 @routes_bp.route("/montaje_offset", methods=["GET", "POST"])
 def montaje_offset_view():
     if request.method == "GET":
