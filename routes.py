@@ -291,6 +291,16 @@ def _parse_montaje_offset_form(req):
     marcas_corte = bool(req.form.get("marcas_corte"))
     debug_grilla = bool(req.form.get("debug_grilla"))
 
+    # Opciones de sangrado
+    modo_sangrado = req.form.get("modo_sangrado", "original")
+    sangrado_mm = 0.0
+    usar_trimbox = False
+    if modo_sangrado == "add":
+        sangrado_mm = float(req.form.get("sangrado_add", 0) or 0)
+    elif modo_sangrado == "replace":
+        sangrado_mm = float(req.form.get("sangrado_replace", 0) or 0)
+        usar_trimbox = True
+
     if estrategia == "flujo":
         ordenar_tamano = False if "ordenar_tamano" not in req.form else ordenar_tamano
         alinear_filas = True if "alinear_filas" not in req.form else alinear_filas
@@ -323,6 +333,8 @@ def _parse_montaje_offset_form(req):
         "lateral_mm": lateral_mm,
         "marcas_registro": marcas_registro,
         "marcas_corte": marcas_corte,
+        "sangrado": sangrado_mm,
+        "usar_trimbox": usar_trimbox,
     }
 
     return diseños, ancho_pliego, alto_pliego, params
@@ -343,6 +355,8 @@ def montaje_offset_inteligente_view():
         ancho_pliego,
         alto_pliego,
         separacion=params["separacion"],
+        sangrado=params["sangrado"],
+        usar_trimbox=params["usar_trimbox"],
         ordenar_tamano=params["ordenar_tamano"],
         alinear_filas=params["alinear_filas"],
         preferir_horizontal=params["preferir_horizontal"],
@@ -378,6 +392,8 @@ def montaje_offset_preview():
                 ancho_pliego,
                 alto_pliego,
                 separacion=params["separacion"],
+                sangrado=params["sangrado"],
+                usar_trimbox=params["usar_trimbox"],
                 ordenar_tamano=params["ordenar_tamano"],
                 alinear_filas=params["alinear_filas"],
                 preferir_horizontal=params["preferir_horizontal"],

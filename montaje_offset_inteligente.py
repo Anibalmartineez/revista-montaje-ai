@@ -20,44 +20,81 @@ def mm_to_pt(valor: float) -> float:
     return valor * MM_TO_PT
 
 
-def obtener_dimensiones_pdf(path: str) -> Tuple[float, float]:
-    """Devuelve ancho y alto del primer página de un PDF en milímetros."""
+def obtener_dimensiones_pdf(path: str, usar_trimbox: bool = False) -> Tuple[float, float]:
+    """Devuelve ancho y alto del primer página de un PDF en milímetros.
+
+    Parameters
+    ----------
+    path: str
+        Ruta al archivo PDF.
+    usar_trimbox: bool
+        Si es ``True`` y la página posee ``TrimBox`` se utilizará dicho
+        rectángulo para obtener las dimensiones. Esto resulta útil cuando se
+        desea ignorar un sangrado existente y trabajar únicamente con el área
+        de recorte.
+    """
     doc = fitz.open(path)
     page = doc[0]
-    bbox = page.rect
+    try:
+        bbox = page.trimbox if usar_trimbox and getattr(page, "trimbox", None) else page.rect
+    except AttributeError:  # Compatibilidad con versiones antiguas de PyMuPDF
+        bbox = page.rect
     ancho_mm = bbox.width * 25.4 / 72
     alto_mm = bbox.height * 25.4 / 72
     doc.close()
     return round(ancho_mm, 2), round(alto_mm, 2)
 
 
-def _pdf_a_imagen_con_sangrado(path: str, sangrado_mm: float) -> ImageReader:
-    """Rasteriza un PDF y añade un borde de sangrado replicando los bordes."""
+def _pdf_a_imagen_con_sangrado(
+    path: str, sangrado_mm: float, usar_trimbox: bool = False
+) -> ImageReader:
+    """Rasteriza un PDF y añade un borde de sangrado replicando los bordes.
+
+    Parameters
+    ----------
+    path: str
+        Ruta del PDF.
+    sangrado_mm: float
+        Cantidad de sangrado a añadir en milímetros.
+    usar_trimbox: bool
+        Cuando es ``True`` la página se rasteriza usando el ``TrimBox`` en lugar
+        del ``MediaBox``. Esto permite recortar un sangrado existente y
+        reemplazarlo por uno nuevo.
+    """
     doc = fitz.open(path)
     page = doc[0]
-    pix = page.get_pixmap(dpi=300, alpha=False)
+    clip = None
+    if usar_trimbox and getattr(page, "trimbox", None):
+        try:
+            clip = page.trimbox
+        except AttributeError:
+            clip = None
+    pix = page.get_pixmap(dpi=300, alpha=False, clip=clip)
     img = Image.frombytes("RGB", [pix.width, pix.height], pix.samples)
 
     sangrado_px = int((sangrado_mm / 25.4) * 300)
-    img_con_sangrado = ImageOps.expand(img, border=sangrado_px)
+    if sangrado_px <= 0:
+        img_con_sangrado = img
+    else:
+        img_con_sangrado = ImageOps.expand(img, border=sangrado_px)
 
-    w, h = img.width, img.height
-    left = img.crop((0, 0, 1, h)).resize((sangrado_px, h))
-    img_con_sangrado.paste(left, (0, sangrado_px))
-    right = img.crop((w - 1, 0, w, h)).resize((sangrado_px, h))
-    img_con_sangrado.paste(right, (sangrado_px + w, sangrado_px))
-    top = img.crop((0, 0, w, 1)).resize((w, sangrado_px))
-    img_con_sangrado.paste(top, (sangrado_px, 0))
-    bottom = img.crop((0, h - 1, w, h)).resize((w, sangrado_px))
-    img_con_sangrado.paste(bottom, (sangrado_px, sangrado_px + h))
-    tl = img.crop((0, 0, 1, 1)).resize((sangrado_px, sangrado_px))
-    img_con_sangrado.paste(tl, (0, 0))
-    tr = img.crop((w - 1, 0, w, 1)).resize((sangrado_px, sangrado_px))
-    img_con_sangrado.paste(tr, (sangrado_px + w, 0))
-    bl = img.crop((0, h - 1, 1, h)).resize((sangrado_px, sangrado_px))
-    img_con_sangrado.paste(bl, (0, sangrado_px + h))
-    br = img.crop((w - 1, h - 1, w, h)).resize((sangrado_px, sangrado_px))
-    img_con_sangrado.paste(br, (sangrado_px + w, sangrado_px + h))
+        w, h = img.width, img.height
+        left = img.crop((0, 0, 1, h)).resize((sangrado_px, h))
+        img_con_sangrado.paste(left, (0, sangrado_px))
+        right = img.crop((w - 1, 0, w, h)).resize((sangrado_px, h))
+        img_con_sangrado.paste(right, (sangrado_px + w, sangrado_px))
+        top = img.crop((0, 0, w, 1)).resize((w, sangrado_px))
+        img_con_sangrado.paste(top, (sangrado_px, 0))
+        bottom = img.crop((0, h - 1, w, h)).resize((w, sangrado_px))
+        img_con_sangrado.paste(bottom, (sangrado_px, sangrado_px + h))
+        tl = img.crop((0, 0, 1, 1)).resize((sangrado_px, sangrado_px))
+        img_con_sangrado.paste(tl, (0, 0))
+        tr = img.crop((w - 1, 0, w, 1)).resize((sangrado_px, sangrado_px))
+        img_con_sangrado.paste(tr, (sangrado_px + w, 0))
+        bl = img.crop((0, h - 1, 1, h)).resize((sangrado_px, sangrado_px))
+        img_con_sangrado.paste(bl, (0, sangrado_px + h))
+        br = img.crop((w - 1, h - 1, w, h)).resize((sangrado_px, sangrado_px))
+        img_con_sangrado.paste(br, (sangrado_px + w, sangrado_px + h))
 
     img_byte_arr = io.BytesIO()
     img_con_sangrado.save(img_byte_arr, format="PNG")
@@ -385,6 +422,7 @@ def montar_pliego_offset_inteligente(
     alto_pliego: float,
     separacion: float | Tuple[float, float] = 4,
     sangrado: float = 3,
+    usar_trimbox: bool = False,
     ordenar_tamano: bool = False,
     permitir_rotacion: bool = False,
     alinear_filas: bool = False,
@@ -416,7 +454,10 @@ def montar_pliego_offset_inteligente(
     Devuelve la ruta del PDF generado. También puede generar una imagen de
     vista previa y un reporte HTML si se indican las rutas ``preview_path`` y
     ``resumen_path``. Si ``permitir_rotacion`` es ``True`` se evaluará rotar
-    cada diseño 90° para aumentar la cantidad de copias por fila.
+    cada diseño 90° para aumentar la cantidad de copias por fila. El parámetro
+    ``usar_trimbox`` permite recortar los PDFs a su ``TrimBox`` antes de añadir
+    el sangrado indicado, lo cual resulta útil para reemplazar un sangrado
+    existente por uno nuevo.
     """
 
     if espaciado_horizontal or espaciado_vertical:
@@ -442,7 +483,7 @@ def montar_pliego_offset_inteligente(
     max_unit_w = 0.0
     max_unit_h = 0.0
     for path, cantidad in diseños:
-        ancho, alto = obtener_dimensiones_pdf(path)
+        ancho, alto = obtener_dimensiones_pdf(path, usar_trimbox=usar_trimbox)
         rotado = False
         if permitir_rotacion:
             unit_w = ancho + 2 * sangrado
@@ -716,7 +757,9 @@ def montar_pliego_offset_inteligente(
     for pos in posiciones:
         archivo = pos["archivo"]
         if archivo not in image_cache:
-            image_cache[archivo] = _pdf_a_imagen_con_sangrado(archivo, sangrado)
+            image_cache[archivo] = _pdf_a_imagen_con_sangrado(
+                archivo, sangrado, usar_trimbox=usar_trimbox
+            )
         img = image_cache[archivo]
         total_w_pt = mm_to_pt(pos["ancho"] + 2 * sangrado)
         total_h_pt = mm_to_pt(pos["alto"] + 2 * sangrado)
