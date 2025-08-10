@@ -393,7 +393,7 @@ def montaje_offset_inteligente_view():
     # === MODO PRO ===
     files = request.files.getlist("pro_files")
     filenames = request.form.getlist("pro_filename[]")
-    reps = [(x.strip() or None) for x in request.form.getlist("pro_reps[]")]
+    reps = [x.strip() for x in request.form.getlist("pro_reps[]")]
     rotate = [(x == "on") for x in request.form.getlist("pro_rotate[]")]
     bleeds = [
         (float(x) if x.strip() else None) for x in request.form.getlist("pro_bleed_mm[]")
@@ -417,14 +417,13 @@ def montaje_offset_inteligente_view():
         return "Formato de pliego inválido", 400
 
     margen_izq = float(request.form.get("pro_margen_izq", 10) or 10)
-    margen_der = float(request.form.get("pro_margen_der", 10) or 10)
+    margen_der = float(request.form.get("pro_margen_der", margen_izq) or margen_izq)
     margen_sup = float(request.form.get("pro_margen_sup", 10) or 10)
-    margen_inf = float(request.form.get("pro_margen_inf", 10) or 10)
-    separacion = float(request.form.get("pro_separacion", 4) or 4)
+    margen_inf = float(request.form.get("pro_margen_inf", margen_sup) or margen_sup)
     esp_h = float(request.form.get("pro_espaciado_horizontal", 0) or 0)
     esp_v = float(request.form.get("pro_espaciado_vertical", 0) or 0)
     export_area_util = request.form.get("pro_export_area_util") == "on"
-    cutmarks_global = request.form.get("pro_cutmarks") == "on"
+    preview = request.form.get("pro_preview") == "on"
 
     specs = []
     for i, f in enumerate(files):
@@ -434,7 +433,7 @@ def montaje_offset_inteligente_view():
                 "filename": filenames[i]
                 if i < len(filenames)
                 else getattr(f, "filename", f"file_{i+1}.pdf"),
-                "reps": int(reps[i]) if (i < len(reps) and reps[i]) else None,
+                "reps": int(reps[i]) if (i < len(reps) and reps[i]) else 0,
                 "rotate": rotate[i] if i < len(rotate) else False,
                 "bleed_mm": bleeds[i] if i < len(bleeds) else None,
                 "cutmarks": cutmarks[i] if i < len(cutmarks) else False,
@@ -446,20 +445,21 @@ def montaje_offset_inteligente_view():
     specs.sort(key=lambda s: s["priority"])
 
     pro_config = {
-        "ancho_pliego": ancho_pliego,
-        "alto_pliego": alto_pliego,
-        "margen_izq": margen_izq,
-        "margen_der": margen_der,
-        "margen_sup": margen_sup,
-        "margen_inf": margen_inf,
-        "separacion": separacion,
-        "espaciado_horizontal": esp_h,
-        "espaciado_vertical": esp_v,
+        "pliego_w_mm": ancho_pliego,
+        "pliego_h_mm": alto_pliego,
+        "margen_izq_mm": margen_izq,
+        "margen_der_mm": margen_der,
+        "margen_sup_mm": margen_sup,
+        "margen_inf_mm": margen_inf,
+        "sep_h_mm": esp_h,
+        "sep_v_mm": esp_v,
         "export_area_util": export_area_util,
-        "cutmarks_global": cutmarks_global,
+        "preview": preview,
     }
 
-    output_path = montar_pliego_offset_personalizado(specs=specs, pro_config=pro_config)
+    output_path, resumen = montar_pliego_offset_personalizado(
+        specs=specs, pro_config=pro_config
+    )
     return send_file(output_path, as_attachment=True)
 
 
