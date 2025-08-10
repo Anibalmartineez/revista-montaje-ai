@@ -348,6 +348,8 @@ def montaje_offset_inteligente_view():
         return render_template("montaje_offset_inteligente.html")
     try:
         diseños, ancho_pliego, alto_pliego, params = _parse_montaje_offset_form(request)
+        export_area_util = request.form.get("export_area_util") == "on"
+        opciones_extra = {"export_area_util": export_area_util}
     except Exception as e:
         return str(e), 400
 
@@ -381,6 +383,7 @@ def montaje_offset_inteligente_view():
         marcas_corte=params["marcas_corte"],
         cutmarks_por_forma=params["cutmarks_por_forma"],
         output_path=output_path,
+        **opciones_extra,
     )
     return send_file(output_path, as_attachment=True)
 
@@ -390,6 +393,8 @@ def montaje_offset_preview():
     try:
         with heavy_lock:
             diseños, ancho_pliego, alto_pliego, params = _parse_montaje_offset_form(request)
+            export_area_util = request.form.get("export_area_util") == "on"
+            opciones_extra = {"export_area_util": export_area_util}
             png_bytes, resumen_html = montar_pliego_offset_inteligente(
                 diseños,
                 ancho_pliego,
@@ -419,6 +424,7 @@ def montaje_offset_preview():
                 marcas_corte=params["marcas_corte"],
                 cutmarks_por_forma=params["cutmarks_por_forma"],
                 preview_only=True,
+                **opciones_extra,
             )
         b64 = base64.b64encode(png_bytes).decode("ascii")
         return jsonify(
