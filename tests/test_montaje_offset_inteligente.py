@@ -237,9 +237,9 @@ def test_montar_pliego_offset_cache(monkeypatch, tmp_path):
     original = montaje_offset_inteligente._pdf_a_imagen_con_sangrado
     calls = {"count": 0}
 
-    def wrapper(path, sangrado):
+    def wrapper(path, sangrado, *args, **kwargs):
         calls["count"] += 1
-        return original(path, sangrado)
+        return original(path, sangrado, *args, **kwargs)
 
     monkeypatch.setattr(
         montaje_offset_inteligente, "_pdf_a_imagen_con_sangrado", wrapper

@@ -63,6 +63,14 @@
     <label>Margen inferior (mm):</label>
     <input type="number" name="margen_inf" value="10" step="0.01">
     <br>
+
+    <fieldset style="margin-top:10px;">
+      <legend>Sangrado</legend>
+      <label><input type="radio" name="modo_sangrado" value="original" checked> Usar sangrado original del archivo</label><br>
+      <label><input type="radio" name="modo_sangrado" value="add"> Añadir sangrado de: <input type="number" name="sangrado_add" min="0" step="0.1" disabled> mm</label><br>
+      <label><input type="radio" name="modo_sangrado" value="replace"> Reemplazar sangrado existente con: <input type="number" name="sangrado_replace" min="0" step="0.1" disabled> mm</label>
+    </fieldset>
+
     <label><input type="checkbox" name="centrar" checked> Centrar montaje en pliego</label><br>
     <label>Estrategia de montaje:</label>
     <select name="estrategia">
@@ -144,6 +152,15 @@
     const celdaAlto = document.querySelector('input[name="celda_alto"]');
     const filas = document.querySelector('input[name="filas"]');
     const columnas = document.querySelector('input[name="columnas"]');
+    const radiosSangrado = document.querySelectorAll('input[name="modo_sangrado"]');
+
+    function actualizarSangradoInputs() {
+      const modo = document.querySelector('input[name="modo_sangrado"]:checked').value;
+      document.querySelector('input[name="sangrado_add"]').disabled = modo !== 'add';
+      document.querySelector('input[name="sangrado_replace"]').disabled = modo !== 'replace';
+    }
+    radiosSangrado.forEach(r => r.addEventListener('change', actualizarSangradoInputs));
+    actualizarSangradoInputs();
 
     function setGroupState(group, active) {
       group.style.display = active ? 'block' : 'none';
