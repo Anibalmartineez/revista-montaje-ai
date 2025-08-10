@@ -9,8 +9,11 @@ import fitz  # PyMuPDF
 from PIL import Image, ImageOps
 from reportlab.pdfgen import canvas
 from reportlab.lib.utils import ImageReader
+from PyPDF2 import PdfReader, PdfWriter
+from PyPDF2.generic import RectangleObject
 
 MM_TO_PT = 72.0 / 25.4  # milímetros a puntos
+EPS_MM = 0.2
 
 # Exponer el módulo en builtins para facilitar pruebas que lo referencian
 builtins.montaje_offset_inteligente = sys.modules[__name__]
@@ -18,6 +21,36 @@ builtins.montaje_offset_inteligente = sys.modules[__name__]
 
 def mm_to_pt(valor: float) -> float:
     return valor * MM_TO_PT
+
+
+def _bbox_add(bbox, x0, y0, x1, y1):
+    if bbox[0] is None:
+        bbox[0], bbox[1], bbox[2], bbox[3] = x0, y0, x1, y1
+    else:
+        bbox[0] = min(bbox[0], x0)
+        bbox[1] = min(bbox[1], y0)
+        bbox[2] = max(bbox[2], x1)
+        bbox[3] = max(bbox[3], y1)
+
+
+def recortar_pdf_a_bbox(input_path, output_path, page_bboxes_pt):
+    """Ajusta cajas PDF a las áreas utilizadas por página."""
+    reader = PdfReader(input_path)
+    writer = PdfWriter()
+    num_pages = len(reader.pages)
+    for i in range(num_pages):
+        page = reader.pages[i]
+        bbox = page_bboxes_pt[i] if i < len(page_bboxes_pt) else None
+        if bbox and bbox[0] is not None:
+            x0, y0, x1, y1 = map(float, bbox)
+            rect = RectangleObject([x0, y0, x1, y1])
+            page.mediabox = rect
+            page.cropbox = rect
+            page.trimbox = rect
+            page.bleedbox = rect
+        writer.add_page(page)
+    with open(output_path, "wb") as f:
+        writer.write(f)
 
 
 def draw_cutmarks_around_form_reportlab(canvas, x_pt, y_pt, w_pt, h_pt, bleed_mm, stroke_pt=0.25):
@@ -504,6 +537,7 @@ def montar_pliego_offset_inteligente(
     marcas_registro: bool = False,
     marcas_corte: bool = False,
     cutmarks_por_forma: bool = False,
+    export_area_util: bool = False,
     preview_only: bool = False,
     output_path: str = "output/pliego_offset_inteligente.pdf",
     preview_path: str | None = None,
@@ -524,6 +558,9 @@ def montar_pliego_offset_inteligente(
         sep_h, sep_v = espaciado_horizontal, espaciado_vertical
     else:
         sep_h, sep_v = _parse_separacion(separacion)
+
+    used_bbox = [None, None, None, None]
+    eps_pt = EPS_MM * MM_TO_PT
 
     margen_izq = float(margen_izq) + lateral_mm
     margen_der = float(margen_der)
@@ -835,30 +872,37 @@ def montar_pliego_offset_inteligente(
         else:
             c.drawImage(img, x_pt, y_pt, width=total_w_pt, height=total_h_pt)
 
-        if cutmarks_por_forma:
-            bleed_eff = sangrado
-            if sangrado <= 0:
-                if archivo not in bleed_cache:
-                    bleed_cache[archivo] = detectar_sangrado_pdf(archivo)
-                bleed_eff = bleed_cache[archivo]
-            if bleed_eff > 0:
-                x_trim_pt = x_pt + mm_to_pt(bleed_eff)
-                y_trim_pt = y_pt + mm_to_pt(bleed_eff)
-                if sangrado > 0:
-                    w_trim_pt = mm_to_pt(pos["ancho"])
-                    h_trim_pt = mm_to_pt(pos["alto"])
-                else:
-                    w_trim_pt = mm_to_pt(pos["ancho"] - 2 * bleed_eff)
-                    h_trim_pt = mm_to_pt(pos["alto"] - 2 * bleed_eff)
-                draw_cutmarks_around_form_reportlab(
-                    canvas=c,
-                    x_pt=x_trim_pt,
-                    y_pt=y_trim_pt,
-                    w_pt=w_trim_pt,
-                    h_pt=h_trim_pt,
-                    bleed_mm=bleed_eff,
-                    stroke_pt=0.25,
-                )
+        bleed_eff = sangrado
+        if sangrado <= 0:
+            if archivo not in bleed_cache:
+                bleed_cache[archivo] = detectar_sangrado_pdf(archivo)
+            bleed_eff = bleed_cache[archivo]
+        x_trim_pt = x_pt + mm_to_pt(bleed_eff)
+        y_trim_pt = y_pt + mm_to_pt(bleed_eff)
+        if sangrado > 0:
+            w_trim_pt = mm_to_pt(pos["ancho"])
+            h_trim_pt = mm_to_pt(pos["alto"])
+        else:
+            w_trim_pt = mm_to_pt(pos["ancho"] - 2 * bleed_eff)
+            h_trim_pt = mm_to_pt(pos["alto"] - 2 * bleed_eff)
+        bleed_pt = max(0.0, bleed_eff) * MM_TO_PT
+        _bbox_add(
+            used_bbox,
+            x_trim_pt - bleed_pt - eps_pt,
+            y_trim_pt - bleed_pt - eps_pt,
+            x_trim_pt + w_trim_pt + bleed_pt + eps_pt,
+            y_trim_pt + h_trim_pt + bleed_pt + eps_pt,
+        )
+        if cutmarks_por_forma and bleed_eff > 0:
+            draw_cutmarks_around_form_reportlab(
+                canvas=c,
+                x_pt=x_trim_pt,
+                y_pt=y_trim_pt,
+                w_pt=w_trim_pt,
+                h_pt=h_trim_pt,
+                bleed_mm=bleed_eff,
+                stroke_pt=0.25,
+            )
 
     image_cache.clear()
     if not preview_only:
@@ -871,6 +915,7 @@ def montar_pliego_offset_inteligente(
                 s = mm_to_pt(s_mm)
                 c.line(x - s, y, x + s, y)
                 c.line(x, y - s, x, y + s)
+                _bbox_add(used_bbox, x - s - eps_pt, y - s - eps_pt, x + s + eps_pt, y + s + eps_pt)
             c.setLineWidth(0.3)
             cross(left, bottom)
             cross(left, top)
@@ -881,14 +926,21 @@ def montar_pliego_offset_inteligente(
             c.setLineWidth(0.3)
             c.line(left, bottom - mark, left, bottom)
             c.line(left - mark, bottom, left, bottom)
+            _bbox_add(used_bbox, left - mark - eps_pt, bottom - mark - eps_pt, left + eps_pt, bottom + eps_pt)
             c.line(right, bottom - mark, right, bottom)
             c.line(right + mark, bottom, right, bottom)
+            _bbox_add(used_bbox, right - eps_pt, bottom - mark - eps_pt, right + mark + eps_pt, bottom + eps_pt)
             c.line(left, top, left, top + mark)
             c.line(left - mark, top, left, top)
+            _bbox_add(used_bbox, left - mark - eps_pt, top - eps_pt, left + eps_pt, top + mark + eps_pt)
             c.line(right, top, right, top + mark)
             c.line(right, top, right + mark, top)
+            _bbox_add(used_bbox, right - eps_pt, top - eps_pt, right + mark + eps_pt, top + mark + eps_pt)
         c.setStrokeColorRGB(0, 0, 0)
     c.save()
+
+    if export_area_util and used_bbox[0] is not None:
+        recortar_pdf_a_bbox(output_path, output_path, [used_bbox])
 
     # Vista previa PNG opcional
     if preview_path:
