@@ -16,6 +16,16 @@ import math
 
 client = OpenAI(api_key=os.environ.get("OPENAI_API_KEY"))
 
+PT_PER_MM = 72 / 25.4
+
+
+def _card(titulo, items_html):
+    if isinstance(items_html, list):
+        items = "".join(items_html)
+    else:
+        items = items_html
+    return f"<div class='card'><h3>{titulo}</h3><ul>{items}</ul></div>"
+
 
 def calcular_cobertura_total(pdf_path):
     """Calcula la cobertura total estimada del diseño como porcentaje de píxeles con tinta."""
@@ -329,22 +339,132 @@ def verificar_textos_pequenos(contenido):
     return advertencias
 
 
-def verificar_lineas_finas(contenido):
-    advertencias = []
-    encontrados = False
-    for bloque in contenido.get("blocks", []):
-        if "bbox" in bloque:
-            x0, y0, x1, y1 = bloque["bbox"]
-            w = x1 - x0
-            h = y1 - y0
-            if (w < 0.3 or h < 0.3):
-                encontrados = True
-                advertencias.append(
-                    f"<span class='icono warn'>⚠️</span> Línea o trazo muy fino detectado: <b>{round(w, 2)} x {round(h, 2)} pt</b>. Riesgo de pérdida."
-                )
-    if not encontrados:
-        advertencias.append("<span class='icono ok'>✔️</span> No se detectaron líneas finas con riesgo de pérdida.")
-    return advertencias
+def verificar_lineas_finas_v2(page, material):
+    mins = {"film": 0.12, "papel": 0.20, "etiqueta adhesiva": 0.18}
+    thr = mins.get((material or "").strip().lower(), 0.20)
+    min_detectada = None
+    n_riesgo = 0
+    for d in page.get_drawings():
+        w_pt = (d.get("width", 0) or 0)
+        if w_pt <= 0:
+            continue
+        w_mm = w_pt / PT_PER_MM
+        min_detectada = w_mm if min_detectada is None else min(min_detectada, w_mm)
+        if w_mm < thr:
+            n_riesgo += 1
+    if n_riesgo:
+        return [f"<li><span class='icono warn'>⚠️</span> {n_riesgo} trazos por debajo de <b>{thr:.2f} mm</b>. Mínimo detectado: <b>{min_detectada:.2f} mm</b>.</li>"]
+    return [f"<li><span class='icono ok'>✔️</span> Trazos ≥ <b>{thr:.2f} mm</b>. Mínimo detectado: <b>{(min_detectada or thr):.2f} mm</b>.</li>"]
+
+
+def verificar_resolucion_imagenes(path_pdf):
+    items = []
+    try:
+        with fitz.open(path_pdf) as doc:
+            for p, page in enumerate(doc, start=1):
+                for (xref, *_rest) in page.get_images(full=True):
+                    try:
+                        obj = doc.xref_object(xref) or ""
+                    except Exception:
+                        obj = ""
+                    is_lineart = "BitsPerComponent 1" in obj
+                    try:
+                        pm = fitz.Pixmap(doc, xref)
+                        wpx, hpx = pm.width, pm.height
+                    except Exception:
+                        try:
+                            wpx, hpx = _rest[1], _rest[2]
+                        except Exception:
+                            wpx = hpx = 0
+                    for rect in page.get_image_rects(xref):
+                        dpi_x = wpx / (rect.width / 72.0) if rect.width else 0
+                        dpi_y = hpx / (rect.height / 72.0) if rect.height else 0
+                        dpi = int(min(dpi_x, dpi_y))
+                        thr = 600 if is_lineart else 300
+                        tipo = "line-art" if is_lineart else "foto"
+                        if dpi < thr:
+                            items.append(f"<li><span class='icono error'>❌</span> Imagen xref {xref} pág {p}: <b>{dpi} DPI</b> efectivos (mín {thr} para {tipo}).</li>")
+        if not items:
+            items.append("<li><span class='icono ok'>✔️</span> Resolución efectiva correcta en todas las imágenes.</li>")
+    except Exception as e:
+        items.append(f"<li><span class='icono warn'>⚠️</span> No se pudo verificar la resolución de imágenes: {e}</li>")
+    return items
+
+
+def estimar_til_y_cobertura_por_canal(path_pdf, material):
+    items = []
+    try:
+        img = convert_from_path(path_pdf, dpi=300, first_page=1, last_page=1)[0].convert("CMYK")
+        arr = np.asarray(img).astype(np.float32)
+        ink = 255.0 - arr
+        tac = (ink.sum(axis=2) / 255.0)
+        tac_max = float(tac.max() * 100)
+        tac_p95 = float(np.percentile(tac, 95) * 100)
+        limites = {"film": 320, "papel": 300, "etiqueta adhesiva": 280}
+        mat = (material or "").strip().lower()
+        lim = limites.get(mat, 300)
+        estado = "ok" if tac_p95 <= lim else ("warn" if tac_p95 <= lim + 20 else "error")
+        icon = {"ok":"✔️","warn":"⚠️","error":"❌"}[estado]
+        items.append(f"<li><span class='icono {estado}'>{icon}</span> TAC p95: <b>{tac_p95:.0f}%</b> (límite sugerido {lim}%). TAC máx: <b>{tac_max:.0f}%</b>.</li>")
+        for i, nombre in enumerate(("Cian","Magenta","Amarillo","Negro")):
+            area = (ink[:,:,i] > 5).mean() * 100.0
+            items.append(f"<li>Área con {nombre}: <b>{area:.1f}%</b></li>")
+    except Exception as e:
+        items.append(f"<li><span class='icono warn'>⚠️</span> No se pudo estimar TAC/cobertura: {e}</li>")
+    return items
+
+
+def detectar_capas_especiales(path_pdf):
+    items = []
+    try:
+        reader = PdfReader(path_pdf)
+        spots = set()
+        patrones = {
+            "white": re.compile(r"(white|blanco)", re.I),
+            "varnish": re.compile(r"(varnish|barniz|uv)", re.I),
+            "cut": re.compile(r"(cutcontour|cut|troquel|dieline)", re.I),
+        }
+        try:
+            tintas_planas = detectar_tintas_pantone(reader)
+            for t in tintas_planas:
+                spots.add(str(t))
+        except Exception:
+            pass
+        for page in reader.pages:
+            res = page.get("/Resources")
+            if isinstance(res, IndirectObject):
+                res = res.get_object()
+            if not isinstance(res, dict):
+                continue
+            cs = res.get("/ColorSpace")
+            if isinstance(cs, IndirectObject):
+                cs = cs.get_object()
+            if isinstance(cs, dict):
+                for _, v in cs.items():
+                    if isinstance(v, IndirectObject):
+                        v = v.get_object()
+                    s = str(v)
+                    if "/Separation" in s or "/DeviceN" in s:
+                        spots.add(s)
+        spots_str = " | ".join(sorted(spots)) if spots else ""
+        if spots_str:
+            items.append(f"<li><b>Spots detectados:</b> {spots_str}</li>")
+        try:
+            over = detectar_overprints(path_pdf)
+        except Exception:
+            over = 0
+        if patrones["white"].search(spots_str or ""):
+            icon = "ok" if over else "warn"
+            items.append(f"<li><span class='icono {icon}'>{'✔️' if over else '⚠️'}</span> <b>White/Blanco</b> detectado. Usar <b>overprint</b> y orden correcto de impresión.</li>")
+        if patrones["varnish"].search(spots_str or ""):
+            items.append("<li>Detectado <b>Barniz/Varnish</b>. Confirmar cobertura y sobreimpresión.</li>")
+        if patrones["cut"].search(spots_str or ""):
+            items.append("<li>Detectado <b>CutContour/Troquel</b>. Mantener como spot, sin CMYK y en overprint.</li>")
+        if not items:
+            items.append("<li><span class='icono ok'>✔️</span> No se detectaron capas especiales.</li>")
+    except Exception as e:
+        items.append(f"<li><span class='icono warn'>⚠️</span> No se pudo analizar capas especiales: {e}</li>")
+    return items
 
 
 def analizar_contraste(path_pdf):
@@ -650,17 +770,21 @@ def revisar_diseño_flexo(
 
     dim_adv = verificar_dimensiones(ancho_mm, alto_mm, paso_mm)
     textos_adv = verificar_textos_pequenos(contenido)
-    lineas_adv = verificar_lineas_finas(contenido)
+    lineas_adv = verificar_lineas_finas_v2(pagina, material)
+    seccion_resolucion_html = _card("🖼️ Resolución de imágenes", verificar_resolucion_imagenes(path_pdf))
+    seccion_til_html = _card("🧮 TAC y cobertura por canal", estimar_til_y_cobertura_por_canal(path_pdf, material))
+    seccion_capas_html = _card("🎯 Capas especiales (White/Varnish/Troquel)", detectar_capas_especiales(path_pdf))
     contraste_adv = analizar_contraste(path_pdf)
     tramas_adv = detectar_tramas_débiles(path_pdf)
     modo_color_adv = verificar_modo_color(path_pdf)
     sangrado_adv = revisar_sangrado(pagina)
 
-    for lista in [dim_adv, textos_adv, lineas_adv, contraste_adv, tramas_adv, modo_color_adv, sangrado_adv]:
+    for lista in [dim_adv, textos_adv, contraste_adv, tramas_adv, modo_color_adv, sangrado_adv]:
         riesgos_info.extend([f"<li>{a}</li>" for a in lista])
+    riesgos_info.extend(lineas_adv)
 
     textos_pequenos_flag = any("Texto pequeño" in a and "warn" in a for a in textos_adv)
-    lineas_finas_flag = any("Línea o trazo muy fino" in a and "warn" in a for a in lineas_adv)
+    lineas_finas_flag = any("trazos" in a.lower() and "warn" in a for a in lineas_adv)
     tramas_debiles_flag = any("Trama muy débil" in a and "warn" in a for a in tramas_adv)
 
     # Cobertura de tinta CMYK
@@ -818,6 +942,9 @@ def revisar_diseño_flexo(
         + "<div class='card'><h3>⚠️ Advertencias</h3><ul>"
         + "\n".join(riesgos_info)
         + "</ul></div>"
+        + seccion_resolucion_html
+        + seccion_til_html
+        + seccion_capas_html
         + seccion_material_html
         + seccion_tinta_html
         + "</div>"
