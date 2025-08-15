@@ -969,42 +969,80 @@ def montar_pliego_offset_inteligente(
         }
 
     if preview_only:
-        # Render simple a PNG usando PIL (no guardar en disco)
-        from PIL import Image, ImageDraw
-        import io
+        """
+        Vista previa REAL (WYSIWYG):
+        - Crea un PDF temporal del tamaño del pliego.
+        - Coloca cada página PDF fuente en su rect destino (con sangrado y rotación).
+        - Rasteriza a PNG (bytes) a la resolución deseada.
+        - Devuelve (png_bytes, resumen_html) como esperaba routes.py.
+        """
+        import tempfile
+        import fitz  # PyMuPDF
 
-        ppm = 6  # ~150 dpi (6 px por mm)
-        W = int(round(ancho_pliego * ppm))
-        H = int(round(alto_pliego * ppm))
-        im = Image.new("RGB", (W, H), "white")
-        d = ImageDraw.Draw(im)
+        # DPI deseado para preview (si viene preview_dpi úsalo; si no, 150)
+        try:
+            dpi = preview_dpi if isinstance(preview_dpi, (int, float)) else 150
+        except NameError:
+            dpi = 150
 
-        # Marco área útil (márgenes)
-        d.rectangle(
-            [
-                (margen_izq * ppm, margen_inf * ppm),
-                ((ancho_pliego - margen_der) * ppm, (alto_pliego - margen_sup) * ppm),
-            ],
-            outline="black",
-            width=2,
+        # 1) Documento temporal y página del tamaño del pliego en puntos
+        dest = fitz.open()
+        page = dest.new_page(
+            width=mm_to_pt(ancho_pliego),
+            height=mm_to_pt(alto_pliego),
         )
 
-        # Dibujar cada forma (marco con sangrado)
-        for p in posiciones:
-            x = int(round(p["x"] * ppm))
-            y = int(round(p["y"] * ppm))
-            w = int(round((p["ancho"] + 2 * sangrado) * ppm))
-            h = int(round((p["alto"] + 2 * sangrado) * ppm))
-            d.rectangle([(x, y), (x + w, y + h)], outline="black", width=2)
+        if posiciones:
+            print("[PREVIEW] pos0:", posiciones[0])
 
-        bio = io.BytesIO()
-        # JPEG liviano
-        im.save(bio, format="JPEG", quality=70, optimize=True, progressive=True)
-        jpg_bytes = bio.getvalue()
-        # liberar
-        im.close(); del im
-        bio.close()
-        return jpg_bytes, resumen_html
+        # 2) Colocar cada elemento (usa 'posiciones', que ya tiene 'archivo', 'x', 'y', 'ancho', 'alto', 'rotado')
+        for pos in posiciones:
+            archivo = pos.get("archivo")
+            if not archivo:
+                # si por alguna razón faltara, saltar
+                continue
+
+            x_pt = mm_to_pt(pos["x"])
+            y_pt = mm_to_pt(pos["y"])
+            w_total_pt = mm_to_pt(pos["ancho"] + 2 * sangrado)
+            h_total_pt = mm_to_pt(pos["alto"] + 2 * sangrado)
+
+            rect_dest = fitz.Rect(x_pt, y_pt, x_pt + w_total_pt, y_pt + h_total_pt)
+
+            try:
+                src = fitz.open(archivo)
+                page.show_pdf_page(
+                    rect_dest, src, 0,
+                    rotate=90 if pos.get("rotado") else 0
+                )
+            finally:
+                try:
+                    src.close()
+                except Exception:
+                    pass
+
+        # 3) Guardar a PDF temporal y rasterizar a PNG (devolver bytes)
+        with tempfile.NamedTemporaryFile(suffix=".pdf", delete=False) as tmp_pdf:
+            tmp_pdf_path = tmp_pdf.name
+
+        try:
+            dest.save(tmp_pdf_path)
+            dest.close()
+
+            tmp_doc = fitz.open(tmp_pdf_path)
+            pg = tmp_doc[0]
+            scale = dpi / 72.0
+            mat = fitz.Matrix(scale, scale)
+            pix = pg.get_pixmap(matrix=mat, alpha=False)
+            png_bytes = pix.tobytes("png")
+            tmp_doc.close()
+        finally:
+            try:
+                os.remove(tmp_pdf_path)
+            except Exception:
+                pass
+
+        return png_bytes, resumen_html
 
     # Creación del PDF final
     os.makedirs(os.path.dirname(output_path), exist_ok=True)
