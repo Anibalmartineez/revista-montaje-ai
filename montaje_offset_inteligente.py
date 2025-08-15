@@ -878,36 +878,89 @@ def montar_pliego_offset_inteligente(
     </body></html>
     """
 
-    # Si viene preview_path, generar SOLO la vista previa real y devolver sin crear el PDF final
+    # Si viene preview_path, generar SOLO la vista previa real con los PDFs originales
     if preview_path:
-        # Si existe alguna bandera de "dibujar cajas" o "debug", desactívala aquí
+        # 1) Construir mapping id->ruta PDF real si fuera necesario
+        id_to_pdf = {}
+        for idx, ruta in enumerate(archivos_locales):
+            id_to_pdf[idx] = ruta
+
+        # 2) Normalizar posiciones para preview (asegura claves y tipos)
+        posiciones_normalizadas = []
+        for p in posiciones:
+            x_mm = float(p.get("x_mm", p.get("x", 0)))
+            y_mm = float(p.get("y_mm", p.get("y", 0)))
+            w_base = float(
+                p.get(
+                    "w_mm",
+                    p.get("ancho_mm", p.get("ancho", p.get("w", 0))),
+                )
+            )
+            h_base = float(
+                p.get(
+                    "h_mm",
+                    p.get("alto_mm", p.get("alto", p.get("h", 0))),
+                )
+            )
+            w_mm = w_base + 2 * sangrado
+            h_mm = h_base + 2 * sangrado
+            rotado = bool(p.get("rotado", p.get("rot", False)))
+
+            archivo = p.get("archivo")
+            if not archivo:
+                file_id = p.get("file_id", p.get("idx", p.get("id", None)))
+                if file_id is not None and file_id in id_to_pdf:
+                    archivo = id_to_pdf[file_id]
+            if not archivo:
+                archivo = p.get("ruta_pdf")
+
+            posiciones_normalizadas.append(
+                {
+                    "archivo": archivo,
+                    "x_mm": x_mm,
+                    "y_mm": y_mm,
+                    "w_mm": w_mm,
+                    "h_mm": h_mm,
+                    "rotado": rotado,
+                }
+            )
+
+        # 3) Si preview_path está definido, renderizar con PDFs reales (no wireframe)
+        try:
+            draw_boxes = False
+        except NameError:
+            pass
+
+        faltan = [
+            q
+            for q in posiciones_normalizadas
+            if not q["archivo"] or not str(q["archivo"]).lower().endswith(".pdf")
+        ]
+        if faltan:
+            print("[PREVIEW] WARNING: posiciones sin archivo PDF:", faltan[:3])
+
         try:
             dpi = preview_dpi if isinstance(preview_dpi, (int, float)) else 150
         except NameError:
             dpi = 150
 
-        preview_pos = [
-            {
-                "archivo": p["archivo"],
-                "x_mm": p["x"],
-                "y_mm": p["y"],
-                "w_mm": p["ancho"] + 2 * sangrado,
-                "h_mm": p["alto"] + 2 * sangrado,
-                "rotado": p.get("rotado"),
-            }
-            for p in posiciones
-        ]
+        try:
+            print(
+                "[PREVIEW] sample pos:",
+                posiciones_normalizadas[0] if posiciones_normalizadas else "SIN POSICIONES",
+            )
+        except Exception as e:
+            print("[PREVIEW] posiciones vacías:", e)
 
         _render_preview_vectorial(
             archivos_locales=archivos_locales,
-            posiciones=preview_pos,
+            posiciones=posiciones_normalizadas,
             ancho_pliego_mm=ancho_pliego,
             alto_pliego_mm=alto_pliego,
             preview_path=preview_path,
             dpi=dpi,
         )
 
-        # Asegúrate de que 'resumen_html' ya esté construido en la función (lo usará la plantilla)
         return {
             "ok": True,
             "preview_generated": True,
