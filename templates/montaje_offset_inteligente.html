@@ -11,7 +11,8 @@
     <button type="button" id="btn-modo-pro" class="btn">Modo super personalizado</button>
   </div>
   <div id="form-std">
-  <form method="POST" enctype="multipart/form-data">
+  <form id="frm-inteligente" method="POST" enctype="multipart/form-data">
+    <input type="hidden" name="accion" id="accion" value="generar">
     <label>Subir de 1 a 5 archivos PDF:</label>
     <input type="file" name="archivos[]" accept=".pdf" multiple required>
     <div id="repeticiones-container"></div>
@@ -143,19 +144,27 @@
 
     <br>
     <div style="margin-top:12px; display:flex; gap:8px; flex-wrap:wrap;">
-      <button id="btn-preview" type="button">Vista previa</button>
-      <button id="btn-generate" type="submit">Generar PDF</button>
+      <button type="button" class="btn btn-secondary" id="btn-preview">Vista previa (150 dpi)</button>
+      <button type="submit" class="btn btn-primary" id="btn-generar">Generar PDF</button>
       <button id="btn-reset" type="reset">Actualizar formulario</button>
     </div>
   </form>
 
+  {% if preview_url %}
   <hr>
-
-  <div id="preview-wrap">
-    <div id="loader" style="display:none;">Generando vista previa...</div>
-    <div id="preview-panel" style="margin-top:10px;"></div>
-    <div id="resumen-panel" style="margin-top:10px;"></div>
+  <h3>Vista previa</h3>
+  <div style="display:flex; gap:1rem; align-items:flex-start; flex-wrap:wrap;">
+    <img src="{{ preview_url }}" alt="Vista previa montaje" style="max-width:100%; height:auto; border:1px solid #ddd; box-shadow:0 1px 3px rgba(0,0,0,.08)">
+    {% if resumen_html %}
+      <div style="min-width:280px; max-width:520px;">
+        <h4>Resumen técnico</h4>
+        <div class="resumen-html" style="font-size:.95rem; line-height:1.35" >
+          {{ resumen_html|safe }}
+        </div>
+      </div>
+    {% endif %}
   </div>
+  {% endif %}
 
   <script>
     document.querySelector('select[name="pliego"]').addEventListener('change', function() {
@@ -206,57 +215,23 @@
     toggleByStrategy();
     toggleGridInputs();
 
-    const form = document.querySelector('form');
-    const btnPreview = document.getElementById('btn-preview');
-    const btnGenerate = document.getElementById('btn-generate');
-    const btnReset = document.getElementById('btn-reset');
-    const loader = document.getElementById('loader');
-    const previewPanel = document.getElementById('preview-panel');
-    const resumenPanel = document.getElementById('resumen-panel');
-
-    // Al hacer vista previa, llamamos al endpoint /montaje_offset/preview
-    btnPreview.addEventListener('click', async () => {
-      loader.style.display = 'block';
-      previewPanel.innerHTML = '';
-      resumenPanel.innerHTML = '';
-      try {
-        const fd = new FormData(form);
-        const resp = await fetch('{{ url_for("routes.montaje_offset_preview") }}', {
-          method: 'POST',
-          body: fd
+    (function(){
+      const frm = document.getElementById('frm-inteligente');
+      const accion = document.getElementById('accion');
+      const btnPrev = document.getElementById('btn-preview');
+      const btnGen  = document.getElementById('btn-generar');
+      if (btnPrev) {
+        btnPrev.addEventListener('click', function(){
+          accion.value = 'preview';
+          frm.submit();
         });
-        const data = await resp.json();
-        if (!data.ok) throw new Error(data.error || 'No se pudo generar vista previa');
-
-        // Imagen
-        const img = document.createElement('img');
-          img.src = data.preview_data;  // "data:image/*;base64,..."
-        img.style.maxWidth = '100%';
-        img.alt = 'Vista previa del montaje';
-        previewPanel.appendChild(img);
-
-        // Resumen (HTML seguro generado del servidor)
-        if (data.resumen_html) {
-          resumenPanel.innerHTML = data.resumen_html;
-        }
-
-        // (Opcional) habilita generación solamente luego de la vista previa:
-        // btnGenerate.disabled = false;
-
-      } catch (e) {
-        alert(e.message);
-      } finally {
-        loader.style.display = 'none';
       }
-    });
-
-    // Reset: limpia panels
-    btnReset.addEventListener('click', () => {
-      previewPanel.innerHTML = '';
-      resumenPanel.innerHTML = '';
-      // (Opcional) volver a deshabilitar generar:
-      // btnGenerate.disabled = false; // o true si querés forzar preview antes
-    });
+      if (btnGen) {
+        btnGen.addEventListener('click', function(){
+          accion.value = 'generar';
+        });
+      }
+    })();
   </script>
   </div>
 
