@@ -3,6 +3,7 @@ import math
 import os
 import sys
 import builtins
+import tempfile
 from typing import Dict, List, Tuple
 
 import fitz  # PyMuPDF
@@ -193,6 +194,75 @@ def _pdf_a_imagen_con_sangrado(
     img_byte_arr.seek(0)
     doc.close()
     return ImageReader(img_byte_arr)
+
+
+def _render_preview_vectorial(
+    archivos_locales,
+    posiciones,
+    ancho_pliego_mm,
+    alto_pliego_mm,
+    preview_path,
+    dpi=150,
+):
+    """
+    Genera una vista previa REAL del pliego impuesto:
+    - Crea un PDF temporal del tamaño del pliego.
+    - Coloca cada PDF origen en su rectángulo destino (con rotación si corresponde).
+    - Rasteriza a PNG al 'preview_path' con la resolución indicada.
+    Requiere que 'posiciones' tenga: archivo (ruta local), x_mm, y_mm, w_mm, h_mm, rotado (bool).
+    """
+    # 1) Documento temporal y página del tamaño del pliego (en puntos)
+    dest = fitz.open()
+    page = dest.new_page(
+        width=ancho_pliego_mm * 72.0 / 25.4,
+        height=alto_pliego_mm * 72.0 / 25.4,
+    )
+
+    # 2) Colocar cada elemento PDF en su rect destino
+    for pos in posiciones:
+        archivo = pos["archivo"]
+        x = pos["x_mm"]
+        y = pos["y_mm"]
+        w = pos["w_mm"]
+        h = pos["h_mm"]
+        rot = 90 if pos.get("rotado") else 0
+
+        rect_dest = fitz.Rect(
+            x * 72.0 / 25.4,
+            y * 72.0 / 25.4,
+            (x + w) * 72.0 / 25.4,
+            (y + h) * 72.0 / 25.4,
+        )
+
+        src = fitz.open(archivo)
+        try:
+            page.show_pdf_page(rect_dest, src, 0, rotate=rot)
+        finally:
+            src.close()
+
+    # 3) Guardar PDF temporal y rasterizar a PNG
+    with tempfile.NamedTemporaryFile(suffix=".pdf", delete=False) as tmp_pdf:
+        tmp_pdf_path = tmp_pdf.name
+
+    try:
+        dest.save(tmp_pdf_path)
+        dest.close()
+
+        doc_tmp = fitz.open(tmp_pdf_path)
+        pg = doc_tmp[0]
+        scale = dpi / 72.0
+        mat = fitz.Matrix(scale, scale)
+        pix = pg.get_pixmap(matrix=mat, alpha=False)
+        os.makedirs(os.path.dirname(preview_path), exist_ok=True)
+        pix.save(preview_path)
+        doc_tmp.close()
+    finally:
+        try:
+            os.remove(tmp_pdf_path)
+        except Exception:
+            pass
+
+    return preview_path
 
 
 def _parse_separacion(separacion: float | Tuple[float, float] | Dict[str, float]) -> Tuple[float, float]:
@@ -611,6 +681,8 @@ def montar_pliego_offset_inteligente(
     if ordenar_tamano:
         grupos.sort(key=lambda g: g["ancho_real"] * g["alto_real"], reverse=True)
 
+    archivos_locales = [g["archivo"] for g in grupos]
+
     posiciones: List[Dict[str, float]] = []
     sobrantes: List[Dict[str, float]] = []
 
@@ -806,6 +878,43 @@ def montar_pliego_offset_inteligente(
     </body></html>
     """
 
+    # Si viene preview_path, generar SOLO la vista previa real y devolver sin crear el PDF final
+    if preview_path:
+        # Si existe alguna bandera de "dibujar cajas" o "debug", desactívala aquí
+        try:
+            dpi = preview_dpi if isinstance(preview_dpi, (int, float)) else 150
+        except NameError:
+            dpi = 150
+
+        preview_pos = [
+            {
+                "archivo": p["archivo"],
+                "x_mm": p["x"],
+                "y_mm": p["y"],
+                "w_mm": p["ancho"] + 2 * sangrado,
+                "h_mm": p["alto"] + 2 * sangrado,
+                "rotado": p.get("rotado"),
+            }
+            for p in posiciones
+        ]
+
+        _render_preview_vectorial(
+            archivos_locales=archivos_locales,
+            posiciones=preview_pos,
+            ancho_pliego_mm=ancho_pliego,
+            alto_pliego_mm=alto_pliego,
+            preview_path=preview_path,
+            dpi=dpi,
+        )
+
+        # Asegúrate de que 'resumen_html' ya esté construido en la función (lo usará la plantilla)
+        return {
+            "ok": True,
+            "preview_generated": True,
+            "preview_path": preview_path,
+            "resumen_html": resumen_html,
+        }
+
     if preview_only:
         # Render simple a PNG usando PIL (no guardar en disco)
         from PIL import Image, ImageDraw
@@ -941,14 +1050,6 @@ def montar_pliego_offset_inteligente(
 
     if export_area_util and used_bbox[0] is not None:
         recortar_pdf_a_bbox(output_path, output_path, [used_bbox])
-
-    # Vista previa PNG opcional
-    if preview_path:
-        doc = fitz.open(output_path)
-        pix = doc[0].get_pixmap(dpi=150, alpha=False)
-        os.makedirs(os.path.dirname(preview_path), exist_ok=True)
-        pix.save(preview_path)
-        doc.close()
 
     # Resumen HTML opcional
     if resumen_path:
