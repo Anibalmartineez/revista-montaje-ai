@@ -32,6 +32,55 @@ def clamp_rect(rect: fitz.Rect, page_w: float, page_h: float) -> fitz.Rect:
     )
 
 
+def snap_to_page_edges_if_full_width(
+    rect: fitz.Rect,
+    page_w: float,
+    page_h: float,
+    tol_mm: float = 1.0,
+    side_tol_mm: float = 0.6,
+) -> fitz.Rect:
+    """
+    Si el rect tiene (casi) el mismo ancho que la página y márgenes laterales mínimos,
+    lo “pega” a la altura completa de la página (piezas a sangre con troquel abierto).
+    """
+    tol = mm_to_pt(tol_mm)
+    side_tol = mm_to_pt(side_tol_mm)
+    if (
+        abs(rect.width - page_w) <= tol
+        and rect.x0 <= side_tol
+        and (page_w - rect.x1) <= side_tol
+    ):
+        return fitz.Rect(rect.x0, 0.0, rect.x1, page_h)
+    return rect
+
+
+def combine_h_union_if_x_agree(
+    r1: fitz.Rect,
+    r2: fitz.Rect,
+    agree_pct: float = 0.95,
+    max_y_gap_mm: float = 20.0,
+):
+    """
+    Si dos rectángulos coinciden fuertemente en X (≥ agree_pct) y su diferencia de altos
+    no supera max_y_gap_mm, devuelve la UNIÓN en Y (evita recortes por intersección).
+    """
+    if not r1 or not r2:
+        return None
+    x_inter = max(0.0, min(r1.x1, r2.x1) - max(r1.x0, r2.x0))
+    x_union = max(r1.x1, r2.x1) - min(r1.x0, r2.x0)
+    if x_union <= 0:
+        return None
+    horiz_agree = x_inter / x_union
+    if horiz_agree >= agree_pct and abs((r1.height) - (r2.height)) <= mm_to_pt(max_y_gap_mm):
+        return fitz.Rect(
+            min(r1.x0, r2.x0),
+            min(r1.y0, r2.y0),
+            max(r1.x1, r2.x1),
+            max(r1.y1, r2.y1),
+        )
+    return None
+
+
 # ------------------------------------------------------------
 # NUEVO: Detección robusta de troquel (dieline)
 # ------------------------------------------------------------
@@ -46,7 +95,7 @@ def detect_dieline_bbox_advanced(page: fitz.Page, page_w: float, page_h: float):
         return None, [], 0.0, {}
 
     dieline_rects = []
-    MAX_STROKE_PT = 2.0
+    MAX_STROKE_PT = 3.0
     MIN_PATH_SEGMENTS = 2
 
     def likely_dieline_color(rgb):
@@ -99,7 +148,12 @@ def detect_dieline_bbox_advanced(page: fitz.Page, page_w: float, page_h: float):
     for rr in dieline_rects[1:]:
         union = union | rr
     union = clamp_rect(union, page_w, page_h)
-    return union, dieline_rects, 0.85, {"source": "DielineBBox"}
+    snapped = False
+    snapped_union = snap_to_page_edges_if_full_width(union, page_w, page_h)
+    if snapped_union != union:
+        snapped = True
+        union = snapped_union
+    return union, dieline_rects, 0.85, {"source": "DielineBBox", "snap": snapped}
 
 
 def rect_size_mm(rect: fitz.Rect) -> Dict[str, float]:
@@ -184,6 +238,9 @@ def raster_visible_bbox(page: fitz.Page, page_mm):
     k = cv2.getStructuringElement(cv2.MORPH_RECT, (3, 3))
     mask = cv2.morphologyEx(binv, cv2.MORPH_OPEN, k, iterations=1)
     mask = cv2.morphologyEx(mask, cv2.MORPH_CLOSE, k, iterations=2)
+    # dilatación suave para no perder bordes lisos/planos
+    k2 = cv2.getStructuringElement(cv2.MORPH_RECT, (5, 5))
+    mask = cv2.morphologyEx(mask, cv2.MORPH_DILATE, k2, iterations=1)
     coords = cv2.findNonZero(mask)
     if coords is None:
         del arr
@@ -276,6 +333,24 @@ def compute_final_area(page: fitz.Page):
     crop_rect, crop_comps, crop_conf, crop_info = detect_cropmarks_vector(page, page_w, page_h)
     raster_rect, raster_comps, raster_conf, raster_info = raster_visible_bbox(page, (pt_to_mm(page_w), pt_to_mm(page_h)))
     contour_rect, contour_comps, contour_conf, contour_info = detect_rectangular_contours(page)
+
+    if dieline_info.get("snap"):
+        notes.append("Troquel ajustado a altura completa por ancho total.")
+
+    combined_hr = None
+    if dieline_rect and raster_rect:
+        combined_hr = combine_h_union_if_x_agree(
+            dieline_rect, raster_rect, agree_pct=0.95, max_y_gap_mm=20.0
+        )
+
+    if combined_hr:
+        combined_hr = clamp_rect(combined_hr, page_w, page_h)
+        notes.append(
+            "Unión vertical aplicada por alto acuerdo horizontal (troquel+raster)."
+        )
+        conf = (dieline_conf + raster_conf) / 2.0
+        components = (dieline_comps or []) + (raster_comps or [])
+        return combined_hr, conf, {"source": "Dieline+Raster H-Union"}, components, notes
 
     results = []
     if dieline_rect:
