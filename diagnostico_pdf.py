@@ -45,14 +45,24 @@ def detect_dieline_bbox_advanced(page: fitz.Page, page_w: float, page_h: float):
         return None, [], 0.0, {}
 
     dieline_rects = []
-    MAX_STROKE_PT = 1.2
-    MIN_PATH_SEGMENTS = 4
+    MAX_STROKE_PT = 2.0
+    MIN_PATH_SEGMENTS = 2
 
     def likely_dieline_color(rgb):
+        """Return True if color matches typical dieline hues (red/magenta, cyan or dark gray/black)."""
         if not rgb or len(rgb) < 3:
             return False
         r, g, b = rgb[:3]
-        return (r > 0.7 and g < 0.35 and b < 0.35) or (r > 0.6 and b > 0.6 and g < 0.35)
+        # Red or magenta: red channel dominant
+        if (r > 0.7 and g < 0.35 and b < 0.35) or (r > 0.6 and b > 0.6 and g < 0.35):
+            return True
+        # Cyan: blue dominant with some green
+        if b > 0.6 and g > 0.6 and r < 0.35:
+            return True
+        # Black or dark gray: all channels low and similar
+        if max(r, g, b) < 0.25 and max(abs(r - g), abs(r - b), abs(g - b)) < 0.1:
+            return True
+        return False
 
     for d in drawings:
         if not d.get("stroke"):
@@ -112,9 +122,9 @@ def detect_cropmarks_vector(page: fitz.Page, page_w: float, page_h: float):
         return None, [], 0.0, {}
 
     vert_x, horiz_y, marks = [], [], []
-    MAX_STROKE_PT = 0.8
-    MAX_DIST_EDGE_PT = mm_to_pt(15)
-    MIN_LEN_MM, MAX_LEN_MM = 3.0, 15.0
+    MAX_STROKE_PT = 1.5
+    MAX_DIST_EDGE_PT = min(page_w, page_h) * 0.10
+    MIN_LEN_MM, MAX_LEN_MM = 2.0, 25.0
 
     for d in drawings:
         if not d.get("stroke") or (d.get("width", 0) or 0) > MAX_STROKE_PT:
@@ -168,7 +178,7 @@ def raster_visible_bbox(page: fitz.Page, page_mm):
         arr = cv2.cvtColor(arr, cv2.COLOR_BGRA2BGR)
     gray = cv2.cvtColor(arr, cv2.COLOR_BGR2GRAY)
     blur = cv2.GaussianBlur(gray, (3, 3), 0)
-    binv = cv2.threshold(blur, 245, 255, cv2.THRESH_BINARY_INV)[1]
+    _, binv = cv2.threshold(blur, 0, 255, cv2.THRESH_BINARY_INV + cv2.THRESH_OTSU)
     k = cv2.getStructuringElement(cv2.MORPH_RECT, (3, 3))
     mask = cv2.morphologyEx(binv, cv2.MORPH_OPEN, k, iterations=1)
     mask = cv2.morphologyEx(mask, cv2.MORPH_CLOSE, k, iterations=2)
