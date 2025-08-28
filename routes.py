@@ -4,6 +4,7 @@ import io
 import math
 import fitz
 import uuid
+import tempfile
 from threading import Lock
 from reportlab.pdfgen import canvas
 from reportlab.lib.units import mm
@@ -55,6 +56,9 @@ chat_historial = []
 routes_bp = Blueprint("routes", __name__)
 
 heavy_lock = Lock()
+
+# Últimos archivos cargados para reconstruir posiciones manuales
+last_uploads: list[str] = []
 
 
 @routes_bp.route("/", methods=["GET", "POST"])
@@ -269,6 +273,9 @@ def _parse_montaje_offset_form(req):
         f.save(path)
         repeticiones = int(req.form.get(f"repeticiones_{i}", 1))
         diseños.append((path, repeticiones))
+
+    global last_uploads
+    last_uploads = [path for path, _ in diseños]
 
     estrategia = req.form.get("estrategia", "flujo")
     if req.form.get("forzar_grilla"):
@@ -608,6 +615,123 @@ def montaje_offset_preview():
         return jsonify({"ok": False, "error": f"TypeError: {str(e)}"}), 500
     except Exception as e:
         return jsonify({"ok": False, "error": str(e)}), 500
+
+
+@routes_bp.route("/api/manual/preview", methods=["POST"])
+def manual_preview():
+    data = request.get_json() or {}
+    sheet = data.get("sheet", {})
+    sangrado_mm = float(data.get("sangrado_mm", 0))
+    posiciones = data.get("posiciones", [])
+    opciones = data.get("opciones", {})
+
+    ancho = float(sheet.get("w_mm", 0))
+    alto = float(sheet.get("h_mm", 0))
+
+    centrar = bool(opciones.get("centrar", False))
+    marcas_registro = bool(opciones.get("marcas_registro", False))
+    marcas_corte = bool(opciones.get("marcas_corte", False))
+    cutmarks_por_forma = bool(opciones.get("cutmarks_por_forma", False))
+    preview_dpi = opciones.get("preview_dpi", 150)
+
+    global last_uploads
+    diseños = []
+    for p in posiciones:
+        ruta = p.get("archivo")
+        if not ruta and "file_idx" in p:
+            idx = p["file_idx"]
+            if 0 <= idx < len(last_uploads):
+                ruta = last_uploads[idx]
+        if ruta:
+            diseños.append((ruta, 1))
+
+    previews_dir = os.path.join(current_app.static_folder, "previews")
+    os.makedirs(previews_dir, exist_ok=True)
+    preview_path = os.path.join(previews_dir, f"manual_{uuid.uuid4().hex[:8]}.png")
+
+    res = montar_pliego_offset_inteligente(
+        diseños,
+        ancho,
+        alto,
+        sangrado=sangrado_mm,
+        centrar=centrar,
+        marcas_registro=marcas_registro,
+        marcas_corte=marcas_corte,
+        cutmarks_por_forma=cutmarks_por_forma,
+        estrategia="manual",
+        posiciones_manual=posiciones,
+        preview_path=preview_path,
+        devolver_posiciones=True,
+        preview_dpi=preview_dpi,
+        preview_only=False,
+    )
+    rel = os.path.relpath(preview_path, current_app.static_folder).replace("\\", "/")
+    preview_url = url_for("static", filename=rel)
+    return jsonify(
+        {
+            "ok": True,
+            "preview_url": preview_url,
+            "positions": res.get("positions"),
+            "sheet_mm": res.get("sheet_mm"),
+            "resumen_html": res.get("resumen_html"),
+        }
+    )
+
+
+@routes_bp.route("/api/manual/impose", methods=["POST"])
+def manual_impose():
+    data = request.get_json() or {}
+    sheet = data.get("sheet", {})
+    sangrado_mm = float(data.get("sangrado_mm", 0))
+    posiciones = data.get("posiciones", [])
+    opciones = data.get("opciones", {})
+
+    ancho = float(sheet.get("w_mm", 0))
+    alto = float(sheet.get("h_mm", 0))
+
+    centrar = bool(opciones.get("centrar", False))
+    marcas_registro = bool(opciones.get("marcas_registro", False))
+    marcas_corte = bool(opciones.get("marcas_corte", False))
+    cutmarks_por_forma = bool(opciones.get("cutmarks_por_forma", False))
+
+    global last_uploads
+    diseños = []
+    for p in posiciones:
+        ruta = p.get("archivo")
+        if not ruta and "file_idx" in p:
+            idx = p["file_idx"]
+            if 0 <= idx < len(last_uploads):
+                ruta = last_uploads[idx]
+        if ruta:
+            diseños.append((ruta, 1))
+
+    output_dir = os.path.join("outputs")
+    os.makedirs(output_dir, exist_ok=True)
+    pdf_path = os.path.join(output_dir, f"manual_{uuid.uuid4().hex[:8]}.pdf")
+    tmp = tempfile.NamedTemporaryFile(suffix=".html", delete=False)
+    tmp.close()
+
+    montar_pliego_offset_inteligente(
+        diseños,
+        ancho,
+        alto,
+        sangrado=sangrado_mm,
+        centrar=centrar,
+        marcas_registro=marcas_registro,
+        marcas_corte=marcas_corte,
+        cutmarks_por_forma=cutmarks_por_forma,
+        estrategia="manual",
+        posiciones_manual=posiciones,
+        output_path=pdf_path,
+        preview_only=False,
+        resumen_path=tmp.name,
+    )
+    with open(tmp.name, "r", encoding="utf-8") as f:
+        resumen_html = f.read()
+    os.remove(tmp.name)
+
+    pdf_url = url_for("outputs_static", filename=os.path.basename(pdf_path))
+    return jsonify({"ok": True, "pdf_url": pdf_url, "resumen_html": resumen_html})
 
 
 @routes_bp.route("/montaje_flexo_avanzado", methods=["GET", "POST"])

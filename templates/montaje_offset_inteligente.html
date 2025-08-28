@@ -13,6 +13,7 @@
   <div id="form-std">
   <form id="frm-inteligente" method="POST" enctype="multipart/form-data">
     <input type="hidden" name="accion" id="accion" value="generar">
+    <input type="hidden" name="manual_json" id="manual_json">
     <label>Subir de 1 a 5 archivos PDF:</label>
     <input type="file" name="archivos[]" accept=".pdf" multiple required>
     <div id="repeticiones-container"></div>
@@ -147,6 +148,8 @@
       <button type="button" class="btn btn-secondary" id="btn-preview">Vista previa (150 dpi)</button>
       <button type="submit" class="btn btn-primary" id="btn-generar">Generar PDF</button>
       <button id="btn-reset" type="reset">Actualizar formulario</button>
+      <button type="button" id="btn-manual-mode">Entrar a edición manual</button>
+      <label style="display:flex; align-items:center; gap:4px;"><input type="checkbox" id="manual-toggle"> Edición manual</label>
     </div>
   </form>
 
@@ -165,6 +168,19 @@
     {% endif %}
   </div>
   {% endif %}
+
+  <div id="manual-editor" style="display:none;">
+    <div class="toolbar">
+      <button id="btn-manual-apply">Aplicar edición manual</button>
+      <label>Grid (mm): <input id="grid_mm" type="number" step="0.5" value="1"></label>
+      <label><input type="checkbox" id="snap_on" checked> Snap</label>
+      <span id="cursor_mm"></span>
+    </div>
+    <div class="stage" id="manual-stage" style="position:relative; overflow:auto;">
+      <img id="preview-bg" src="{{ preview_url or '' }}" alt="preview" />
+      <canvas id="overlay" width="0" height="0" style="position:absolute; left:0; top:0;"></canvas>
+    </div>
+  </div>
 
   <script>
     document.querySelector('select[name="pliego"]').addEventListener('change', function() {
@@ -338,5 +354,6 @@
     });
   })();
   </script>
+  <script src="{{ url_for('static', filename='js/manual_editor.js') }}"></script>
 </body>
 </html>

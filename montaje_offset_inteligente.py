@@ -611,6 +611,8 @@ def montar_pliego_offset_inteligente(
     preview_only: bool = False,
     output_path: str = "output/pliego_offset_inteligente.pdf",
     preview_path: str | None = None,
+    posiciones_manual: list[dict] | None = None,
+    devolver_posiciones: bool = False,
     resumen_path: str | None = None,
 ) -> str | Tuple[bytes, str]:
     """Genera un PDF montando múltiples diseños con lógica profesional.
@@ -622,6 +624,17 @@ def montar_pliego_offset_inteligente(
     ``usar_trimbox`` permite recortar los PDFs a su ``TrimBox`` antes de añadir
     el sangrado indicado, lo cual resulta útil para reemplazar un sangrado
     existente por uno nuevo.
+
+    Parameters
+    ----------
+    posiciones_manual: list[dict] | None, optional
+        Posiciones ya calculadas en milímetros (bottom-left) para usar en la
+        imposición manual. Cada diccionario debe incluir ``x_mm``, ``y_mm``,
+        ``w_mm`` y ``h_mm`` (trim) además de ``archivo`` o ``file_idx``.
+    devolver_posiciones: bool, optional
+        Cuando es ``True`` y se genera una vista previa, se incluyen las
+        posiciones normalizadas en la respuesta para que el frontend pueda
+        utilizarlas.
     """
 
     if espaciado_horizontal or espaciado_vertical:
@@ -700,7 +713,52 @@ def montar_pliego_offset_inteligente(
                 )
         return lista
 
-    if estrategia == "grid":
+    # --- RAMA MANUAL: si estrategia == "manual" y hay posiciones_manual ---
+    if estrategia == "manual" and posiciones_manual:
+        # posiciones_manual viene en mm, bottom-left, con w/h = TRIM (sin sangrado)
+        # Normaliza a la misma estructura que usa el dibujado final.
+        posiciones = []
+        archivos_locales = []
+        # Construir set de archivos referenciados
+        for p in posiciones_manual:
+            ruta = p.get("archivo")
+            if not ruta and "file_idx" in p:
+                # soporte por índice si el frontend lo manda; el caller debe armar diseños en el mismo orden
+                ruta = diseños[p["file_idx"]][0]
+            if ruta:
+                archivos_locales.append(ruta)
+
+        for p in posiciones_manual:
+            ruta = p.get("archivo") or diseños[p["file_idx"]][0]
+            posiciones.append(
+                {
+                    "archivo": ruta,
+                    "x": float(p["x_mm"]),
+                    "y": float(p["y_mm"]),
+                    "ancho": float(p["w_mm"]),  # TRIM
+                    "alto": float(p["h_mm"]),  # TRIM
+                    "rotado": bool(p.get("rot", False)),
+                }
+            )
+
+        # opcionalmente centrar
+        if centrar and posiciones:
+            min_x = min(pp["x"] for pp in posiciones)
+            max_x = max(pp["x"] + pp["ancho"] + 2 * sangrado for pp in posiciones)
+            min_y = min(pp["y"] for pp in posiciones)
+            max_y = max(pp["y"] + pp["alto"] + 2 * sangrado for pp in posiciones)
+            usado_w = max_x - min_x
+            usado_h = max_y - min_y
+            desplaz_x = (ancho_pliego - usado_w) / 2 - min_x
+            desplaz_y = (alto_pliego - usado_h) / 2 - min_y
+            for pp in posiciones:
+                pp["x"] += desplaz_x
+                pp["y"] += desplaz_y
+
+        # Sobrantes no aplican aquí (el usuario decide)
+        sobrantes = []
+
+    elif estrategia == "grid":
         copias = _expandir_copias()
         ancho_util = ancho_pliego - margen_izq - margen_der
         alto_util = alto_pliego - margen_sup - margen_inf
@@ -966,6 +1024,8 @@ def montar_pliego_offset_inteligente(
             "preview_generated": True,
             "preview_path": preview_path,
             "resumen_html": resumen_html,
+            "positions": posiciones_normalizadas if devolver_posiciones else None,
+            "sheet_mm": {"w": ancho_pliego, "h": alto_pliego},
         }
 
     if preview_only:
