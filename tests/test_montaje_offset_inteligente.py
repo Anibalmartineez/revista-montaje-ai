@@ -254,3 +254,36 @@ def test_montar_pliego_offset_cache(monkeypatch, tmp_path):
     )
     assert calls["count"] == 2
     assert output.exists()
+
+
+def test_manual_positions_preview_and_pdf(tmp_path):
+    pdf = _crear_pdf_temporal(20, 10)
+    posiciones = [
+        {"file_idx": 0, "x_mm": 10, "y_mm": 20, "w_mm": 20, "h_mm": 10, "rot": False}
+    ]
+    prev = tmp_path / "prev.png"
+    res = montaje_offset_inteligente.montar_pliego_offset_inteligente(
+        [(pdf, 1)],
+        100,
+        100,
+        sangrado=0,
+        estrategia="manual",
+        posiciones_manual=posiciones,
+        preview_path=str(prev),
+        devolver_posiciones=True,
+        centrar=False,
+    )
+    assert prev.exists()
+    assert res["positions"][0]["x_mm"] == pytest.approx(10.0)
+    out = tmp_path / "out.pdf"
+    montaje_offset_inteligente.montar_pliego_offset_inteligente(
+        [(pdf, 1)],
+        100,
+        100,
+        sangrado=0,
+        estrategia="manual",
+        posiciones_manual=posiciones,
+        output_path=str(out),
+        centrar=False,
+    )
+    assert out.exists()
