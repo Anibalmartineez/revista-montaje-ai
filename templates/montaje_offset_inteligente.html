@@ -13,7 +13,6 @@
   <div id="form-std">
   <form id="frm-inteligente" method="POST" enctype="multipart/form-data">
     <input type="hidden" name="accion" id="accion" value="generar">
-    <input type="hidden" name="manual_json" id="manual_json">
     <label>Subir de 1 a 5 archivos PDF:</label>
     <input type="file" name="archivos[]" accept=".pdf" multiple required>
     <div id="repeticiones-container"></div>
@@ -172,6 +171,9 @@
   <div id="manual-editor" style="display:none;">
     <div class="toolbar">
       <button id="btn-manual-apply">Aplicar edición manual</button>
+      <button id="btn-manual-generate" type="button" style="margin-left:8px;">
+        Generar PDF (manual)
+      </button>
       <label>Grid (mm): <input id="grid_mm" type="number" step="0.5" value="1"></label>
       <label><input type="checkbox" id="snap_on" checked> Snap</label>
       <span id="cursor_mm"></span>
@@ -180,6 +182,7 @@
       <img id="preview-bg" src="{{ preview_url or '' }}" alt="preview" />
       <canvas id="overlay" width="0" height="0" style="position:absolute; left:0; top:0;"></canvas>
     </div>
+    <input type="hidden" id="manual_json" name="manual_json">
   </div>
 
   <script>
@@ -354,6 +357,26 @@
     });
   })();
   </script>
+  {% if preview_url %}
+  <script>
+    window.__sheetMm    = {{ sheet_mm|tojson|safe }};
+    window.__positions  = {{ positions|tojson|safe }};
+    window.__sangradoMm = {{ sangrado_mm|default(0) }};
+    window.__previewUrl = "{{ preview_url }}";
+  </script>
+  {% endif %}
   <script src="{{ url_for('static', filename='js/manual_editor.js') }}"></script>
+  {% if preview_url %}
+  <script>
+    if (window.manualEditorLoad) {
+      window.manualEditorLoad({
+        sheet_mm: window.__sheetMm,
+        positions: window.__positions,
+        sangrado_mm: window.__sangradoMm,
+        preview_url: window.__previewUrl
+      });
+    }
+  </script>
+  {% endif %}
 </body>
 </html>
