@@ -378,84 +378,55 @@ def montaje_offset_inteligente_view():
             preview_path = os.path.join(
                 previews_dir, f"offset_inteligente_{job_id}.png"
             )
-            try:
-                png_bytes, resumen_html = montar_pliego_offset_inteligente(
-                    diseños,
-                    ancho_pliego,
-                    alto_pliego,
-                    separacion=params["separacion"],
-                    sangrado=params["sangrado"],
-                    usar_trimbox=params["usar_trimbox"],
-                    ordenar_tamano=params["ordenar_tamano"],
-                    alinear_filas=params["alinear_filas"],
-                    preferir_horizontal=params["preferir_horizontal"],
-                    centrar=params["centrar"],
-                    debug_grilla=params["debug_grilla"],
-                    espaciado_horizontal=params["espaciado_horizontal"],
-                    espaciado_vertical=params["espaciado_vertical"],
-                    margen_izq=params["margen_izq"],
-                    margen_der=params["margen_der"],
-                    margen_sup=params["margen_sup"],
-                    margen_inf=params["margen_inf"],
-                    estrategia=params["estrategia"],
-                    filas=params["filas"],
-                    columnas=params["columnas"],
-                    celda_ancho=params["celda_ancho"],
-                    celda_alto=params["celda_alto"],
-                    pinza_mm=params["pinza_mm"],
-                    lateral_mm=params["lateral_mm"],
-                    marcas_registro=params["marcas_registro"],
-                    marcas_corte=params["marcas_corte"],
-                    cutmarks_por_forma=params["cutmarks_por_forma"],
-                    preview_only=True,
-                    preview_dpi=150,
-                    **opciones_extra,
-                )
-            except TypeError:
-                png_bytes, resumen_html = montar_pliego_offset_inteligente(
-                    diseños,
-                    ancho_pliego,
-                    alto_pliego,
-                    separacion=params["separacion"],
-                    sangrado=params["sangrado"],
-                    usar_trimbox=params["usar_trimbox"],
-                    ordenar_tamano=params["ordenar_tamano"],
-                    alinear_filas=params["alinear_filas"],
-                    preferir_horizontal=params["preferir_horizontal"],
-                    centrar=params["centrar"],
-                    debug_grilla=params["debug_grilla"],
-                    espaciado_horizontal=params["espaciado_horizontal"],
-                    espaciado_vertical=params["espaciado_vertical"],
-                    margen_izq=params["margen_izq"],
-                    margen_der=params["margen_der"],
-                    margen_sup=params["margen_sup"],
-                    margen_inf=params["margen_inf"],
-                    estrategia=params["estrategia"],
-                    filas=params["filas"],
-                    columnas=params["columnas"],
-                    celda_ancho=params["celda_ancho"],
-                    celda_alto=params["celda_alto"],
-                    pinza_mm=params["pinza_mm"],
-                    lateral_mm=params["lateral_mm"],
-                    marcas_registro=params["marcas_registro"],
-                    marcas_corte=params["marcas_corte"],
-                    cutmarks_por_forma=params["cutmarks_por_forma"],
-                    preview_only=True,
-                    **opciones_extra,
-                )
-            from PIL import Image
-            image = Image.open(io.BytesIO(png_bytes if isinstance(png_bytes, bytes) else png_bytes))
-            image.save(preview_path, format="PNG")
-            image.close()
+            # NUEVO: generamos preview real y pedimos posiciones/sheet
+            res = montar_pliego_offset_inteligente(
+                diseños,
+                ancho_pliego,
+                alto_pliego,
+                separacion=params["separacion"],
+                sangrado=params["sangrado"],
+                usar_trimbox=params["usar_trimbox"],
+                ordenar_tamano=params["ordenar_tamano"],
+                alinear_filas=params["alinear_filas"],
+                preferir_horizontal=params["preferir_horizontal"],
+                centrar=params["centrar"],
+                debug_grilla=params["debug_grilla"],
+                espaciado_horizontal=params["espaciado_horizontal"],
+                espaciado_vertical=params["espaciado_vertical"],
+                margen_izq=params["margen_izq"],
+                margen_der=params["margen_der"],
+                margen_sup=params["margen_sup"],
+                margen_inf=params["margen_inf"],
+                estrategia=params["estrategia"],
+                filas=params["filas"],
+                columnas=params["columnas"],
+                celda_ancho=params["celda_ancho"],
+                celda_alto=params["celda_alto"],
+                pinza_mm=params["pinza_mm"],
+                lateral_mm=params["lateral_mm"],
+                marcas_registro=params["marcas_registro"],
+                marcas_corte=params["marcas_corte"],
+                cutmarks_por_forma=params["cutmarks_por_forma"],
+                preview_path=preview_path,          # << importante
+                devolver_posiciones=True,           # << importante
+                preview_dpi=150,
+                preview_only=False,
+                **opciones_extra,
+            )
+
             rel_path = os.path.relpath(preview_path, current_app.static_folder).replace(
                 "\\", "/"
             )
             preview_url = url_for("static", filename=rel_path)
+
             return render_template(
                 "montaje_offset_inteligente.html",
                 resultado=None,
                 preview_url=preview_url,
-                resumen_html=resumen_html,
+                resumen_html=res.get("resumen_html"),
+                positions=res.get("positions"),
+                sheet_mm=res.get("sheet_mm"),
+                sangrado_mm=params["sangrado"],
             )
 
         output_path = os.path.join("output", "pliego_offset_inteligente.pdf")

@@ -11,6 +11,7 @@
   const previewBg = document.getElementById("preview-bg");
   const manualJson = document.getElementById("manual_json");
   const btnApply = document.getElementById("btn-manual-apply");
+  const btnGen = document.getElementById("btn-manual-generate");
   const gridInput = document.getElementById("grid_mm");
   const snapOn = document.getElementById("snap_on");
   const cursorLbl = document.getElementById("cursor_mm");
@@ -162,6 +163,37 @@
         }
       })
       .catch((err) => console.error(err));
+  });
+
+  btnGen?.addEventListener("click", () => {
+    const payload = {
+      sheet: { w_mm: sheet.w_mm, h_mm: sheet.h_mm },
+      sangrado_mm: sangrado,
+      posiciones: boxes.map(b => ({
+        file_idx: b.file_idx,
+        x_mm: b.x_mm,
+        y_mm: b.y_mm,
+        w_mm: b.w_mm_trim,
+        h_mm: b.h_mm_trim,
+        rot: b.rot,
+      })),
+      opciones: {}
+    };
+
+    fetch("/api/manual/impose", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    })
+      .then(r => r.json())
+      .then(resp => {
+        if (resp.pdf_url) {
+          window.location.href = resp.pdf_url;
+        } else {
+          alert("No se pudo generar el PDF manual.");
+        }
+      })
+      .catch(err => console.error(err));
   });
 
   // Expose loader
