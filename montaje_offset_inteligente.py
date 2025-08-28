@@ -614,6 +614,7 @@ def montar_pliego_offset_inteligente(
     posiciones_manual: list[dict] | None = None,
     devolver_posiciones: bool = False,
     resumen_path: str | None = None,
+    **kwargs,
 ) -> str | Tuple[bytes, str]:
     """Genera un PDF montando múltiples diseños con lógica profesional.
 
@@ -636,6 +637,12 @@ def montar_pliego_offset_inteligente(
         posiciones normalizadas en la respuesta para que el frontend pueda
         utilizarlas.
     """
+
+    preview_path = kwargs.get("preview_path", preview_path)
+    output_path = kwargs.get("output_pdf_path", output_path)
+    posiciones_manual = kwargs.get("posiciones_override", posiciones_manual)
+    if posiciones_manual is not None:
+        estrategia = "manual"
 
     if espaciado_horizontal or espaciado_vertical:
         sep_h, sep_v = espaciado_horizontal, espaciado_vertical

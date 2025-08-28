@@ -148,7 +148,6 @@
       <button type="submit" class="btn btn-primary" id="btn-generar">Generar PDF</button>
       <button id="btn-reset" type="reset">Actualizar formulario</button>
       <button type="button" id="btn-manual-mode">Entrar a edición manual</button>
-      <label style="display:flex; align-items:center; gap:4px;"><input type="checkbox" id="manual-toggle"> Edición manual</label>
     </div>
   </form>
 
@@ -170,53 +169,25 @@
 
   <div id="manual-editor" style="display:none; margin-top:12px;">
     <div class="toolbar" style="display:flex; gap:12px; align-items:center; flex-wrap:wrap;">
-      <button id="btn-manual-apply" type="button">Aplicar edición manual</button>
-      <button id="btn-manual-generate" type="button">Generar PDF (manual)</button>
-      <label>Grid (mm):
-        <input id="grid_mm" type="number" step="0.5" min="0.1" value="1" style="width:80px;">
-      </label>
+      <button type="button" id="btn-manual-apply">Aplicar edición manual</button>
+      <button type="button" id="btn-manual-generate">Generar PDF (manual)</button>
+      <label>Grid (mm): <input id="grid_mm" type="number" step="0.5" value="1"></label>
       <label><input type="checkbox" id="snap_on" checked> Snap</label>
-
-      <label><input id="snap_obj" type="checkbox" checked> Snap a objetos</label>
-      <label><input id="validar_solapes" type="checkbox"> Validar solapes</label>
-
-      <div class="btn-group" style="display:flex; gap:6px; flex-wrap:wrap;">
-        <button type="button" data-align="left">Alinear izq</button>
-        <button type="button" data-align="hcenter">Alinear centro H</button>
-        <button type="button" data-align="right">Alinear der</button>
-        <button type="button" data-align="top">Alinear arriba</button>
-        <button type="button" data-align="vcenter">Alinear centro V</button>
-        <button type="button" data-align="bottom">Alinear abajo</button>
-        <button type="button" data-distribute="h">Distribuir H</button>
-        <button type="button" data-distribute="v">Distribuir V</button>
-      </div>
-
-      <!-- NUEVO: controles de zoom -->
-      <label>Zoom:
-        <input id="zoom_range" type="range" min="10" max="200" step="5" value="100">
-        <span id="zoom_label">100%</span>
-      </label>
-      <button id="fit_width" type="button">Ajustar ancho</button>
-      <button id="fit_page" type="button">Ajustar página</button>
-
-      <span id="cursor_mm" style="opacity:.7;"></span>
+      <label><input type="checkbox" id="snap_obj" checked> Snap a objetos</label>
+      <label><input type="checkbox" id="validar_solapes"> Validar solapes</label>
+      <button type="button" id="fit_width">Ajustar ancho</button>
+      <button type="button" id="fit_page">Ajustar página</button>
+      <span>Zoom: <input id="zoom_range" type="range" min="10" max="200" value="100"> <span id="zoom_label">100%</span></span>
+      <span id="cursor_mm"></span>
     </div>
-
-    <div id="manual-warnings" style="color:#c00; min-height:1em;"></div>
-
-    <!-- Contenedor con altura máxima para que no “rompa” la página -->
-    <div id="manual-stage"
-         style="position:relative; max-width:100%;
-                max-height:70vh; overflow:auto; border:1px solid #ddd; background:#fafafa;">
-      <!-- Viewport escalable (zoom con transform) -->
+    <div class="stage" id="manual-stage" style="position:relative; overflow:auto; max-width:100%; max-height:70vh; border:1px solid #ddd; background:#fafafa;">
       <div id="viewport" style="position:relative; transform-origin: top left;">
-        <img id="preview-bg" src="{{ preview_url or '' }}"
-             style="display:block; width:100%; height:auto;" alt="preview">
-        <canvas id="overlay" tabindex="0" style="position:absolute; left:0; top:0; pointer-events:auto;"></canvas>
+        <img id="preview-bg" src="{{ preview_url or '' }}" alt="preview" style="display:block; width:100%; height:auto;" />
+        <canvas id="overlay" tabindex="0" width="0" height="0" style="position:absolute; left:0; top:0; pointer-events:auto;"></canvas>
       </div>
     </div>
-
     <input type="hidden" id="manual_json" name="manual_json">
+    <div id="manual-warnings" style="color:#c00; min-height:1em;"></div>
   </div>
 
   <script>
@@ -402,12 +373,14 @@
   <script src="{{ url_for('static', filename='js/manual_editor.js') }}"></script>
   {% if preview_url %}
   <script>
-    window.manualEditorLoad && window.manualEditorLoad({
-      sheet_mm:    window.__sheetMm,
-      positions:   window.__positions,
-      sangrado_mm: window.__sangradoMm,
-      preview_url: window.__previewUrl
-    });
+    if (window.manualEditorLoad) {
+      window.manualEditorLoad({
+        sheet_mm: window.__sheetMm,
+        positions: window.__positions,
+        sangrado_mm: window.__sangradoMm,
+        preview_url: window.__previewUrl
+      });
+    }
   </script>
   {% endif %}
 </body>
