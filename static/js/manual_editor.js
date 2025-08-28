@@ -1,5 +1,5 @@
 /**
- * Editor manual — fit width + zoom + NaN fix + límites de arrastre.
+ * Editor manual — fit width + zoom + límites de arrastre + mejoras de productividad.
  */
 (function () {
   const stage    = document.getElementById('manual-stage');
@@ -13,6 +13,9 @@
 
   const gridInput = document.getElementById('grid_mm');
   const snapChk   = document.getElementById('snap_on');
+  const snapObjChk = document.getElementById('snap_obj');
+  const validarChk = document.getElementById('validar_solapes');
+  const warningsDiv = document.getElementById('manual-warnings');
   const cursorMM  = document.getElementById('cursor_mm');
 
   const zoomRange = document.getElementById('zoom_range');
@@ -23,6 +26,13 @@
   const manualJson = document.getElementById('manual_json');
 
   if (!overlay || !img || !stage || !viewport) return;
+
+  document.querySelectorAll('[data-align]').forEach(btn=>{
+    btn.addEventListener('click', () => alignSelected(btn.dataset.align));
+  });
+  document.querySelectorAll('[data-distribute]').forEach(btn=>{
+    btn.addEventListener('click', () => distributeSelected(btn.dataset.distribute));
+  });
 
   const toNum = (v, def=0) => {
     const n = Number(v);
@@ -35,9 +45,21 @@
     baseScale: 1,                  // px/mm con fit width
     zoom: 1,                       // 1 = 100%
     boxes: [],
-    selectedId: null,
-    drag: null,
+    selectedIds: new Set(),
+    drag: null,                    // {ids:Set,startPx:{x,y},startsTl:[{id,x,y}],moved:false}
+    history: [], historyPtr: -1,
+    snapObjEnabled: true,
+    validarSolapes: false,
+    marquee: null,                 // {x0,y0,x1,y1} mm (TL)
+    panning: false,
+    panStartPx: null,
+    panScrollStart: null,
+    snapGuides: {x:[], y:[]},
+    pointers: new Map(),
+    lastPinchDist: null,
   };
+
+  const dpr = window.devicePixelRatio || 1;
 
   const mmToPx = (mm) => mm * state.baseScale * state.zoom;
   const pxToMm = (px) => px / (state.baseScale * state.zoom);
@@ -46,7 +68,6 @@
   const blToTl = (x_bl, y_bl, h_total) => ({ x: x_bl, y: state.sheet.h - y_bl - h_total });
   const tlToBl = (x_tl, y_tl, h_total) => ({ x: x_tl, y: state.sheet.h - y_tl - h_total });
 
-  // Construcción de cajas desde positions normalizadas
   function buildBoxes(positions) {
     return (positions || []).map((p, i) => {
       const rot = !!(p.rotado || p.rot);
@@ -61,7 +82,7 @@
         rot,
         w_trim_mm: wT,
         h_trim_mm: hT,
-        total_w_mm: rot ? H : W,   // al rotar intercambiamos percepción de W/H
+        total_w_mm: rot ? H : W,
         total_h_mm: rot ? W : H,
         x_tl_mm: tl.x,
         y_tl_mm: tl.y,
@@ -69,15 +90,17 @@
     });
   }
 
-  // Escalado base: encajar ancho de la imagen al ancho visible
   function syncBaseScale() {
     const visibleW = img.clientWidth || img.getBoundingClientRect().width || img.naturalWidth || 1;
     state.baseScale = visibleW / (state.sheet.w || 1);
-    overlay.width  = Math.round(visibleW);
-    overlay.height = Math.round(state.sheet.h * state.baseScale);
+    overlay.width  = Math.round(visibleW * dpr);
+    overlay.height = Math.round(state.sheet.h * state.baseScale * dpr);
+    overlay.style.width = visibleW + 'px';
+    overlay.style.height = (state.sheet.h * state.baseScale) + 'px';
+    const ctx = overlay.getContext('2d');
+    ctx.setTransform(dpr,0,0,dpr,0,0);
   }
 
-  // Zoom con CSS transform (escala el viewport completo)
   function setZoom(percent) {
     const z = Math.max(0.1, Math.min(2.0, percent / 100));
     state.zoom = z;
@@ -86,10 +109,7 @@
     repaint();
   }
 
-  function fitToWidth() {
-    setZoom(100);
-    repaint();
-  }
+  function fitToWidth() { setZoom(100); repaint(); }
 
   function fitToPage() {
     const visibleW = img.clientWidth || img.getBoundingClientRect().width || 1;
@@ -115,20 +135,36 @@
     ctx.restore();
   }
 
-  function drawBoxes() {
+  function computeOverlaps(boxes) {
+    const pairs = [];
+    for (let i=0; i<boxes.length; i++) {
+      for (let j=i+1; j<boxes.length; j++) {
+        const a = boxes[i], b = boxes[j];
+        if (a.x_tl_mm < b.x_tl_mm + b.total_w_mm &&
+            a.x_tl_mm + a.total_w_mm > b.x_tl_mm &&
+            a.y_tl_mm < b.y_tl_mm + b.total_h_mm &&
+            a.y_tl_mm + a.total_h_mm > b.y_tl_mm) {
+          pairs.push([a.id, b.id]);
+        }
+      }
+    }
+    return pairs;
+  }
+
+  function drawBoxes(overlapSet) {
     for (const b of state.boxes) {
       const x = mmToPx(b.x_tl_mm), y = mmToPx(b.y_tl_mm);
       const w = mmToPx(b.total_w_mm), h = mmToPx(b.total_h_mm);
 
       ctx.save();
       ctx.fillStyle = 'rgba(0,0,0,0.04)'; ctx.fillRect(x+2, y+2, w, h);
-      const sel = (state.selectedId === b.id);
+      const sel = state.selectedIds.has(b.id);
+      const overlap = overlapSet.has(b.id);
       ctx.lineWidth = sel ? 2 : 1;
-      ctx.strokeStyle = sel ? '#0ea5e9' : '#111';
-      ctx.fillStyle = 'rgba(14,165,233,0.08)';
+      ctx.strokeStyle = overlap ? '#c00' : (sel ? '#0ea5e9' : '#111');
+      ctx.fillStyle = sel ? 'rgba(14,165,233,0.08)' : 'rgba(0,0,0,0.08)';
       ctx.fillRect(x, y, w, h); ctx.strokeRect(x, y, w, h);
 
-      // Área trim (interior)
       const trimX = x + mmToPx(state.sangrado);
       const trimY = y + mmToPx(state.sangrado);
       const trimW = mmToPx(b.w_trim_mm);
@@ -146,7 +182,40 @@
   function repaint() {
     ctx.clearRect(0,0,overlay.width, overlay.height);
     if (snapChk?.checked) drawGrid();
-    drawBoxes();
+
+    const overlaps = state.validarSolapes ? computeOverlaps(state.boxes) : [];
+    const overlapSet = new Set();
+    overlaps.forEach(p=>{ overlapSet.add(p[0]); overlapSet.add(p[1]); });
+    if (warningsDiv) {
+      warningsDiv.textContent = overlaps.length ? overlaps.map(p=>p.join('-')).join(', ') : '';
+    }
+
+    drawBoxes(overlapSet);
+
+    ctx.save();
+    ctx.setLineDash([4,4]);
+    ctx.strokeStyle = 'rgba(14,165,233,0.6)';
+    for (const x of state.snapGuides.x) {
+      const px = mmToPx(x); ctx.beginPath(); ctx.moveTo(px,0); ctx.lineTo(px,overlay.height); ctx.stroke();
+    }
+    for (const y of state.snapGuides.y) {
+      const py = mmToPx(y); ctx.beginPath(); ctx.moveTo(0,py); ctx.lineTo(overlay.width,py); ctx.stroke();
+    }
+    ctx.restore();
+
+    if (state.marquee) {
+      const {x0,y0,x1,y1} = state.marquee;
+      const x = Math.min(x0,x1), y = Math.min(y0,y1);
+      const w = Math.abs(x1-x0), h = Math.abs(y1-y0);
+      const px = mmToPx(x), py = mmToPx(y), pw = mmToPx(w), ph = mmToPx(h);
+      ctx.save();
+      ctx.fillStyle = 'rgba(14,165,233,0.15)';
+      ctx.strokeStyle = '#0ea5e9';
+      ctx.setLineDash([4,2]);
+      ctx.fillRect(px,py,pw,ph);
+      ctx.strokeRect(px,py,pw,ph);
+      ctx.restore();
+    }
   }
 
   function hitTest(px, py) {
@@ -159,6 +228,68 @@
     return null;
   }
 
+  const snapThreshold = 0.5; // mm
+  function snapToObjects(nx, ny, box, selectedIds) {
+    let bestDx = null, bestDy = null;
+    let guideX = [], guideY = [];
+    const myEdgesX = [nx, nx + box.total_w_mm, nx + box.total_w_mm/2];
+    const myEdgesY = [ny, ny + box.total_h_mm, ny + box.total_h_mm/2];
+    for (const ob of state.boxes) {
+      if (selectedIds.has(ob.id)) continue;
+      const otherX = [ob.x_tl_mm, ob.x_tl_mm + ob.total_w_mm, ob.x_tl_mm + ob.total_w_mm/2];
+      const otherY = [ob.y_tl_mm, ob.y_tl_mm + ob.total_h_mm, ob.y_tl_mm + ob.total_h_mm/2];
+      for (const m of myEdgesX) {
+        for (const o of otherX) {
+          const d = o - m;
+          if (Math.abs(d) <= snapThreshold && (bestDx===null || Math.abs(d) < Math.abs(bestDx))) {
+            bestDx = d; guideX = [o];
+          }
+        }
+      }
+      for (const m of myEdgesY) {
+        for (const o of otherY) {
+          const d = o - m;
+          if (Math.abs(d) <= snapThreshold && (bestDy===null || Math.abs(d) < Math.abs(bestDy))) {
+            bestDy = d; guideY = [o];
+          }
+        }
+      }
+    }
+    return { x: nx + (bestDx||0), y: ny + (bestDy||0), guides:{x:guideX,y:guideY} };
+  }
+
+  overlay.addEventListener('mousedown', (e) => {
+    overlay.focus && overlay.focus();
+    const r = overlay.getBoundingClientRect();
+    const px = e.clientX - r.left, py = e.clientY - r.top;
+
+    if (state.panning) {
+      state.panStartPx = {x:e.clientX, y:e.clientY};
+      state.panScrollStart = {left: stage.scrollLeft, top: stage.scrollTop};
+      return;
+    }
+
+    const id = hitTest(px, py);
+    if (id != null) {
+      if (e.shiftKey) {
+        if (state.selectedIds.has(id)) state.selectedIds.delete(id); else state.selectedIds.add(id);
+      } else if (!state.selectedIds.has(id) || state.selectedIds.size > 1) {
+        state.selectedIds.clear(); state.selectedIds.add(id);
+      }
+      const sels = Array.from(state.selectedIds).map(i=>state.boxes.find(b=>b.id===i));
+      state.drag = {
+        ids: new Set(state.selectedIds),
+        startPx: { x:px, y:py },
+        startsTl: sels.map(b=>({id:b.id, x:b.x_tl_mm, y:b.y_tl_mm})),
+        moved: false,
+      };
+    } else {
+      if (!e.shiftKey) state.selectedIds.clear();
+      state.marquee = { x0:pxToMm(px), y0:pxToMm(py), x1:pxToMm(px), y1:pxToMm(py) };
+    }
+    repaint();
+  });
+
   overlay.addEventListener('mousemove', (e) => {
     const r = overlay.getBoundingClientRect();
     const px = e.clientX - r.left, py = e.clientY - r.top;
@@ -167,60 +298,214 @@
       cursorMM.textContent = `${mmX.toFixed(1)} , ${mmY.toFixed(1)} mm`;
     }
 
+    if (state.panning && state.panStartPx) {
+      stage.scrollLeft = state.panScrollStart.left - (e.clientX - state.panStartPx.x);
+      stage.scrollTop  = state.panScrollStart.top  - (e.clientY - state.panStartPx.y);
+      return;
+    }
+
+    if (state.marquee) {
+      state.marquee.x1 = pxToMm(px);
+      state.marquee.y1 = pxToMm(py);
+      const xMin = Math.min(state.marquee.x0, state.marquee.x1);
+      const xMax = Math.max(state.marquee.x0, state.marquee.x1);
+      const yMin = Math.min(state.marquee.y0, state.marquee.y1);
+      const yMax = Math.max(state.marquee.y0, state.marquee.y1);
+      state.selectedIds.clear();
+      for (const b of state.boxes) {
+        const bx = b.x_tl_mm, by = b.y_tl_mm, bw = b.total_w_mm, bh = b.total_h_mm;
+        if (bx>=xMin && bx+bw<=xMax && by>=yMin && by+bh<=yMax) state.selectedIds.add(b.id);
+      }
+      repaint();
+      return;
+    }
+
     if (!state.drag) return;
-    const b = state.boxes.find(x => x.id === state.drag.id);
-    if (!b) return;
 
-    let nx = state.drag.startTl.x + pxToMm(px - state.drag.startPx.x);
-    let ny = state.drag.startTl.y + pxToMm(py - state.drag.startPx.y);
-
+    const sels = state.drag.startsTl;
+    let dx = pxToMm(px - state.drag.startPx.x);
+    let dy = pxToMm(py - state.drag.startPx.y);
+    let ref = sels[0];
+    let nx = ref.x + dx;
+    let ny = ref.y + dy;
     if (snapChk?.checked) {
       const g = Math.max(0.1, toNum(gridInput.value, 1));
       nx = Math.round(nx / g) * g;
       ny = Math.round(ny / g) * g;
     }
-
-    // clamp a bordes
-    nx = Math.max(0, Math.min(nx, state.sheet.w - b.total_w_mm));
-    ny = Math.max(0, Math.min(ny, state.sheet.h - b.total_h_mm));
-
-    b.x_tl_mm = nx; b.y_tl_mm = ny;
+    state.snapGuides = {x:[], y:[]};
+    if (state.snapObjEnabled) {
+      const b0 = state.boxes.find(b=>b.id===ref.id);
+      const res = snapToObjects(nx, ny, b0, state.drag.ids);
+      nx = res.x; ny = res.y; state.snapGuides = res.guides;
+    }
+    const diffX = nx - (ref.x + dx);
+    const diffY = ny - (ref.y + dy);
+    for (const st of sels) {
+      const b = state.boxes.find(bb=>bb.id===st.id);
+      let nx2 = st.x + dx + diffX;
+      let ny2 = st.y + dy + diffY;
+      nx2 = Math.max(0, Math.min(nx2, state.sheet.w - b.total_w_mm));
+      ny2 = Math.max(0, Math.min(ny2, state.sheet.h - b.total_h_mm));
+      b.x_tl_mm = nx2; b.y_tl_mm = ny2;
+    }
+    state.drag.moved = true;
     repaint();
   });
 
-  overlay.addEventListener('mousedown', (e) => {
-    const r = overlay.getBoundingClientRect();
-    const px = e.clientX - r.left, py = e.clientY - r.top;
-    const id = hitTest(px, py);
-    state.selectedId = id; repaint();
-
-    if (id != null) {
-      const b = state.boxes.find(x => x.id === id);
-      state.drag = {
-        id,
-        startPx: { x:px, y:py },
-        startTl: { x:b.x_tl_mm, y:b.y_tl_mm },
-      };
+  window.addEventListener('mouseup', () => {
+    if (state.drag) {
+      if (state.drag.moved) pushHistory();
+      state.drag = null;
+      state.snapGuides = {x:[], y:[]};
+      repaint();
     }
+    state.marquee = null;
   });
 
-  window.addEventListener('mouseup', () => { state.drag = null; });
+  function moveSelected(dx, dy) {
+    if (!state.selectedIds.size) return;
+    const sels = Array.from(state.selectedIds).map(id=>state.boxes.find(b=>b.id===id));
+    let ref = sels[0];
+    let nx = ref.x_tl_mm + dx;
+    let ny = ref.y_tl_mm + dy;
+    if (snapChk?.checked) {
+      const g = Math.max(0.1, toNum(gridInput.value, 1));
+      nx = Math.round(nx / g) * g;
+      ny = Math.round(ny / g) * g;
+    }
+    state.snapGuides = {x:[], y:[]};
+    if (state.snapObjEnabled) {
+      const res = snapToObjects(nx, ny, ref, new Set(state.selectedIds));
+      nx = res.x; ny = res.y; state.snapGuides = res.guides;
+    }
+    const diffX = nx - (ref.x_tl_mm + dx);
+    const diffY = ny - (ref.y_tl_mm + dy);
+    for (const b of sels) {
+      let nx2 = b.x_tl_mm + dx + diffX;
+      let ny2 = b.y_tl_mm + dy + diffY;
+      nx2 = Math.max(0, Math.min(nx2, state.sheet.w - b.total_w_mm));
+      ny2 = Math.max(0, Math.min(ny2, state.sheet.h - b.total_h_mm));
+      b.x_tl_mm = nx2; b.y_tl_mm = ny2;
+    }
+    pushHistory();
+    repaint();
+  }
 
   window.addEventListener('keydown', (e) => {
-    if (!state.selectedId && state.selectedId !== 0) return;
-    const b = state.boxes.find(x => x.id === state.selectedId);
-    if (!b) return;
-    if (e.key.toLowerCase() === 'r') {
-      b.rot = !b.rot;
-      // intercambiar trim y totales
-      [b.w_trim_mm, b.h_trim_mm] = [b.h_trim_mm, b.w_trim_mm];
-      [b.total_w_mm, b.total_h_mm] = [b.total_h_mm, b.total_w_mm];
-      // re-clamp
-      b.x_tl_mm = Math.min(b.x_tl_mm, state.sheet.w - b.total_w_mm);
-      b.y_tl_mm = Math.min(b.y_tl_mm, state.sheet.h - b.total_h_mm);
+    if (e.code === 'Space' && !state.panning) {
+      state.panning = true; stage.style.cursor = 'grab'; e.preventDefault(); return;
+    }
+    if (e.ctrlKey && e.key.toLowerCase() === 'z') {
+      e.preventDefault();
+      if (e.shiftKey) redo(); else undo();
+      return;
+    }
+    if (e.ctrlKey && e.key.toLowerCase() === 'y') { e.preventDefault(); redo(); return; }
+
+    if (['ArrowLeft','ArrowRight','ArrowUp','ArrowDown'].includes(e.key)) {
+      const step = e.shiftKey ? 10 : 1;
+      let dx=0, dy=0;
+      if (e.key==='ArrowLeft') dx=-step;
+      if (e.key==='ArrowRight') dx=step;
+      if (e.key==='ArrowUp') dy=-step;
+      if (e.key==='ArrowDown') dy=step;
+      if (dx||dy) { e.preventDefault(); moveSelected(dx,dy); }
+      return;
+    }
+
+    if (e.key.toLowerCase() === 'r' && state.selectedIds.size) {
+      e.preventDefault();
+      for (const id of state.selectedIds) {
+        const b = state.boxes.find(x=>x.id===id); if (!b) continue;
+        b.rot = !b.rot;
+        [b.w_trim_mm, b.h_trim_mm] = [b.h_trim_mm, b.w_trim_mm];
+        [b.total_w_mm, b.total_h_mm] = [b.total_h_mm, b.total_w_mm];
+        b.x_tl_mm = Math.min(b.x_tl_mm, state.sheet.w - b.total_w_mm);
+        b.y_tl_mm = Math.min(b.y_tl_mm, state.sheet.h - b.total_h_mm);
+      }
+      pushHistory();
       repaint();
     }
   });
+
+  window.addEventListener('keyup', (e) => {
+    if (e.code === 'Space') {
+      state.panning = false; state.panStartPx=null; stage.style.cursor='default';
+    }
+  });
+
+  function undo() {
+    if (state.historyPtr > 0) restoreHistory(state.historyPtr - 1);
+  }
+  function redo() {
+    if (state.historyPtr < state.history.length - 1) restoreHistory(state.historyPtr + 1);
+  }
+  function restoreHistory(idx) {
+    const snap = state.history[idx];
+    state.boxes = snap.boxes.map(b=>({...b}));
+    state.selectedIds = new Set(snap.selected);
+    state.historyPtr = idx;
+    repaint();
+  }
+  function pushHistory() {
+    state.history = state.history.slice(0, state.historyPtr + 1);
+    state.history.push({ boxes: state.boxes.map(b=>({...b})), selected: Array.from(state.selectedIds) });
+    if (state.history.length > 50) state.history.shift();
+    state.historyPtr = state.history.length - 1;
+  }
+
+  function alignSelected(mode) {
+    const sels = state.boxes.filter(b=>state.selectedIds.has(b.id));
+    if (sels.length < 2) return;
+    const minX = Math.min(...sels.map(b=>b.x_tl_mm));
+    const maxX = Math.max(...sels.map(b=>b.x_tl_mm + b.total_w_mm));
+    const minY = Math.min(...sels.map(b=>b.y_tl_mm));
+    const maxY = Math.max(...sels.map(b=>b.y_tl_mm + b.total_h_mm));
+    const cx = (minX + maxX)/2, cy = (minY + maxY)/2;
+    for (const b of sels) {
+      switch(mode) {
+        case 'left': b.x_tl_mm = minX; break;
+        case 'hcenter': b.x_tl_mm = cx - b.total_w_mm/2; break;
+        case 'right': b.x_tl_mm = maxX - b.total_w_mm; break;
+        case 'top': b.y_tl_mm = minY; break;
+        case 'vcenter': b.y_tl_mm = cy - b.total_h_mm/2; break;
+        case 'bottom': b.y_tl_mm = maxY - b.total_h_mm; break;
+      }
+      b.x_tl_mm = Math.max(0, Math.min(b.x_tl_mm, state.sheet.w - b.total_w_mm));
+      b.y_tl_mm = Math.max(0, Math.min(b.y_tl_mm, state.sheet.h - b.total_h_mm));
+    }
+    pushHistory();
+    repaint();
+  }
+
+  function distributeSelected(axis) {
+    const sels = state.boxes.filter(b=>state.selectedIds.has(b.id));
+    if (sels.length <= 2) return;
+    if (axis === 'h') {
+      const sorted = sels.slice().sort((a,b)=>(a.x_tl_mm + a.total_w_mm/2) - (b.x_tl_mm + b.total_w_mm/2));
+      const first = sorted[0], last = sorted[sorted.length-1];
+      const span = (last.x_tl_mm + last.total_w_mm/2) - (first.x_tl_mm + first.total_w_mm/2);
+      const step = span / (sorted.length - 1);
+      sorted.forEach((b,i)=>{
+        const center = (first.x_tl_mm + first.total_w_mm/2) + step*i;
+        b.x_tl_mm = center - b.total_w_mm/2;
+        b.x_tl_mm = Math.max(0, Math.min(b.x_tl_mm, state.sheet.w - b.total_w_mm));
+      });
+    } else {
+      const sorted = sels.slice().sort((a,b)=>(a.y_tl_mm + a.total_h_mm/2) - (b.y_tl_mm + b.total_h_mm/2));
+      const first = sorted[0], last = sorted[sorted.length-1];
+      const span = (last.y_tl_mm + last.total_h_mm/2) - (first.y_tl_mm + first.total_h_mm/2);
+      const step = span / (sorted.length - 1);
+      sorted.forEach((b,i)=>{
+        const center = (first.y_tl_mm + first.total_h_mm/2) + step*i;
+        b.y_tl_mm = center - b.total_h_mm/2;
+        b.y_tl_mm = Math.max(0, Math.min(b.y_tl_mm, state.sheet.h - b.total_h_mm));
+      });
+    }
+    pushHistory();
+    repaint();
+  }
 
   function buildPayload() {
     const posiciones = state.boxes.map(b => {
@@ -245,9 +530,9 @@
       body: JSON.stringify(payload)
     }).then(r=>r.json()).then(data=>{
       if (data.preview_url) {
-        img.src = data.preview_url;
-        // recarga posiciones para seguir editando
-        initFromData({ sheet_mm:data.sheet_mm, posiciones:data.positions, sangrado_mm: state.sangrado });
+        img.src = data.preview_url + '?t=' + Date.now();
+        const pos = (data.positions && data.positions.length) ? data.positions : payload.posiciones;
+        initFromData({ sheet_mm:data.sheet_mm, posiciones:pos, sangrado_mm: state.sangrado });
       }
     }).catch(console.error);
   });
@@ -266,34 +551,65 @@
   function initFromData(opts) {
     state.sheet = { w: toNum(opts?.sheet_mm?.w, 0), h: toNum(opts?.sheet_mm?.h, 0) };
     state.sangrado = toNum(opts?.sangrado_mm, state.sangrado);
-    state.boxes = buildBoxes(Array.isArray(opts?.positions) ? opts.positions : []);
-    // (re)calcular escala base y dibujar
+    state.boxes = buildBoxes(Array.isArray(opts?.posiciones) ? opts.posiciones : (Array.isArray(opts?.positions) ? opts.positions : []));
+    state.selectedIds.clear();
     if (img.complete) {
       syncBaseScale(); setZoom(toNum(zoomRange?.value, 100)); repaint();
     } else {
       img.addEventListener('load', () => { syncBaseScale(); setZoom(toNum(zoomRange?.value, 100)); repaint(); }, { once:true });
     }
+    state.history = []; state.historyPtr = -1; pushHistory();
   }
 
-  // Expuesto para el template
   window.manualEditorLoad = function(opts) {
     if (opts?.preview_url) img.src = opts.preview_url;
     initFromData({ sheet_mm:opts?.sheet_mm, posiciones:opts?.positions, sangrado_mm:opts?.sangrado_mm });
   };
 
-  // Toggle de panel
   btnMode?.addEventListener('click', () => {
     const show = (document.getElementById('manual-editor').style.display !== 'block');
     document.getElementById('manual-editor').style.display = show ? 'block' : 'none';
     if (show) { syncBaseScale(); setZoom(toNum(zoomRange?.value, 100)); repaint(); }
   });
 
-  // Responder a resize del contenedor
   const ro = new ResizeObserver(() => { syncBaseScale(); repaint(); });
   ro.observe(stage);
 
-  // Zoom UI
   zoomRange?.addEventListener('input', () => setZoom(toNum(zoomRange.value, 100)));
   fitWidth?.addEventListener('click', fitToWidth);
   fitPage?.addEventListener('click', fitToPage);
+
+  snapObjChk?.addEventListener('change', () => { state.snapObjEnabled = snapObjChk.checked; });
+  validarChk?.addEventListener('change', () => { state.validarSolapes = validarChk.checked; repaint(); });
+
+  overlay.addEventListener('pointerdown', e=>{ state.pointers.set(e.pointerId,{x:e.clientX,y:e.clientY}); overlay.setPointerCapture(e.pointerId); });
+  overlay.addEventListener('pointermove', e=>{
+    if(!state.pointers.has(e.pointerId)) return;
+    state.pointers.set(e.pointerId,{x:e.clientX,y:e.clientY});
+    if(state.pointers.size===2){
+      const pts=[...state.pointers.values()];
+      const dist=Math.hypot(pts[0].x-pts[1].x, pts[0].y-pts[1].y);
+      if(state.lastPinchDist){
+        const factor = dist / state.lastPinchDist;
+        const oldZoom = state.zoom;
+        let newPercent = Math.max(10, Math.min(200, toNum(zoomRange.value,100)*factor));
+        zoomRange.value = newPercent;
+        setZoom(newPercent);
+        const rect = stage.getBoundingClientRect();
+        const midX=(pts[0].x+pts[1].x)/2;
+        const midY=(pts[0].y+pts[1].y)/2;
+        const midContentX = midX - rect.left + stage.scrollLeft;
+        const midContentY = midY - rect.top + stage.scrollTop;
+        const ratio = state.zoom / oldZoom;
+        stage.scrollLeft = midContentX * ratio - (midX - rect.left);
+        stage.scrollTop  = midContentY * ratio - (midY - rect.top);
+      }
+      state.lastPinchDist = dist;
+    }
+  });
+  const clearPtr = e=>{ state.pointers.delete(e.pointerId); if(state.pointers.size<2) state.lastPinchDist=null; };
+  overlay.addEventListener('pointerup', clearPtr);
+  overlay.addEventListener('pointercancel', clearPtr);
+
 })();
+
