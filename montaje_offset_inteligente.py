@@ -997,10 +997,7 @@ def montar_pliego_offset_inteligente(
         if faltan:
             print("[PREVIEW] WARNING: posiciones sin archivo PDF:", faltan[:3])
 
-        try:
-            dpi = preview_dpi if isinstance(preview_dpi, (int, float)) else 150
-        except NameError:
-            dpi = 150
+        dpi = 150
 
         try:
             print(
@@ -1019,14 +1016,25 @@ def montar_pliego_offset_inteligente(
             dpi=dpi,
         )
 
-        return {
-            "ok": True,
-            "preview_generated": True,
+        result = {
             "preview_path": preview_path,
-            "resumen_html": resumen_html,
-            "positions": posiciones_normalizadas if devolver_posiciones else None,
-            "sheet_mm": {"w": ancho_pliego, "h": alto_pliego},
+            "resumen_html": resumen_html if 'resumen_html' in locals() else None,
         }
+        if devolver_posiciones:
+            positions_norm = [
+                {
+                    "archivo": p["archivo"],
+                    "x_mm": p["x"],
+                    "y_mm": p["y"],
+                    "w_mm": p["ancho"],
+                    "h_mm": p["alto"],
+                    "rotado": bool(p.get("rotado", False)),
+                }
+                for p in posiciones
+            ]
+            result["positions"] = positions_norm
+            result["sheet_mm"] = {"w": ancho_pliego, "h": alto_pliego}
+        return result
 
     if preview_only:
         """
@@ -1039,11 +1047,8 @@ def montar_pliego_offset_inteligente(
         import tempfile
         import fitz  # PyMuPDF
 
-        # DPI deseado para preview (si viene preview_dpi úsalo; si no, 150)
-        try:
-            dpi = preview_dpi if isinstance(preview_dpi, (int, float)) else 150
-        except NameError:
-            dpi = 150
+        # DPI fijo para la vista previa
+        dpi = 150
 
         # 1) Documento temporal y página del tamaño del pliego en puntos
         dest = fitz.open()

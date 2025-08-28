@@ -61,6 +61,33 @@ heavy_lock = Lock()
 last_uploads: list[str] = []
 
 
+def _unpack_preview_result(res, preview_path, ancho_pliego, alto_pliego):
+    """Adapta retornos posibles de ``montar_pliego_offset_inteligente``.
+
+    Acepta un ``dict`` con claves ``preview_path``, ``resumen_html``,
+    ``positions`` y ``sheet_mm``; una tupla ``(bytes, str)`` donde se espera
+    que la función haya devuelto los bytes de la imagen y un resumen HTML; o
+    simplemente un ``str`` con la ruta al PNG generado previamente.
+
+    Devuelve siempre una tupla ``(preview_path_abs, resumen_html,
+    positions, sheet_mm)``.
+    """
+    import os
+
+    if isinstance(res, dict):
+        pp = res.get("preview_path") or preview_path
+        return (pp, res.get("resumen_html"), res.get("positions"), res.get("sheet_mm"))
+    if isinstance(res, tuple):
+        img_bytes, resumen_html = res
+        os.makedirs(os.path.dirname(preview_path), exist_ok=True)
+        with open(preview_path, "wb") as f:
+            f.write(img_bytes)
+        return (preview_path, resumen_html, None, {"w": ancho_pliego, "h": alto_pliego})
+    if isinstance(res, str):
+        return (res, None, None, {"w": ancho_pliego, "h": alto_pliego})
+    return (preview_path, None, None, {"w": ancho_pliego, "h": alto_pliego})
+
+
 @routes_bp.route("/", methods=["GET", "POST"])
 def index():
     mensaje = ""
@@ -407,14 +434,16 @@ def montaje_offset_inteligente_view():
                 marcas_registro=params["marcas_registro"],
                 marcas_corte=params["marcas_corte"],
                 cutmarks_por_forma=params["cutmarks_por_forma"],
-                preview_path=preview_path,          # << importante
-                devolver_posiciones=True,           # << importante
-                preview_dpi=150,
+                preview_path=preview_path,          # << genera archivo real
+                devolver_posiciones=True,           # << pedimos positions + sheet
                 preview_only=False,
                 **opciones_extra,
             )
 
-            rel_path = os.path.relpath(preview_path, current_app.static_folder).replace(
+            ppath_abs, resumen_html, positions, sheet_mm = _unpack_preview_result(
+                res, preview_path, ancho_pliego, alto_pliego
+            )
+            rel_path = os.path.relpath(ppath_abs, current_app.static_folder).replace(
                 "\\", "/"
             )
             preview_url = url_for("static", filename=rel_path)
@@ -423,9 +452,9 @@ def montaje_offset_inteligente_view():
                 "montaje_offset_inteligente.html",
                 resultado=None,
                 preview_url=preview_url,
-                resumen_html=res.get("resumen_html"),
-                positions=res.get("positions"),
-                sheet_mm=res.get("sheet_mm"),
+                resumen_html=resumen_html,
+                positions=positions,
+                sheet_mm=sheet_mm,
                 sangrado_mm=params["sangrado"],
             )
 
@@ -603,7 +632,6 @@ def manual_preview():
     marcas_registro = bool(opciones.get("marcas_registro", False))
     marcas_corte = bool(opciones.get("marcas_corte", False))
     cutmarks_por_forma = bool(opciones.get("cutmarks_por_forma", False))
-    preview_dpi = opciones.get("preview_dpi", 150)
 
     global last_uploads
     diseños = []
@@ -633,18 +661,20 @@ def manual_preview():
         posiciones_manual=posiciones,
         preview_path=preview_path,
         devolver_posiciones=True,
-        preview_dpi=preview_dpi,
         preview_only=False,
     )
-    rel = os.path.relpath(preview_path, current_app.static_folder).replace("\\", "/")
+    ppath_abs, resumen_html, positions, sheet_mm = _unpack_preview_result(
+        res, preview_path, ancho, alto
+    )
+    rel = os.path.relpath(ppath_abs, current_app.static_folder).replace("\\", "/")
     preview_url = url_for("static", filename=rel)
     return jsonify(
         {
             "ok": True,
             "preview_url": preview_url,
-            "positions": res.get("positions"),
-            "sheet_mm": res.get("sheet_mm"),
-            "resumen_html": res.get("resumen_html"),
+            "resumen_html": resumen_html,
+            "positions": positions,
+            "sheet_mm": sheet_mm,
         }
     )
 
