@@ -177,6 +177,20 @@
       </label>
       <label><input type="checkbox" id="snap_on" checked> Snap</label>
 
+      <label><input id="snap_obj" type="checkbox" checked> Snap a objetos</label>
+      <label><input id="validar_solapes" type="checkbox"> Validar solapes</label>
+
+      <div class="btn-group" style="display:flex; gap:6px; flex-wrap:wrap;">
+        <button type="button" data-align="left">Alinear izq</button>
+        <button type="button" data-align="hcenter">Alinear centro H</button>
+        <button type="button" data-align="right">Alinear der</button>
+        <button type="button" data-align="top">Alinear arriba</button>
+        <button type="button" data-align="vcenter">Alinear centro V</button>
+        <button type="button" data-align="bottom">Alinear abajo</button>
+        <button type="button" data-distribute="h">Distribuir H</button>
+        <button type="button" data-distribute="v">Distribuir V</button>
+      </div>
+
       <!-- NUEVO: controles de zoom -->
       <label>Zoom:
         <input id="zoom_range" type="range" min="10" max="200" step="5" value="100">
@@ -188,6 +202,8 @@
       <span id="cursor_mm" style="opacity:.7;"></span>
     </div>
 
+    <div id="manual-warnings" style="color:#c00; min-height:1em;"></div>
+
     <!-- Contenedor con altura máxima para que no “rompa” la página -->
     <div id="manual-stage"
          style="position:relative; max-width:100%;
@@ -196,7 +212,7 @@
       <div id="viewport" style="position:relative; transform-origin: top left;">
         <img id="preview-bg" src="{{ preview_url or '' }}"
              style="display:block; width:100%; height:auto;" alt="preview">
-        <canvas id="overlay" style="position:absolute; left:0; top:0; pointer-events:auto;"></canvas>
+        <canvas id="overlay" tabindex="0" style="position:absolute; left:0; top:0; pointer-events:auto;"></canvas>
       </div>
     </div>
 
