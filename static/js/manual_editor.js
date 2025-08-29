@@ -26,10 +26,6 @@
   if (!overlay || !img || !stage || !viewport) return;
 
 
-  const API_BASE = 'https://revista-montaje-ai.onrender.com'; // o relativo si estás same-origin
-
-
-
   const toNum = (v, def=0) => {
     const n = Number(v);
     return Number.isFinite(n) ? n : def;
@@ -509,67 +505,44 @@
 
   function buildPayload() {
     return {
-      sheet: { w_mm: state.sheet.w, h_mm: state.sheet.h },
-      sangrado_mm: state.sangrado,
+      files: Array.isArray(window.__manualFiles) ? window.__manualFiles : [],
+      sheet: { w_mm: +state.sheet.w, h_mm: +state.sheet.h },
+      sangrado_mm: +state.sangrado,
       positions: state.boxes.map(b => {
         const bl = tlToBl(b.x_tl_mm, b.y_tl_mm, b.total_h_mm);
         return {
-          file_idx: b.file_idx,
-          x_mm: round1(bl.x),
-          y_mm: round1(bl.y),
-          w_mm: round1(b.w_trim_mm ?? b.w_mm),
-          h_mm: round1(b.h_trim_mm ?? b.h_mm),
-          rot: b.rot ? 90 : 0,
+          file_idx: +b.file_idx,
+          x_mm: +round1(bl.x),
+          y_mm: +round1(bl.y),
+          w_mm: +round1(b.w_trim_mm ?? b.w_mm),
+          h_mm: +round1(b.h_trim_mm ?? b.h_mm),
+          rot: +(b.rot ? 90 : 0),
         };
       }),
-      files: Array.isArray(window.__manualFiles) ? window.__manualFiles : [],
-      opciones: {},
     };
   }
 
   async function applyManual() {
     const payload = buildPayload();
-    const resp = await fetch(`${API_BASE}/api/manual/preview`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      // credentials: 'include',
+    const resp = await fetch('/api/manual/preview', {
+      method: 'POST', headers: {'Content-Type': 'application/json'},
       body: JSON.stringify(payload),
     });
-
-    if (!resp.ok) {
-      let txt = await resp.text();
-      alert(`Error al aplicar: ${txt}`);
-      return;
-    }
-    const json = await resp.json();
-    if (!json.ok) {
-      alert(json.error || 'No se pudo aplicar la edición manual.');
-      return;
-    }
+    const json = await resp.json().catch(()=>({}));
+    if (!resp.ok || !json.ok) return alert(json.error||'Error al aplicar.');
     const img = document.getElementById('preview-bg');
-    img.src = json.preview_url + `?t=${Date.now()}`;
+    if (img) img.src = json.preview_url + `?t=${Date.now()}`;
   }
 
   async function generateManual() {
     const payload = buildPayload();
-    const resp = await fetch(`${API_BASE}/api/manual/impose`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      // credentials: 'include',
+    const resp = await fetch('/api/manual/impose', {
+      method: 'POST', headers: {'Content-Type': 'application/json'},
       body: JSON.stringify(payload),
     });
-
-    if (!resp.ok) {
-      let txt = await resp.text();
-      alert(`Error al generar PDF: ${txt}`);
-      return;
-    }
-    const json = await resp.json();
-    if (json.pdf_url) {
-      window.location.href = json.pdf_url;
-    } else {
-      alert(json.error || 'No se pudo generar el PDF manual.');
-    }
+    const json = await resp.json().catch(()=>({}));
+    if (!resp.ok || !json.ok) return alert(json.error||'No se pudo generar el PDF.');
+    window.location.href = json.pdf_url;
   }
 
   document.getElementById('btn-manual-apply')?.addEventListener('click', applyManual);

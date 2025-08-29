@@ -368,7 +368,7 @@
     window.__positions  = {{ positions|tojson|safe }};
     window.__sangradoMm = {{ sangrado_mm|default(0) }};
     window.__previewUrl = "{{ preview_url }}";
-    window.__manualFiles = {{ files_list|tojson|safe }};
+    window.__manualFiles = {{ files_list|tojson|safe }};   // lista de rutas de PDFs
   </script>
   {% endif %}
   <script src="{{ url_for('static', filename='js/manual_editor.js') }}"></script>

@@ -6,6 +6,7 @@ import fitz
 import uuid
 import tempfile
 from threading import Lock
+from PIL import Image
 from reportlab.pdfgen import canvas
 from reportlab.lib.units import mm
 from flask import (
@@ -58,10 +59,13 @@ routes_bp = Blueprint("routes", __name__)
 
 heavy_lock = Lock()
 
+def _json_error(msg, code=422):
+    return jsonify(ok=False, error=msg), code
+
 
 @routes_bp.app_errorhandler(RequestEntityTooLarge)
-def _handle_413(e):
-    return jsonify(ok=False, error="Payload demasiado grande."), 413
+def _too_large(e):
+    return _json_error("Payload demasiado grande. Reduce DPI o cantidad de archivos.", 413)
 
 
 def _resolve_uploads():
@@ -631,85 +635,157 @@ def montaje_offset_preview():
         return jsonify({"ok": False, "error": str(e)}), 500
 @routes_bp.route("/api/manual/preview", methods=["POST"])
 def api_manual_preview():
+    data = request.get_json(silent=True) or {}
+    files = data.get("files")
+    positions = data.get("positions")
+    sheet = data.get("sheet") or {}
+    sangrado = data.get("sangrado_mm")
+
+    if not isinstance(files, list) or not files:
+        return _json_error("Lista de archivos 'files' faltante o vacía.")
+    if not isinstance(positions, list):
+        return _json_error("'positions' debe ser un array.")
+    if not isinstance(sheet, dict) or "w_mm" not in sheet or "h_mm" not in sheet:
+        return _json_error("'sheet' debe incluir w_mm y h_mm.")
     try:
-        data = request.get_json(force=True, silent=True) or {}
-        files = data.get("files") or []
-        positions_in = data.get("positions") or []
-        sheet = data.get("sheet") or {}
-        sangrado_mm = data.get("sangrado_mm", 0)
+        w_mm = float(sheet["w_mm"]); h_mm = float(sheet["h_mm"])
+        if w_mm <= 0 or h_mm <= 0:
+            return _json_error("sheet.w_mm/h_mm deben ser > 0.")
+    except Exception:
+        return _json_error("sheet.w_mm/h_mm deben ser numéricos.")
+    try:
+        sangrado = float(sangrado or 0)
+        if sangrado < 0:
+            return _json_error("sangrado_mm debe ser ≥ 0.")
+    except Exception:
+        return _json_error("sangrado_mm debe ser numérico.")
 
-        if not files or not isinstance(files, list):
-            return jsonify(ok=False, error="Lista de archivos ausente."), 422
+    diseños = [(ruta, 1) for ruta in files]
+    n = len(diseños)
+    for i, p in enumerate(positions):
+        try:
+            idx = int(p.get("file_idx"))
+            if idx < 0 or idx >= n:
+                return _json_error(f"file_idx inválido en positions[{i}]: {idx}")
+            float(p.get("x_mm")); float(p.get("y_mm"))
+            float(p.get("w_mm")); float(p.get("h_mm"))
+            int(p.get("rot") or 0)
+        except Exception:
+            return _json_error(f"positions[{i}] tiene valores no numéricos.")
 
-        diseños = [(ruta, 1) for ruta in files]
-        n = len(diseños)
-        for i, p in enumerate(positions_in):
-            idx = p.get("file_idx")
-            if not isinstance(idx, int) or idx < 0 or idx >= n:
-                return jsonify(ok=False, error=f"file_idx inválido en posición {i}: {idx}"), 422
-            for k in ("x_mm", "y_mm", "w_mm", "h_mm"):
-                if k not in p:
-                    return jsonify(ok=False, error=f"positions[{i}].{k} faltante"), 422
+    prev_dir = os.path.join(current_app.static_folder, "previews")
+    os.makedirs(prev_dir, exist_ok=True)
+    token = uuid.uuid4().hex
+    preview_path = os.path.join(prev_dir, f"manual_{token}.png")
 
-        fname = f"preview/manual_{uuid.uuid4().hex}.png"
-        preview_path = _tmp_static("out", fname)
-
-        montar_pliego_offset_inteligente(
-            diseños=diseños,
-            ancho_pliego=sheet.get("w_mm"),
-            alto_pliego=sheet.get("h_mm"),
-            sangrado=sangrado_mm,
-            preview_path=preview_path,
-            devolver_posiciones=True,
-            posiciones_override=positions_in,
+    try:
+        res = montar_pliego_offset_inteligente(
+            diseños,
+            w_mm, h_mm,
+            posiciones_manual=positions,
+            sangrado=sangrado,
             preview_only=True,
+            preview_path=preview_path,
         )
+
+        wrote_file = os.path.exists(preview_path) and os.path.getsize(preview_path) > 0
+
+        if not wrote_file:
+            png_bytes = None
+            if isinstance(res, dict):
+                if isinstance(res.get("preview_bytes"), (bytes, bytearray)):
+                    png_bytes = res["preview_bytes"]
+                elif isinstance(res.get("preview_pil"), Image.Image):
+                    buf = io.BytesIO()
+                    res["preview_pil"].save(buf, format="PNG")
+                    png_bytes = buf.getvalue()
+            elif isinstance(res, (tuple, list)) and res and isinstance(res[0], (bytes, bytearray)):
+                png_bytes = res[0]
+            if png_bytes:
+                with open(preview_path, "wb") as f:
+                    f.write(png_bytes)
+                wrote_file = True
+
+        if not wrote_file:
+            return _json_error("El motor no generó preview.", 500)
+
         rel = os.path.relpath(preview_path, current_app.static_folder).replace("\\", "/")
-        return jsonify(ok=True, preview_url=url_for("static", filename=rel))
+        preview_url = url_for("static", filename=rel)
+        return jsonify(ok=True, preview_url=preview_url)
+
     except Exception as e:
-        current_app.logger.exception("manual preview error")
-        return jsonify(ok=False, error=str(e)), 500
+        current_app.logger.exception("api_manual_preview error")
+        return _json_error(str(e), 500)
 
 
 @routes_bp.route("/api/manual/impose", methods=["POST"])
 def api_manual_impose():
+    data = request.get_json(silent=True) or {}
+    files = data.get("files")
+    positions = data.get("positions")
+    sheet = data.get("sheet") or {}
+    sangrado = data.get("sangrado_mm")
+
+    if not isinstance(files, list) or not files:
+        return _json_error("Lista de archivos 'files' faltante o vacía.")
+    if not isinstance(positions, list):
+        return _json_error("'positions' debe ser un array.")
+    if not isinstance(sheet, dict) or "w_mm" not in sheet or "h_mm" not in sheet:
+        return _json_error("'sheet' debe incluir w_mm y h_mm.")
     try:
-        data = request.get_json(force=True, silent=True) or {}
-        files = data.get("files") or []
-        positions_in = data.get("positions") or []
-        sheet = data.get("sheet") or {}
-        sangrado_mm = data.get("sangrado_mm", 0)
+        w_mm = float(sheet["w_mm"]); h_mm = float(sheet["h_mm"])
+        sangrado = float(sangrado or 0)
+    except Exception:
+        return _json_error("sheet/sangrado_mm inválidos.")
 
-        if not files or not isinstance(files, list):
-            return jsonify(ok=False, error="Lista de archivos ausente."), 422
+    diseños = [(ruta, 1) for ruta in files]
+    n = len(diseños)
+    for i, p in enumerate(positions):
+        try:
+            idx = int(p.get("file_idx"))
+            if idx < 0 or idx >= n:
+                return _json_error(f"file_idx inválido en positions[{i}]: {idx}")
+            float(p.get("x_mm")); float(p.get("y_mm"))
+            float(p.get("w_mm")); float(p.get("h_mm"))
+            int(p.get("rot") or 0)
+        except Exception:
+            return _json_error(f"positions[{i}] tiene valores no numéricos.")
 
-        diseños = [(ruta, 1) for ruta in files]
-        n = len(diseños)
-        for i, p in enumerate(positions_in):
-            idx = p.get("file_idx")
-            if not isinstance(idx, int) or idx < 0 or idx >= n:
-                return jsonify(ok=False, error=f"file_idx inválido en posición {i}: {idx}"), 422
-            for k in ("x_mm", "y_mm", "w_mm", "h_mm"):
-                if k not in p:
-                    return jsonify(ok=False, error=f"positions[{i}].{k} faltante"), 422
+    out_dir = os.path.join(current_app.static_folder, "outputs")
+    os.makedirs(out_dir, exist_ok=True)
+    token = uuid.uuid4().hex
+    pdf_path = os.path.join(out_dir, f"manual_{token}.pdf")
 
-        pdf_name = f"manual_{uuid.uuid4().hex}.pdf"
-        pdf_path = _tmp_static("out", pdf_name)
-
-        montar_pliego_offset_inteligente(
-            diseños=diseños,
-            ancho_pliego=sheet.get("w_mm"),
-            alto_pliego=sheet.get("h_mm"),
-            sangrado=sangrado_mm,
-            output_pdf_path=pdf_path,
-            posiciones_override=positions_in,
+    try:
+        res = montar_pliego_offset_inteligente(
+            diseños,
+            w_mm, h_mm,
+            posiciones_manual=positions,
+            sangrado=sangrado,
             preview_only=False,
+            output_pdf_path=pdf_path,
         )
+
+        wrote_pdf = os.path.exists(pdf_path) and os.path.getsize(pdf_path) > 0
+        if not wrote_pdf and isinstance(res, dict) and isinstance(res.get("pdf_bytes"), (bytes, bytearray)):
+            with open(pdf_path, "wb") as f:
+                f.write(res["pdf_bytes"])
+            wrote_pdf = True
+        elif not wrote_pdf and isinstance(res, (tuple, list)) and res and isinstance(res[0], (bytes, bytearray)):
+            with open(pdf_path, "wb") as f:
+                f.write(res[0])
+            wrote_pdf = True
+
+        if not wrote_pdf:
+            return _json_error("El motor no generó el PDF.", 500)
+
         rel = os.path.relpath(pdf_path, current_app.static_folder).replace("\\", "/")
-        return jsonify(ok=True, pdf_url=url_for("static", filename=rel))
+        pdf_url = url_for("static", filename=rel)
+        return jsonify(ok=True, pdf_url=pdf_url)
+
     except Exception as e:
-        current_app.logger.exception("manual impose error")
-        return jsonify(ok=False, error=str(e)), 500
+        current_app.logger.exception("api_manual_impose error")
+        return _json_error(str(e), 500)
 
 
 @routes_bp.route("/montaje_flexo_avanzado", methods=["GET", "POST"])
