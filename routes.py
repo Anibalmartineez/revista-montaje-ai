@@ -21,6 +21,7 @@ from flask import (
     current_app,
 )
 from werkzeug.utils import secure_filename
+from werkzeug.exceptions import RequestEntityTooLarge
 from montaje import montar_pdf
 from diagnostico import diagnosticar_pdf, analizar_grafico_tecnico
 from diagnostico_pdf import diagnostico_offset_pro
@@ -56,6 +57,11 @@ chat_historial = []
 routes_bp = Blueprint("routes", __name__)
 
 heavy_lock = Lock()
+
+
+@routes_bp.app_errorhandler(RequestEntityTooLarge)
+def _handle_413(e):
+    return jsonify(ok=False, error="Payload demasiado grande."), 413
 
 
 def _resolve_uploads():
@@ -453,6 +459,7 @@ def montaje_offset_inteligente_view():
                 "\\", "/"
             )
             preview_url = url_for("static", filename=rel_path)
+            files_list = [ruta for ruta, _ in diseños]
 
             return render_template(
                 "montaje_offset_inteligente.html",
@@ -462,6 +469,7 @@ def montaje_offset_inteligente_view():
                 positions=positions,
                 sheet_mm=sheet_mm,
                 sangrado_mm=params["sangrado"],
+                files_list=files_list,
             )
 
         output_path = os.path.join("output", "pliego_offset_inteligente.pdf")
@@ -623,59 +631,85 @@ def montaje_offset_preview():
         return jsonify({"ok": False, "error": str(e)}), 500
 @routes_bp.route("/api/manual/preview", methods=["POST"])
 def api_manual_preview():
-    data = request.get_json(force=True, silent=False) or {}
-    positions = data.get("positions") or data.get("posiciones") or []
-    sheet = data.get("sheet") or {}
-    sangrado_mm = data.get("sangrado_mm", 0)
-    files = _resolve_uploads()
-    if not files:
-        return jsonify(ok=False, error="No hay uploads en sesión; genera una vista previa estándar primero."), 400
-    for i, b in enumerate(positions):
-        for k in ("file_idx", "x_mm", "y_mm", "w_mm", "h_mm"):
-            if k not in b and f"{k}_trim" not in b:
-                return jsonify(ok=False, error=f"positions[{i}].{k} faltante"), 400
-    fname = f"preview/manual_{uuid.uuid4().hex}.png"
-    preview_path = _tmp_static("out", fname)
-    montar_pliego_offset_inteligente(
-        diseños=[(p,1) for p in files],
-        ancho_pliego=sheet.get("w_mm"),
-        alto_pliego=sheet.get("h_mm"),
-        sangrado=sangrado_mm,
-        preview_path=preview_path,
-        devolver_posiciones=True,
-        posiciones_override=positions,
-        preview_only=False,
-    )
-    rel = os.path.relpath(preview_path, current_app.static_folder).replace("\\","/")
-    return jsonify(ok=True, preview_url=url_for("static", filename=rel))
+    try:
+        data = request.get_json(force=True, silent=True) or {}
+        files = data.get("files") or []
+        positions_in = data.get("positions") or []
+        sheet = data.get("sheet") or {}
+        sangrado_mm = data.get("sangrado_mm", 0)
+
+        if not files or not isinstance(files, list):
+            return jsonify(ok=False, error="Lista de archivos ausente."), 422
+
+        diseños = [(ruta, 1) for ruta in files]
+        n = len(diseños)
+        for i, p in enumerate(positions_in):
+            idx = p.get("file_idx")
+            if not isinstance(idx, int) or idx < 0 or idx >= n:
+                return jsonify(ok=False, error=f"file_idx inválido en posición {i}: {idx}"), 422
+            for k in ("x_mm", "y_mm", "w_mm", "h_mm"):
+                if k not in p:
+                    return jsonify(ok=False, error=f"positions[{i}].{k} faltante"), 422
+
+        fname = f"preview/manual_{uuid.uuid4().hex}.png"
+        preview_path = _tmp_static("out", fname)
+
+        montar_pliego_offset_inteligente(
+            diseños=diseños,
+            ancho_pliego=sheet.get("w_mm"),
+            alto_pliego=sheet.get("h_mm"),
+            sangrado=sangrado_mm,
+            preview_path=preview_path,
+            devolver_posiciones=True,
+            posiciones_override=positions_in,
+            preview_only=True,
+        )
+        rel = os.path.relpath(preview_path, current_app.static_folder).replace("\\", "/")
+        return jsonify(ok=True, preview_url=url_for("static", filename=rel))
+    except Exception as e:
+        current_app.logger.exception("manual preview error")
+        return jsonify(ok=False, error=str(e)), 500
 
 
 @routes_bp.route("/api/manual/impose", methods=["POST"])
 def api_manual_impose():
-    data = request.get_json(force=True, silent=False) or {}
-    positions = data.get("positions") or data.get("posiciones") or []
-    sheet = data.get("sheet") or {}
-    sangrado_mm = data.get("sangrado_mm", 0)
-    files = _resolve_uploads()
-    if not files:
-        return jsonify(ok=False, error="No hay uploads en sesión; genera una vista previa estándar primero."), 400
-    for i, b in enumerate(positions):
-        for k in ("file_idx", "x_mm", "y_mm", "w_mm", "h_mm"):
-            if k not in b and f"{k}_trim" not in b:
-                return jsonify(ok=False, error=f"positions[{i}].{k} faltante"), 400
-    pdf_name = f"manual_{uuid.uuid4().hex}.pdf"
-    pdf_path = _tmp_static("out", pdf_name)
-    montar_pliego_offset_inteligente(
-        diseños=[(p,1) for p in files],
-        ancho_pliego=sheet.get("w_mm"),
-        alto_pliego=sheet.get("h_mm"),
-        sangrado=sangrado_mm,
-        output_pdf_path=pdf_path,
-        posiciones_override=positions,
-        preview_only=False,
-    )
-    rel = os.path.relpath(pdf_path, current_app.static_folder).replace("\\","/")
-    return jsonify(ok=True, pdf_url=url_for("static", filename=rel))
+    try:
+        data = request.get_json(force=True, silent=True) or {}
+        files = data.get("files") or []
+        positions_in = data.get("positions") or []
+        sheet = data.get("sheet") or {}
+        sangrado_mm = data.get("sangrado_mm", 0)
+
+        if not files or not isinstance(files, list):
+            return jsonify(ok=False, error="Lista de archivos ausente."), 422
+
+        diseños = [(ruta, 1) for ruta in files]
+        n = len(diseños)
+        for i, p in enumerate(positions_in):
+            idx = p.get("file_idx")
+            if not isinstance(idx, int) or idx < 0 or idx >= n:
+                return jsonify(ok=False, error=f"file_idx inválido en posición {i}: {idx}"), 422
+            for k in ("x_mm", "y_mm", "w_mm", "h_mm"):
+                if k not in p:
+                    return jsonify(ok=False, error=f"positions[{i}].{k} faltante"), 422
+
+        pdf_name = f"manual_{uuid.uuid4().hex}.pdf"
+        pdf_path = _tmp_static("out", pdf_name)
+
+        montar_pliego_offset_inteligente(
+            diseños=diseños,
+            ancho_pliego=sheet.get("w_mm"),
+            alto_pliego=sheet.get("h_mm"),
+            sangrado=sangrado_mm,
+            output_pdf_path=pdf_path,
+            posiciones_override=positions_in,
+            preview_only=False,
+        )
+        rel = os.path.relpath(pdf_path, current_app.static_folder).replace("\\", "/")
+        return jsonify(ok=True, pdf_url=url_for("static", filename=rel))
+    except Exception as e:
+        current_app.logger.exception("manual impose error")
+        return jsonify(ok=False, error=str(e)), 500
 
 
 @routes_bp.route("/montaje_flexo_avanzado", methods=["GET", "POST"])
