@@ -26,6 +26,9 @@
   if (!overlay || !img || !stage || !viewport) return;
 
 
+  const API_BASE = 'https://revista-montaje-ai.onrender.com'; // o relativo si estás same-origin
+
+
 
   const toNum = (v, def=0) => {
     const n = Number(v);
@@ -504,7 +507,7 @@
 
   function round1(n){ return Math.round((n + Number.EPSILON) * 10) / 10; }
 
-  function collectPayload(){
+  function buildPayload() {
     return {
       sheet: { w_mm: state.sheet.w, h_mm: state.sheet.h },
       sangrado_mm: state.sangrado,
@@ -516,36 +519,61 @@
           y_mm: round1(bl.y),
           w_mm: round1(b.w_trim_mm ?? b.w_mm),
           h_mm: round1(b.h_trim_mm ?? b.h_mm),
-          rot: b.rot ? 90 : 0
+          rot: b.rot ? 90 : 0,
         };
       }),
-      opciones: {}
+      files: Array.isArray(window.__manualFiles) ? window.__manualFiles : [],
+      opciones: {},
     };
   }
 
-  document.getElementById('btn-manual-apply')?.addEventListener('click', async () => {
-    try {
-      const payload = collectPayload();
-      const r = await fetch('/api/manual/preview', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload) });
-      if(!r.ok){ const t = await r.text(); console.error(t); alert('Error al aplicar: ' + t); return; }
-      const j = await r.json();
-      if (j.preview_url){
-        const img = document.getElementById('preview-bg');
-        img.src = j.preview_url + (j.preview_url.includes('?') ? '&' : '?') + 't=' + Date.now();
-      }
-    } catch(err){ console.error(err); alert('Error al aplicar edición manual'); }
-  });
+  async function applyManual() {
+    const payload = buildPayload();
+    const resp = await fetch(`${API_BASE}/api/manual/preview`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      // credentials: 'include',
+      body: JSON.stringify(payload),
+    });
 
-  document.getElementById('btn-manual-generate')?.addEventListener('click', async () => {
-    try {
-      const payload = collectPayload();
-      const r = await fetch('/api/manual/impose', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload) });
-      if(!r.ok){ const t = await r.text(); console.error(t); alert('Error al generar PDF: ' + t); return; }
-      const j = await r.json();
-      if (j.pdf_url){ window.location.href = j.pdf_url; }
-      else { alert('No se pudo generar el PDF manual.'); }
-    } catch(err){ console.error(err); alert('Error al generar PDF manual'); }
-  });
+    if (!resp.ok) {
+      let txt = await resp.text();
+      alert(`Error al aplicar: ${txt}`);
+      return;
+    }
+    const json = await resp.json();
+    if (!json.ok) {
+      alert(json.error || 'No se pudo aplicar la edición manual.');
+      return;
+    }
+    const img = document.getElementById('preview-bg');
+    img.src = json.preview_url + `?t=${Date.now()}`;
+  }
+
+  async function generateManual() {
+    const payload = buildPayload();
+    const resp = await fetch(`${API_BASE}/api/manual/impose`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      // credentials: 'include',
+      body: JSON.stringify(payload),
+    });
+
+    if (!resp.ok) {
+      let txt = await resp.text();
+      alert(`Error al generar PDF: ${txt}`);
+      return;
+    }
+    const json = await resp.json();
+    if (json.pdf_url) {
+      window.location.href = json.pdf_url;
+    } else {
+      alert(json.error || 'No se pudo generar el PDF manual.');
+    }
+  }
+
+  document.getElementById('btn-manual-apply')?.addEventListener('click', applyManual);
+  document.getElementById('btn-manual-generate')?.addEventListener('click', generateManual);
 
   function initFromData(opts) {
     state.sheet = { w: toNum(opts?.sheet_mm?.w, 0), h: toNum(opts?.sheet_mm?.h, 0) };
