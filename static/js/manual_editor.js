@@ -4,7 +4,7 @@
 (function () {
   const stage    = document.getElementById('manual-stage');
   const viewport = document.getElementById('viewport');
-  const img      = document.getElementById('preview-bg');
+  const img      = document.getElementById('preview_img');
   const overlay  = document.getElementById('overlay');
 
   const btnMode  = document.getElementById('btn-manual-mode');
@@ -51,17 +51,24 @@
     lastPinchDist: null,
   };
 
-  // Mapa archivo->índice basado en __manualFiles
+  // --- Helpers de archivos ---
   const manualFiles = Array.isArray(window.__manualFiles) ? window.__manualFiles : [];
+
   function resolveFileIdx(p) {
-    // Coincidencia exacta primero
+    // match exacto por ruta inyectada desde el server
     let idx = manualFiles.indexOf(p.archivo);
     if (idx >= 0) return idx;
-    // Fallback por nombre de archivo (por si vienen rutas relativas/absolutas distintas)
+    // fallback por basename
     const name = (p.archivo || '').split('/').pop();
     if (!name) return 0;
     idx = manualFiles.findIndex(f => f.split('/').pop() === name);
     return idx >= 0 ? idx : 0;
+  }
+
+  // Compacta y reindexa cajas antes de enviar
+  function compactBoxes() {
+    state.boxes = state.boxes.filter(b => !b.deleted);
+    state.boxes.forEach((b, i) => { b.id = i; });
   }
 
   const dpr = window.devicePixelRatio || 1;
@@ -440,7 +447,7 @@
     if ((e.ctrlKey || e.metaKey) && k.toLowerCase() === 'z') { undo(); e.preventDefault(); return; }
     if ((e.ctrlKey || e.metaKey) && k.toLowerCase() === 'y') { redo(); e.preventDefault(); return; }
     if ((e.ctrlKey || e.metaKey) && k.toLowerCase() === 'd') { duplicateSelection(); e.preventDefault(); return; }
-    if (k === 'Delete' || k === 'Backspace') { deleteSelection(); e.preventDefault(); return; }
+    if (k === 'Delete' || k === 'Backspace') { deleteSelected(); e.preventDefault(); return; }
     if (k === 'f' || k === 'F') { fitToPage(); e.preventDefault(); return; }
     if (k === 'w' || k === 'W') { fitToWidth(); e.preventDefault(); return; }
 
@@ -502,11 +509,12 @@
     repaint();
   }
 
-  function deleteSelection() {
-    if (!state.selectedIds.size) return;
-    state.boxes = state.boxes.filter(b=>!state.selectedIds.has(b.id));
+  function deleteSelected() {
+    const ids = Array.from(state.selectedIds);
+    if (!ids.length) return;
+    state.boxes = state.boxes.filter(b => !ids.includes(b.id));
     state.selectedIds.clear();
-    pushHistory();
+    pushHistory && pushHistory();
     repaint();
   }
 
@@ -562,51 +570,81 @@
     repaint();
   }
 
-  function round1(n){ return Math.round((n + Number.EPSILON) * 10) / 10; }
-
   function buildPayload() {
-    return {
-      files: Array.isArray(window.__manualFiles) ? window.__manualFiles : [],
-      sheet: { w_mm: +state.sheet.w, h_mm: +state.sheet.h },
-      sangrado_mm: +state.sangrado,
-      positions: state.boxes.map(b => {
-        const bl = tlToBl(b.x_tl_mm, b.y_tl_mm, b.total_h_mm);
-        return {
-          file_idx: Number.isFinite(+b.file_idx) && +b.file_idx >= 0 && +b.file_idx < manualFiles.length
-            ? +b.file_idx
-            : resolveFileIdx(b),
-          archivo: b.archivo || null,
-          x_mm: +round1(bl.x),
-          y_mm: +round1(bl.y),
-          w_mm: +round1(b.w_trim_mm ?? b.w_mm),
-          h_mm: +round1(b.h_trim_mm ?? b.h_mm),
-          rot: +(b.rot ? 90 : 0),
-        };
-      }),
-    };
+    compactBoxes();
+    const clampIdx = (idx, b) => (
+      Number.isFinite(+idx) && +idx >= 0 && +idx < manualFiles.length
+    ) ? +idx : resolveFileIdx(b);
+
+    const num = v => Number.isFinite(+v) ? +(+v).toFixed(3) : NaN;
+
+    const payload = [];
+    for (const b of state.boxes) {
+      if (b.deleted) continue;
+      const bl = tlToBl(b.x_tl_mm, b.y_tl_mm, b.total_h_mm);
+      const rec = {
+        archivo: b.archivo ? b.archivo.split('/').pop() : null,
+        file_idx: clampIdx(b.file_idx, b),
+        x_mm: num(bl.x),
+        y_mm: num(bl.y),
+        w_mm: num(b.w_trim_mm ?? b.w_mm),
+        h_mm: num(b.h_trim_mm ?? b.h_mm),
+        rot: Number.isFinite(+b.rot) ? (parseInt(b.rot, 10) || 0) : 0
+      };
+      if (![rec.x_mm, rec.y_mm, rec.w_mm, rec.h_mm].every(Number.isFinite)) {
+        console.error("Payload inválido:", rec, b);
+        throw new Error("Valores numéricos inválidos (NaN) en posiciones.");
+      }
+      if (rec.w_mm <= 0 || rec.h_mm <= 0) {
+        throw new Error("Ancho/alto deben ser mayores a 0 mm.");
+      }
+      payload.push(rec);
+    }
+    if (!payload.length) throw new Error("No hay diseños para aplicar.");
+    return payload;
   }
 
   async function applyManual() {
-    const payload = buildPayload();
-    const resp = await fetch('/api/manual/preview', {
-      method: 'POST', headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify(payload),
-    });
-    const json = await resp.json().catch(()=>({}));
-    if (!resp.ok || !json.ok) return alert(json.error||'Error al aplicar.');
-    const img = document.getElementById('preview-bg');
-    if (img) img.src = json.preview_url + `?t=${Date.now()}`;
+    try {
+      const positions = buildPayload();
+      const res = await fetch('/api/manual/preview', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ positions })
+      });
+      const json = await res.json();
+      if (!res.ok || json.error) {
+        throw new Error(json.error || 'Error en preview');
+      }
+      const imgEl = document.getElementById('preview_img');
+      if (imgEl && json.preview_path) {
+        imgEl.src = json.preview_path + '?v=' + Date.now();
+      }
+    } catch (e) {
+      alert(e.message || 'Error al aplicar.');
+      console.error('applyManual failed:', e);
+    }
   }
 
   async function generateManual() {
-    const payload = buildPayload();
-    const resp = await fetch('/api/manual/impose', {
-      method: 'POST', headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify(payload),
-    });
-    const json = await resp.json().catch(()=>({}));
-    if (!resp.ok || !json.ok) return alert(json.error||'No se pudo generar el PDF.');
-    window.location.href = json.pdf_url;
+    try {
+      const positions = buildPayload();
+      const res = await fetch('/api/manual/impose', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ positions })
+      });
+      const json = await res.json();
+      if (!res.ok || json.error) {
+        throw new Error(json.error || 'No se pudo generar el PDF.');
+      }
+      if (json.pdf_url) {
+        window.location.href = json.pdf_url;
+      }
+    } catch (e) {
+      alert(e.message || 'No se pudo generar el PDF.');
+      console.error('generateManual failed:', e);
+    }
   }
 
   document.getElementById('btn-manual-apply')?.addEventListener('click', applyManual);
@@ -680,7 +718,8 @@
     alignSelection,
     distributeSelection,
     duplicateSelection,
-    deleteSelection,
+    deleteSelected,
+    deleteSelection: deleteSelected,
     undo,
     redo,
   };
