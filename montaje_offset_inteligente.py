@@ -1028,9 +1028,11 @@ def montar_pliego_offset_inteligente(
             "resumen_html": resumen_html if 'resumen_html' in locals() else None,
         }
         if devolver_posiciones:
+            files_map = {os.path.basename(r): i for i, (r, _) in enumerate(diseños)}
             positions_norm = [
                 {
                     "archivo": p["archivo"],
+                    "file_idx": files_map.get(os.path.basename(p["archivo"]), 0),
                     "x_mm": p["x"],
                     "y_mm": p["y"],
                     "w_mm": p["ancho"],

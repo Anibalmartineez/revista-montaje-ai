@@ -51,6 +51,19 @@
     lastPinchDist: null,
   };
 
+  // Mapa archivo->índice basado en __manualFiles
+  const manualFiles = Array.isArray(window.__manualFiles) ? window.__manualFiles : [];
+  function resolveFileIdx(p) {
+    // Coincidencia exacta primero
+    let idx = manualFiles.indexOf(p.archivo);
+    if (idx >= 0) return idx;
+    // Fallback por nombre de archivo (por si vienen rutas relativas/absolutas distintas)
+    const name = (p.archivo || '').split('/').pop();
+    if (!name) return 0;
+    idx = manualFiles.findIndex(f => f.split('/').pop() === name);
+    return idx >= 0 ? idx : 0;
+  }
+
   const dpr = window.devicePixelRatio || 1;
 
   const mmToPx = (mm) => mm * state.baseScale * state.zoom;
@@ -70,7 +83,7 @@
       return {
         id: i,
         archivo: p.archivo ?? null,
-        file_idx: Number.isFinite(p.file_idx) ? p.file_idx : i,
+        file_idx: Number.isFinite(p.file_idx) ? p.file_idx : resolveFileIdx(p),
         rot,
         w_trim_mm: wT,
         h_trim_mm: hT,
@@ -101,7 +114,10 @@
     repaint();
   }
 
-  function fitToWidth() { setZoom(100); repaint(); }
+  function fitToWidth() {
+    setZoom(Math.max(10, Math.min(200, 100)));
+    repaint();
+  }
 
   function fitToPage() {
     const visibleW = img.clientWidth || img.getBoundingClientRect().width || 1;
@@ -416,13 +432,17 @@
 
   window.addEventListener('keydown', (e) => {
     const k = e.key;
-    const handled = ['ArrowLeft','ArrowRight','ArrowUp','ArrowDown',' ','r','R'];
-    if (!handled.includes(k)) return;
-
     const tag = (document.activeElement?.tagName || '').toLowerCase();
     if (['input','textarea','select'].includes(tag)) return;
 
     if (!editorIsActive(state)) return;
+
+    if ((e.ctrlKey || e.metaKey) && k.toLowerCase() === 'z') { undo(); e.preventDefault(); return; }
+    if ((e.ctrlKey || e.metaKey) && k.toLowerCase() === 'y') { redo(); e.preventDefault(); return; }
+    if ((e.ctrlKey || e.metaKey) && k.toLowerCase() === 'd') { duplicateSelection(); e.preventDefault(); return; }
+    if (k === 'Delete' || k === 'Backspace') { deleteSelection(); e.preventDefault(); return; }
+    if (k === 'f' || k === 'F') { fitToPage(); e.preventDefault(); return; }
+    if (k === 'w' || k === 'W') { fitToWidth(); e.preventDefault(); return; }
 
     if (k === ' ') { state.panning = true; document.getElementById('manual-stage').style.cursor = 'grab'; e.preventDefault(); return; }
     if ((k === 'r' || k === 'R') && state.selectedIds?.size > 0) { rotateSelected(90); clampAllToSheet(); repaint(); e.preventDefault(); return; }
@@ -449,7 +469,48 @@
     state.historyPtr = state.history.length - 1;
   }
 
-  function alignSelected(mode) {
+  function undo() {
+    if (state.historyPtr <= 0) return;
+    state.historyPtr -= 1;
+    const h = state.history[state.historyPtr];
+    state.boxes = h.boxes.map(b=>({...b}));
+    state.selectedIds = new Set(h.selected);
+    repaint();
+  }
+
+  function redo() {
+    if (state.historyPtr >= state.history.length - 1) return;
+    state.historyPtr += 1;
+    const h = state.history[state.historyPtr];
+    state.boxes = h.boxes.map(b=>({...b}));
+    state.selectedIds = new Set(h.selected);
+    repaint();
+  }
+
+  function duplicateSelection() {
+    const sels = state.boxes.filter(b=>state.selectedIds.has(b.id));
+    if (!sels.length) return;
+    let maxId = state.boxes.reduce((m,b)=>Math.max(m,b.id), -1);
+    const clones = [];
+    for (const b of sels) {
+      const nb = { ...b, id: ++maxId, x_tl_mm: b.x_tl_mm + 5, y_tl_mm: b.y_tl_mm + 5 };
+      state.boxes.push(nb);
+      clones.push(nb);
+    }
+    state.selectedIds = new Set(clones.map(b=>b.id));
+    pushHistory();
+    repaint();
+  }
+
+  function deleteSelection() {
+    if (!state.selectedIds.size) return;
+    state.boxes = state.boxes.filter(b=>!state.selectedIds.has(b.id));
+    state.selectedIds.clear();
+    pushHistory();
+    repaint();
+  }
+
+  function alignSelection(mode) {
     const sels = state.boxes.filter(b=>state.selectedIds.has(b.id));
     if (sels.length < 2) return;
     const minX = Math.min(...sels.map(b=>b.x_tl_mm));
@@ -473,7 +534,7 @@
     repaint();
   }
 
-  function distributeSelected(axis) {
+  function distributeSelection(axis) {
     const sels = state.boxes.filter(b=>state.selectedIds.has(b.id));
     if (sels.length <= 2) return;
     if (axis === 'h') {
@@ -511,7 +572,10 @@
       positions: state.boxes.map(b => {
         const bl = tlToBl(b.x_tl_mm, b.y_tl_mm, b.total_h_mm);
         return {
-          file_idx: +b.file_idx,
+          file_idx: Number.isFinite(+b.file_idx) && +b.file_idx >= 0 && +b.file_idx < manualFiles.length
+            ? +b.file_idx
+            : resolveFileIdx(b),
+          archivo: b.archivo || null,
           x_mm: +round1(bl.x),
           y_mm: +round1(bl.y),
           w_mm: +round1(b.w_trim_mm ?? b.w_mm),
@@ -610,6 +674,16 @@
   const clearPtr = e=>{ state.pointers.delete(e.pointerId); if(state.pointers.size<2) state.lastPinchDist=null; };
   overlay.addEventListener('pointerup', clearPtr);
   overlay.addEventListener('pointercancel', clearPtr);
+
+  // Exponer utilidades al ámbito global para la UI
+  window.manualEditor = {
+    alignSelection,
+    distributeSelection,
+    duplicateSelection,
+    deleteSelection,
+    undo,
+    redo,
+  };
 
 })();
 

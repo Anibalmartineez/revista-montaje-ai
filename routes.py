@@ -661,17 +661,39 @@ def api_manual_preview():
         return _json_error("sangrado_mm debe ser numérico.")
 
     diseños = [(ruta, 1) for ruta in files]
-    n = len(diseños)
-    for i, p in enumerate(positions):
+    name_to_idx = {os.path.basename(r): i for i, (r, _) in enumerate(diseños)}
+    path_to_idx = {r: i for i, (r, _) in enumerate(diseños)}
+
+    def _resolve_idx(p):
         try:
             idx = int(p.get("file_idx"))
-            if idx < 0 or idx >= n:
-                return _json_error(f"file_idx inválido en positions[{i}]: {idx}")
+            if 0 <= idx < len(diseños):
+                return idx
+        except Exception:
+            pass
+        archivo = p.get("archivo")
+        if archivo in path_to_idx:
+            return path_to_idx[archivo]
+        if archivo:
+            idx = name_to_idx.get(os.path.basename(archivo))
+            if idx is not None:
+                return idx
+            return None
+        return 0 if diseños else None
+
+    for i, p in enumerate(positions):
+        idx = _resolve_idx(p)
+        if idx is None:
+            return _json_error(
+                f"No encontré el archivo para positions[{i}]. Verifica que el nombre coincide con los PDFs cargados."
+            )
+        try:
             float(p.get("x_mm")); float(p.get("y_mm"))
             float(p.get("w_mm")); float(p.get("h_mm"))
             int(p.get("rot") or 0)
         except Exception:
             return _json_error(f"positions[{i}] tiene valores no numéricos.")
+        p["file_idx"] = idx
 
     prev_dir = os.path.join(current_app.static_folder, "previews")
     os.makedirs(prev_dir, exist_ok=True)
@@ -739,17 +761,39 @@ def api_manual_impose():
         return _json_error("sheet/sangrado_mm inválidos.")
 
     diseños = [(ruta, 1) for ruta in files]
-    n = len(diseños)
-    for i, p in enumerate(positions):
+    name_to_idx = {os.path.basename(r): i for i, (r, _) in enumerate(diseños)}
+    path_to_idx = {r: i for i, (r, _) in enumerate(diseños)}
+
+    def _resolve_idx(p):
         try:
             idx = int(p.get("file_idx"))
-            if idx < 0 or idx >= n:
-                return _json_error(f"file_idx inválido en positions[{i}]: {idx}")
+            if 0 <= idx < len(diseños):
+                return idx
+        except Exception:
+            pass
+        archivo = p.get("archivo")
+        if archivo in path_to_idx:
+            return path_to_idx[archivo]
+        if archivo:
+            idx = name_to_idx.get(os.path.basename(archivo))
+            if idx is not None:
+                return idx
+            return None
+        return 0 if diseños else None
+
+    for i, p in enumerate(positions):
+        idx = _resolve_idx(p)
+        if idx is None:
+            return _json_error(
+                f"No encontré el archivo para positions[{i}]. Verifica que el nombre coincide con los PDFs cargados."
+            )
+        try:
             float(p.get("x_mm")); float(p.get("y_mm"))
             float(p.get("w_mm")); float(p.get("h_mm"))
             int(p.get("rot") or 0)
         except Exception:
             return _json_error(f"positions[{i}] tiene valores no numéricos.")
+        p["file_idx"] = idx
 
     out_dir = os.path.join(current_app.static_folder, "outputs")
     os.makedirs(out_dir, exist_ok=True)
