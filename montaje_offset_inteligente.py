@@ -1,3 +1,4 @@
+import gc
 import io
 import math
 import os
@@ -18,6 +19,75 @@ EPS_MM = 0.2
 
 # Exponer el módulo en builtins para facilitar pruebas que lo referencian
 builtins.montaje_offset_inteligente = sys.modules[__name__]
+
+
+# DPI reducido para previews (configurable vía env)
+PREVIEW_DPI = int(os.getenv("PREVIEW_DPI", "144"))  # 120–150 DPI recomendado
+
+
+def mm_to_px(mm: float, dpi: int) -> int:
+    return int(round((mm / 25.4) * dpi))
+
+
+def generar_preview_pliego(disenos, positions, hoja_ancho_mm, hoja_alto_mm, preview_path):
+    """
+    disenos: list[ (ruta_absoluta_pdf, copias) ]
+    positions: [{file_idx,x_mm,y_mm,w_mm,h_mm,rot}, ...]
+    hoja_*_mm: tamaño del pliego en mm
+    preview_path: salida PNG
+    """
+    dpi = PREVIEW_DPI
+    W = mm_to_px(hoja_ancho_mm, dpi)
+    H = mm_to_px(hoja_alto_mm, dpi)
+
+    canvas_img = Image.new("L", (W, H), 255)
+    cache: Dict[int, Image.Image] = {}
+
+    scale = dpi / 72.0
+    mat = fitz.Matrix(scale, scale)
+
+    for pos in positions:
+        idx = pos["file_idx"]
+        ruta = disenos[idx][0]
+
+        if idx not in cache:
+            with fitz.open(ruta) as doc:
+                page = doc[0]
+                pix = page.get_pixmap(matrix=mat, alpha=False, colorspace=fitz.csGRAY)
+            img = Image.frombytes("L", (pix.width, pix.height), pix.samples, "raw")
+            cache[idx] = img
+
+        src = cache[idx]
+
+        w_px = mm_to_px(pos["w_mm"], dpi)
+        h_px = mm_to_px(pos["h_mm"], dpi)
+        if w_px <= 0 or h_px <= 0:
+            continue
+
+        scaled = src.resize((w_px, h_px), Image.BILINEAR)
+
+        rot = int(pos.get("rot") or 0) % 360
+        if rot:
+            scaled = scaled.rotate(-rot, resample=Image.BILINEAR, expand=False)
+
+        x_px = mm_to_px(pos["x_mm"], dpi)
+        y_px = mm_to_px(pos["y_mm"], dpi)
+        canvas_img.paste(scaled, (x_px, y_px))
+        del scaled
+
+    os.makedirs(os.path.dirname(preview_path), exist_ok=True)
+    canvas_img.save(preview_path, optimize=True)
+    del canvas_img
+    cache.clear()
+    gc.collect()
+
+    try:
+        import psutil, logging
+
+        rss_mb = psutil.Process(os.getpid()).memory_info().rss / (1024 * 1024)
+        logging.getLogger(__name__).info(f"[PREVIEW] Memoria RSS ~ {rss_mb:.1f} MB")
+    except Exception:
+        pass
 
 
 def mm_to_pt(valor: float) -> float:
@@ -114,28 +184,12 @@ def detectar_sangrado_pdf(path: str) -> float:
 
 
 def obtener_dimensiones_pdf(path: str, usar_trimbox: bool = False) -> Tuple[float, float]:
-    """Devuelve ancho y alto del primer página de un PDF en milímetros.
-
-    Parameters
-    ----------
-    path: str
-        Ruta al archivo PDF.
-    usar_trimbox: bool
-        Si es ``True`` y la página posee ``TrimBox`` se utilizará dicho
-        rectángulo para obtener las dimensiones. Esto resulta útil cuando se
-        desea ignorar un sangrado existente y trabajar únicamente con el área
-        de recorte.
-    """
-    doc = fitz.open(path)
-    page = doc[0]
-    try:
-        bbox = page.trimbox if usar_trimbox and getattr(page, "trimbox", None) else page.rect
-    except AttributeError:  # Compatibilidad con versiones antiguas de PyMuPDF
-        bbox = page.rect
-    ancho_mm = bbox.width * 25.4 / 72
-    alto_mm = bbox.height * 25.4 / 72
-    doc.close()
-    return round(ancho_mm, 2), round(alto_mm, 2)
+    """Devuelve ancho y alto del primer página de un PDF en milímetros."""
+    with fitz.open(path) as doc:
+        page = doc[0]
+        rect = page.trimbox if usar_trimbox and getattr(page, "trimbox", None) else page.mediabox
+        w, h = rect.width, rect.height
+    return round(w * 25.4 / 72, 2), round(h * 25.4 / 72, 2)
 
 
 def _pdf_a_imagen_con_sangrado(
@@ -195,74 +249,6 @@ def _pdf_a_imagen_con_sangrado(
     doc.close()
     return ImageReader(img_byte_arr)
 
-
-def _render_preview_vectorial(
-    archivos_locales,
-    posiciones,
-    ancho_pliego_mm,
-    alto_pliego_mm,
-    preview_path,
-    dpi=150,
-):
-    """
-    Genera una vista previa REAL del pliego impuesto:
-    - Crea un PDF temporal del tamaño del pliego.
-    - Coloca cada PDF origen en su rectángulo destino (con rotación si corresponde).
-    - Rasteriza a PNG al 'preview_path' con la resolución indicada.
-    Requiere que 'posiciones' tenga: archivo (ruta local), x_mm, y_mm, w_mm, h_mm, rotado (bool).
-    """
-    # 1) Documento temporal y página del tamaño del pliego (en puntos)
-    dest = fitz.open()
-    page = dest.new_page(
-        width=ancho_pliego_mm * 72.0 / 25.4,
-        height=alto_pliego_mm * 72.0 / 25.4,
-    )
-
-    # 2) Colocar cada elemento PDF en su rect destino
-    for pos in posiciones:
-        archivo = pos["archivo"]
-        x = pos["x_mm"]
-        y = pos["y_mm"]
-        w = pos["w_mm"]
-        h = pos["h_mm"]
-        rot = 90 if pos.get("rotado") else 0
-
-        rect_dest = fitz.Rect(
-            x * 72.0 / 25.4,
-            y * 72.0 / 25.4,
-            (x + w) * 72.0 / 25.4,
-            (y + h) * 72.0 / 25.4,
-        )
-
-        src = fitz.open(archivo)
-        try:
-            page.show_pdf_page(rect_dest, src, 0, rotate=rot)
-        finally:
-            src.close()
-
-    # 3) Guardar PDF temporal y rasterizar a PNG
-    with tempfile.NamedTemporaryFile(suffix=".pdf", delete=False) as tmp_pdf:
-        tmp_pdf_path = tmp_pdf.name
-
-    try:
-        dest.save(tmp_pdf_path)
-        dest.close()
-
-        doc_tmp = fitz.open(tmp_pdf_path)
-        pg = doc_tmp[0]
-        scale = dpi / 72.0
-        mat = fitz.Matrix(scale, scale)
-        pix = pg.get_pixmap(matrix=mat, alpha=False)
-        os.makedirs(os.path.dirname(preview_path), exist_ok=True)
-        pix.save(preview_path)
-        doc_tmp.close()
-    finally:
-        try:
-            os.remove(tmp_pdf_path)
-        except Exception:
-            pass
-
-    return preview_path
 
 
 def _parse_separacion(separacion: float | Tuple[float, float] | Dict[str, float]) -> Tuple[float, float]:
@@ -701,8 +687,6 @@ def montar_pliego_offset_inteligente(
     if ordenar_tamano:
         grupos.sort(key=lambda g: g["ancho_real"] * g["alto_real"], reverse=True)
 
-    archivos_locales = [g["archivo"] for g in grupos]
-
     posiciones: List[Dict[str, float]] = []
     sobrantes: List[Dict[str, float]] = []
 
@@ -725,16 +709,6 @@ def montar_pliego_offset_inteligente(
         # posiciones_manual viene en mm, bottom-left, con w/h = TRIM (sin sangrado)
         # Normaliza a la misma estructura que usa el dibujado final.
         posiciones = []
-        archivos_locales = []
-        # Construir set de archivos referenciados
-        for p in posiciones_manual:
-            ruta = p.get("archivo")
-            if not ruta and "file_idx" in p:
-                # soporte por índice si el frontend lo manda; el caller debe armar diseños en el mismo orden
-                ruta = diseños[p["file_idx"]][0]
-            if ruta:
-                archivos_locales.append(ruta)
-
         for p in posiciones_manual:
             ruta = p.get("archivo") or diseños[p["file_idx"]][0]
             posiciones.append(
@@ -945,82 +919,43 @@ def montar_pliego_offset_inteligente(
 
     # Si viene preview_path, generar SOLO la vista previa real con los PDFs originales
     if preview_path:
-        # 1) Construir mapping id->ruta PDF real si fuera necesario
-        id_to_pdf = {}
-        for idx, ruta in enumerate(archivos_locales):
-            id_to_pdf[idx] = ruta
+        files_map = {os.path.abspath(d[0]): i for i, d in enumerate(diseños)}
 
-        # 2) Normalizar posiciones para preview (asegura claves y tipos)
         posiciones_normalizadas = []
         for p in posiciones:
             x_mm = float(p.get("x_mm", p.get("x", 0)))
             y_mm = float(p.get("y_mm", p.get("y", 0)))
-            w_base = float(
-                p.get(
-                    "w_mm",
-                    p.get("ancho_mm", p.get("ancho", p.get("w", 0))),
-                )
-            )
-            h_base = float(
-                p.get(
-                    "h_mm",
-                    p.get("alto_mm", p.get("alto", p.get("h", 0))),
-                )
-            )
+            w_base = float(p.get("w_mm", p.get("ancho_mm", p.get("ancho", p.get("w", 0)))))
+            h_base = float(p.get("h_mm", p.get("alto_mm", p.get("alto", p.get("h", 0)))))
             w_mm = w_base + 2 * sangrado
             h_mm = h_base + 2 * sangrado
             rotado = bool(p.get("rotado", p.get("rot", False)))
 
-            archivo = p.get("archivo")
-            if not archivo:
-                file_id = p.get("file_id", p.get("idx", p.get("id", None)))
-                if file_id is not None and file_id in id_to_pdf:
-                    archivo = id_to_pdf[file_id]
-            if not archivo:
-                archivo = p.get("ruta_pdf")
+            idx = p.get("file_idx")
+            if idx is None:
+                ruta = p.get("archivo") or p.get("ruta_pdf")
+                if ruta:
+                    idx = files_map.get(os.path.abspath(ruta))
+            if idx is None:
+                continue
 
             posiciones_normalizadas.append(
                 {
-                    "archivo": archivo,
+                    "file_idx": idx,
                     "x_mm": x_mm,
                     "y_mm": y_mm,
                     "w_mm": w_mm,
                     "h_mm": h_mm,
-                    "rotado": rotado,
+                    "rot": 90 if rotado else 0,
                 }
             )
 
-        # 3) Si preview_path está definido, renderizar con PDFs reales (no wireframe)
-        try:
-            draw_boxes = False
-        except NameError:
-            pass
-
-        faltan = [
-            q
-            for q in posiciones_normalizadas
-            if not q["archivo"] or not str(q["archivo"]).lower().endswith(".pdf")
-        ]
-        if faltan:
-            print("[PREVIEW] WARNING: posiciones sin archivo PDF:", faltan[:3])
-
-        dpi = 150
-
-        try:
-            print(
-                "[PREVIEW] sample pos:",
-                posiciones_normalizadas[0] if posiciones_normalizadas else "SIN POSICIONES",
-            )
-        except Exception as e:
-            print("[PREVIEW] posiciones vacías:", e)
-
-        _render_preview_vectorial(
-            archivos_locales=archivos_locales,
-            posiciones=posiciones_normalizadas,
-            ancho_pliego_mm=ancho_pliego,
-            alto_pliego_mm=alto_pliego,
+        generar_preview_pliego(
+            disenos=diseños,
+            positions=posiciones_normalizadas,
+            hoja_ancho_mm=ancho_pliego,
+            hoja_alto_mm=alto_pliego,
             preview_path=preview_path,
-            dpi=dpi,
         )
 
         result = {
@@ -1028,16 +963,14 @@ def montar_pliego_offset_inteligente(
             "resumen_html": resumen_html if 'resumen_html' in locals() else None,
         }
         if devolver_posiciones:
-            files_map = {os.path.basename(r): i for i, (r, _) in enumerate(diseños)}
             positions_norm = [
                 {
-                    "archivo": p["archivo"],
-                    "file_idx": files_map.get(os.path.basename(p["archivo"]), 0),
+                    "file_idx": files_map.get(os.path.abspath(p.get("archivo", "")), 0),
                     "x_mm": p["x"],
                     "y_mm": p["y"],
                     "w_mm": p["ancho"],
                     "h_mm": p["alto"],
-                    "rotado": bool(p.get("rotado", False)),
+                    "rot": 90 if p.get("rotado", False) else 0,
                 }
                 for p in posiciones
             ]
@@ -1046,73 +979,43 @@ def montar_pliego_offset_inteligente(
         return result
 
     if preview_only:
-        """
-        Vista previa REAL (WYSIWYG):
-        - Crea un PDF temporal del tamaño del pliego.
-        - Coloca cada página PDF fuente en su rect destino (con sangrado y rotación).
-        - Rasteriza a PNG (bytes) a la resolución deseada.
-        - Devuelve (png_bytes, resumen_html) como esperaba routes.py.
-        """
         import tempfile
-        import fitz  # PyMuPDF
 
-        # DPI fijo para la vista previa
-        dpi = 150
-
-        # 1) Documento temporal y página del tamaño del pliego en puntos
-        dest = fitz.open()
-        page = dest.new_page(
-            width=mm_to_pt(ancho_pliego),
-            height=mm_to_pt(alto_pliego),
-        )
-
-        if posiciones:
-            print("[PREVIEW] pos0:", posiciones[0])
-
-        # 2) Colocar cada elemento (usa 'posiciones', que ya tiene 'archivo', 'x', 'y', 'ancho', 'alto', 'rotado')
-        for pos in posiciones:
-            archivo = pos.get("archivo")
-            if not archivo:
-                # si por alguna razón faltara, saltar
+        files_map = {os.path.abspath(d[0]): i for i, d in enumerate(diseños)}
+        posiciones_normalizadas = []
+        for p in posiciones:
+            idx = files_map.get(os.path.abspath(p.get("archivo", "")))
+            if idx is None:
                 continue
+            w_mm = p["ancho"] + 2 * sangrado
+            h_mm = p["alto"] + 2 * sangrado
+            posiciones_normalizadas.append(
+                {
+                    "file_idx": idx,
+                    "x_mm": p["x"],
+                    "y_mm": p["y"],
+                    "w_mm": w_mm,
+                    "h_mm": h_mm,
+                    "rot": 90 if p.get("rotado") else 0,
+                }
+            )
 
-            x_pt = mm_to_pt(pos["x"])
-            y_pt = mm_to_pt(pos["y"])
-            w_total_pt = mm_to_pt(pos["ancho"] + 2 * sangrado)
-            h_total_pt = mm_to_pt(pos["alto"] + 2 * sangrado)
-
-            rect_dest = fitz.Rect(x_pt, y_pt, x_pt + w_total_pt, y_pt + h_total_pt)
-
-            try:
-                src = fitz.open(archivo)
-                page.show_pdf_page(
-                    rect_dest, src, 0,
-                    rotate=90 if pos.get("rotado") else 0
-                )
-            finally:
-                try:
-                    src.close()
-                except Exception:
-                    pass
-
-        # 3) Guardar a PDF temporal y rasterizar a PNG (devolver bytes)
-        with tempfile.NamedTemporaryFile(suffix=".pdf", delete=False) as tmp_pdf:
-            tmp_pdf_path = tmp_pdf.name
+        with tempfile.NamedTemporaryFile(suffix=".png", delete=False) as tmp_png:
+            tmp_path = tmp_png.name
 
         try:
-            dest.save(tmp_pdf_path)
-            dest.close()
-
-            tmp_doc = fitz.open(tmp_pdf_path)
-            pg = tmp_doc[0]
-            scale = dpi / 72.0
-            mat = fitz.Matrix(scale, scale)
-            pix = pg.get_pixmap(matrix=mat, alpha=False)
-            png_bytes = pix.tobytes("png")
-            tmp_doc.close()
+            generar_preview_pliego(
+                disenos=diseños,
+                positions=posiciones_normalizadas,
+                hoja_ancho_mm=ancho_pliego,
+                hoja_alto_mm=alto_pliego,
+                preview_path=tmp_path,
+            )
+            with open(tmp_path, "rb") as fh:
+                png_bytes = fh.read()
         finally:
             try:
-                os.remove(tmp_pdf_path)
+                os.remove(tmp_path)
             except Exception:
                 pass
 
