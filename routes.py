@@ -688,6 +688,8 @@ def api_manual_preview():
             return _json_error(f"positions[{i}] contiene valores no numéricos.")
         if w <= 0 or h <= 0:
             return _json_error(f"positions[{i}] ancho/alto deben ser > 0")
+        uid = p.get("uid")
+        p["uid"] = uid
         p["file_idx"] = idx
         p["rot_deg"] = rot_deg             # <-- normalizado y pegado a ESA posición
         real_path = diseños[idx][0]
@@ -710,17 +712,17 @@ def api_manual_preview():
     token = uuid.uuid4().hex
     preview_path = os.path.join(prev_dir, f"manual_{token}.png")
 
-    for i, pos in enumerate(positions[:3]):
+    for j, pos in enumerate(positions[:3]):
         current_app.logger.info(
-            "[MANUAL] pos%d: id=%s idx=%s rot=%s x=%.1f y=%.1f w=%.1f h=%.1f",
-            i,
-            pos.get("id"),
+            "[MANUAL] pos[%d] uid=%s idx=%s rot=%s x=%.2f y=%.2f w=%.2f h=%.2f",
+            j,
+            pos.get("uid"),
             pos.get("file_idx"),
             pos.get("rot_deg"),
-            pos.get("x_mm"),
-            pos.get("y_mm"),
-            pos.get("w_mm"),
-            pos.get("h_mm"),
+            float(pos.get("x_mm", 0)),
+            float(pos.get("y_mm", 0)),
+            float(pos.get("w_mm", 0)),
+            float(pos.get("h_mm", 0)),
         )
 
     try:
@@ -741,7 +743,7 @@ def api_manual_preview():
             res = {"preview_path": url}
         res["positions_applied"] = [
             {
-                "id": p.get("id"),
+                "uid": p.get("uid"),
                 "file_idx": p["file_idx"],
                 "x_mm": float(p["x_mm"]),
                 "y_mm": float(p["y_mm"]),
@@ -805,6 +807,8 @@ def api_manual_impose():
             return _json_error(f"positions[{i}] contiene valores no numéricos.")
         if w <= 0 or h <= 0:
             return _json_error(f"positions[{i}] ancho/alto deben ser > 0")
+        uid = p.get("uid")
+        p["uid"] = uid
         p["file_idx"] = idx
         p["rot_deg"] = rot_deg             # <-- normalizado y pegado a ESA posición
         real_path = diseños[idx][0]
@@ -827,17 +831,17 @@ def api_manual_impose():
     token = uuid.uuid4().hex
     pdf_path = os.path.join(out_dir, f"manual_{token}.pdf")
 
-    for i, pos in enumerate(positions[:3]):
+    for j, pos in enumerate(positions[:3]):
         current_app.logger.info(
-            "[MANUAL] pos%d: id=%s idx=%s rot=%s x=%.1f y=%.1f w=%.1f h=%.1f",
-            i,
-            pos.get("id"),
+            "[MANUAL] pos[%d] uid=%s idx=%s rot=%s x=%.2f y=%.2f w=%.2f h=%.2f",
+            j,
+            pos.get("uid"),
             pos.get("file_idx"),
             pos.get("rot_deg"),
-            pos.get("x_mm"),
-            pos.get("y_mm"),
-            pos.get("w_mm"),
-            pos.get("h_mm"),
+            float(pos.get("x_mm", 0)),
+            float(pos.get("y_mm", 0)),
+            float(pos.get("w_mm", 0)),
+            float(pos.get("h_mm", 0)),
         )
 
     try:
@@ -858,7 +862,7 @@ def api_manual_impose():
             pdf_url=pdf_url,
             positions_applied=[
                 {
-                    "id": p.get("id"),
+                    "uid": p.get("uid"),
                     "file_idx": p["file_idx"],
                     "x_mm": float(p["x_mm"]),
                     "y_mm": float(p["y_mm"]),
