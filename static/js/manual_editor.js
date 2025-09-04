@@ -65,10 +65,15 @@
     return idx >= 0 ? idx : 0;
   }
 
-  // Compacta y reindexa cajas antes de enviar
+  function genUid() {
+    return ([1e7]+-1e3+-4e3+-8e3+-1e11).replace(/[018]/g, c =>
+      (c ^ crypto.getRandomValues(new Uint8Array(1))[0] & 15 >> c / 4).toString(16)
+    );
+  }
+
+  // Compacta cajas antes de enviar
   function compactBoxes() {
     state.boxes = state.boxes.filter(b => !b.deleted);
-    state.boxes.forEach((b, i) => { b.id = i; });
   }
 
   const dpr = window.devicePixelRatio || 1;
@@ -93,7 +98,8 @@
       const H   = hT + 2*state.sangrado;
       const tl  = blToTl(toNum(p.x_mm,0), toNum(p.y_mm,0), rot90 ? W : H);
       return {
-        id: i,
+        uid: p.uid || genUid(),
+        id: typeof p.id === 'number' ? p.id : i,
         archivo: p.archivo ?? null,
         file_idx: Number.isFinite(p.file_idx) ? p.file_idx : resolveFileIdx(p),
         rot_deg: (rotDeg + 360) % 360,
@@ -513,7 +519,7 @@
     let maxId = state.boxes.reduce((m,b)=>Math.max(m,b.id), -1);
     const clones = [];
     for (const b of sels) {
-      const nb = { ...b, id: ++maxId, x_tl_mm: b.x_tl_mm + 5, y_tl_mm: b.y_tl_mm + 5 };
+      const nb = { ...b, id: ++maxId, uid: genUid(), x_tl_mm: b.x_tl_mm + 5, y_tl_mm: b.y_tl_mm + 5 };
       state.boxes.push(nb);
       clones.push(nb);
     }
@@ -596,7 +602,7 @@
       if (b.deleted) continue;
       const bl = tlToBl(b.x_tl_mm, b.y_tl_mm, b.total_h_mm);
       const rec = {
-        id: b.id,
+        uid: b.uid,
         archivo: b.archivo ? b.archivo.split('/').pop() : null,
         file_idx: clampIdx(b.file_idx, b),
         x_mm: num(bl.x),
@@ -636,9 +642,9 @@
         imgEl.src = json.preview_path + '?v=' + Date.now();
       }
       if (Array.isArray(json.positions_applied)) {
-        const byId = new Map(state.boxes.map(b => [b.id, b]));
+        const byUid = new Map(state.boxes.map(b => [b.uid, b]));
         json.positions_applied.forEach(p => {
-          const b = byId.get(p.id);
+          const b = byUid.get(p.uid);
           if (!b) return;
           b.file_idx = p.file_idx;
           const rot = (parseInt(p.rot_deg, 10) % 360 + 360) % 360;
@@ -679,6 +685,30 @@
       }
       if (json.pdf_url) {
         window.location.href = json.pdf_url;
+      }
+      if (Array.isArray(json.positions_applied)) {
+        const byUid = new Map(state.boxes.map(b => [b.uid, b]));
+        json.positions_applied.forEach(p => {
+          const b = byUid.get(p.uid);
+          if (!b) return;
+          b.file_idx = p.file_idx;
+          const rot = (parseInt(p.rot_deg, 10) % 360 + 360) % 360;
+          const rot90 = rot % 180 !== 0;
+          const wT = toNum(p.w_mm, 0);
+          const hT = toNum(p.h_mm, 0);
+          const W = wT + 2 * state.sangrado;
+          const H = hT + 2 * state.sangrado;
+          const tl = blToTl(toNum(p.x_mm, 0), toNum(p.y_mm, 0), rot90 ? W : H);
+          b.rot_deg = rot;
+          b.w_trim_mm = wT;
+          b.h_trim_mm = hT;
+          b.total_w_mm = rot90 ? H : W;
+          b.total_h_mm = rot90 ? W : H;
+          b.x_tl_mm = tl.x;
+          b.y_tl_mm = tl.y;
+        });
+        repaint();
+        pushHistory && pushHistory();
       }
     } catch (e) {
       alert(e.message || 'No se pudo generar el PDF.');
