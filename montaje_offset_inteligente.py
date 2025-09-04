@@ -59,16 +59,23 @@ def generar_preview_pliego(disenos, positions, hoja_ancho_mm, hoja_alto_mm, prev
 
         src = cache[idx]
 
+        # Dimensiones destino en px
         w_px = mm_to_px(pos["w_mm"], dpi)
         h_px = mm_to_px(pos["h_mm"], dpi)
         if w_px <= 0 or h_px <= 0:
             continue
 
-        scaled = src.resize((w_px, h_px), Image.BILINEAR)
+        # Rotación por posición (grados)
+        rot = int(pos.get("rot_deg") or 0) % 360
 
-        rot = int(pos.get("rot") or 0) % 360
-        if rot:
+        # Intercambiar dimensiones si rot es 90 o 270
+        if rot in (90, 270):
+            scaled = src.resize((h_px, w_px), Image.BILINEAR)
             scaled = scaled.rotate(-rot, resample=Image.BILINEAR, expand=False)
+        else:
+            scaled = src.resize((w_px, h_px), Image.BILINEAR)
+            if rot:
+                scaled = scaled.rotate(-rot, resample=Image.BILINEAR, expand=False)
 
         x_px = mm_to_px(pos["x_mm"], dpi)
         y_px = mm_to_px(pos["y_mm"], dpi)
@@ -718,7 +725,7 @@ def montar_pliego_offset_inteligente(
                     "y": float(p["y_mm"]),
                     "ancho": float(p["w_mm"]),  # TRIM
                     "alto": float(p["h_mm"]),  # TRIM
-                    "rotado": bool(p.get("rot", False)),
+                    "rot_deg": int(p.get("rot_deg", p.get("rot", 0)) or 0) % 360,
                 }
             )
 
@@ -929,7 +936,7 @@ def montar_pliego_offset_inteligente(
             h_base = float(p.get("h_mm", p.get("alto_mm", p.get("alto", p.get("h", 0)))))
             w_mm = w_base + 2 * sangrado
             h_mm = h_base + 2 * sangrado
-            rotado = bool(p.get("rotado", p.get("rot", False)))
+            rot_deg = int(p.get("rot_deg", p.get("rot", 0)) or 0) % 360
 
             idx = p.get("file_idx")
             if idx is None:
@@ -946,7 +953,7 @@ def montar_pliego_offset_inteligente(
                     "y_mm": y_mm,
                     "w_mm": w_mm,
                     "h_mm": h_mm,
-                    "rot": 90 if rotado else 0,
+                    "rot_deg": rot_deg,
                 }
             )
 
@@ -970,7 +977,7 @@ def montar_pliego_offset_inteligente(
                     "y_mm": p["y"],
                     "w_mm": p["ancho"],
                     "h_mm": p["alto"],
-                    "rot": 90 if p.get("rotado", False) else 0,
+                    "rot_deg": int(p.get("rot_deg", 0)) % 360,
                 }
                 for p in posiciones
             ]
@@ -996,7 +1003,7 @@ def montar_pliego_offset_inteligente(
                     "y_mm": p["y"],
                     "w_mm": w_mm,
                     "h_mm": h_mm,
-                    "rot": 90 if p.get("rotado") else 0,
+                    "rot_deg": int(p.get("rot_deg", 0)) % 360,
                 }
             )
 
@@ -1036,18 +1043,25 @@ def montar_pliego_offset_inteligente(
                 archivo, sangrado, usar_trimbox=usar_trimbox
             )
         img = image_cache[archivo]
-        total_w_pt = mm_to_pt(pos["ancho"] + 2 * sangrado)
-        total_h_pt = mm_to_pt(pos["alto"] + 2 * sangrado)
+        w_pt = mm_to_pt(pos["ancho"] + 2 * sangrado)
+        h_pt = mm_to_pt(pos["alto"] + 2 * sangrado)
         x_pt = mm_to_pt(pos["x"])
         y_pt = mm_to_pt(pos["y"])
-        if pos.get("rotado"):
+        rot = int(pos.get("rot_deg") or 0) % 360
+
+        if rot in (90, 270):
+            w_rect, h_rect = h_pt, w_pt
+        else:
+            w_rect, h_rect = w_pt, h_pt
+
+        if rot:
             c.saveState()
-            c.translate(x_pt + total_w_pt / 2, y_pt + total_h_pt / 2)
-            c.rotate(90)
-            c.drawImage(img, -total_h_pt / 2, -total_w_pt / 2, width=total_h_pt, height=total_w_pt)
+            c.translate(x_pt + w_rect / 2, y_pt + h_rect / 2)
+            c.rotate(rot)
+            c.drawImage(img, -w_rect / 2, -h_rect / 2, width=w_rect, height=h_rect)
             c.restoreState()
         else:
-            c.drawImage(img, x_pt, y_pt, width=total_w_pt, height=total_h_pt)
+            c.drawImage(img, x_pt, y_pt, width=w_rect, height=h_rect)
 
         bleed_eff = sangrado
         if sangrado <= 0:
