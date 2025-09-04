@@ -677,12 +677,19 @@ def api_manual_preview():
         try:
             x = float(p.get("x_mm")); y = float(p.get("y_mm"))
             w = float(p.get("w_mm")); h = float(p.get("h_mm"))
-            rot = int(p.get("rot") or 0)
+            # rotación por posición, en grados, con compatibilidad:
+            rot_deg = p.get("rot_deg", None)
+            if rot_deg is None:
+                rot_deg = p.get("rot", 0)
+                if rot_deg in (True, False):   # legacy 'rotado' boolean
+                    rot_deg = 180 if rot_deg else 0
+            rot_deg = int(rot_deg) % 360
         except Exception:
             return _json_error(f"positions[{i}] contiene valores no numéricos.")
         if w <= 0 or h <= 0:
             return _json_error(f"positions[{i}] ancho/alto deben ser > 0")
         p["file_idx"] = idx
+        p["rot_deg"] = rot_deg             # <-- normalizado y pegado a ESA posición
         real_path = diseños[idx][0]
         if not os.path.exists(real_path):
             return _json_error(
@@ -702,6 +709,19 @@ def api_manual_preview():
     os.makedirs(prev_dir, exist_ok=True)
     token = uuid.uuid4().hex
     preview_path = os.path.join(prev_dir, f"manual_{token}.png")
+
+    for i, pos in enumerate(positions[:3]):
+        current_app.logger.info(
+            "[MANUAL] pos%d: id=%s idx=%s rot=%s x=%.1f y=%.1f w=%.1f h=%.1f",
+            i,
+            pos.get("id"),
+            pos.get("file_idx"),
+            pos.get("rot_deg"),
+            pos.get("x_mm"),
+            pos.get("y_mm"),
+            pos.get("w_mm"),
+            pos.get("h_mm"),
+        )
 
     try:
         res = montar_pliego_offset_inteligente(
@@ -761,12 +781,19 @@ def api_manual_impose():
         try:
             x = float(p.get("x_mm")); y = float(p.get("y_mm"))
             w = float(p.get("w_mm")); h = float(p.get("h_mm"))
-            rot = int(p.get("rot") or 0)
+            # rotación por posición, en grados, con compatibilidad:
+            rot_deg = p.get("rot_deg", None)
+            if rot_deg is None:
+                rot_deg = p.get("rot", 0)
+                if rot_deg in (True, False):   # legacy 'rotado' boolean
+                    rot_deg = 180 if rot_deg else 0
+            rot_deg = int(rot_deg) % 360
         except Exception:
             return _json_error(f"positions[{i}] contiene valores no numéricos.")
         if w <= 0 or h <= 0:
             return _json_error(f"positions[{i}] ancho/alto deben ser > 0")
         p["file_idx"] = idx
+        p["rot_deg"] = rot_deg             # <-- normalizado y pegado a ESA posición
         real_path = diseños[idx][0]
         if not os.path.exists(real_path):
             return _json_error(
@@ -786,6 +813,19 @@ def api_manual_impose():
     os.makedirs(out_dir, exist_ok=True)
     token = uuid.uuid4().hex
     pdf_path = os.path.join(out_dir, f"manual_{token}.pdf")
+
+    for i, pos in enumerate(positions[:3]):
+        current_app.logger.info(
+            "[MANUAL] pos%d: id=%s idx=%s rot=%s x=%.1f y=%.1f w=%.1f h=%.1f",
+            i,
+            pos.get("id"),
+            pos.get("file_idx"),
+            pos.get("rot_deg"),
+            pos.get("x_mm"),
+            pos.get("y_mm"),
+            pos.get("w_mm"),
+            pos.get("h_mm"),
+        )
 
     try:
         montar_pliego_offset_inteligente(

@@ -82,20 +82,25 @@
 
   function buildBoxes(positions) {
     return (positions || []).map((p, i) => {
-      const rot = !!(p.rotado || p.rot);
+      const rotDeg = Number.isFinite(+p.rot_deg)
+        ? (parseInt(p.rot_deg, 10) % 360)
+        : (Number.isFinite(+p.rot)
+            ? (parseInt(p.rot, 10) % 360)
+            : (p.rotado ? 180 : 0));
+      const rot90 = rotDeg % 180 !== 0;
       const wT  = toNum(p.w_mm, 0), hT = toNum(p.h_mm, 0);
       const W   = wT + 2*state.sangrado;
       const H   = hT + 2*state.sangrado;
-      const tl  = blToTl(toNum(p.x_mm,0), toNum(p.y_mm,0), H);
+      const tl  = blToTl(toNum(p.x_mm,0), toNum(p.y_mm,0), rot90 ? W : H);
       return {
         id: i,
         archivo: p.archivo ?? null,
         file_idx: Number.isFinite(p.file_idx) ? p.file_idx : resolveFileIdx(p),
-        rot,
+        rot_deg: (rotDeg + 360) % 360,
         w_trim_mm: wT,
         h_trim_mm: hT,
-        total_w_mm: rot ? H : W,
-        total_h_mm: rot ? W : H,
+        total_w_mm: rot90 ? H : W,
+        total_h_mm: rot90 ? W : H,
         x_tl_mm: tl.x,
         y_tl_mm: tl.y,
       };
@@ -188,7 +193,8 @@
       ctx.strokeRect(trimX, trimY, trimW, trimH); ctx.setLineDash([]);
 
       ctx.fillStyle = '#111'; ctx.font = '12px sans-serif';
-      const label = (b.archivo ? b.archivo.split('/').pop() : `PDF ${b.file_idx+1}`) + (b.rot ? ' • R90' : '');
+      const label = (b.archivo ? b.archivo.split('/').pop() : `PDF ${b.file_idx+1}`)
+        + (b.rot_deg ? ` • R${b.rot_deg}` : '');
       ctx.fillText(label, x + 6, y + 16);
       ctx.restore();
     }
@@ -409,13 +415,19 @@
 
   overlay.addEventListener('mousedown', () => overlay.focus?.());
 
-  function rotateSelected(angle){
+  function rotateSelected(delta = 90){
     if (!state.selectedIds.size) return;
     for (const id of state.selectedIds) {
       const b = state.boxes.find(x=>x.id===id); if (!b) continue;
-      b.rot = !b.rot;
-      [b.w_trim_mm, b.h_trim_mm] = [b.h_trim_mm, b.w_trim_mm];
-      [b.total_w_mm, b.total_h_mm] = [b.total_h_mm, b.total_w_mm];
+      const prev = parseInt(b.rot_deg || 0, 10);
+      const prev90 = prev % 180 !== 0;
+      const r = (prev + delta) % 360;
+      b.rot_deg = (r + 360) % 360;
+      const now90 = b.rot_deg % 180 !== 0;
+      if (prev90 !== now90) {
+        [b.w_trim_mm, b.h_trim_mm] = [b.h_trim_mm, b.w_trim_mm];
+        [b.total_w_mm, b.total_h_mm] = [b.total_h_mm, b.total_w_mm];
+      }
     }
     pushHistory();
   }
@@ -583,13 +595,15 @@
       if (b.deleted) continue;
       const bl = tlToBl(b.x_tl_mm, b.y_tl_mm, b.total_h_mm);
       const rec = {
+        id: b.id,
         archivo: b.archivo ? b.archivo.split('/').pop() : null,
         file_idx: clampIdx(b.file_idx, b),
         x_mm: num(bl.x),
         y_mm: num(bl.y),
         w_mm: num(b.w_trim_mm ?? b.w_mm),
         h_mm: num(b.h_trim_mm ?? b.h_mm),
-        rot: Number.isFinite(+b.rot) ? (parseInt(b.rot, 10) || 0) : 0
+        rot_deg: Number.isFinite(+b.rot_deg) ? (parseInt(b.rot_deg, 10) % 360) : (
+                 Number.isFinite(+b.rot) ? (parseInt(b.rot, 10) % 360) : 0)
       };
       if (![rec.x_mm, rec.y_mm, rec.w_mm, rec.h_mm].every(Number.isFinite)) {
         console.error("Payload inválido:", rec, b);
