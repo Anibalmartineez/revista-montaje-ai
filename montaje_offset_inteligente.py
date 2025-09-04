@@ -694,6 +694,13 @@ def montar_pliego_offset_inteligente(
     posiciones: List[Dict[str, float]] = []
     sobrantes: List[Dict[str, float]] = []
 
+    def _idx_from_basename_safe(basename: str) -> int | None:
+        base = basename.lower()
+        for i, (ruta_pdf, *_) in enumerate(diseños):
+            if os.path.basename(ruta_pdf).lower() == base:
+                return i
+        return None
+
     def _expandir_copias() -> List[Dict[str, float]]:
         lista: List[Dict[str, float]] = []
         for g in grupos:
@@ -714,10 +721,13 @@ def montar_pliego_offset_inteligente(
         # Normaliza a la misma estructura que usa el dibujado final.
         posiciones = []
         for p in posiciones_manual:
-            ruta = p.get("archivo") or diseños[p["file_idx"]][0]
+            idx = int(p["file_idx"])
+            assert 0 <= idx < len(diseños), f"file_idx fuera de rango: {idx}"
+            ruta = diseños[idx][0]
             posiciones.append(
                 {
-                    "archivo": ruta,
+                    "archivo": ruta,        # informativo, no usar para enlazar
+                    "file_idx": idx,        # clave estable para enlazar al PDF correcto
                     "x": float(p["x_mm"]),
                     "y": float(p["y_mm"]),
                     "ancho": float(p["w_mm"]),  # TRIM
@@ -923,8 +933,6 @@ def montar_pliego_offset_inteligente(
 
     # Si viene preview_path, generar SOLO la vista previa real con los PDFs originales
     if preview_path:
-        files_map = {os.path.abspath(d[0]): i for i, d in enumerate(diseños)}
-
         posiciones_normalizadas = []
         for p in posiciones:
             x_mm = float(p.get("x_mm", p.get("x", 0)))
@@ -937,11 +945,14 @@ def montar_pliego_offset_inteligente(
 
             idx = p.get("file_idx")
             if idx is None:
-                ruta = p.get("archivo") or p.get("ruta_pdf")
-                if ruta:
-                    idx = files_map.get(os.path.abspath(ruta))
-            if idx is None:
-                continue
+                ruta = p.get("archivo") or p.get("ruta_pdf", "")
+                guess = _idx_from_basename_safe(os.path.basename(ruta))
+                if guess is None:
+                    raise ValueError("No se pudo resolver file_idx desde basename")
+                idx = int(guess)
+            else:
+                idx = int(idx)
+            assert 0 <= idx < len(diseños), f"file_idx fuera de rango al render: {idx}"
 
             posiciones_normalizadas.append(
                 {
@@ -967,17 +978,28 @@ def montar_pliego_offset_inteligente(
             "resumen_html": resumen_html if 'resumen_html' in locals() else None,
         }
         if devolver_posiciones:
-            positions_norm = [
-                {
-                    "file_idx": files_map.get(os.path.abspath(p.get("archivo", "")), 0),
-                    "x_mm": p["x"],
-                    "y_mm": p["y"],
-                    "w_mm": p["ancho"],
-                    "h_mm": p["alto"],
-                    "rot_deg": int(p.get("rot_deg", 0)) % 360,
-                }
-                for p in posiciones
-            ]
+            positions_norm = []
+            for p in posiciones:
+                idx = p.get("file_idx")
+                if idx is None:
+                    ruta = p.get("archivo", "")
+                    guess = _idx_from_basename_safe(os.path.basename(ruta))
+                    if guess is None:
+                        raise ValueError("No se pudo resolver file_idx desde basename")
+                    idx = int(guess)
+                else:
+                    idx = int(idx)
+                assert 0 <= idx < len(diseños), f"file_idx fuera de rango: {idx}"
+                positions_norm.append(
+                    {
+                        "file_idx": idx,
+                        "x_mm": p["x"],
+                        "y_mm": p["y"],
+                        "w_mm": p["ancho"],
+                        "h_mm": p["alto"],
+                        "rot_deg": int(p.get("rot_deg", 0)) % 360,
+                    }
+                )
             result["positions"] = positions_norm
             result["sheet_mm"] = {"w": ancho_pliego, "h": alto_pliego}
         return result
@@ -985,12 +1007,18 @@ def montar_pliego_offset_inteligente(
     if preview_only:
         import tempfile
 
-        files_map = {os.path.abspath(d[0]): i for i, d in enumerate(diseños)}
         posiciones_normalizadas = []
         for p in posiciones:
-            idx = files_map.get(os.path.abspath(p.get("archivo", "")))
+            idx = p.get("file_idx")
             if idx is None:
-                continue
+                ruta = p.get("archivo", "")
+                guess = _idx_from_basename_safe(os.path.basename(ruta))
+                if guess is None:
+                    raise ValueError("No se pudo resolver file_idx desde basename")
+                idx = int(guess)
+            else:
+                idx = int(idx)
+            assert 0 <= idx < len(diseños), f"file_idx fuera de rango al render: {idx}"
             w_mm = p["ancho"] + 2 * sangrado
             h_mm = p["alto"] + 2 * sangrado
             posiciones_normalizadas.append(
@@ -1034,7 +1062,17 @@ def montar_pliego_offset_inteligente(
     image_cache: Dict[str, Image.Image] = {}
     bleed_cache: Dict[str, float] = {}
     for pos in posiciones:
-        archivo = pos["archivo"]
+        idx = pos.get("file_idx")
+        if idx is None:
+            ruta = pos.get("archivo", "")
+            guess = _idx_from_basename_safe(os.path.basename(ruta))
+            if guess is None:
+                raise ValueError("No se pudo resolver file_idx desde basename")
+            idx = int(guess)
+        else:
+            idx = int(idx)
+        assert 0 <= idx < len(diseños), f"file_idx fuera de rango al render: {idx}"
+        archivo = diseños[idx][0]
         if archivo not in image_cache:
             image_cache[archivo] = _pdf_a_imagen_con_sangrado(
                 archivo, sangrado, usar_trimbox=usar_trimbox
