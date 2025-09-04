@@ -418,18 +418,19 @@
   function rotateSelected(delta = 90){
     if (!state.selectedIds.size) return;
     for (const id of state.selectedIds) {
-      const b = state.boxes.find(x=>x.id===id); if (!b) continue;
-      const prev = parseInt(b.rot_deg || 0, 10);
-      const prev90 = prev % 180 !== 0;
-      const r = (prev + delta) % 360;
-      b.rot_deg = (r + 360) % 360;
-      const now90 = b.rot_deg % 180 !== 0;
-      if (prev90 !== now90) {
+      const b = state.boxes.find((x) => x.id === id); if (!b) continue;
+      const oldR = (parseInt(b.rot_deg || 0, 10) % 360 + 360) % 360;
+      const newR = (oldR + delta + 360) % 360;
+      const oldParity = Math.floor(oldR / 90) % 2;
+      const newParity = Math.floor(newR / 90) % 2;
+      if (oldParity !== newParity) {
         [b.w_trim_mm, b.h_trim_mm] = [b.h_trim_mm, b.w_trim_mm];
         [b.total_w_mm, b.total_h_mm] = [b.total_h_mm, b.total_w_mm];
       }
+      b.rot_deg = newR;
     }
     pushHistory();
+    repaint();
   }
 
   function clampAllToSheet(){
@@ -464,7 +465,7 @@
     if (k === 'w' || k === 'W') { fitToWidth(); e.preventDefault(); return; }
 
     if (k === ' ') { state.panning = true; document.getElementById('manual-stage').style.cursor = 'grab'; e.preventDefault(); return; }
-    if ((k === 'r' || k === 'R') && state.selectedIds?.size > 0) { rotateSelected(90); clampAllToSheet(); repaint(); e.preventDefault(); return; }
+    if ((k === 'r' || k === 'R') && state.selectedIds?.size > 0) { rotateSelected(90); clampAllToSheet(); e.preventDefault(); return; }
     if (k.startsWith('Arrow') && state.selectedIds?.size > 0) {
       const step = e.shiftKey ? 10 : 1;
       const dx = (k === 'ArrowLeft' ? -step : k === 'ArrowRight' ? step : 0);
@@ -633,6 +634,30 @@
       const imgEl = document.getElementById('preview_img');
       if (imgEl && json.preview_path) {
         imgEl.src = json.preview_path + '?v=' + Date.now();
+      }
+      if (Array.isArray(json.positions_applied)) {
+        const byId = new Map(state.boxes.map(b => [b.id, b]));
+        json.positions_applied.forEach(p => {
+          const b = byId.get(p.id);
+          if (!b) return;
+          b.file_idx = p.file_idx;
+          const rot = (parseInt(p.rot_deg, 10) % 360 + 360) % 360;
+          const rot90 = rot % 180 !== 0;
+          const wT = toNum(p.w_mm, 0);
+          const hT = toNum(p.h_mm, 0);
+          const W = wT + 2 * state.sangrado;
+          const H = hT + 2 * state.sangrado;
+          const tl = blToTl(toNum(p.x_mm, 0), toNum(p.y_mm, 0), rot90 ? W : H);
+          b.rot_deg = rot;
+          b.w_trim_mm = wT;
+          b.h_trim_mm = hT;
+          b.total_w_mm = rot90 ? H : W;
+          b.total_h_mm = rot90 ? W : H;
+          b.x_tl_mm = tl.x;
+          b.y_tl_mm = tl.y;
+        });
+        repaint();
+        pushHistory && pushHistory();
       }
     } catch (e) {
       alert(e.message || 'Error al aplicar.');

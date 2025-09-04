@@ -14,6 +14,7 @@ from typing import Dict, List, Tuple
 from PyPDF2 import PdfReader, PdfWriter
 from reportlab.pdfgen import canvas
 from reportlab.lib import colors
+from reportlab.lib.utils import ImageReader
 
 from montaje_offset_inteligente import (
     mm_to_pt,
@@ -178,7 +179,7 @@ def montar_pliego_offset_personalizado(
             x_pt = mm_to_pt(x_mm)
             # Convertir coordenadas: de sistema top-left a bottom-left
             y_pt = pliego_h_pt - mm_to_pt(y_mm) - h_total_pt
-            c.drawImage(img, x_pt, y_pt, width=w_total_pt, height=h_total_pt)
+            c.drawImage(ImageReader(img), x_pt, y_pt, width=w_total_pt, height=h_total_pt)
 
             if preview:
                 c.setStrokeColor(color)

@@ -1,5 +1,4 @@
 import gc
-import io
 import math
 import os
 import sys
@@ -68,10 +67,11 @@ def generar_preview_pliego(disenos, positions, hoja_ancho_mm, hoja_alto_mm, prev
         # Rotación por posición (grados)
         rot = int(pos.get("rot_deg") or 0) % 360
 
-        # Intercambiar dimensiones si rot es 90 o 270
+        # El cliente ya envía w/h coherentes con la rotación; primero rotamos y luego escalamos
         if rot in (90, 270):
-            scaled = src.resize((h_px, w_px), Image.BILINEAR)
-            scaled = scaled.rotate(-rot, resample=Image.BILINEAR, expand=False)
+            rotated = src.rotate(-rot, resample=Image.BILINEAR, expand=True)
+            scaled = rotated.resize((w_px, h_px), Image.BILINEAR)
+            del rotated
         else:
             scaled = src.resize((w_px, h_px), Image.BILINEAR)
             if rot:
@@ -201,7 +201,7 @@ def obtener_dimensiones_pdf(path: str, usar_trimbox: bool = False) -> Tuple[floa
 
 def _pdf_a_imagen_con_sangrado(
     path: str, sangrado_mm: float, usar_trimbox: bool = False
-) -> ImageReader:
+) -> Image.Image:
     """Rasteriza un PDF y añade un borde de sangrado replicando los bordes.
 
     Parameters
@@ -250,11 +250,8 @@ def _pdf_a_imagen_con_sangrado(
         br = img.crop((w - 1, h - 1, w, h)).resize((sangrado_px, sangrado_px))
         img_con_sangrado.paste(br, (sangrado_px + w, sangrado_px + h))
 
-    img_byte_arr = io.BytesIO()
-    img_con_sangrado.save(img_byte_arr, format="PNG")
-    img_byte_arr.seek(0)
     doc.close()
-    return ImageReader(img_byte_arr)
+    return img_con_sangrado
 
 
 
@@ -1034,7 +1031,7 @@ def montar_pliego_offset_inteligente(
     sheet_h_pt = mm_to_pt(alto_pliego)
     c = canvas.Canvas(output_path, pagesize=(sheet_w_pt, sheet_h_pt))
 
-    image_cache: Dict[str, ImageReader] = {}
+    image_cache: Dict[str, Image.Image] = {}
     bleed_cache: Dict[str, float] = {}
     for pos in posiciones:
         archivo = pos["archivo"]
@@ -1049,19 +1046,11 @@ def montar_pliego_offset_inteligente(
         y_pt = mm_to_pt(pos["y"])
         rot = int(pos.get("rot_deg") or 0) % 360
 
-        if rot in (90, 270):
-            w_rect, h_rect = h_pt, w_pt
-        else:
-            w_rect, h_rect = w_pt, h_pt
-
         if rot:
-            c.saveState()
-            c.translate(x_pt + w_rect / 2, y_pt + h_rect / 2)
-            c.rotate(rot)
-            c.drawImage(img, -w_rect / 2, -h_rect / 2, width=w_rect, height=h_rect)
-            c.restoreState()
+            img_to_draw = img.rotate(-rot, resample=Image.BILINEAR, expand=True)
         else:
-            c.drawImage(img, x_pt, y_pt, width=w_rect, height=h_rect)
+            img_to_draw = img
+        c.drawImage(ImageReader(img_to_draw), x_pt, y_pt, width=w_pt, height=h_pt)
 
         bleed_eff = sangrado
         if sangrado <= 0:

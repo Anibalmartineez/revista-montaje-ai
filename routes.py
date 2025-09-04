@@ -726,7 +726,8 @@ def api_manual_preview():
     try:
         res = montar_pliego_offset_inteligente(
             diseños,
-            w_mm, h_mm,
+            w_mm,
+            h_mm,
             posiciones_manual=positions,
             sangrado=sangrado,
             preview_only=True,
@@ -738,6 +739,18 @@ def api_manual_preview():
             res["preview_path"] = url
         else:
             res = {"preview_path": url}
+        res["positions_applied"] = [
+            {
+                "id": p.get("id"),
+                "file_idx": p["file_idx"],
+                "x_mm": float(p["x_mm"]),
+                "y_mm": float(p["y_mm"]),
+                "w_mm": float(p["w_mm"]),
+                "h_mm": float(p["h_mm"]),
+                "rot_deg": int(p["rot_deg"]) % 360,
+            }
+            for p in positions
+        ]
         return jsonify(res), 200
     except Exception as e:
         current_app.logger.exception("api_manual_preview error")
@@ -830,7 +843,8 @@ def api_manual_impose():
     try:
         montar_pliego_offset_inteligente(
             diseños,
-            w_mm, h_mm,
+            w_mm,
+            h_mm,
             posiciones_manual=positions,
             sangrado=sangrado,
             preview_only=False,
@@ -840,7 +854,21 @@ def api_manual_impose():
             return _json_error("El motor no generó el PDF.", 500)
         rel = os.path.relpath(pdf_path, current_app.static_folder).replace("\\", "/")
         pdf_url = url_for("static", filename=rel)
-        return jsonify(pdf_url=pdf_url), 200
+        return jsonify(
+            pdf_url=pdf_url,
+            positions_applied=[
+                {
+                    "id": p.get("id"),
+                    "file_idx": p["file_idx"],
+                    "x_mm": float(p["x_mm"]),
+                    "y_mm": float(p["y_mm"]),
+                    "w_mm": float(p["w_mm"]),
+                    "h_mm": float(p["h_mm"]),
+                    "rot_deg": int(p["rot_deg"]) % 360,
+                }
+                for p in positions
+            ],
+        ), 200
     except Exception as e:
         current_app.logger.exception("api_manual_impose error")
         return _json_error(f"Fallo en impose: {str(e)}")
