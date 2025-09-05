@@ -47,11 +47,14 @@ from imposicion_offset_auto import imponer_pliego_offset_auto
 
 UPLOAD_FOLDER = "uploads"
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
+try:
+    os.chmod(UPLOAD_FOLDER, 0o775)
+except OSError:
+    pass
 os.makedirs("output", exist_ok=True)
 os.makedirs("preview_temp", exist_ok=True)
-UPLOAD_FOLDER_FLEXO = "uploads_flexo"
+UPLOAD_FOLDER_FLEXO = UPLOAD_FOLDER
 OUTPUT_FOLDER_FLEXO = "output_flexo"
-os.makedirs(UPLOAD_FOLDER_FLEXO, exist_ok=True)
 os.makedirs(OUTPUT_FOLDER_FLEXO, exist_ok=True)
 
 chat_historial = []
@@ -1224,7 +1227,7 @@ def revision_flexo():
 
             if archivo and archivo.filename.endswith(".pdf"):
                 filename = secure_filename(archivo.filename)
-                path = os.path.join(UPLOAD_FOLDER_FLEXO, filename)
+                path = os.path.abspath(os.path.join(UPLOAD_FOLDER, filename))
                 archivo.save(path)
 
                 (
@@ -1287,9 +1290,19 @@ def vista_previa_tecnica():
                 ),
                 400,
             )
+        pdf_path = diag["pdf_path"]
+        if not os.path.exists(pdf_path):
+            return (
+                jsonify(
+                    {
+                        "error": "El archivo PDF del diseño ya no está disponible. Por favor, volvé a cargar el archivo.",
+                    }
+                ),
+                400,
+            )
 
         rel_path = generar_preview_tecnico(
-            diag["pdf_path"],
+            pdf_path,
             diag.get("datos_formulario"),
             overlay_path=diag.get("overlay_path"),
             dpi=diag.get("dpi", 200),
