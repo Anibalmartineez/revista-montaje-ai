@@ -3,6 +3,7 @@ import uuid
 import fitz
 import numpy as np
 import tempfile
+from typing import Any
 from PIL import Image, ImageDraw
 from flask import current_app
 
@@ -47,6 +48,7 @@ def analizar_riesgos_pdf(pdf_path: str, dpi: int = 200) -> dict:
     sangrado_mm = 3
     sangrado_pts = sangrado_mm * 72 / 25.4
     contenido_cerca_borde = False
+    advertencias: list[dict[str, Any]] = []
 
     for block in text_data.get("blocks", []):
         btype = block.get("type")
@@ -55,16 +57,17 @@ def analizar_riesgos_pdf(pdf_path: str, dpi: int = 200) -> dict:
                 for span in line.get("spans", []):
                     x0, y0, x1, y1 = span["bbox"]
                     if span.get("size", 0) < 4:
-                        rect = [x0 * zoom, y0 * zoom, x1 * zoom, y1 * zoom]
-                        draw.rectangle(rect, outline=(255, 0, 0, 255), width=2)
+                        advertencias.append({"tipo": "texto_pequeno", "bbox": [x0, y0, x1, y1]})
                     margen_min = min(x0, page.rect.width - x1, y0, page.rect.height - y1)
                     if margen_min < sangrado_pts:
                         contenido_cerca_borde = True
+                        advertencias.append({"tipo": "cerca_borde", "bbox": [x0, y0, x1, y1]})
         elif btype == 1:  # imagen
             x0, y0, x1, y1 = block.get("bbox", (0, 0, 0, 0))
             margen_min = min(x0, page.rect.width - x1, y0, page.rect.height - y1)
             if margen_min < sangrado_pts:
                 contenido_cerca_borde = True
+                advertencias.append({"tipo": "cerca_borde", "bbox": [x0, y0, x1, y1]})
             xref = block.get("image")
             cs = ""
             if xref:
@@ -74,8 +77,7 @@ def analizar_riesgos_pdf(pdf_path: str, dpi: int = 200) -> dict:
                 except Exception:
                     cs = ""
             if cs and cs.upper() != "CMYK":
-                rect = [x0 * zoom, y0 * zoom, x1 * zoom, y1 * zoom]
-                draw.rectangle(rect, fill=(64, 64, 64, 120))
+                advertencias.append({"tipo": "imagen_fuera_cmyk", "bbox": [x0, y0, x1, y1]})
 
     # Línea de sangrado (azul si correcto, rojo si insuficiente)
     rect_segura = [
@@ -92,7 +94,7 @@ def analizar_riesgos_pdf(pdf_path: str, dpi: int = 200) -> dict:
     filename = f"preview_tecnico_overlay_{uuid.uuid4().hex}.png"
     tmp_path = os.path.join(tmp_dir, filename)
     overlay_img.save(tmp_path)
-    return {"overlay_path": tmp_path, "dpi": dpi}
+    return {"overlay_path": tmp_path, "dpi": dpi, "advertencias": advertencias}
 
 
 def generar_preview_tecnico(
@@ -117,6 +119,55 @@ def generar_preview_tecnico(
         overlay_img = Image.open(overlay_path).convert("RGBA")
     else:
         overlay_img = Image.new("RGBA", base.size, (0, 0, 0, 0))
+
+    advertencias: list[Any] = []
+    if datos_formulario:
+        if isinstance(datos_formulario, list):
+            advertencias = datos_formulario
+        elif isinstance(datos_formulario, dict):
+            adv = datos_formulario.get("advertencias") or datos_formulario.get("warnings")
+            if isinstance(adv, dict):
+                tmp: list[Any] = []
+                for k, v in adv.items():
+                    if isinstance(v, list):
+                        for item in v:
+                            if isinstance(item, dict):
+                                item.setdefault("tipo", k)
+                                tmp.append(item)
+                advertencias = tmp
+            elif adv:
+                advertencias = adv  # assume list
+
+    if advertencias:
+        draw = ImageDraw.Draw(overlay_img, "RGBA")
+        color_trama = {
+            "c": (0, 255, 255, 100),
+            "m": (255, 0, 255, 100),
+            "y": (255, 255, 0, 100),
+            "k": (0, 0, 0, 100),
+        }
+        for adv in advertencias:
+            bbox = adv.get("bbox") or adv.get("box")
+            if not bbox or len(bbox) != 4:
+                continue
+            x0, y0, x1, y1 = [coord * zoom for coord in bbox]
+            tipo = (adv.get("tipo") or adv.get("type") or "").lower()
+            if tipo.startswith("trama_debil"):
+                canal = tipo.split("_")[-1][:1]
+                color = color_trama.get(canal, (255, 255, 0, 100))
+                draw.rectangle([x0, y0, x1, y1], fill=color)
+            elif tipo == "texto_pequeno":
+                draw.rectangle([x0, y0, x1, y1], outline=(255, 0, 0, 255), width=2)
+                draw.text((x0 + 2, y0 + 2), "< 4 pt", fill=(255, 0, 0, 255))
+            elif tipo in {"trazo_fino", "stroke_fino"}:
+                draw.rectangle([x0, y0, x1, y1], outline=(255, 165, 0, 255), width=2)
+            elif tipo in {"imagen_fuera_cmyk", "fuera_cmyk"}:
+                draw.rectangle([x0, y0, x1, y1], outline=(128, 0, 128, 255), width=2)
+            elif tipo in {"cerca_borde", "sin_sangrado"}:
+                draw.rectangle([x0, y0, x1, y1], outline=(255, 165, 0, 255), width=2)
+            label = adv.get("label") or adv.get("texto")
+            if label:
+                draw.text((x0 + 2, y0 + 2), label, fill=(0, 0, 0, 255))
 
     composed = Image.alpha_composite(base, overlay_img)
     doc.close()
