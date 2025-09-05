@@ -177,9 +177,11 @@ def generar_preview_tecnico(
     static_dir = getattr(current_app, "static_folder", "static")
     previews_dir = os.path.join(static_dir, "previews")
     os.makedirs(previews_dir, exist_ok=True)
-    filename = f"preview_tecnico_overlay_{uuid.uuid4().hex}.png"
+    # Guardar con nombre único para evitar caché en el navegador
+    filename = f"preview_tecnico_{uuid.uuid4().hex}.png"
     output_abs = os.path.join(previews_dir, filename)
     composed.save(output_abs)
-    print("✅ Overlay generado en:", output_abs)
+    # Informar en consola la ruta absoluta de salida
+    print("✅ Imagen compuesta guardada en:", output_abs)
 
     return os.path.join("previews", filename)
