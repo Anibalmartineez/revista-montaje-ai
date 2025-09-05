@@ -152,6 +152,11 @@
       <button type="submit">Revisar diseño</button>
     </form>
 
+    <button id="vista-previa-btn" class="btn btn-secondary">Vista previa técnica</button>
+    <div id="preview-container" style="margin-top:20px;">
+      <img id="preview-img" src="" style="max-width:100%; border:1px solid #ccc;">
+    </div>
+
     {% if mensaje %}
       <div class="mensaje">{{ mensaje }}</div>
     {% endif %}
@@ -194,5 +199,6 @@
       </div>
     {% endif %}
   </div>
+  <script src="{{ url_for('static', filename='js/flexografia.js') }}"></script>
 </body>
 </html>
