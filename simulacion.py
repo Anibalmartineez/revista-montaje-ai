@@ -1,7 +1,6 @@
 import os
 import fitz
-from PIL import Image
-from pdf2image import convert_from_path
+from PIL import Image, ImageDraw
 
 
 def generar_preview_interactivo(input_path, output_folder="preview_temp"):
@@ -90,13 +89,83 @@ cargar();
         f.write(vista)
 
 
-def generar_preview_virtual(ruta_pdf):
-    """Convierte páginas del PDF a imágenes para vista previa simple."""
-    output_dir = "preview_temp"
+def generar_preview_virtual(ruta_pdf, advertencias=None, dpi=150, output_dir="preview_temp"):
+    """Convierte las páginas del PDF a imágenes y superpone advertencias.
+
+    Parameters
+    ----------
+    ruta_pdf: str
+        Ruta al PDF de entrada.
+    advertencias: list[dict] | dict | None
+        Estructura con advertencias y sus coordenadas. Puede ser una lista de
+        diccionarios con claves como ``page`` / ``pagina`` (0-index), ``bbox``
+        (x0, y0, x1, y1) en puntos PDF y ``tipo`` / ``label`` para mostrar.
+    dpi: int
+        Resolución utilizada para rasterizar el PDF.
+    output_dir: str
+        Carpeta donde se guardarán las imágenes generadas.
+
+    Returns
+    -------
+    list[str]
+        Lista de rutas absolutas a las imágenes generadas.
+    """
+
     os.makedirs(output_dir, exist_ok=True)
     for archivo in os.listdir(output_dir):
         os.remove(os.path.join(output_dir, archivo))
-    paginas = convert_from_path(ruta_pdf, dpi=150)
-    for i, pagina in enumerate(paginas):
+
+    doc = fitz.open(ruta_pdf)
+    zoom = dpi / 72.0
+    resultados = []
+
+    # Normaliza ``advertencias`` a un diccionario por página
+    advertencias_por_pagina: dict[int, list] = {}
+    if advertencias:
+        if isinstance(advertencias, dict):
+            for k, v in advertencias.items():
+                try:
+                    idx = int(k)
+                except Exception:
+                    continue
+                advertencias_por_pagina[idx] = v or []
+        else:
+            for item in advertencias:
+                idx = item.get("page", item.get("pagina", 0))
+                advertencias_por_pagina.setdefault(idx, []).append(item)
+
+    color_map = {
+        "texto_pequeno": (255, 0, 0, 120),
+        "trama_debil": (255, 255, 0, 120),
+        "sin_sangrado": (255, 165, 0, 120),
+        "error_color": (0, 0, 255, 120),
+    }
+
+    for i in range(doc.page_count):
+        page = doc.load_page(i)
+        pix = page.get_pixmap(matrix=fitz.Matrix(zoom, zoom), alpha=False)
+        base = Image.frombytes("RGB", [pix.width, pix.height], pix.samples).convert("RGBA")
+
+        overlay = Image.new("RGBA", base.size, (0, 0, 0, 0))
+        draw = ImageDraw.Draw(overlay, "RGBA")
+
+        for adv in advertencias_por_pagina.get(i, []):
+            bbox = adv.get("bbox") or adv.get("box")
+            if not bbox or len(bbox) != 4:
+                continue
+            x0, y0, x1, y1 = [coord * zoom for coord in bbox]
+            tipo = adv.get("tipo") or adv.get("type", "")
+            color = color_map.get(tipo, (255, 0, 255, 120))
+            draw.rectangle([x0, y0, x1, y1], outline=color[:3], width=2, fill=color)
+            label = adv.get("label") or adv.get("mensaje") or tipo
+            if label:
+                draw.text((x0 + 3, y0 + 3), label, fill=color[:3])
+
+        compuesto = Image.alpha_composite(base, overlay).convert("RGB")
         nombre = f"pag_{i+1}.jpg"
-        pagina.save(os.path.join(output_dir, nombre), "JPEG")
+        ruta_img = os.path.join(output_dir, nombre)
+        compuesto.save(ruta_img, "JPEG")
+        resultados.append(ruta_img)
+
+    doc.close()
+    return resultados
