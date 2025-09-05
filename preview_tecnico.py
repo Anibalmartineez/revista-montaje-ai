@@ -180,5 +180,6 @@ def generar_preview_tecnico(
     filename = f"preview_tecnico_overlay_{uuid.uuid4().hex}.png"
     output_abs = os.path.join(previews_dir, filename)
     composed.save(output_abs)
+    print("✅ Overlay generado en:", output_abs)
 
     return os.path.join("previews", filename)
