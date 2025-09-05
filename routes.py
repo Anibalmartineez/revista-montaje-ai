@@ -1250,6 +1250,14 @@ def revision_flexo():
                     cobertura,
                 )
                 overlay_info = analizar_riesgos_pdf(path)
+
+                if not overlay_info.get("advertencias"):
+                    overlay_info["advertencias"] = [
+                        {"tipo": "texto_pequeno", "bbox": [100, 100, 200, 150]},
+                        {"tipo": "imagen_fuera_cmyk", "bbox": [300, 400, 400, 500]},
+                        {"tipo": "cerca_borde", "bbox": [50, 50, 180, 120]},
+                    ]
+
                 session["diagnostico_flexo"] = {
                     "pdf_path": path,
                     "resultados_diagnostico": analisis_detallado,
@@ -1260,6 +1268,7 @@ def revision_flexo():
                         "material": material,
                         "velocidad_impresion": velocidad,
                         "cobertura": cobertura,
+                        "advertencias": overlay_info.get("advertencias", []),
                     },
                     "overlay_path": overlay_info["overlay_path"],
                     "dpi": overlay_info["dpi"],

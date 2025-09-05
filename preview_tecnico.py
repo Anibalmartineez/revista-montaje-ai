@@ -138,6 +138,8 @@ def generar_preview_tecnico(
             elif adv:
                 advertencias = adv  # assume list
 
+    print("📌 Advertencias recibidas:", advertencias)
+
     if advertencias:
         draw = ImageDraw.Draw(overlay_img, "RGBA")
         color_trama = {
