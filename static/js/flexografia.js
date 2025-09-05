@@ -8,6 +8,8 @@ document.addEventListener('DOMContentLoaded', () => {
   form.addEventListener('submit', async (e) => {
     e.preventDefault();
     previewContainer.innerHTML = '<p>Generando vista previa...</p>';
+    // Limpiar cualquier imagen previa mientras se genera una nueva
+    img.removeAttribute('src');
     try {
       const formData = new FormData(form);
       const resp = await fetch(form.action, { method: 'POST', body: formData });
@@ -17,13 +19,20 @@ document.addEventListener('DOMContentLoaded', () => {
         const cacheBust = (typeof crypto !== 'undefined' && crypto.randomUUID)
           ? crypto.randomUUID()
           : Date.now();
+        img.onload = () => {
+          previewContainer.innerHTML = '';
+          previewContainer.appendChild(img);
+        };
+        img.onerror = () => {
+          img.removeAttribute('src');
+          previewContainer.innerHTML = '<p>Error al cargar la vista previa.</p>';
+        };
         img.src = json.preview_url + '?v=' + cacheBust;
-        previewContainer.innerHTML = '';
-        previewContainer.appendChild(img);
       } else {
         previewContainer.innerHTML = '<p>No se pudo generar la vista previa.</p>';
       }
     } catch (err) {
+      img.removeAttribute('src');
       previewContainer.innerHTML = `<p>${err.message}</p>`;
     }
   });

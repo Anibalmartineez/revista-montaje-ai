@@ -1324,7 +1324,8 @@ def vista_previa_tecnica():
             dpi=diag.get("dpi", 200),
         )
         url = url_for("static", filename=rel_path)
-        print("✅ Vista previa técnica disponible en:", url)
+        # Mostrar en consola la URL pública generada
+        print("🌐 URL pública vista previa técnica:", url)
         return jsonify({"preview_url": url})
     except Exception as e:
         return jsonify({"error": str(e)}), 500
