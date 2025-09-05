@@ -949,8 +949,13 @@ def revisar_diseño_flexo(
         + seccion_tinta_html
         + "</div>"
     )
+    analisis_detallado = {
+        "tramas_debiles": tramas_adv,
+        "cobertura_por_canal": cobertura,
+        "textos_pequenos": textos_adv,
+    }
     diagnostico_texto = generar_diagnostico_texto(resumen)
-    return resumen, imagen_tinta, diagnostico_texto
+    return resumen, imagen_tinta, diagnostico_texto, analisis_detallado
 
 
 def generar_diagnostico_texto(html_diagnostico: str) -> str:
