@@ -25,9 +25,15 @@ def analizar_riesgos_pdf(pdf_path: str, dpi: int = 200) -> dict:
     h, w = arr.shape[:2]
     overlay = np.zeros((h, w, 4), dtype=np.uint8)
 
-    # 🔵 Tramas <5%
-    weak_mask = ((arr > 0) & (arr < 13)).any(axis=2)
-    overlay[weak_mask] = [0, 0, 255, 120]
+    # 🔵 Tramas <5% por canal
+    c_mask = (arr[:, :, 0] > 0) & (arr[:, :, 0] < 13)
+    m_mask = (arr[:, :, 1] > 0) & (arr[:, :, 1] < 13)
+    y_mask = (arr[:, :, 2] > 0) & (arr[:, :, 2] < 13)
+    k_mask = (arr[:, :, 3] > 0) & (arr[:, :, 3] < 13)
+    overlay[c_mask] = [0, 255, 255, 120]  # Cian
+    overlay[m_mask] = [255, 0, 255, 120]  # Magenta
+    overlay[y_mask] = [255, 255, 0, 120]  # Amarillo
+    overlay[k_mask] = [0, 0, 0, 120]      # Negro débil
 
     # 🔴 Cobertura >90%
     coverage = arr.sum(axis=2) / (255 * 4)
@@ -38,17 +44,27 @@ def analizar_riesgos_pdf(pdf_path: str, dpi: int = 200) -> dict:
     draw = ImageDraw.Draw(overlay_img)
 
     text_data = page.get_text("dict")
+    sangrado_mm = 3
+    sangrado_pts = sangrado_mm * 72 / 25.4
+    contenido_cerca_borde = False
+
     for block in text_data.get("blocks", []):
         btype = block.get("type")
         if btype == 0:  # texto
             for line in block.get("lines", []):
                 for span in line.get("spans", []):
+                    x0, y0, x1, y1 = span["bbox"]
                     if span.get("size", 0) < 4:
-                        x0, y0, x1, y1 = span["bbox"]
                         rect = [x0 * zoom, y0 * zoom, x1 * zoom, y1 * zoom]
-                        draw.rectangle(rect, outline=(255, 165, 0, 255), width=2)
+                        draw.rectangle(rect, outline=(255, 0, 0, 255), width=2)
+                    margen_min = min(x0, page.rect.width - x1, y0, page.rect.height - y1)
+                    if margen_min < sangrado_pts:
+                        contenido_cerca_borde = True
         elif btype == 1:  # imagen
             x0, y0, x1, y1 = block.get("bbox", (0, 0, 0, 0))
+            margen_min = min(x0, page.rect.width - x1, y0, page.rect.height - y1)
+            if margen_min < sangrado_pts:
+                contenido_cerca_borde = True
             xref = block.get("image")
             cs = ""
             if xref:
@@ -61,10 +77,22 @@ def analizar_riesgos_pdf(pdf_path: str, dpi: int = 200) -> dict:
                 rect = [x0 * zoom, y0 * zoom, x1 * zoom, y1 * zoom]
                 draw.rectangle(rect, fill=(64, 64, 64, 120))
 
+    # Línea de sangrado (azul si correcto, rojo si insuficiente)
+    rect_segura = [
+        sangrado_pts * zoom,
+        sangrado_pts * zoom,
+        (page.rect.width - sangrado_pts) * zoom,
+        (page.rect.height - sangrado_pts) * zoom,
+    ]
+    color_sangrado = (255, 0, 0, 255) if contenido_cerca_borde else (0, 0, 255, 255)
+    draw.rectangle(rect_segura, outline=color_sangrado, width=3)
+
     doc.close()
-    tmp = tempfile.NamedTemporaryFile(delete=False, suffix=".png")
-    overlay_img.save(tmp.name)
-    return {"overlay_path": tmp.name, "dpi": dpi}
+    tmp_dir = tempfile.gettempdir()
+    filename = f"preview_tecnico_overlay_{uuid.uuid4().hex}.png"
+    tmp_path = os.path.join(tmp_dir, filename)
+    overlay_img.save(tmp_path)
+    return {"overlay_path": tmp_path, "dpi": dpi}
 
 
 def generar_preview_tecnico(
@@ -96,7 +124,7 @@ def generar_preview_tecnico(
     static_dir = getattr(current_app, "static_folder", "static")
     previews_dir = os.path.join(static_dir, "previews")
     os.makedirs(previews_dir, exist_ok=True)
-    filename = f"preview_tecnico_{uuid.uuid4().hex}.png"
+    filename = f"preview_tecnico_overlay_{uuid.uuid4().hex}.png"
     output_abs = os.path.join(previews_dir, filename)
     composed.save(output_abs)
 
