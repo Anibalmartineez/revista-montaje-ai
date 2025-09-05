@@ -45,7 +45,9 @@ from montaje_offset_inteligente import montar_pliego_offset_inteligente
 from montaje_offset_personalizado import montar_pliego_offset_personalizado
 from imposicion_offset_auto import imponer_pliego_offset_auto
 
-UPLOAD_FOLDER = "uploads"
+# Carpeta de subidas dentro de ``static`` para persistir archivos entre
+# formularios y poder servirlos directamente.
+UPLOAD_FOLDER = os.path.join("static", "uploads")
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 try:
     os.chmod(UPLOAD_FOLDER, 0o775)
@@ -1230,6 +1232,9 @@ def revision_flexo():
                 path = os.path.abspath(os.path.join(UPLOAD_FOLDER, filename))
                 archivo.save(path)
 
+                # Guardamos la ruta en sesión para reutilizarla en la vista previa
+                session["archivo_pdf"] = path
+
                 (
                     resultado_revision,
                     grafico_tinta,
@@ -1280,8 +1285,9 @@ def revision_flexo():
 @routes_bp.route("/vista_previa_tecnica", methods=["POST"])
 def vista_previa_tecnica():
     try:
-        diag = session.get("diagnostico_flexo")
-        if not diag or "pdf_path" not in diag or "resultados_diagnostico" not in diag:
+        # Permite recuperar la ruta desde el formulario o la sesión
+        pdf_path = request.form.get("archivo_guardado") or session.get("archivo_pdf")
+        if not pdf_path:
             return (
                 jsonify(
                     {
@@ -1290,7 +1296,7 @@ def vista_previa_tecnica():
                 ),
                 400,
             )
-        pdf_path = diag["pdf_path"]
+
         if not os.path.exists(pdf_path):
             return (
                 jsonify(
@@ -1301,6 +1307,7 @@ def vista_previa_tecnica():
                 400,
             )
 
+        diag = session.get("diagnostico_flexo", {})
         rel_path = generar_preview_tecnico(
             pdf_path,
             diag.get("datos_formulario"),

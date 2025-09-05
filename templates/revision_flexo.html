@@ -152,7 +152,10 @@
       <button type="submit">Revisar diseño</button>
     </form>
 
-    <button id="vista-previa-btn" class="btn btn-secondary">Vista previa técnica</button>
+    <form id="vista-previa-form" action="/vista_previa_tecnica" method="POST">
+      <input type="hidden" name="archivo_guardado" id="archivo_guardado" value="{{ session.get('archivo_pdf', '') }}">
+      <button id="vista-previa-btn" class="btn btn-secondary" type="submit">Vista previa técnica</button>
+    </form>
     <div id="preview-container" style="margin-top:20px;">
       <img id="preview-img" src="" style="max-width:100%; border:1px solid #ccc;">
     </div>
