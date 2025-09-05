@@ -14,7 +14,10 @@ document.addEventListener('DOMContentLoaded', () => {
       const json = await resp.json();
       if (!resp.ok) throw new Error(json.error || 'Error en vista previa');
       if (json.preview_url) {
-        img.src = json.preview_url + '?v=' + Date.now();
+        const cacheBust = (typeof crypto !== 'undefined' && crypto.randomUUID)
+          ? crypto.randomUUID()
+          : Date.now();
+        img.src = json.preview_url + '?v=' + cacheBust;
         previewContainer.innerHTML = '';
         previewContainer.appendChild(img);
       } else {
