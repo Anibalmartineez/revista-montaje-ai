@@ -7,6 +7,7 @@ from routes import routes_bp
 app = Flask(__name__)
 app.config.from_object("config")
 app.config.setdefault("MAX_CONTENT_LENGTH", 32 * 1024 * 1024)
+app.secret_key = os.environ.get("SECRET_KEY", "dev-secret-key")
 os.makedirs(os.path.join(app.static_folder, "previews"), exist_ok=True)
 os.makedirs(os.path.join(app.static_folder, "outputs"), exist_ok=True)
 

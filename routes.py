@@ -20,6 +20,7 @@ from flask import (
     send_from_directory,
     jsonify,
     current_app,
+    session,
 )
 from werkzeug.utils import secure_filename
 from werkzeug.exceptions import RequestEntityTooLarge
@@ -38,7 +39,7 @@ from montaje_flexo import (
     generar_sugerencia_produccion,
     corregir_sangrado_y_marcas,
 )
-from preview_tecnico import generar_preview_tecnico
+from preview_tecnico import generar_preview_tecnico, analizar_riesgos_pdf
 from montaje_offset import montar_pliego_offset
 from montaje_offset_inteligente import montar_pliego_offset_inteligente
 from montaje_offset_personalizado import montar_pliego_offset_personalizado
@@ -1226,7 +1227,12 @@ def revision_flexo():
                 path = os.path.join(UPLOAD_FOLDER_FLEXO, filename)
                 archivo.save(path)
 
-                resultado_revision, grafico_tinta, diagnostico_texto = revisar_diseño_flexo(
+                (
+                    resultado_revision,
+                    grafico_tinta,
+                    diagnostico_texto,
+                    analisis_detallado,
+                ) = revisar_diseño_flexo(
                     path,
                     anilox_lpi,
                     paso_mm,
@@ -1235,6 +1241,13 @@ def revision_flexo():
                     velocidad,
                     cobertura,
                 )
+                overlay_info = analizar_riesgos_pdf(path)
+                session["diagnostico_flexo"] = {
+                    "pdf_path": path,
+                    "analisis": analisis_detallado,
+                    "overlay_path": overlay_info["overlay_path"],
+                    "dpi": overlay_info["dpi"],
+                }
                 resultado_revision_b64 = base64.b64encode(resultado_revision.encode("utf-8")).decode("utf-8")
                 diagnostico_texto_b64 = base64.b64encode(diagnostico_texto.encode("utf-8")).decode("utf-8")
             else:
@@ -1256,14 +1269,23 @@ def revision_flexo():
 @routes_bp.route("/vista_previa_tecnica", methods=["POST"])
 def vista_previa_tecnica():
     try:
-        archivo = request.files.get("archivo_revision")
-        if not archivo or not archivo.filename.endswith(".pdf"):
-            return jsonify({"error": "Archivo inválido"}), 400
-        filename = secure_filename(archivo.filename)
-        path = os.path.join(UPLOAD_FOLDER_FLEXO, filename)
-        archivo.save(path)
-        datos = dict(request.form)
-        rel_path = generar_preview_tecnico(path, datos)
+        diag = session.get("diagnostico_flexo")
+        if not diag:
+            return (
+                jsonify(
+                    {
+                        "error": "Primero hacé clic en 'Revisar diseño' para generar el diagnóstico técnico.",
+                    }
+                ),
+                400,
+            )
+
+        rel_path = generar_preview_tecnico(
+            diag["pdf_path"],
+            {},
+            overlay_path=diag.get("overlay_path"),
+            dpi=diag.get("dpi", 200),
+        )
         url = url_for("static", filename=rel_path)
         return jsonify({"preview_url": url})
     except Exception as e:
