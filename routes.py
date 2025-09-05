@@ -38,6 +38,7 @@ from montaje_flexo import (
     generar_sugerencia_produccion,
     corregir_sangrado_y_marcas,
 )
+from preview_tecnico import generar_preview_tecnico
 from montaje_offset import montar_pliego_offset
 from montaje_offset_inteligente import montar_pliego_offset_inteligente
 from montaje_offset_personalizado import montar_pliego_offset_personalizado
@@ -1250,6 +1251,23 @@ def revision_flexo():
         diagnostico_texto_b64=diagnostico_texto_b64,
         resultado_revision_b64=resultado_revision_b64,
     )
+
+
+@routes_bp.route("/vista_previa_tecnica", methods=["POST"])
+def vista_previa_tecnica():
+    try:
+        archivo = request.files.get("archivo_revision")
+        if not archivo or not archivo.filename.endswith(".pdf"):
+            return jsonify({"error": "Archivo inválido"}), 400
+        filename = secure_filename(archivo.filename)
+        path = os.path.join(UPLOAD_FOLDER_FLEXO, filename)
+        archivo.save(path)
+        datos = dict(request.form)
+        rel_path = generar_preview_tecnico(path, datos)
+        url = url_for("static", filename=rel_path)
+        return jsonify({"preview_url": url})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
 
 
 @routes_bp.route("/sugerencia_ia", methods=["POST"])
