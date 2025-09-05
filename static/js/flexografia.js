@@ -1,6 +1,5 @@
 document.addEventListener('DOMContentLoaded', () => {
   const btn = document.getElementById('vista-previa-btn');
-  const form = document.querySelector('form[action="/revision"]');
   const previewContainer = document.getElementById('preview-container');
   const img = document.getElementById('preview-img');
 
@@ -8,11 +7,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
   btn.addEventListener('click', async (e) => {
     e.preventDefault();
-    if (!form) return;
-    const data = new FormData(form);
     previewContainer.innerHTML = '<p>Generando vista previa...</p>';
     try {
-      const resp = await fetch('/vista_previa_tecnica', { method: 'POST', body: data });
+      const resp = await fetch('/vista_previa_tecnica', { method: 'POST' });
       const json = await resp.json();
       if (!resp.ok) throw new Error(json.error || 'Error en vista previa');
       if (json.preview_url) {

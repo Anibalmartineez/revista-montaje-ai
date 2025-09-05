@@ -1244,7 +1244,15 @@ def revision_flexo():
                 overlay_info = analizar_riesgos_pdf(path)
                 session["diagnostico_flexo"] = {
                     "pdf_path": path,
-                    "analisis": analisis_detallado,
+                    "resultados_diagnostico": analisis_detallado,
+                    "datos_formulario": {
+                        "anilox_lpi": anilox_lpi,
+                        "anilox_bcm": anilox_bcm,
+                        "paso_cilindro": paso_mm,
+                        "material": material,
+                        "velocidad_impresion": velocidad,
+                        "cobertura": cobertura,
+                    },
                     "overlay_path": overlay_info["overlay_path"],
                     "dpi": overlay_info["dpi"],
                 }
@@ -1270,7 +1278,7 @@ def revision_flexo():
 def vista_previa_tecnica():
     try:
         diag = session.get("diagnostico_flexo")
-        if not diag:
+        if not diag or "pdf_path" not in diag or "resultados_diagnostico" not in diag:
             return (
                 jsonify(
                     {
@@ -1282,7 +1290,7 @@ def vista_previa_tecnica():
 
         rel_path = generar_preview_tecnico(
             diag["pdf_path"],
-            {},
+            diag.get("datos_formulario"),
             overlay_path=diag.get("overlay_path"),
             dpi=diag.get("dpi", 200),
         )
