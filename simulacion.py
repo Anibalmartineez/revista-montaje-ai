@@ -149,17 +149,40 @@ def generar_preview_virtual(ruta_pdf, advertencias=None, dpi=150, output_dir="pr
         overlay = Image.new("RGBA", base.size, (0, 0, 0, 0))
         draw = ImageDraw.Draw(overlay, "RGBA")
 
-        for adv in advertencias_por_pagina.get(i, []):
+        def dashed_rectangle(box, color, width: int = 2, dash: int = 5):
+            x0, y0, x1, y1 = box
+            x = x0
+            while x < x1:
+                draw.line([(x, y0), (min(x + dash, x1), y0)], fill=color, width=width)
+                draw.line([(x, y1), (min(x + dash, x1), y1)], fill=color, width=width)
+                x += dash * 2
+            y = y0
+            while y < y1:
+                draw.line([(x0, y), (x0, min(y + dash, y1))], fill=color, width=width)
+                draw.line([(x1, y), (x1, min(y + dash, y1))], fill=color, width=width)
+                y += dash * 2
+
+        page_warnings = advertencias_por_pagina.get(i, [])
+        for adv in page_warnings:
             bbox = adv.get("bbox") or adv.get("box")
             if not bbox or len(bbox) != 4:
                 continue
             x0, y0, x1, y1 = [coord * zoom for coord in bbox]
-            tipo = adv.get("tipo") or adv.get("type", "")
+            tipo = (adv.get("tipo") or adv.get("type") or "").lower()
             color = color_map.get(tipo, (255, 0, 255, 120))
-            draw.rectangle([x0, y0, x1, y1], outline=color[:3], width=2, fill=color)
+            if tipo in {"sin_sangrado", "fuera_margen", "fuera_area"}:
+                dashed_rectangle([x0, y0, x1, y1], color[:3], width=2)
+            elif tipo in {"imagen_fuera_cmyk", "fuera_cmyk", "color_rgb", "rgb"}:
+                draw.rectangle([x0, y0, x1, y1], outline=(128, 0, 128), width=2)
+                draw.text((x0 + 3, y0 + 3), "RGB", fill=(128, 0, 128))
+            else:
+                draw.rectangle([x0, y0, x1, y1], outline=color[:3], width=2, fill=color)
             label = adv.get("label") or adv.get("mensaje") or tipo
             if label:
                 draw.text((x0 + 3, y0 + 3), label, fill=color[:3])
+
+        if not page_warnings:
+            draw.text((10, 10), "✔", fill=(0, 128, 0, 255))
 
         compuesto = Image.alpha_composite(base, overlay).convert("RGB")
         nombre = f"pag_{i+1}.jpg"
