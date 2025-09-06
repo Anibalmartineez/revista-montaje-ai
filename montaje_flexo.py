@@ -322,6 +322,7 @@ def verificar_dimensiones(ancho_mm, alto_mm, paso_mm):
 
 def verificar_textos_pequenos(contenido):
     advertencias = []
+    overlay = []
     encontrados = False
     for bloque in contenido.get("blocks", []):
         if "lines" in bloque:
@@ -332,11 +333,14 @@ def verificar_textos_pequenos(contenido):
                     if size < 4:
                         encontrados = True
                         advertencias.append(
-                            f"<span class='icono warn'>⚠️</span> Texto pequeño detectado: '<b>{s['text']}</b>' ({round(size, 1)} pt, fuente: {fuente}). Riesgo de pérdida en impresión."
+                            f"<span class='icono warn'>⚠️</span> Texto pequeño detectado: '<b>{s['text']}</b>' ({round(size, 1)}pt, fuente: {fuente}). Riesgo de pérdida en impresión."
                         )
+                        bbox = s.get("bbox")
+                        if bbox:
+                            overlay.append({"tipo": "texto_pequeno", "bbox": list(bbox), "etiqueta": f"{round(size, 1)} pt"})
     if not encontrados:
         advertencias.append("<span class='icono ok'>✔️</span> No se encontraron textos menores a 4 pt.")
-    return advertencias
+    return advertencias, overlay
 
 
 def verificar_lineas_finas_v2(page, material):
@@ -344,6 +348,7 @@ def verificar_lineas_finas_v2(page, material):
     thr = mins.get((material or "").strip().lower(), 0.20)
     min_detectada = None
     n_riesgo = 0
+    overlay = []
     for d in page.get_drawings():
         w_pt = (d.get("width", 0) or 0)
         if w_pt <= 0:
@@ -352,9 +357,24 @@ def verificar_lineas_finas_v2(page, material):
         min_detectada = w_mm if min_detectada is None else min(min_detectada, w_mm)
         if w_mm < thr:
             n_riesgo += 1
+            bbox = d.get("bbox") or d.get("rect")
+            if bbox:
+                overlay.append(
+                    {
+                        "tipo": "trazo_fino",
+                        "bbox": list(bbox),
+                        "etiqueta": f"{w_mm:.2f} mm",
+                    }
+                )
     if n_riesgo:
-        return [f"<li><span class='icono warn'>⚠️</span> {n_riesgo} trazos por debajo de <b>{thr:.2f} mm</b>. Mínimo detectado: <b>{min_detectada:.2f} mm</b>.</li>"]
-    return [f"<li><span class='icono ok'>✔️</span> Trazos ≥ <b>{thr:.2f} mm</b>. Mínimo detectado: <b>{(min_detectada or thr):.2f} mm</b>.</li>"]
+        advertencias = [
+            f"<li><span class='icono warn'>⚠️</span> {n_riesgo} trazos por debajo de <b>{thr:.2f} mm</b>. Mínimo detectado: <b>{min_detectada:.2f} mm</b>.</li>"
+        ]
+    else:
+        advertencias = [
+            f"<li><span class='icono ok'>✔️</span> Trazos ≥ <b>{thr:.2f} mm</b>. Mínimo detectado: <b>{(min_detectada or thr):.2f} mm</b>.</li>"
+        ]
+    return advertencias, overlay
 
 
 def verificar_resolucion_imagenes(path_pdf):
@@ -518,44 +538,42 @@ def detectar_tramas_débiles(path_pdf):
 
 def verificar_modo_color(path_pdf):
     advertencias = []
+    overlay = []
     encontrado = False
     try:
-        reader = PdfReader(path_pdf)
-        for page_num, page in enumerate(reader.pages):
-            resources = page.get("/Resources")
-            if isinstance(resources, IndirectObject):
-                resources = resources.get_object()
-            if not isinstance(resources, dict):
-                continue
-            xobjects = resources.get("/XObject")
-            if isinstance(xobjects, IndirectObject):
-                xobjects = xobjects.get_object()
-            if not isinstance(xobjects, dict):
-                continue
-            for obj_name, obj_ref in xobjects.items():
-                obj = obj_ref.get_object()
-                if obj.get("/Subtype") == "/Image":
-                    color_space = obj.get("/ColorSpace")
-                    if isinstance(color_space, IndirectObject):
-                        color_space = color_space.get_object()
-                    if isinstance(color_space, list):
-                        color_model = color_space[0]
-                    else:
-                        color_model = color_space
-                    if color_model == "/DeviceRGB":
+        doc = fitz.open(path_pdf)
+        for page_num, page in enumerate(doc, start=1):
+            for xref, *_ in page.get_images(full=True):
+                cs = ""
+                try:
+                    info = doc.extract_image(xref)
+                    cs = (info.get("colorspace") or "").upper()
+                except Exception:
+                    cs = ""
+                for rect in page.get_image_rects(xref):
+                    bbox = [rect.x0, rect.y0, rect.x1, rect.y1]
+                    if cs == "RGB":
                         encontrado = True
                         advertencias.append(
-                            f"<span class='icono error'>❌</span> Imagen en RGB detectada en la página {page_num+1}. Convertir a CMYK."
+                            f"<span class='icono error'>❌</span> Imagen en RGB detectada en la página {page_num}. Convertir a CMYK."
                         )
-                    elif color_model == "/DeviceGray":
+                        overlay.append({"tipo": "imagen_fuera_cmyk", "bbox": bbox, "etiqueta": "RGB"})
+                    elif cs and cs not in {"CMYK", "DEVICECMYK", "GRAY", "DEVICEGRAY"}:
                         advertencias.append(
-                            f"<span class='icono warn'>⚠️</span> Imagen en escala de grises detectada en la página {page_num+1}. Verificar si es intencional."
+                            f"<span class='icono warn'>⚠️</span> Imagen en {cs} detectada en la página {page_num}. Verificar modo de color."
                         )
-        if not encontrado:
+                        overlay.append({"tipo": "imagen_fuera_cmyk", "bbox": bbox, "etiqueta": cs})
+                    elif cs in {"GRAY", "DEVICEGRAY"}:
+                        advertencias.append(
+                            f"<span class='icono warn'>⚠️</span> Imagen en escala de grises detectada en la página {page_num}. Verificar si es intencional."
+                        )
+                        overlay.append({"tipo": "imagen_fuera_cmyk", "bbox": bbox, "etiqueta": "Gray"})
+        if not advertencias:
             advertencias.append("<span class='icono ok'>✔️</span> Todas las imágenes están en modo CMYK o escala de grises.")
+        doc.close()
     except Exception as e:
         advertencias.append(f"<span class='icono warn'>⚠️</span> No se pudo verificar el modo de color: {str(e)}")
-    return advertencias
+    return advertencias, overlay
 
 def detectar_pantones_completamente(path_pdf):
     pantones = set()
@@ -668,25 +686,28 @@ def detectar_overprints(path_pdf):
 def revisar_sangrado(pagina):
     sangrado_esperado = 3  # mm
     advertencias = []
+    overlay = []
     media = pagina.rect
     contenido = pagina.get_text("dict")
-    elementos_cercanos = False
     for bloque in contenido.get("blocks", []):
-        if "bbox" in bloque:
-            x0, y0, x1, y1 = bloque["bbox"]
+        bbox = bloque.get("bbox")
+        if bbox:
+            x0, y0, x1, y1 = bbox
             margen_izq = convertir_pts_a_mm(x0)
             margen_der = convertir_pts_a_mm(media.width - x1)
             margen_sup = convertir_pts_a_mm(y0)
             margen_inf = convertir_pts_a_mm(media.height - y1)
             if min(margen_izq, margen_der, margen_sup, margen_inf) < sangrado_esperado:
-                elementos_cercanos = True
-                advertencias.append(
-                    "<span class='icono warn'>⚠️</span> Elementos del diseño muy cercanos al borde. Verificar sangrado mínimo de 3 mm."
-                )
-                break
-    if not elementos_cercanos:
-        advertencias.append("<span class='icono ok'>✔️</span> Margen de seguridad adecuado respecto al sangrado.")
-    return advertencias
+                overlay.append({"tipo": "cerca_borde", "bbox": list(bbox)})
+    if overlay:
+        advertencias.append(
+            "<span class='icono warn'>⚠️</span> Elementos del diseño muy cercanos al borde. Verificar sangrado mínimo de 3 mm."
+        )
+    else:
+        advertencias.append(
+            "<span class='icono ok'>✔️</span> Margen de seguridad adecuado respecto al sangrado."
+        )
+    return advertencias, overlay
 
 def calcular_repeticiones_bobina(alto_diseño_mm, paso_cilindro_mm):
     """
@@ -769,15 +790,15 @@ def revisar_diseño_flexo(
     )
 
     dim_adv = verificar_dimensiones(ancho_mm, alto_mm, paso_mm)
-    textos_adv = verificar_textos_pequenos(contenido)
-    lineas_adv = verificar_lineas_finas_v2(pagina, material)
+    textos_adv, overlay_textos = verificar_textos_pequenos(contenido)
+    lineas_adv, overlay_lineas = verificar_lineas_finas_v2(pagina, material)
     seccion_resolucion_html = _card("🖼️ Resolución de imágenes", verificar_resolucion_imagenes(path_pdf))
     seccion_til_html = _card("🧮 TAC y cobertura por canal", estimar_til_y_cobertura_por_canal(path_pdf, material))
     seccion_capas_html = _card("🎯 Capas especiales (White/Varnish/Troquel)", detectar_capas_especiales(path_pdf))
     contraste_adv = analizar_contraste(path_pdf)
     tramas_adv = detectar_tramas_débiles(path_pdf)
-    modo_color_adv = verificar_modo_color(path_pdf)
-    sangrado_adv = revisar_sangrado(pagina)
+    modo_color_adv, overlay_color = verificar_modo_color(path_pdf)
+    sangrado_adv, overlay_sangrado = revisar_sangrado(pagina)
 
     for lista in [dim_adv, textos_adv, contraste_adv, tramas_adv, modo_color_adv, sangrado_adv]:
         riesgos_info.extend([f"<li>{a}</li>" for a in lista])
@@ -786,6 +807,12 @@ def revisar_diseño_flexo(
     textos_pequenos_flag = any("Texto pequeño" in a and "warn" in a for a in textos_adv)
     lineas_finas_flag = any("trazos" in a.lower() and "warn" in a for a in lineas_adv)
     tramas_debiles_flag = any("Trama muy débil" in a and "warn" in a for a in tramas_adv)
+
+    advertencias_overlay = []
+    advertencias_overlay.extend(overlay_textos)
+    advertencias_overlay.extend(overlay_lineas)
+    advertencias_overlay.extend(overlay_color)
+    advertencias_overlay.extend(overlay_sangrado)
 
     # Cobertura de tinta CMYK
     cobertura = {}
@@ -955,7 +982,7 @@ def revisar_diseño_flexo(
         "textos_pequenos": textos_adv,
     }
     diagnostico_texto = generar_diagnostico_texto(resumen)
-    return resumen, imagen_tinta, diagnostico_texto, analisis_detallado
+    return resumen, imagen_tinta, diagnostico_texto, analisis_detallado, advertencias_overlay
 
 
 def generar_diagnostico_texto(html_diagnostico: str) -> str:

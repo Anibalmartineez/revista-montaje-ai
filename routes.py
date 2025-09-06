@@ -1240,6 +1240,7 @@ def revision_flexo():
                     grafico_tinta,
                     diagnostico_texto,
                     analisis_detallado,
+                    advertencias_overlay,
                 ) = revisar_diseño_flexo(
                     path,
                     anilox_lpi,
@@ -1250,13 +1251,7 @@ def revision_flexo():
                     cobertura,
                 )
                 overlay_info = analizar_riesgos_pdf(path)
-
-                if not overlay_info.get("advertencias"):
-                    overlay_info["advertencias"] = [
-                        {"tipo": "texto_pequeno", "bbox": [100, 100, 200, 150]},
-                        {"tipo": "imagen_fuera_cmyk", "bbox": [300, 400, 400, 500]},
-                        {"tipo": "cerca_borde", "bbox": [50, 50, 180, 120]},
-                    ]
+                overlay_info["advertencias"] = advertencias_overlay or overlay_info.get("advertencias", [])
 
                 session["diagnostico_flexo"] = {
                     "pdf_path": path,
