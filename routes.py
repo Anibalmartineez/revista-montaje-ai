@@ -44,6 +44,7 @@ from montaje_offset import montar_pliego_offset
 from montaje_offset_inteligente import montar_pliego_offset_inteligente
 from montaje_offset_personalizado import montar_pliego_offset_personalizado
 from imposicion_offset_auto import imponer_pliego_offset_auto
+from diagnostico_flexo import generar_preview_diagnostico
 
 # Carpeta de subidas dentro de ``static`` para persistir archivos entre
 # formularios y poder servirlos directamente.
@@ -1237,7 +1238,7 @@ def revision_flexo():
 
                 (
                     resumen,
-                    imagen_tinta,
+                    _imagen_tinta,
                     texto,
                     analisis_detallado,
                     advertencias_overlay,
@@ -1252,6 +1253,10 @@ def revision_flexo():
                 )
                 overlay_info = analizar_riesgos_pdf(path)
                 overlay_info["advertencias"] = advertencias_overlay or overlay_info.get("advertencias", [])
+
+                _, imagen_rel, overlay_scaled = generar_preview_diagnostico(
+                    path, overlay_info["advertencias"], dpi=overlay_info["dpi"]
+                )
 
                 session["diagnostico_flexo"] = {
                     "pdf_path": path,
@@ -1272,10 +1277,10 @@ def revision_flexo():
                 return render_template(
                     "resultado_flexo.html",
                     resumen=resumen,
-                    imagen=imagen_tinta,
+                    imagen_path_web=imagen_rel,
                     texto=texto,
                     analisis=analisis_detallado,
-                    overlay=advertencias_overlay,
+                    overlay=overlay_scaled,
                 )
             else:
                 mensaje = "Archivo inválido. Subí un PDF."
