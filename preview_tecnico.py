@@ -140,14 +140,29 @@ def generar_preview_tecnico(
 
     print("📌 Advertencias recibidas:", advertencias)
 
+    def dashed_rectangle(draw, box, color, width: int = 2, dash: int = 5):
+        x0, y0, x1, y1 = box
+        # Horizontal lines
+        x = x0
+        while x < x1:
+            draw.line([(x, y0), (min(x + dash, x1), y0)], fill=color, width=width)
+            draw.line([(x, y1), (min(x + dash, x1), y1)], fill=color, width=width)
+            x += dash * 2
+        y = y0
+        while y < y1:
+            draw.line([(x0, y), (x0, min(y + dash, y1))], fill=color, width=width)
+            draw.line([(x1, y), (x1, min(y + dash, y1))], fill=color, width=width)
+            y += dash * 2
+
+    draw = ImageDraw.Draw(overlay_img, "RGBA")
+    color_trama = {
+        "c": (0, 255, 255, 100),
+        "m": (255, 0, 255, 100),
+        "y": (255, 255, 0, 100),
+        "k": (0, 0, 0, 100),
+    }
+
     if advertencias:
-        draw = ImageDraw.Draw(overlay_img, "RGBA")
-        color_trama = {
-            "c": (0, 255, 255, 100),
-            "m": (255, 0, 255, 100),
-            "y": (255, 255, 0, 100),
-            "k": (0, 0, 0, 100),
-        }
         for adv in advertencias:
             bbox = adv.get("bbox") or adv.get("box")
             if not bbox or len(bbox) != 4:
@@ -163,13 +178,17 @@ def generar_preview_tecnico(
                 draw.text((x0 + 2, y0 + 2), "< 4 pt", fill=(255, 0, 0, 255))
             elif tipo in {"trazo_fino", "stroke_fino"}:
                 draw.rectangle([x0, y0, x1, y1], outline=(255, 165, 0, 255), width=2)
-            elif tipo in {"imagen_fuera_cmyk", "fuera_cmyk"}:
+            elif tipo in {"imagen_fuera_cmyk", "fuera_cmyk", "color_rgb", "rgb"}:
                 draw.rectangle([x0, y0, x1, y1], outline=(128, 0, 128, 255), width=2)
-            elif tipo in {"cerca_borde", "sin_sangrado"}:
-                draw.rectangle([x0, y0, x1, y1], outline=(255, 165, 0, 255), width=2)
+                draw.text((x0 + 2, y0 + 2), "RGB", fill=(128, 0, 128, 255))
+            elif tipo in {"cerca_borde", "sin_sangrado", "fuera_margen", "fuera_area"}:
+                dashed_rectangle(draw, [x0, y0, x1, y1], (255, 165, 0, 255), width=2)
             label = adv.get("label") or adv.get("texto")
             if label:
                 draw.text((x0 + 2, y0 + 2), label, fill=(0, 0, 0, 255))
+    else:
+        # Marca de validación cuando no hay advertencias
+        draw.text((10, 10), "✔", fill=(0, 128, 0, 255))
 
     composed = Image.alpha_composite(base, overlay_img)
     doc.close()
@@ -178,7 +197,7 @@ def generar_preview_tecnico(
     previews_dir = os.path.join(static_dir, "previews")
     os.makedirs(previews_dir, exist_ok=True)
     # Guardar con nombre único para evitar caché en el navegador
-    filename = f"preview_tecnico_{uuid.uuid4().hex}.png"
+    filename = f"preview_diagnostico_flexo_{uuid.uuid4().hex}.png"
     output_abs = os.path.join(previews_dir, filename)
     composed.save(output_abs)
     # Informar en consola la ruta absoluta de salida
