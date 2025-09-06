@@ -945,6 +945,8 @@ def revisar_diseño_flexo(
             seccion_tinta_html = (
                 "<div class='card'><h3>💧 Simulación de tinta</h3>"
                 f"<p>Cantidad estimada de tinta transferida: <b>{tinta_ml} ml/min</b></p>"
+                f"<img src='data:image/png;base64,{imagen_tinta}' alt='Vista previa de tinta' "
+                "style='max-width:100%; height:auto; margin-top:10px;'>"
                 f"{barra_html}"
                 f"<p>{advertencia_tinta}</p>"
                 "</div>"
