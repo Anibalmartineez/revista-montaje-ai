@@ -1236,9 +1236,9 @@ def revision_flexo():
                 session["archivo_pdf"] = path
 
                 (
-                    resultado_revision,
-                    grafico_tinta,
-                    diagnostico_texto,
+                    resumen,
+                    imagen_tinta,
+                    texto,
                     analisis_detallado,
                     advertencias_overlay,
                 ) = revisar_diseño_flexo(
@@ -1268,22 +1268,21 @@ def revision_flexo():
                     "overlay_path": overlay_info["overlay_path"],
                     "dpi": overlay_info["dpi"],
                 }
-                resultado_revision_b64 = base64.b64encode(resultado_revision.encode("utf-8")).decode("utf-8")
-                diagnostico_texto_b64 = base64.b64encode(diagnostico_texto.encode("utf-8")).decode("utf-8")
+
+                return render_template(
+                    "resultado_flexo.html",
+                    resumen=resumen,
+                    imagen=imagen_tinta,
+                    texto=texto,
+                    analisis=analisis_detallado,
+                    overlay=advertencias_overlay,
+                )
             else:
                 mensaje = "Archivo inválido. Subí un PDF."
         except Exception as e:
             mensaje = f"Error al revisar diseño: {str(e)}"
 
-    return render_template(
-        "revision_flexo.html",
-        mensaje=mensaje,
-        resultado_revision=resultado_revision,
-        grafico_tinta=grafico_tinta,
-        diagnostico_texto=diagnostico_texto,
-        diagnostico_texto_b64=diagnostico_texto_b64,
-        resultado_revision_b64=resultado_revision_b64,
-    )
+    return render_template("revision_flexo.html", mensaje=mensaje)
 
 
 @routes_bp.route("/vista_previa_tecnica", methods=["POST"])

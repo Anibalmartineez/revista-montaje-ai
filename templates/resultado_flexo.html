@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <title>Resultado diagnóstico flexo</title>
+  <style>
+    #contenedor-imagen {
+      position: relative;
+      display: inline-block;
+    }
+    #contenedor-imagen img {
+      max-width: 100%;
+      height: auto;
+      display: block;
+    }
+    #contenedor-imagen div {
+      box-sizing: border-box;
+    }
+  </style>
+</head>
+<body>
+  <div id="contenedor-imagen" style="position: relative;">
+    <img src="data:image/png;base64,{{ imagen }}" id="imagen-diagnostico" />
+  </div>
+  <script>
+    const overlayData = {{ overlay|tojson }};
+    const contenedor = document.getElementById("contenedor-imagen");
+    const imagen = document.getElementById("imagen-diagnostico");
+
+    overlayData.forEach(item => {
+      const box = document.createElement("div");
+      box.style.position = "absolute";
+      box.style.border = "2px solid red";
+      box.style.left = item.bbox[0] + "px";
+      box.style.top = item.bbox[1] + "px";
+      box.style.width = (item.bbox[2] - item.bbox[0]) + "px";
+      box.style.height = (item.bbox[3] - item.bbox[1]) + "px";
+      box.title = item.tipo + ": " + item.etiqueta;
+      box.style.pointerEvents = "none";
+      contenedor.appendChild(box);
+    });
+  </script>
+  <div>{{ resumen|safe }}</div>
+  <pre>{{ texto }}</pre>
+</body>
+</html>
