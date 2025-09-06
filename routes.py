@@ -45,6 +45,7 @@ from montaje_offset_inteligente import montar_pliego_offset_inteligente
 from montaje_offset_personalizado import montar_pliego_offset_personalizado
 from imposicion_offset_auto import imponer_pliego_offset_auto
 from diagnostico_flexo import generar_preview_diagnostico
+from simulador_riesgos import simular_riesgos
 
 # Carpeta de subidas dentro de ``static`` para persistir archivos entre
 # formularios y poder servirlos directamente.
@@ -1258,6 +1259,8 @@ def revision_flexo():
                     path, overlay_info["advertencias"], dpi=overlay_info["dpi"]
                 )
 
+                tabla_riesgos = simular_riesgos(resumen)
+
                 session["diagnostico_flexo"] = {
                     "pdf_path": path,
                     "resultados_diagnostico": analisis_detallado,
@@ -1277,6 +1280,7 @@ def revision_flexo():
                 return render_template(
                     "resultado_flexo.html",
                     resumen=resumen,
+                    tabla_riesgos=tabla_riesgos,
                     imagen_path_web=imagen_rel,
                     texto=texto,
                     analisis=analisis_detallado,
