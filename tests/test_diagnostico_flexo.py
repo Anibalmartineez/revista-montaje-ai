@@ -73,8 +73,17 @@ def test_resumen_sin_advertencias():
     assert semaforo_riesgo([]) == "🟢"
 
 
-def test_tramas_debiles_no_false_positive(tmp_path):
+def test_tramas_debiles_no_false_positive(tmp_path, monkeypatch):
     """Una página en blanco no debe reportar tramas débiles."""
+
+    from PIL import Image
+
+    def fake_convert_from_path(path_pdf, dpi=300, first_page=1, last_page=1):
+        """Devuelve una imagen CMYK vacía evitando depender de poppler."""
+        return [Image.new("CMYK", (100, 100), color=(0, 0, 0, 0))]
+
+    # Simula pdf2image para no requerir poppler en los tests
+    monkeypatch.setattr("montaje_flexo.convert_from_path", fake_convert_from_path)
 
     doc = fitz.open()
     doc.new_page()
@@ -83,8 +92,12 @@ def test_tramas_debiles_no_false_positive(tmp_path):
     doc.close()
 
     advertencias = detectar_tramas_débiles(str(pdf_path))
-    assert any("No se detectaron tramas débiles" in a for a in advertencias)
-    assert not any("Trama muy débil" in a for a in advertencias)
+
+    # Soporta tanto respuestas en texto como diccionarios de advertencias
+    mensajes = [a if isinstance(a, str) else a.get("mensaje", "") for a in advertencias]
+
+    assert any("No se detectaron tramas débiles" in m for m in mensajes)
+    assert not any("Trama muy débil" in m for m in mensajes)
 
 
 def test_simulador_riesgos_ignora_texto_negado():
