@@ -1257,7 +1257,7 @@ def revision_flexo():
                 )
                 overlay_info = analizar_riesgos_pdf(path, advertencias=advertencias_overlay)
 
-                _, imagen_rel, overlay_scaled = generar_preview_diagnostico(
+                _, imagen_rel, imagen_iconos_rel, advertencias_iconos = generar_preview_diagnostico(
                     path, overlay_info["advertencias"], dpi=overlay_info["dpi"]
                 )
 
@@ -1284,9 +1284,10 @@ def revision_flexo():
                     resumen=resumen,
                     tabla_riesgos=tabla_riesgos,
                     imagen_path_web=imagen_rel,
+                    imagen_iconos_web=imagen_iconos_rel,
                     texto=texto,
                     analisis=analisis_detallado,
-                    overlay=overlay_scaled,
+                    advertencias_iconos=advertencias_iconos,
                 )
             else:
                 mensaje = "Archivo inválido. Subí un PDF."
