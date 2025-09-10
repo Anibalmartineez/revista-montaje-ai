@@ -35,6 +35,22 @@ def test_calcular_cobertura_y_tac(tmp_path):
     assert 95 <= tac_p95 <= 100
 
 
+def test_calcular_cobertura_ignora_casi_blancos(tmp_path):
+    """Los píxeles casi blancos no aportan cobertura."""
+
+    doc = fitz.open()
+    page = doc.new_page()
+    # Toda la página en un tono muy cercano al blanco
+    page.draw_rect(page.rect, fill=(0.98, 0.98, 0.98))
+    pdf_path = tmp_path / "casi_blanco.pdf"
+    doc.save(pdf_path)
+    doc.close()
+
+    coberturas, tac_p95 = calcular_cobertura_y_tac(str(pdf_path))
+    assert all(v < 1 for v in coberturas.values())
+    assert tac_p95 < 1
+
+
 def test_resumen_y_semaforo():
     advertencias = [
         {"nivel": "critico"},
