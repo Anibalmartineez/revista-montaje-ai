@@ -27,9 +27,6 @@
       text-decoration: none;
       border-radius: 4px;
     }
-    #contenedor-imagen div {
-      box-sizing: border-box;
-    }
     #tabla-riesgos table {
       width: 100%;
       border-collapse: collapse;
@@ -43,43 +40,122 @@
     #tabla-riesgos th {
       background: #f0f0f0;
     }
+    .icono-overlay {
+      position: absolute;
+      cursor: pointer;
+    }
+    .icono-overlay.resaltado {
+      outline: 3px solid red;
+      border-radius: 4px;
+    }
+    #lista-advertencias {
+      list-style: none;
+      padding-left: 0;
+      max-width: 800px;
+      margin: 20px auto;
+    }
+    #lista-advertencias li {
+      cursor: pointer;
+      margin: 5px 0;
+    }
+    #lista-advertencias .cuadro-alerta {
+      vertical-align: middle;
+    }
+
+    .cuadro-alerta {
+      display: inline-block;
+      width: 16px;
+      height: 16px;
+      border-radius: 3px;
+      margin-right: 4px;
+    }
+
+    .tipo-texto {
+      background-color: red;
+    }
+
+    .tipo-trama {
+      background-color: purple;
+    }
+
+    .tipo-resolucion {
+      background-color: orange;
+    }
+
+    .tipo-overprint {
+      background-color: blue;
+    }
+
+    .tipo-borde {
+      background-color: darkgreen;
+    }
   </style>
 </head>
 <body>
   <div id="contenedor-imagen" style="position: relative;">
     <img src="{{ url_for('static', filename=imagen_path_web) }}" id="imagen-diagnostico" class="imagen-analizada" />
   </div>
+  <ul id="lista-advertencias">
+    {% set tipo_clases = {
+      'texto_pequeno': 'tipo-texto',
+      'trama_debil': 'tipo-trama',
+      'imagen_baja': 'tipo-resolucion',
+      'overprint': 'tipo-overprint',
+      'sin_sangrado': 'tipo-borde'
+    } %}
+    {% for adv in advertencias_iconos %}
+      <li data-idx="{{ loop.index0 }}">
+        <span class="cuadro-alerta {{ tipo_clases.get(adv.tipo, '') }}"></span>{{ adv.mensaje }}
+      </li>
+    {% endfor %}
+  </ul>
   <script>
-    const overlayData = {{ overlay|tojson }};
+    const advertencias = {{ advertencias_iconos|tojson }};
     const contenedor = document.getElementById("contenedor-imagen");
     const imagen = document.getElementById("imagen-diagnostico");
+    const tipoClase = {
+      'texto_pequeno': 'tipo-texto',
+      'trama_debil': 'tipo-trama',
+      'imagen_baja': 'tipo-resolucion',
+      'overprint': 'tipo-overprint',
+      'sin_sangrado': 'tipo-borde'
+    };
 
-    function dibujarOverlays() {
+    function dibujarIconos() {
       const scaleX = imagen.clientWidth / imagen.naturalWidth;
       const scaleY = imagen.clientHeight / imagen.naturalHeight;
-      overlayData.forEach(item => {
-        const box = document.createElement("div");
-        box.style.position = "absolute";
-        box.style.border = "2px solid red";
-        box.style.left = (item.bbox[0] * scaleX) + "px";
-        box.style.top = (item.bbox[1] * scaleY) + "px";
-        box.style.width = ((item.bbox[2] - item.bbox[0]) * scaleX) + "px";
-        box.style.height = ((item.bbox[3] - item.bbox[1]) * scaleY) + "px";
-        box.title = (item.tipo || "") + ": " + (item.etiqueta || "");
-        box.style.pointerEvents = "none";
-        contenedor.appendChild(box);
+      advertencias.forEach((item, idx) => {
+        const icon = document.createElement('span');
+        icon.className = 'icono-overlay cuadro-alerta ' + (tipoClase[item.tipo] || '');
+        icon.style.left = (item.pos[0] * scaleX) + 'px';
+        icon.style.top = (item.pos[1] * scaleY) + 'px';
+        icon.title = item.mensaje;
+        icon.dataset.idx = idx;
+        contenedor.appendChild(icon);
+      });
+
+      document.querySelectorAll('#lista-advertencias li').forEach(li => {
+        li.addEventListener('click', () => {
+          const idx = li.getAttribute('data-idx');
+          const icon = contenedor.querySelector(`.icono-overlay[data-idx="${idx}"]`);
+          if (icon) {
+            icon.classList.add('resaltado');
+            setTimeout(() => icon.classList.remove('resaltado'), 2000);
+          }
+        });
       });
     }
 
     if (imagen.complete) {
-      dibujarOverlays();
+      dibujarIconos();
     } else {
-      imagen.onload = dibujarOverlays;
+      imagen.onload = dibujarIconos;
     }
   </script>
   <div id="resumen-diagnostico">{{ resumen|safe }}</div>
   {{ tabla_riesgos|safe }}
   <div class="botones">
+    <a href="{{ url_for('static', filename=imagen_iconos_web) }}" class="btn" download>⬇ Descargar imagen con advertencias</a>
     <a href="{{ url_for('routes.revision_flexo') }}" class="btn">⬅ Volver a revisar otro diseño</a>
   </div>
 </body>

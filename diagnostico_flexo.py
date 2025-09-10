@@ -3,16 +3,18 @@ import fitz
 import numpy as np
 from typing import List, Dict, Any
 from flask import current_app
+from PIL import Image, ImageDraw
 
 
 def generar_preview_diagnostico(
     pdf_path: str, advertencias: List[Dict[str, Any]] | None, dpi: int = 150
-) -> tuple[str, str, List[Dict[str, Any]]]:
-    """Genera una imagen PNG del PDF para usar como base de superposición.
+) -> tuple[str, str, str, List[Dict[str, Any]]]:
+    """Genera imágenes PNG del PDF y una versión con bloques de color.
 
-    Devuelve una tupla con la ruta absoluta del archivo generado, la ruta
-    relativa para usar con ``url_for('static', filename=...)`` y la lista de
-    advertencias con las coordenadas escaladas al ``dpi`` solicitado.
+    Devuelve una tupla con la ruta absoluta de la imagen base, la ruta relativa
+    de la imagen base, la ruta relativa de la imagen anotada y la lista de
+    advertencias con las coordenadas escaladas al ``dpi`` solicitado para su
+    uso interactivo en HTML.
     """
     doc = fitz.open(pdf_path)
     page = doc.load_page(0)
@@ -23,21 +25,52 @@ def generar_preview_diagnostico(
     static_dir = getattr(current_app, "static_folder", "static")
     output_folder = os.path.join(static_dir, "previews")
     os.makedirs(output_folder, exist_ok=True)
-    imagen_path = os.path.join(output_folder, "preview_diagnostico.png")
-    pix.save(imagen_path)
+
+    base_path = os.path.join(output_folder, "preview_diagnostico.png")
+    pix.save(base_path)
     doc.close()
 
+    # Imagen con bloques coloreados para descarga
+    anotada_path = os.path.join(output_folder, "preview_diagnostico_iconos.png")
+    base_img = Image.open(base_path).convert("RGBA")
+    draw = ImageDraw.Draw(base_img)
+
     scale = dpi / 72.0
-    overlay_escalado: List[Dict[str, Any]] = []
+    size = 16
+    colores = {
+        "texto_pequeno": "red",
+        "trama_debil": "purple",
+        "imagen_baja": "orange",
+        "overprint": "blue",
+        "sin_sangrado": "darkgreen",
+    }
+
+    advertencias_iconos: List[Dict[str, Any]] = []
     for adv in consolidar_advertencias(advertencias):
         bbox = adv.get("bbox")
-        if bbox and len(bbox) == 4:
-            adv_scaled = adv.copy()
-            adv_scaled["bbox"] = [coord * scale for coord in bbox]
-            overlay_escalado.append(adv_scaled)
+        if not bbox or len(bbox) != 4:
+            continue
+
+        x = int(bbox[0] * scale)
+        y = int(bbox[1] * scale)
+        tipo = adv.get("tipo", "")
+        color = colores.get(tipo, "red")
+        draw.rectangle([x, y, x + size, y + size], fill=color)
+
+        advertencias_iconos.append(
+            {
+                "tipo": tipo,
+                "pos": [x, y],
+                "mensaje": adv.get("mensaje", ""),
+                "pagina": adv.get("pagina", 1),
+            }
+        )
+
+    base_img.save(anotada_path)
 
     imagen_rel = os.path.join("previews", "preview_diagnostico.png")
-    return imagen_path, imagen_rel, overlay_escalado
+    anotada_rel = os.path.join("previews", "preview_diagnostico_iconos.png")
+    return base_path, imagen_rel, anotada_rel, advertencias_iconos
 
 
 # ---------------------------------------------------------------------------
