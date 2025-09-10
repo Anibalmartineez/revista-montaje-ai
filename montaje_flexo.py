@@ -18,37 +18,11 @@ from utils import convertir_pts_a_mm, obtener_info_basica, verificar_dimensiones
 from diagnostico_flexo import filtrar_objetos_sistema
 from advertencias_disenio import analizar_advertencias_disenio
 from cobertura_utils import calcular_metricas_cobertura
+from reporte_tecnico import generar_reporte_tecnico, resumen_cobertura_tac
 
 client = OpenAI(api_key=os.environ.get("OPENAI_API_KEY"))
 
 PT_PER_MM = 72 / 25.4
-
-
-def _card(titulo, items_html):
-    if isinstance(items_html, list):
-        items = "".join(items_html)
-    else:
-        items = items_html
-    return f"<div class='card'><h3>{titulo}</h3><ul>{items}</ul></div>"
-
-
-def resumen_cobertura_tac(metricas, material):
-    """Genera una lista de ítems HTML con TAC y cobertura por canal."""
-    items = []
-    tac_p95 = metricas["tac_p95"]
-    tac_max = metricas["tac_max"]
-    limites = {"film": 320, "papel": 300, "etiqueta adhesiva": 280}
-    mat = (material or "").strip().lower()
-    lim = limites.get(mat, 300)
-    estado = "ok" if tac_p95 <= lim else ("warn" if tac_p95 <= lim + 20 else "error")
-    icon = {"ok": "✔️", "warn": "⚠️", "error": "❌"}[estado]
-    items.append(
-        f"<li><span class='icono {estado}'>{icon}</span> TAC p95: <b>{tac_p95:.0f}%</b> (límite sugerido {lim}%). TAC máx: <b>{tac_max:.0f}%</b>.</li>"
-    )
-    for canal, area in metricas["cobertura_por_area"].items():
-        nombre = canal if canal != "Cyan" else "Cian"
-        items.append(f"<li>Área con {nombre}: <b>{area:.1f}%</b></li>")
-    return items
 
 
 def corregir_sangrado_y_marcas(pdf_path: str) -> str:
@@ -606,13 +580,12 @@ def revisar_diseño_flexo(
     modo_color_adv = adv_res["modo_color"]
     sangrado_adv = adv_res["sangrado"]
     advertencias_overlay = adv_res["overlay"]
-    seccion_resolucion_html = _card("🖼️ Resolución de imágenes", verificar_resolucion_imagenes(path_pdf))
+    resolucion_items = verificar_resolucion_imagenes(path_pdf)
     if metricas_cobertura:
         til_items = resumen_cobertura_tac(metricas_cobertura, material)
     else:
         til_items = ["<li><span class='icono warn'>⚠️</span> No se pudo estimar TAC/cobertura.</li>"]
-    seccion_til_html = _card("🧮 TAC y cobertura por canal", til_items)
-    seccion_capas_html = _card("🎯 Capas especiales (White/Varnish/Troquel)", detectar_capas_especiales(path_pdf))
+    capas_items = detectar_capas_especiales(path_pdf)
     contraste_adv = analizar_contraste(path_pdf)
     tramas_adv = detectar_tramas_débiles(path_pdf)
 
@@ -699,16 +672,8 @@ def revisar_diseño_flexo(
             f"<li><span class='icono info'>ℹ️</span> Material '<b>{material}</b>' no reconocido. Sin recomendaciones específicas.</li>"
         )
 
-    seccion_material_html = ""
-    if diagnostico_material:
-        seccion_material_html = (
-            "<div class='card'><h3>🧪 Diagnóstico por material</h3><ul>"
-            + "\n".join(diagnostico_material)
-            + "</ul></div>"
-        )
-
-    seccion_tinta_html = ""
     imagen_tinta = ""
+    tinta_data = None
     if anilox_bcm is not None and velocidad_impresion is not None:
         try:
             if cobertura_estimada is None:
@@ -732,51 +697,32 @@ def revisar_diseño_flexo(
                 advertencia_tinta = "Transmisión de tinta estimada en rango seguro."
 
             porcentaje_barra = min(tinta_ml / umbral_alto * 100, 100)
-            barra_html = (
-                "<div style='background:#ddd;border-radius:4px;width:100%;height:10px;'>"
-                f"<div style='background:#0056b3;width:{porcentaje_barra}%;height:100%;'></div></div>"
-            )
-
             valores_ideales = {"film": 120, "papel": 180, "etiqueta adhesiva": 150}
             tinta_ideal = valores_ideales.get(material_norm, 150)
             imagen_tinta = generar_grafico_tinta(tinta_ml, tinta_ideal, material)
-
-            seccion_tinta_html = (
-                "<div class='card'><h3>💧 Simulación de tinta</h3>"
-                f"<p>Cantidad estimada de tinta transferida: <b>{tinta_ml} ml/min</b></p>"
-                f"<img src='data:image/png;base64,{imagen_tinta}' alt='Vista previa de tinta' "
-                "style='max-width:100%; height:auto; margin-top:10px;'>"
-                f"{barra_html}"
-                f"<p>{advertencia_tinta}</p>"
-                "</div>"
-            )
+            tinta_data = {
+                "tinta_ml": tinta_ml,
+                "barra_pct": porcentaje_barra,
+                "advertencia": advertencia_tinta,
+                "imagen": imagen_tinta,
+            }
         except Exception as e:
-            seccion_tinta_html = (
-                "<div class='card'><h3>💧 Simulación de tinta</h3>"
-                f"<p>Error en la simulación: {str(e)}</p></div>"
-            )
+            tinta_data = {"error": str(e)}
 
-    resumen = (
-        "<div class='diagnostico'>"
-        "<div class='card'><h3>📐 Diseño</h3><ul>"
-        + "\n".join(diseno_info)
-        + "</ul></div>"
-        + "<div class='card'><h3>🧱 Montaje</h3><ul>"
-        + "\n".join(montaje_info)
-        + "</ul></div>"
-        + "<div class='card'><h3>🖨️ Cobertura y tinta</h3><ul>"
-        + "\n".join(cobertura_info)
-        + "</ul></div>"
-        + "<div class='card'><h3>⚠️ Advertencias</h3><ul>"
-        + "\n".join(riesgos_info)
-        + "</ul></div>"
-        + seccion_resolucion_html
-        + seccion_til_html
-        + seccion_capas_html
-        + seccion_material_html
-        + seccion_tinta_html
-        + "</div>"
-    )
+    datos_reporte = {
+        "diseno_info": diseno_info,
+        "montaje_info": montaje_info,
+        "cobertura_info": cobertura_info,
+        "riesgos_info": riesgos_info,
+        "resolucion_items": resolucion_items,
+        "til_items": til_items,
+        "capas_items": capas_items,
+        "diagnostico_material": diagnostico_material,
+    }
+    if tinta_data:
+        datos_reporte["tinta"] = tinta_data
+
+    resumen = generar_reporte_tecnico(datos_reporte)
     analisis_detallado = {
         "tramas_debiles": tramas_adv,
         "cobertura_por_canal": metricas_cobertura["cobertura_promedio"] if metricas_cobertura else {},
