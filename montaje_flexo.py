@@ -16,6 +16,7 @@ from openai import OpenAI
 from utils import convertir_pts_a_mm, obtener_info_basica, verificar_dimensiones
 
 from diagnostico_flexo import filtrar_objetos_sistema, consolidar_advertencias
+from cobertura_utils import calcular_metricas_cobertura
 
 client = OpenAI(api_key=os.environ.get("OPENAI_API_KEY"))
 
@@ -30,28 +31,23 @@ def _card(titulo, items_html):
     return f"<div class='card'><h3>{titulo}</h3><ul>{items}</ul></div>"
 
 
-def calcular_cobertura_total(pdf_path):
-    """Calcula la cobertura total estimada del diseño como porcentaje de píxeles con tinta."""
-    try:
-        images = convert_from_path(pdf_path, dpi=300)
-        total_pixels = 0
-        ink_pixels = 0
-
-        for img in images:
-            gray = cv2.cvtColor(np.array(img), cv2.COLOR_RGB2GRAY)
-            _, thresh = cv2.threshold(gray, 250, 255, cv2.THRESH_BINARY_INV)
-            ink_pixels += cv2.countNonZero(thresh)
-            total_pixels += thresh.shape[0] * thresh.shape[1]
-
-        if total_pixels == 0:
-            return 0.0
-
-        cobertura = (ink_pixels / total_pixels) * 100
-        return round(cobertura, 2)
-
-    except Exception as e:
-        print(f"Error al calcular cobertura: {e}")
-        return 0.0
+def resumen_cobertura_tac(metricas, material):
+    """Genera una lista de ítems HTML con TAC y cobertura por canal."""
+    items = []
+    tac_p95 = metricas["tac_p95"]
+    tac_max = metricas["tac_max"]
+    limites = {"film": 320, "papel": 300, "etiqueta adhesiva": 280}
+    mat = (material or "").strip().lower()
+    lim = limites.get(mat, 300)
+    estado = "ok" if tac_p95 <= lim else ("warn" if tac_p95 <= lim + 20 else "error")
+    icon = {"ok": "✔️", "warn": "⚠️", "error": "❌"}[estado]
+    items.append(
+        f"<li><span class='icono {estado}'>{icon}</span> TAC p95: <b>{tac_p95:.0f}%</b> (límite sugerido {lim}%). TAC máx: <b>{tac_max:.0f}%</b>.</li>"
+    )
+    for canal, area in metricas["cobertura_por_area"].items():
+        nombre = canal if canal != "Cyan" else "Cian"
+        items.append(f"<li>Área con {nombre}: <b>{area:.1f}%</b></li>")
+    return items
 
 
 def corregir_sangrado_y_marcas(pdf_path: str) -> str:
@@ -368,29 +364,6 @@ def verificar_resolucion_imagenes(path_pdf):
             items.append("<li><span class='icono ok'>✔️</span> Resolución efectiva correcta en todas las imágenes.</li>")
     except Exception as e:
         items.append(f"<li><span class='icono warn'>⚠️</span> No se pudo verificar la resolución de imágenes: {e}</li>")
-    return items
-
-
-def estimar_til_y_cobertura_por_canal(path_pdf, material):
-    items = []
-    try:
-        img = convert_from_path(path_pdf, dpi=300, first_page=1, last_page=1)[0].convert("CMYK")
-        arr = np.asarray(img).astype(np.float32)
-        ink = 255.0 - arr
-        tac = (ink.sum(axis=2) / 255.0)
-        tac_max = float(tac.max() * 100)
-        tac_p95 = float(np.percentile(tac, 95) * 100)
-        limites = {"film": 320, "papel": 300, "etiqueta adhesiva": 280}
-        mat = (material or "").strip().lower()
-        lim = limites.get(mat, 300)
-        estado = "ok" if tac_p95 <= lim else ("warn" if tac_p95 <= lim + 20 else "error")
-        icon = {"ok":"✔️","warn":"⚠️","error":"❌"}[estado]
-        items.append(f"<li><span class='icono {estado}'>{icon}</span> TAC p95: <b>{tac_p95:.0f}%</b> (límite sugerido {lim}%). TAC máx: <b>{tac_max:.0f}%</b>.</li>")
-        for i, nombre in enumerate(("Cian","Magenta","Amarillo","Negro")):
-            area = (ink[:,:,i] > 5).mean() * 100.0
-            items.append(f"<li>Área con {nombre}: <b>{area:.1f}%</b></li>")
-    except Exception as e:
-        items.append(f"<li><span class='icono warn'>⚠️</span> No se pudo estimar TAC/cobertura: {e}</li>")
     return items
 
 
@@ -758,17 +731,25 @@ def revisar_diseño_flexo(
     cobertura_info = []
     riesgos_info = []
 
-    cobertura_total = calcular_cobertura_total(path_pdf)
-    cobertura_info.append(
-        f"<li><span class='icono ink'>🖨️</span> Cobertura total estimada del diseño: <b>{cobertura_total}%</b></li>"
-    )
-    if cobertura_total > 85:
-        riesgos_info.append(
-            "<li><span class='icono warning'>⚠️</span> Cobertura muy alta. Riesgo de sobrecarga de tinta.</li>"
+    metricas_cobertura = None
+    try:
+        metricas_cobertura = calcular_metricas_cobertura(path_pdf, dpi=300)
+        cobertura_total = round(metricas_cobertura["cobertura_total"], 2)
+        cobertura_info.append(
+            f"<li><span class='icono ink'>🖨️</span> Cobertura total estimada del diseño: <b>{cobertura_total}%</b></li>"
         )
-    elif cobertura_total < 10:
+        if cobertura_total > 85:
+            riesgos_info.append(
+                "<li><span class='icono warning'>⚠️</span> Cobertura muy alta. Riesgo de sobrecarga de tinta.</li>"
+            )
+        elif cobertura_total < 10:
+            riesgos_info.append(
+                "<li><span class='icono warning'>⚠️</span> Cobertura muy baja. Posible subcarga o diseño incompleto.</li>"
+            )
+    except Exception as e:
+        cobertura_total = 0.0
         riesgos_info.append(
-            "<li><span class='icono warning'>⚠️</span> Cobertura muy baja. Posible subcarga o diseño incompleto.</li>"
+            f"<li><span class='icono warning'>⚠️</span> No se pudo estimar la cobertura de tinta: {e}</li>"
         )
 
     repeticiones, sobrante = calcular_repeticiones_bobina(alto_mm, paso_mm)
@@ -780,7 +761,11 @@ def revisar_diseño_flexo(
     textos_adv, overlay_textos = verificar_textos_pequenos(contenido)
     lineas_adv, overlay_lineas = verificar_lineas_finas_v2(pagina, material)
     seccion_resolucion_html = _card("🖼️ Resolución de imágenes", verificar_resolucion_imagenes(path_pdf))
-    seccion_til_html = _card("🧮 TAC y cobertura por canal", estimar_til_y_cobertura_por_canal(path_pdf, material))
+    if metricas_cobertura:
+        til_items = resumen_cobertura_tac(metricas_cobertura, material)
+    else:
+        til_items = ["<li><span class='icono warn'>⚠️</span> No se pudo estimar TAC/cobertura.</li>"]
+    seccion_til_html = _card("🧮 TAC y cobertura por canal", til_items)
     seccion_capas_html = _card("🎯 Capas especiales (White/Varnish/Troquel)", detectar_capas_especiales(path_pdf))
     contraste_adv = analizar_contraste(path_pdf)
     tramas_adv = detectar_tramas_débiles(path_pdf)
@@ -799,23 +784,12 @@ def revisar_diseño_flexo(
         overlay_textos, overlay_lineas, overlay_color, overlay_sangrado
     )
 
-    # Cobertura de tinta CMYK
-    cobertura = {}
-    try:
-        img = convert_from_path(path_pdf, dpi=300, first_page=1, last_page=1)[0].convert("CMYK")
-        img_np = np.array(img)
-        canales = ["Cian", "Magenta", "Amarillo", "Negro"]
-        for i, nombre in enumerate(canales):
-            canal = img_np[:, :, i]
-            porcentaje = round(np.mean(canal / 255) * 100, 2)
-            cobertura[nombre] = porcentaje
+    if metricas_cobertura:
+        for canal, porcentaje in metricas_cobertura["cobertura_promedio"].items():
+            nombre = canal if canal != "Cyan" else "Cian"
             cobertura_info.append(
-                f"<li><span class='icono ink'>🖨️</span> Porcentaje estimado de cobertura de <b>{nombre}</b>: <b>{porcentaje}%</b></li>"
+                f"<li><span class='icono ink'>🖨️</span> Porcentaje estimado de cobertura de <b>{nombre}</b>: <b>{porcentaje:.2f}%</b></li>"
             )
-    except Exception as e:
-        riesgos_info.append(
-            f"<li><span class='icono warning'>⚠️</span> No se pudo estimar la cobertura de tinta: {str(e)}</li>"
-        )
 
     # Detección de tintas planas (Pantone/Spot)
     try:
@@ -848,7 +822,7 @@ def revisar_diseño_flexo(
     diagnostico_material = []
     material_norm = material.lower().strip()
     if material_norm == "film":
-        negro = cobertura.get("Negro", 0)
+        negro = metricas_cobertura["cobertura_promedio"].get("Negro", 0) if metricas_cobertura else 0
         if negro > 50:
             diagnostico_material.append(
                 f"<li><span class='icono warn'>⚠️</span> Cobertura alta de negro (<b>{negro}%</b>). Puede generar problemas de adherencia o secado en film.</li>"
@@ -870,8 +844,8 @@ def revisar_diseño_flexo(
             diagnostico_material.append(
                 "<li><span class='icono ok'>✔️</span> No se detectaron elementos sensibles a la ganancia de punto en papel.</li>"
             )
-    elif material_norm == "etiqueta adhesiva":
-        total_cobertura = sum(cobertura.values())
+    elif material_norm == "etiqueta adhesiva" and metricas_cobertura:
+        total_cobertura = sum(metricas_cobertura["cobertura_promedio"].values())
         if total_cobertura > 240:
             diagnostico_material.append(
                 f"<li><span class='icono warn'>⚠️</span> Cobertura total alta (<b>{round(total_cobertura,2)}%</b>). Puede ocasionar problemas de secado en etiquetas adhesivas.</li>"
@@ -965,7 +939,7 @@ def revisar_diseño_flexo(
     )
     analisis_detallado = {
         "tramas_debiles": tramas_adv,
-        "cobertura_por_canal": cobertura,
+        "cobertura_por_canal": metricas_cobertura["cobertura_promedio"] if metricas_cobertura else {},
         "textos_pequenos": textos_adv,
     }
     diagnostico_texto = generar_diagnostico_texto(resumen)

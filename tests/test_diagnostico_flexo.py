@@ -6,14 +6,11 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from diagnostico_flexo import (
-    calcular_cobertura_y_tac,
-    resumen_advertencias,
-    semaforo_riesgo,
-)
+from cobertura_utils import calcular_metricas_cobertura
+from diagnostico_flexo import resumen_advertencias, semaforo_riesgo
 
 
-def test_calcular_cobertura_y_tac(tmp_path):
+def test_calcular_metricas_cobertura(tmp_path):
     """La cobertura por canal refleja los porcentajes reales y el TAC p95."""
 
     doc = fitz.open()
@@ -25,14 +22,15 @@ def test_calcular_cobertura_y_tac(tmp_path):
     doc.save(pdf_path)
     doc.close()
 
-    coberturas, tac_p95 = calcular_cobertura_y_tac(str(pdf_path))
+    metricas = calcular_metricas_cobertura(str(pdf_path))
+    coberturas = metricas["cobertura_promedio"]
     assert 40 < coberturas["Negro"] < 60
     assert (
         coberturas["Cyan"] < 1
         and coberturas["Magenta"] < 1
         and coberturas["Amarillo"] < 1
     )
-    assert 95 <= tac_p95 <= 100
+    assert 95 <= metricas["tac_p95"] <= 100
 
 
 def test_calcular_cobertura_ignora_casi_blancos(tmp_path):
@@ -46,9 +44,10 @@ def test_calcular_cobertura_ignora_casi_blancos(tmp_path):
     doc.save(pdf_path)
     doc.close()
 
-    coberturas, tac_p95 = calcular_cobertura_y_tac(str(pdf_path))
+    metricas = calcular_metricas_cobertura(str(pdf_path))
+    coberturas = metricas["cobertura_promedio"]
     assert all(v < 1 for v in coberturas.values())
-    assert tac_p95 < 1
+    assert metricas["tac_p95"] < 1
 
 
 def test_resumen_y_semaforo():
