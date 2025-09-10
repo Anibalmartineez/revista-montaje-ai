@@ -40,13 +40,30 @@
     #tabla-riesgos th {
       background: #f0f0f0;
     }
-    .icono-overlay {
+    #overlay-markers {
       position: absolute;
-      cursor: pointer;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      pointer-events: none;
+      z-index: 10;
     }
-    .icono-overlay.resaltado {
+    .warning-marker {
+      position: absolute;
+      color: #000;
+      font-size: 12px;
+      text-shadow: 1px 1px 2px white;
+      pointer-events: none;
+      z-index: 10;
+      background: rgba(255, 255, 0, 0.8);
+      border: 1px solid #000;
+      border-radius: 3px;
+      padding: 2px 4px;
+      white-space: nowrap;
+    }
+    .warning-marker.resaltado {
       outline: 3px solid red;
-      border-radius: 4px;
     }
     #lista-advertencias {
       list-style: none;
@@ -94,6 +111,7 @@
 <body>
   <div id="contenedor-imagen" style="position: relative;">
     <img src="{{ url_for('static', filename=imagen_path_web) }}" id="imagen-diagnostico" class="imagen-analizada" />
+    <div id="overlay-markers"></div>
   </div>
   <ul id="lista-advertencias">
     {% set tipo_clases = {
@@ -111,7 +129,7 @@
   </ul>
   <script>
     const advertencias = {{ advertencias_iconos|tojson }};
-    const contenedor = document.getElementById("contenedor-imagen");
+    const overlay = document.getElementById("overlay-markers");
     const imagen = document.getElementById("imagen-diagnostico");
     const tipoClase = {
       'texto_pequeno': 'tipo-texto',
@@ -126,18 +144,20 @@
       const scaleY = imagen.clientHeight / imagen.naturalHeight;
       advertencias.forEach((item, idx) => {
         const icon = document.createElement('span');
-        icon.className = 'icono-overlay cuadro-alerta ' + (tipoClase[item.tipo] || '');
+        icon.className = 'warning-marker ' + (tipoClase[item.tipo] || '');
+        const texto = (item.mensaje && item.mensaje.trim()) ? item.mensaje : 'Advertencia sin descripción';
+        icon.textContent = texto;
         icon.style.left = (item.pos[0] * scaleX) + 'px';
         icon.style.top = (item.pos[1] * scaleY) + 'px';
-        icon.title = item.mensaje;
         icon.dataset.idx = idx;
-        contenedor.appendChild(icon);
+        overlay.appendChild(icon);
       });
 
       document.querySelectorAll('#lista-advertencias li').forEach(li => {
         li.addEventListener('click', () => {
           const idx = li.getAttribute('data-idx');
-          const icon = contenedor.querySelector(`.icono-overlay[data-idx="${idx}"]`);
+          overlay.querySelectorAll('.warning-marker').forEach(m => m.classList.remove('resaltado'));
+          const icon = overlay.querySelector(`.warning-marker[data-idx="${idx}"]`);
           if (icon) {
             icon.classList.add('resaltado');
             setTimeout(() => icon.classList.remove('resaltado'), 2000);
