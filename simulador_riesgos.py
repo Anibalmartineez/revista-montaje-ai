@@ -48,7 +48,11 @@ def simular_riesgos(diagnostico: str | Dict[str, Any], usar_ia: bool = False) ->
         )
 
     # Reglas fijas
-    if re.search(r"text[oa]s?\s*(<|menores a)\s*4\s*pt", texto) or "texto pequeño" in texto:
+    texto_seguro = "no se encontraron textos menores a 4 pt" not in texto
+    if texto_seguro and (
+        re.search(r"text[oa]s?\s*(<|menores a)\s*4\s*pt", texto)
+        or "texto pequeño" in texto
+    ):
         agregar("Textos < 4 pt", "🔴 Alto", "Aumentar a 5 pt mínimo para flexografía")
 
     if re.search(r"traz[ao]s?\s*(<|menores a)\s*0\.25\s*pt", texto) or "trazo_fino" in texto:

@@ -8,6 +8,8 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from cobertura_utils import calcular_metricas_cobertura
 from diagnostico_flexo import resumen_advertencias, semaforo_riesgo
+from montaje_flexo import detectar_tramas_débiles
+from simulador_riesgos import simular_riesgos
 
 
 def test_calcular_metricas_cobertura(tmp_path):
@@ -69,3 +71,25 @@ def test_resumen_y_semaforo():
 def test_resumen_sin_advertencias():
     assert resumen_advertencias([]).startswith("✅ Archivo sin riesgos")
     assert semaforo_riesgo([]) == "🟢"
+
+
+def test_tramas_debiles_no_false_positive(tmp_path):
+    """Una página en blanco no debe reportar tramas débiles."""
+
+    doc = fitz.open()
+    doc.new_page()
+    pdf_path = tmp_path / "blanco.pdf"
+    doc.save(pdf_path)
+    doc.close()
+
+    advertencias = detectar_tramas_débiles(str(pdf_path))
+    assert any("No se detectaron tramas débiles" in a for a in advertencias)
+    assert not any("Trama muy débil" in a for a in advertencias)
+
+
+def test_simulador_riesgos_ignora_texto_negado():
+    """La frase de negación no debe activar el riesgo de textos pequeños."""
+
+    resumen = "✔️ No se encontraron textos menores a 4 pt."
+    html = simular_riesgos(resumen)
+    assert "Textos < 4 pt" not in html

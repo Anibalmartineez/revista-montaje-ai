@@ -11,7 +11,6 @@ import matplotlib.pyplot as plt
 from io import BytesIO
 import base64
 from html import unescape
-from openai import OpenAI
 
 from utils import convertir_pts_a_mm, obtener_info_basica, verificar_dimensiones
 
@@ -20,7 +19,15 @@ from advertencias_disenio import analizar_advertencias_disenio
 from cobertura_utils import calcular_metricas_cobertura
 from reporte_tecnico import generar_reporte_tecnico, resumen_cobertura_tac
 
-client = OpenAI(api_key=os.environ.get("OPENAI_API_KEY"))
+# Inicializa el cliente de OpenAI solo si hay API key disponible, evitando
+# errores durante la importación en entornos de test.
+try:
+    from openai import OpenAI
+
+    api_key = os.environ.get("OPENAI_API_KEY")
+    client = OpenAI(api_key=api_key) if api_key else None
+except Exception:  # pragma: no cover - la librería es opcional
+    client = None
 
 PT_PER_MM = 72 / 25.4
 
@@ -362,7 +369,9 @@ def detectar_tramas_débiles(path_pdf):
 
         for i, nombre in enumerate(canales):
             canal = img_np[:, :, i]
-            pixeles_debiles = np.sum(canal < umbral_trama)
+            # Consideramos solo los píxeles con cobertura real (>0) por debajo del 5%
+            mask = (canal > 0) & (canal < umbral_trama)
+            pixeles_debiles = np.sum(mask)
             proporcion = pixeles_debiles / total_pixeles
             if proporcion > min_pixeles_relevantes:
                 advertencias.append(
@@ -677,10 +686,16 @@ def revisar_diseño_flexo(
     if anilox_bcm is not None and velocidad_impresion is not None:
         try:
             if cobertura_estimada is None:
-                cobertura_estimada = cobertura_total
+                if metricas_cobertura:
+                    cobertura_estimada = sum(
+                        metricas_cobertura["cobertura_promedio"].values()
+                    )
+                else:
+                    cobertura_estimada = 0
             factores = {"film": 0.7, "papel": 1.0, "etiqueta adhesiva": 0.85}
             factor_material = factores.get(material_norm, 1.0)
-            cobertura_frac = float(cobertura_estimada) / 100.0
+            # La suma de coberturas por canal puede alcanzar 400%
+            cobertura_frac = float(cobertura_estimada) / 400.0
             tinta_ml = anilox_bcm * cobertura_frac * velocidad_impresion * factor_material
             tinta_ml = round(tinta_ml, 2)
             umbral_bajo = 50
