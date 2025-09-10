@@ -29,13 +29,12 @@ def generar_preview_diagnostico(
 
     scale = dpi / 72.0
     overlay_escalado: List[Dict[str, Any]] = []
-    if advertencias:
-        for adv in advertencias:
-            bbox = adv.get("bbox")
-            if bbox and len(bbox) == 4:
-                adv_scaled = adv.copy()
-                adv_scaled["bbox"] = [coord * scale for coord in bbox]
-                overlay_escalado.append(adv_scaled)
+    for adv in consolidar_advertencias(advertencias):
+        bbox = adv.get("bbox")
+        if bbox and len(bbox) == 4:
+            adv_scaled = adv.copy()
+            adv_scaled["bbox"] = [coord * scale for coord in bbox]
+            overlay_escalado.append(adv_scaled)
 
     imagen_rel = os.path.join("previews", "preview_diagnostico.png")
     return imagen_path, imagen_rel, overlay_escalado
@@ -76,9 +75,10 @@ def calcular_cobertura_y_tac(
         & (img_rgb[..., 1] > 245)
         & (img_rgb[..., 2] > 245)
     )
+
     # Se ignoran asignándoles 0 en los canales CMYK
     img_cmyk = img_cmyk.astype(np.float32)
-    img_cmyk[mask_white] = 0
+    img_cmyk[mask_white, :] = 0
 
     canales = ["Cyan", "Magenta", "Amarillo", "Negro"]
     coberturas = {
@@ -138,9 +138,36 @@ def filtrar_objetos_sistema(
     return filtrados
 
 
+def consolidar_advertencias(*listas: List[Dict[str, Any]] | None) -> List[Dict[str, Any]]:
+    """Combina múltiples listas de advertencias evitando duplicados.
+
+    Una advertencia se considera duplicada cuando coinciden su tipo o mensaje y
+    su "bbox"."""
+
+    combinadas: List[Dict[str, Any]] = []
+    vistos = set()
+    for lista in listas:
+        for adv in lista or []:
+            tipo = adv.get("tipo")
+            mensaje = adv.get("mensaje")
+            if not tipo and not mensaje:
+                combinadas.append(adv)
+                continue
+            clave = (
+                tipo or mensaje,
+                tuple(adv.get("bbox")) if adv.get("bbox") else None,
+            )
+            if clave in vistos:
+                continue
+            vistos.add(clave)
+            combinadas.append(adv)
+    return combinadas
+
+
 def resumen_advertencias(advertencias: List[Dict[str, Any]]) -> str:
     """Genera un resumen global de advertencias clasificado por nivel."""
 
+    advertencias = consolidar_advertencias(advertencias)
     if not advertencias:
         return "✅ Archivo sin riesgos detectados. Listo para enviar a clichés."
 
@@ -163,6 +190,7 @@ def resumen_advertencias(advertencias: List[Dict[str, Any]]) -> str:
 def nivel_riesgo_global(advertencias: List[Dict[str, Any]]) -> str:
     """Calcula el nivel global de riesgo basado en las advertencias."""
 
+    advertencias = consolidar_advertencias(advertencias)
     if any(adv.get("nivel") == "critico" for adv in advertencias):
         return "alto"
     if any(adv.get("nivel") == "medio" for adv in advertencias):

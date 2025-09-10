@@ -14,6 +14,8 @@ from html import unescape
 from openai import OpenAI
 import math
 
+from diagnostico_flexo import filtrar_objetos_sistema, consolidar_advertencias
+
 client = OpenAI(api_key=os.environ.get("OPENAI_API_KEY"))
 
 PT_PER_MM = 72 / 25.4
@@ -113,7 +115,7 @@ def corregir_sangrado_y_marcas(pdf_path: str) -> str:
 
     has_marks = False
     try:
-        for d in page.get_drawings():
+        for d in filtrar_objetos_sistema(page.get_drawings(), None):
             for item in d.get("items", []):
                 if item[0] == "l":  # línea
                     p0, p1 = item[1], item[2]
@@ -337,7 +339,14 @@ def verificar_textos_pequenos(contenido):
                         )
                         bbox = s.get("bbox")
                         if bbox:
-                            overlay.append({"tipo": "texto_pequeno", "bbox": list(bbox), "etiqueta": f"{round(size, 1)} pt"})
+                            overlay.append(
+                                {
+                                    "id": "sistema_texto_pequeno",
+                                    "tipo": "texto_pequeno",
+                                    "bbox": list(bbox),
+                                    "etiqueta": f"{round(size, 1)} pt",
+                                }
+                            )
     if not encontrados:
         advertencias.append("<span class='icono ok'>✔️</span> No se encontraron textos menores a 4 pt.")
     return advertencias, overlay
@@ -349,7 +358,8 @@ def verificar_lineas_finas_v2(page, material):
     min_detectada = None
     n_riesgo = 0
     overlay = []
-    for d in page.get_drawings():
+    dibujos = filtrar_objetos_sistema(page.get_drawings(), None)
+    for d in dibujos:
         w_pt = (d.get("width", 0) or 0)
         if w_pt <= 0:
             continue
@@ -361,6 +371,7 @@ def verificar_lineas_finas_v2(page, material):
             if bbox:
                 overlay.append(
                     {
+                        "id": "sistema_trazo_fino",
                         "tipo": "trazo_fino",
                         "bbox": list(bbox),
                         "etiqueta": f"{w_mm:.2f} mm",
@@ -557,17 +568,38 @@ def verificar_modo_color(path_pdf):
                         advertencias.append(
                             f"<span class='icono error'>❌</span> Imagen en RGB detectada en la página {page_num}. Convertir a CMYK."
                         )
-                        overlay.append({"tipo": "imagen_fuera_cmyk", "bbox": bbox, "etiqueta": "RGB"})
+                        overlay.append(
+                            {
+                                "id": "sistema_imagen_fuera_cmyk",
+                                "tipo": "imagen_fuera_cmyk",
+                                "bbox": bbox,
+                                "etiqueta": "RGB",
+                            }
+                        )
                     elif cs and cs not in {"CMYK", "DEVICECMYK", "GRAY", "DEVICEGRAY"}:
                         advertencias.append(
                             f"<span class='icono warn'>⚠️</span> Imagen en {cs} detectada en la página {page_num}. Verificar modo de color."
                         )
-                        overlay.append({"tipo": "imagen_fuera_cmyk", "bbox": bbox, "etiqueta": cs})
+                        overlay.append(
+                            {
+                                "id": "sistema_imagen_fuera_cmyk",
+                                "tipo": "imagen_fuera_cmyk",
+                                "bbox": bbox,
+                                "etiqueta": cs,
+                            }
+                        )
                     elif cs in {"GRAY", "DEVICEGRAY"}:
                         advertencias.append(
                             f"<span class='icono warn'>⚠️</span> Imagen en escala de grises detectada en la página {page_num}. Verificar si es intencional."
                         )
-                        overlay.append({"tipo": "imagen_fuera_cmyk", "bbox": bbox, "etiqueta": "Gray"})
+                        overlay.append(
+                            {
+                                "id": "sistema_imagen_fuera_cmyk",
+                                "tipo": "imagen_fuera_cmyk",
+                                "bbox": bbox,
+                                "etiqueta": "Gray",
+                            }
+                        )
         if not advertencias:
             advertencias.append("<span class='icono ok'>✔️</span> Todas las imágenes están en modo CMYK o escala de grises.")
         doc.close()
@@ -698,7 +730,13 @@ def revisar_sangrado(pagina):
             margen_sup = convertir_pts_a_mm(y0)
             margen_inf = convertir_pts_a_mm(media.height - y1)
             if min(margen_izq, margen_der, margen_sup, margen_inf) < sangrado_esperado:
-                overlay.append({"tipo": "cerca_borde", "bbox": list(bbox)})
+                overlay.append(
+                    {
+                        "id": "sistema_cerca_borde",
+                        "tipo": "cerca_borde",
+                        "bbox": list(bbox),
+                    }
+                )
     if overlay:
         advertencias.append(
             "<span class='icono warn'>⚠️</span> Elementos del diseño muy cercanos al borde. Verificar sangrado mínimo de 3 mm."
@@ -808,11 +846,9 @@ def revisar_diseño_flexo(
     lineas_finas_flag = any("trazos" in a.lower() and "warn" in a for a in lineas_adv)
     tramas_debiles_flag = any("Trama muy débil" in a and "warn" in a for a in tramas_adv)
 
-    advertencias_overlay = []
-    advertencias_overlay.extend(overlay_textos)
-    advertencias_overlay.extend(overlay_lineas)
-    advertencias_overlay.extend(overlay_color)
-    advertencias_overlay.extend(overlay_sangrado)
+    advertencias_overlay = consolidar_advertencias(
+        overlay_textos, overlay_lineas, overlay_color, overlay_sangrado
+    )
 
     # Cobertura de tinta CMYK
     cobertura = {}
