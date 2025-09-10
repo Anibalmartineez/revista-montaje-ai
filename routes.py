@@ -1252,8 +1252,7 @@ def revision_flexo():
                     velocidad,
                     cobertura,
                 )
-                overlay_info = analizar_riesgos_pdf(path)
-                overlay_info["advertencias"] = advertencias_overlay or overlay_info.get("advertencias", [])
+                overlay_info = analizar_riesgos_pdf(path, advertencias=advertencias_overlay)
 
                 _, imagen_rel, overlay_scaled = generar_preview_diagnostico(
                     path, overlay_info["advertencias"], dpi=overlay_info["dpi"]

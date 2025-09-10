@@ -1,85 +1,74 @@
 import os
 import uuid
 import fitz
-import numpy as np
 import tempfile
-from typing import Any
+from typing import Any, List, Dict
 from PIL import Image, ImageDraw
 from flask import current_app
+from advertencias_disenio import analizar_advertencias_disenio
 
 
-def analizar_riesgos_pdf(pdf_path: str, dpi: int = 200) -> dict:
-    """Analiza el PDF y genera una imagen de superposición con zonas de riesgo.
-
-    Devuelve un diccionario con la ruta absoluta de dicha superposición y el
-    ``dpi`` utilizado, para reutilizarla luego sin recalcular el diagnóstico.
-    """
+def analizar_riesgos_pdf(
+    pdf_path: str,
+    dpi: int = 200,
+    advertencias: List[Dict[str, Any]] | None = None,
+    material: str = "",
+) -> dict:
+    """Genera una superposición de advertencias para un PDF."""
     doc = fitz.open(pdf_path)
     page = doc.load_page(0)
     zoom = dpi / 72.0
     mat = fitz.Matrix(zoom, zoom)
     pix = page.get_pixmap(matrix=mat, alpha=False)
-    img = Image.frombytes("RGB", [pix.width, pix.height], pix.samples)
+    size = (pix.width, pix.height)
 
-    img_cmyk = img.convert("CMYK")
-    arr = np.array(img_cmyk)
-    h, w = arr.shape[:2]
-    overlay = np.zeros((h, w, 4), dtype=np.uint8)
+    if advertencias is None:
+        adv_res = analizar_advertencias_disenio(pdf_path, material)
+        advertencias = adv_res["overlay"]
 
-    # 🔵 Tramas <5% por canal
-    c_mask = (arr[:, :, 0] > 0) & (arr[:, :, 0] < 13)
-    m_mask = (arr[:, :, 1] > 0) & (arr[:, :, 1] < 13)
-    y_mask = (arr[:, :, 2] > 0) & (arr[:, :, 2] < 13)
-    k_mask = (arr[:, :, 3] > 0) & (arr[:, :, 3] < 13)
-    overlay[c_mask] = [0, 255, 255, 120]  # Cian
-    overlay[m_mask] = [255, 0, 255, 120]  # Magenta
-    overlay[y_mask] = [255, 255, 0, 120]  # Amarillo
-    overlay[k_mask] = [0, 0, 0, 120]      # Negro débil
+    overlay_img = Image.new("RGBA", size, (0, 0, 0, 0))
+    draw = ImageDraw.Draw(overlay_img, "RGBA")
 
-    # 🔴 Cobertura >90%
-    coverage = arr.sum(axis=2) / (255 * 4)
-    high_mask = coverage > 0.9
-    overlay[high_mask] = [255, 0, 0, 120]
-
-    overlay_img = Image.fromarray(overlay, "RGBA")
-    draw = ImageDraw.Draw(overlay_img)
-
-    text_data = page.get_text("dict")
     sangrado_mm = 3
     sangrado_pts = sangrado_mm * 72 / 25.4
-    contenido_cerca_borde = False
-    advertencias: list[dict[str, Any]] = []
+    contenido_cerca_borde = any(adv.get("tipo") == "cerca_borde" for adv in advertencias)
 
-    for block in text_data.get("blocks", []):
-        btype = block.get("type")
-        if btype == 0:  # texto
-            for line in block.get("lines", []):
-                for span in line.get("spans", []):
-                    x0, y0, x1, y1 = span["bbox"]
-                    if span.get("size", 0) < 4:
-                        advertencias.append({"tipo": "texto_pequeno", "bbox": [x0, y0, x1, y1]})
-                    margen_min = min(x0, page.rect.width - x1, y0, page.rect.height - y1)
-                    if margen_min < sangrado_pts:
-                        contenido_cerca_borde = True
-                        advertencias.append({"tipo": "cerca_borde", "bbox": [x0, y0, x1, y1]})
-        elif btype == 1:  # imagen
-            x0, y0, x1, y1 = block.get("bbox", (0, 0, 0, 0))
-            margen_min = min(x0, page.rect.width - x1, y0, page.rect.height - y1)
-            if margen_min < sangrado_pts:
-                contenido_cerca_borde = True
-                advertencias.append({"tipo": "cerca_borde", "bbox": [x0, y0, x1, y1]})
-            xref = block.get("image")
-            cs = ""
-            if xref:
-                try:
-                    info = doc.extract_image(xref)
-                    cs = info.get("colorspace", "")
-                except Exception:
-                    cs = ""
-            if cs and cs.upper() != "CMYK":
-                advertencias.append({"tipo": "imagen_fuera_cmyk", "bbox": [x0, y0, x1, y1]})
+    def dashed_rectangle(draw_obj, box, color, width: int = 2, dash: int = 5):
+        x0, y0, x1, y1 = box
+        x = x0
+        while x < x1:
+            draw_obj.line([(x, y0), (min(x + dash, x1), y0)], fill=color, width=width)
+            draw_obj.line([(x, y1), (min(x + dash, x1), y1)], fill=color, width=width)
+            x += dash * 2
+        y = y0
+        while y < y1:
+            draw_obj.line([(x0, y), (x0, min(y + dash, y1))], fill=color, width=width)
+            draw_obj.line([(x1, y), (x1, min(y + dash, y1))], fill=color, width=width)
+            y += dash * 2
 
-    # Línea de sangrado (azul si correcto, rojo si insuficiente)
+    for adv in advertencias:
+        bbox = adv.get("bbox") or adv.get("box")
+        if not bbox or len(bbox) != 4:
+            continue
+        x0, y0, x1, y1 = [coord * zoom for coord in bbox]
+        tipo = (adv.get("tipo") or adv.get("type") or "").lower()
+        if tipo == "texto_pequeno":
+            draw.rectangle([x0, y0, x1, y1], outline=(255, 0, 0, 255), width=2)
+            etiqueta = adv.get("etiqueta") or "<4 pt"
+            draw.text((x0 + 2, y0 + 2), etiqueta, fill=(255, 0, 0, 255))
+        elif tipo in {"trazo_fino", "stroke_fino"}:
+            draw.rectangle([x0, y0, x1, y1], outline=(255, 165, 0, 255), width=2)
+            etiqueta = adv.get("etiqueta")
+            if etiqueta:
+                draw.text((x0 + 2, y0 + 2), etiqueta, fill=(255, 165, 0, 255))
+        elif tipo == "imagen_fuera_cmyk":
+            draw.rectangle([x0, y0, x1, y1], outline=(128, 0, 128, 255), width=2)
+            etiqueta = adv.get("etiqueta")
+            if etiqueta:
+                draw.text((x0 + 2, y0 + 2), etiqueta, fill=(128, 0, 128, 255))
+        elif tipo == "cerca_borde":
+            dashed_rectangle(draw, [x0, y0, x1, y1], (255, 165, 0, 255), width=2)
+
     rect_segura = [
         sangrado_pts * zoom,
         sangrado_pts * zoom,
