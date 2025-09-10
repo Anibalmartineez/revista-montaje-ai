@@ -127,7 +127,7 @@
     } %}
     {% for adv in advertencias_iconos %}
       <li data-idx="{{ loop.index0 }}">
-        <span class="cuadro-alerta {{ tipo_clases.get(adv.tipo, '') }}"></span>{{ adv.mensaje }}
+        <span class="cuadro-alerta {{ tipo_clases.get(adv.tipo, '') }}"></span>{{ (adv.mensaje | default('', true) | trim) or 'Advertencia sin descripción detallada.' }}
       </li>
     {% endfor %}
   </ul>
@@ -166,7 +166,7 @@
       advertencias.forEach((item, idx) => {
         const icon = document.createElement('span');
         icon.className = 'warning-marker ' + (tipoClase[item.tipo] || '');
-        const texto = (item.mensaje && item.mensaje.trim()) ? item.mensaje : 'Advertencia sin descripción';
+        const texto = (item.mensaje && item.mensaje.trim()) ? item.mensaje.trim() : 'Advertencia sin descripción detallada.';
         icon.textContent = texto;
         icon.style.left = (item.pos[0] * scaleX) + 'px';
         icon.style.top = (item.pos[1] * scaleY) + 'px';
