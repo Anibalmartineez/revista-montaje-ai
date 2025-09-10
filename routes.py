@@ -1230,8 +1230,11 @@ def revision_flexo():
                 anilox_bcm = velocidad = None
 
             if archivo and archivo.filename.endswith(".pdf"):
-                filename = secure_filename(archivo.filename)
+                # Siempre guardamos el PDF con un nombre fijo para evitar usar uno previo.
+                filename = "diagnostico.pdf"
                 path = os.path.abspath(os.path.join(UPLOAD_FOLDER, filename))
+                if os.path.exists(path):
+                    os.remove(path)
                 archivo.save(path)
 
                 # Guardamos la ruta en sesión para reutilizarla en la vista previa
