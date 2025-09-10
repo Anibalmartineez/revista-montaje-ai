@@ -12,7 +12,8 @@ from io import BytesIO
 import base64
 from html import unescape
 from openai import OpenAI
-import math
+
+from utils import convertir_pts_a_mm, obtener_info_basica, verificar_dimensiones
 
 from diagnostico_flexo import filtrar_objetos_sistema, consolidar_advertencias
 
@@ -51,34 +52,6 @@ def calcular_cobertura_total(pdf_path):
     except Exception as e:
         print(f"Error al calcular cobertura: {e}")
         return 0.0
-
-
-def calcular_etiquetas_por_fila(
-    ancho_bobina: float,
-    ancho_etiqueta: float,
-    separacion_horizontal: float = 0,
-    margen_lateral: float = 0,
-) -> int:
-    """Calcula el número de etiquetas que caben horizontalmente en la bobina.
-
-    La fórmula considera el ancho utilizable de la bobina restando los márgenes
-    laterales y aplica la separación horizontal entre etiquetas. Se usa
-    ``math.floor`` para asegurar que el resultado sea siempre un número entero
-    correcto, incluso con valores decimales.
-
-    Formula:
-    ``floor((ancho_bobina - (2 * margen_lateral) + separacion_horizontal) /
-    (ancho_etiqueta + separacion_horizontal))``
-    """
-
-    ancho_disponible = ancho_bobina - (2 * margen_lateral)
-    if ancho_disponible <= 0 or (ancho_etiqueta + separacion_horizontal) <= 0:
-        return 0
-
-    return math.floor(
-        (ancho_disponible + separacion_horizontal)
-        / (ancho_etiqueta + separacion_horizontal)
-    )
 
 
 def corregir_sangrado_y_marcas(pdf_path: str) -> str:
@@ -296,30 +269,6 @@ def corregir_sangrado_y_marcas(pdf_path: str) -> str:
     new_doc.close()
     doc.close()
     return corrected_path
-
-
-def convertir_pts_a_mm(valor_pts):
-    return round(valor_pts * 25.4 / 72, 2)
-
-
-def obtener_info_basica(pagina):
-    media = pagina.rect
-    ancho_mm = convertir_pts_a_mm(media.width)
-    alto_mm = convertir_pts_a_mm(media.height)
-    return ancho_mm, alto_mm
-
-
-def verificar_dimensiones(ancho_mm, alto_mm, paso_mm):
-    advertencias = []
-    if alto_mm > paso_mm:
-        advertencias.append(
-            f"<span class='icono error'>❌</span> El alto del diseño (<b>{alto_mm} mm</b>) es mayor al paso del cilindro (<b>{paso_mm} mm</b>)."
-        )
-    if ancho_mm > 330:
-        advertencias.append(
-            f"<span class='icono warn'>⚠️</span> El ancho del diseño (<b>{ancho_mm} mm</b>) podría exceder el ancho útil de la máquina. Verificar configuración."
-        )
-    return advertencias
 
 
 def verificar_textos_pequenos(contenido):

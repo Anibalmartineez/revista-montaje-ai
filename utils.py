@@ -101,3 +101,32 @@ def calcular_etiquetas_por_fila(
         (ancho_disponible + separacion_horizontal)
         / (ancho_etiqueta + separacion_horizontal)
     )
+
+
+def convertir_pts_a_mm(valor_pts: float) -> float:
+    """Convierte puntos tipográficos a milímetros con dos decimales."""
+    return round(valor_pts * 25.4 / 72, 2)
+
+
+def obtener_info_basica(pagina: fitz.Page) -> tuple[float, float]:
+    """Obtiene el ancho y alto de una página en milímetros."""
+    media = pagina.rect
+    ancho_mm = convertir_pts_a_mm(media.width)
+    alto_mm = convertir_pts_a_mm(media.height)
+    return ancho_mm, alto_mm
+
+
+def verificar_dimensiones(
+    ancho_mm: float, alto_mm: float, paso_mm: float
+) -> list[str]:
+    """Genera advertencias si las dimensiones exceden los límites esperados."""
+    advertencias: list[str] = []
+    if alto_mm > paso_mm:
+        advertencias.append(
+            f"<span class='icono error'>❌</span> El alto del diseño (<b>{alto_mm} mm</b>) es mayor al paso del cilindro (<b>{paso_mm} mm</b>)."
+        )
+    if ancho_mm > 330:
+        advertencias.append(
+            f"<span class='icono warn'>⚠️</span> El ancho del diseño (<b>{ancho_mm} mm</b>) podría exceder el ancho útil de la máquina. Verificar configuración."
+        )
+    return advertencias
