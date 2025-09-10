@@ -1,7 +1,7 @@
 import os
 import fitz
 import numpy as np
-from typing import List, Dict, Any, Tuple
+from typing import List, Dict, Any
 from flask import current_app
 
 
@@ -43,55 +43,6 @@ def generar_preview_diagnostico(
 # ---------------------------------------------------------------------------
 # Utilidades de diagnóstico flexográfico
 # ---------------------------------------------------------------------------
-
-
-def calcular_cobertura_y_tac(
-    pdf_path: str, dpi: int = 72
-) -> Tuple[Dict[str, float], float]:
-    """Calcula cobertura por canal CMYK y el TAC p95 real del diseño.
-
-    ``cobertura`` representa el porcentaje promedio de tinta en cada canal y
-    ``tac_p95`` el percentil 95 del Total Area Coverage.
-    """
-
-    doc = fitz.open(pdf_path)
-    page = doc.load_page(0)
-    zoom = dpi / 72.0
-    mat = fitz.Matrix(zoom, zoom)
-    # Obtiene la imagen en CMYK y en RGB para filtrar los píxeles casi blancos
-    pix_cmyk = page.get_pixmap(matrix=mat, colorspace=fitz.csCMYK, alpha=False)
-    pix_rgb = page.get_pixmap(matrix=mat, colorspace=fitz.csRGB, alpha=False)
-    img_cmyk = np.frombuffer(pix_cmyk.samples, dtype=np.uint8).reshape(
-        pix_cmyk.height, pix_cmyk.width, pix_cmyk.n
-    )
-    img_rgb = np.frombuffer(pix_rgb.samples, dtype=np.uint8).reshape(
-        pix_rgb.height, pix_rgb.width, pix_rgb.n
-    )
-    doc.close()
-
-    # Máscara para identificar píxeles casi blancos (RGB > 245)
-    mask_white = (
-        (img_rgb[..., 0] > 245)
-        & (img_rgb[..., 1] > 245)
-        & (img_rgb[..., 2] > 245)
-    )
-
-    # Se ignoran asignándoles 0 en los canales CMYK
-    img_cmyk = img_cmyk.astype(np.float32)
-    img_cmyk[mask_white, :] = 0
-
-    canales = ["Cyan", "Magenta", "Amarillo", "Negro"]
-    coberturas = {
-        canal: float(img_cmyk[:, :, i].mean() / 255.0 * 100.0)
-        for i, canal in enumerate(canales)
-    }
-
-    coberturas_cmyk_sumadas = img_cmyk.sum(axis=2) / 255.0 * 100.0
-    tac_p95 = float(np.percentile(coberturas_cmyk_sumadas, 95))
-
-    return coberturas, tac_p95
-
-
 def detectar_trama_debil_negro(
     img: np.ndarray, umbral: float = 5.0
 ) -> List[Dict[str, Any]]:
