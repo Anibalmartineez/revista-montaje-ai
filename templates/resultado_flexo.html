@@ -47,23 +47,27 @@
       width: 100%;
       height: 100%;
       pointer-events: none;
-      z-index: 10;
+      z-index: 9999;
     }
     .warning-marker {
       position: absolute;
       color: #000;
       font-size: 12px;
-      text-shadow: 1px 1px 2px white;
+      text-shadow: 0 0 2px rgba(0, 0, 0, 0.3);
       pointer-events: none;
-      z-index: 10;
-      background: rgba(255, 255, 0, 0.8);
-      border: 1px solid #000;
-      border-radius: 3px;
-      padding: 2px 4px;
+      background: rgba(255, 255, 255, 0.85);
+      border: 1px solid red;
+      border-radius: 4px;
+      padding: 3px;
       white-space: nowrap;
+      box-shadow: 0 0 2px red;
     }
-    .warning-marker.resaltado {
+    .warning-marker::before {
+      content: "⚠️ ";
+    }
+    .warning-marker.highlighted {
       outline: 3px solid red;
+      box-shadow: 0 0 4px red;
     }
     #lista-advertencias {
       list-style: none;
@@ -139,6 +143,23 @@
       'sin_sangrado': 'tipo-borde'
     };
 
+    function evitarSuperposicion(icon) {
+      let superpuesto = true;
+      while (superpuesto) {
+        superpuesto = false;
+        const rect = icon.getBoundingClientRect();
+        overlay.querySelectorAll('.warning-marker').forEach(other => {
+          if (other === icon) return;
+          const orect = other.getBoundingClientRect();
+          if (rect.left < orect.right && rect.right > orect.left && rect.top < orect.bottom && rect.bottom > orect.top) {
+            const nuevoTop = parseFloat(icon.style.top) + orect.height + 2;
+            icon.style.top = nuevoTop + 'px';
+            superpuesto = true;
+          }
+        });
+      }
+    }
+
     function dibujarIconos() {
       const scaleX = imagen.clientWidth / imagen.naturalWidth;
       const scaleY = imagen.clientHeight / imagen.naturalHeight;
@@ -151,16 +172,16 @@
         icon.style.top = (item.pos[1] * scaleY) + 'px';
         icon.dataset.idx = idx;
         overlay.appendChild(icon);
+        evitarSuperposicion(icon);
       });
 
       document.querySelectorAll('#lista-advertencias li').forEach(li => {
         li.addEventListener('click', () => {
           const idx = li.getAttribute('data-idx');
-          overlay.querySelectorAll('.warning-marker').forEach(m => m.classList.remove('resaltado'));
+          overlay.querySelectorAll('.warning-marker').forEach(m => m.classList.remove('highlighted'));
           const icon = overlay.querySelector(`.warning-marker[data-idx="${idx}"]`);
           if (icon) {
-            icon.classList.add('resaltado');
-            setTimeout(() => icon.classList.remove('resaltado'), 2000);
+            icon.classList.add('highlighted');
           }
         });
       });
