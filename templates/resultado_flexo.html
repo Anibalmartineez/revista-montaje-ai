@@ -49,25 +49,50 @@
       pointer-events: none;
       z-index: 9999;
     }
-    .warning-marker {
+
+    .warning-box {
       position: absolute;
-      color: #000;
-      font-size: 12px;
-      text-shadow: 0 0 2px rgba(0, 0, 0, 0.3);
+      border: 2px solid red;
+      background: rgba(255, 0, 0, 0.1);
       pointer-events: none;
-      background: rgba(255, 255, 255, 0.85);
-      border: 1px solid red;
+    }
+
+    .warning-icon {
+      position: absolute;
+      width: 20px;
+      height: 20px;
+      border-radius: 50%;
+      color: #fff;
+      font-size: 12px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      pointer-events: auto;
+      box-shadow: 0 0 4px rgba(0,0,0,0.3);
+    }
+
+    .tooltip {
+      position: absolute;
+      top: 22px;
+      left: 0;
+      background: #fff;
+      border: 1px solid #ccc;
+      padding: 6px 8px;
       border-radius: 4px;
-      padding: 3px;
       white-space: nowrap;
-      box-shadow: 0 0 2px red;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.2);
+      display: none;
+      pointer-events: auto;
+      z-index: 10000;
     }
-    .warning-marker::before {
-      content: "⚠️ ";
+
+    .tooltip.visible {
+      display: block;
     }
-    .warning-marker.highlighted {
-      outline: 3px solid red;
-      box-shadow: 0 0 4px red;
+
+    .warning-box.highlighted {
+      box-shadow: 0 0 0 3px red;
     }
     #lista-advertencias {
       list-style: none;
@@ -91,25 +116,23 @@
       margin-right: 4px;
     }
 
-    .tipo-texto {
-      background-color: red;
-    }
+    .tipo-texto { background-color: red; }
+    .tipo-trama { background-color: purple; }
+    .tipo-resolucion { background-color: orange; }
+    .tipo-overprint { background-color: blue; }
+    .tipo-borde { background-color: darkgreen; }
 
-    .tipo-trama {
-      background-color: purple;
-    }
+    .warning-box.tipo-texto { border-color: red; background: rgba(255,0,0,0.1); }
+    .warning-box.tipo-trama { border-color: purple; background: rgba(128,0,128,0.1); }
+    .warning-box.tipo-resolucion { border-color: orange; background: rgba(255,165,0,0.1); }
+    .warning-box.tipo-overprint { border-color: blue; background: rgba(0,0,255,0.1); }
+    .warning-box.tipo-borde { border-color: darkgreen; background: rgba(0,100,0,0.1); }
 
-    .tipo-resolucion {
-      background-color: orange;
-    }
-
-    .tipo-overprint {
-      background-color: blue;
-    }
-
-    .tipo-borde {
-      background-color: darkgreen;
-    }
+    .warning-icon.tipo-texto { background: red; }
+    .warning-icon.tipo-trama { background: purple; }
+    .warning-icon.tipo-resolucion { background: orange; }
+    .warning-icon.tipo-overprint { background: blue; }
+    .warning-icon.tipo-borde { background: darkgreen; }
   </style>
 </head>
 <body>
@@ -133,8 +156,8 @@
   </ul>
   <script>
     const advertencias = {{ advertencias_iconos|tojson }};
-    const overlay = document.getElementById("overlay-markers");
-    const imagen = document.getElementById("imagen-diagnostico");
+    const overlay = document.getElementById('overlay-markers');
+    const imagen = document.getElementById('imagen-diagnostico');
     const tipoClase = {
       'texto_pequeno': 'tipo-texto',
       'trama_debil': 'tipo-trama',
@@ -143,12 +166,36 @@
       'sin_sangrado': 'tipo-borde'
     };
 
+    const iconos = {
+      'texto_pequeno': 'T',
+      'trama_debil': '#',
+      'imagen_baja': '🖼️',
+      'overprint': 'O',
+      'sin_sangrado': '⛔'
+    };
+
+    const nombresTipo = {
+      'texto_pequeno': 'Texto pequeño',
+      'trama_debil': 'Trama débil',
+      'imagen_baja': 'Imagen de baja resolución',
+      'overprint': 'Sobreimpresión',
+      'sin_sangrado': 'Sin sangrado'
+    };
+
+    const sugerencias = {
+      'texto_pequeno': 'Aumentar tamaño de la fuente.',
+      'trama_debil': 'Incrementar cobertura de tinta.',
+      'imagen_baja': 'Usar imágenes con mayor resolución.',
+      'overprint': 'Verificar configuración de sobreimpresión.',
+      'sin_sangrado': 'Extender el diseño más allá del borde.'
+    };
+
     function evitarSuperposicion(icon) {
       let superpuesto = true;
       while (superpuesto) {
         superpuesto = false;
         const rect = icon.getBoundingClientRect();
-        overlay.querySelectorAll('.warning-marker').forEach(other => {
+        overlay.querySelectorAll('.warning-icon').forEach(other => {
           if (other === icon) return;
           const orect = other.getBoundingClientRect();
           if (rect.left < orect.right && rect.right > orect.left && rect.top < orect.bottom && rect.bottom > orect.top) {
@@ -164,24 +211,55 @@
       const scaleX = imagen.clientWidth / imagen.naturalWidth;
       const scaleY = imagen.clientHeight / imagen.naturalHeight;
       advertencias.forEach((item, idx) => {
+        const x0 = item.bbox ? item.bbox[0] * scaleX : item.pos[0] * scaleX;
+        const y0 = item.bbox ? item.bbox[1] * scaleY : item.pos[1] * scaleY;
+        const ancho = item.bbox ? (item.bbox[2] - item.bbox[0]) * scaleX : 20;
+        const alto = item.bbox ? (item.bbox[3] - item.bbox[1]) * scaleY : 20;
+
+        const box = document.createElement('div');
+        box.className = 'warning-box ' + (tipoClase[item.tipo] || '');
+        box.style.left = x0 + 'px';
+        box.style.top = y0 + 'px';
+        box.style.width = ancho + 'px';
+        box.style.height = alto + 'px';
+        box.dataset.idx = idx;
+        overlay.appendChild(box);
+
         const icon = document.createElement('span');
-        icon.className = 'warning-marker ' + (tipoClase[item.tipo] || '');
-        const texto = (item.mensaje && item.mensaje.trim()) ? item.mensaje.trim() : 'Advertencia sin descripción detallada.';
-        icon.textContent = texto;
-        icon.style.left = (item.pos[0] * scaleX) + 'px';
-        icon.style.top = (item.pos[1] * scaleY) + 'px';
+        icon.className = 'warning-icon ' + (tipoClase[item.tipo] || '');
+        icon.innerHTML = iconos[item.tipo] || '⚠️';
+        icon.style.left = x0 - 10 + 'px';
+        icon.style.top = y0 - 10 + 'px';
         icon.dataset.idx = idx;
         overlay.appendChild(icon);
+
+        const descripcion = (item.mensaje && item.mensaje.trim()) ? item.mensaje.trim() : 'Advertencia sin descripción detallada.';
+        const tooltip = document.createElement('div');
+        tooltip.className = 'tooltip';
+        const nombre = nombresTipo[item.tipo] || item.tipo;
+        const sugerencia = sugerencias[item.tipo] || 'Revisar diseño.';
+        tooltip.innerHTML = `<strong>${nombre}</strong><br>${descripcion}<br><em>${sugerencia}</em>`;
+        icon.appendChild(tooltip);
+
+        icon.addEventListener('click', ev => {
+          ev.stopPropagation();
+          tooltip.classList.toggle('visible');
+        });
+
         evitarSuperposicion(icon);
+      });
+
+      document.addEventListener('click', () => {
+        overlay.querySelectorAll('.tooltip.visible').forEach(t => t.classList.remove('visible'));
       });
 
       document.querySelectorAll('#lista-advertencias li').forEach(li => {
         li.addEventListener('click', () => {
           const idx = li.getAttribute('data-idx');
-          overlay.querySelectorAll('.warning-marker').forEach(m => m.classList.remove('highlighted'));
-          const icon = overlay.querySelector(`.warning-marker[data-idx="${idx}"]`);
-          if (icon) {
-            icon.classList.add('highlighted');
+          overlay.querySelectorAll('.warning-box').forEach(m => m.classList.remove('highlighted'));
+          const box = overlay.querySelector(`.warning-box[data-idx="${idx}"]`);
+          if (box) {
+            box.classList.add('highlighted');
           }
         });
       });

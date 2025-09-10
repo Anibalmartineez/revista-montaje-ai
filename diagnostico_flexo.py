@@ -51,18 +51,23 @@ def generar_preview_diagnostico(
         if not bbox or len(bbox) != 4:
             continue
 
-        x = int(bbox[0] * scale)
-        y = int(bbox[1] * scale)
+        x0 = int(bbox[0] * scale)
+        y0 = int(bbox[1] * scale)
+        x1 = int(bbox[2] * scale)
+        y1 = int(bbox[3] * scale)
         tipo = adv.get("tipo", "")
         color = colores.get(tipo, "red")
-        draw.rectangle([x, y, x + size, y + size], fill=color)
+        # Rectángulo pequeño en la imagen descargable
+        draw.rectangle([x0, y0, x0 + size, y0 + size], fill=color)
 
         advertencias_iconos.append(
             {
                 "tipo": tipo,
-                "pos": [x, y],
+                "pos": [x0, y0],  # compatibilidad con versiones previas
+                "bbox": [x0, y0, x1, y1],
                 "mensaje": adv.get("mensaje", ""),
                 "pagina": adv.get("pagina", 1),
+                "nivel": adv.get("nivel", "leve"),
             }
         )
 
