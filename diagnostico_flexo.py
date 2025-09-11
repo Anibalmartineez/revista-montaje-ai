@@ -6,6 +6,19 @@ from flask import current_app
 from PIL import Image, ImageDraw
 
 
+# Descripciones genéricas para cada tipo de advertencia admitido.  Se
+# utilizan cuando la advertencia original no provee un texto
+# explicativo.  Esto evita mostrar "sin descripción" en la interfaz y
+# garantiza que siempre exista un mensaje claro para el usuario.
+DESCRIPCIONES_POR_TIPO = {
+    "texto_pequeno": "Texto menor a 4pt. Puede no imprimirse correctamente.",
+    "trazo_fino": "Línea muy delgada. Riesgo de pérdida en impresión.",
+    "cerca_borde": "Elemento fuera del margen de seguridad.",
+    "imagen_fuera_cmyk": "Imagen en RGB. Convertir a modo CMYK.",
+    "overprint": "Sobreimpresión detectada. Verificar configuración.",
+}
+
+
 def generar_preview_diagnostico(
     pdf_path: str, advertencias: List[Dict[str, Any]] | None, dpi: int = 150
 ) -> tuple[str, str, str, List[Dict[str, Any]]]:
@@ -47,7 +60,7 @@ def generar_preview_diagnostico(
 
     advertencias_iconos: List[Dict[str, Any]] = []
     for adv in consolidar_advertencias(advertencias):
-        bbox = adv.get("bbox")
+        bbox = adv.get("bbox") or adv.get("box")
         if not bbox or len(bbox) != 4:
             continue
 
@@ -56,6 +69,15 @@ def generar_preview_diagnostico(
         x1 = int(bbox[2] * scale)
         y1 = int(bbox[3] * scale)
         tipo = adv.get("tipo", "")
+
+        descripcion = (
+            (adv.get("descripcion") or adv.get("mensaje") or adv.get("etiqueta") or "")
+        ).strip()
+        if not descripcion:
+            descripcion = DESCRIPCIONES_POR_TIPO.get(
+                tipo, "Advertencia sin descripción técnica detallada."
+            )
+
         color = colores.get(tipo, "red")
         # Rectángulo pequeño en la imagen descargable
         draw.rectangle([x0, y0, x0 + size, y0 + size], fill=color)
@@ -65,7 +87,9 @@ def generar_preview_diagnostico(
                 "tipo": tipo,
                 "pos": [x0, y0],  # compatibilidad con versiones previas
                 "bbox": [x0, y0, x1, y1],
-                "mensaje": adv.get("mensaje", ""),
+                "descripcion": descripcion,
+                # Campo legado para compatibilidad con código previo
+                "mensaje": descripcion,
                 "pagina": adv.get("pagina", 1),
                 "nivel": adv.get("nivel", "leve"),
             }
@@ -102,7 +126,12 @@ def detectar_trama_debil_negro(
     mask = (canal_k > 0) & (canal_k < limite)
     if np.any(mask):
         resultados.append(
-            {"mensaje": "Trama débil detectada en canal negro", "nivel": "medio"}
+            {
+                "tipo": "trama_debil",
+                "descripcion": "Trama débil detectada en canal negro",
+                "bbox": None,
+                "nivel": "medio",
+            }
         )
 
     return resultados

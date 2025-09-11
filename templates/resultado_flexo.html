@@ -150,7 +150,7 @@
     } %}
     {% for adv in advertencias_iconos %}
       <li data-idx="{{ loop.index0 }}">
-        <span class="cuadro-alerta {{ tipo_clases.get(adv.tipo, '') }}"></span>{{ (adv.mensaje | default('', true) | trim) or 'Advertencia sin descripción detallada.' }}
+        <span class="cuadro-alerta {{ tipo_clases.get(adv.tipo, '') }}"></span>{{ (adv.descripcion | default('', true) | trim) or (adv.mensaje | default('', true) | trim) or 'Advertencia sin descripción detallada.' }}
       </li>
     {% endfor %}
   </ul>
@@ -226,20 +226,27 @@
         overlay.appendChild(box);
 
         const icon = document.createElement('span');
-        icon.className = 'warning-icon ' + (tipoClase[item.tipo] || '');
+        icon.className = 'warning-icon advertencia-marcador ' + (tipoClase[item.tipo] || '');
         icon.innerHTML = iconos[item.tipo] || '⚠️';
         icon.style.left = x0 - 10 + 'px';
         icon.style.top = y0 - 10 + 'px';
         icon.dataset.idx = idx;
         overlay.appendChild(icon);
 
-        const descripcion = (item.mensaje && item.mensaje.trim()) ? item.mensaje.trim() : 'Advertencia sin descripción detallada.';
+        const descripcion =
+          (item.descripcion && item.descripcion.trim()) ? item.descripcion.trim() :
+          (item.mensaje && item.mensaje.trim()) ? item.mensaje.trim() :
+          'Advertencia sin descripción detallada.';
+
         const tooltip = document.createElement('div');
         tooltip.className = 'tooltip';
         const nombre = nombresTipo[item.tipo] || item.tipo;
         const sugerencia = sugerencias[item.tipo] || 'Revisar diseño.';
         tooltip.innerHTML = `<strong>${nombre}</strong><br>${descripcion}<br><em>${sugerencia}</em>`;
         icon.appendChild(tooltip);
+
+        icon.dataset.tipo = item.tipo || 'Advertencia';
+        icon.dataset.descripcion = descripcion;
 
         icon.addEventListener('click', ev => {
           ev.stopPropagation();
