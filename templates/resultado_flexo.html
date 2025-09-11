@@ -74,8 +74,6 @@
 
     .tooltip {
       position: absolute;
-      top: 22px;
-      left: 0;
       background: #fff;
       border: 1px solid #ccc;
       padding: 6px 8px;
@@ -139,6 +137,7 @@
   <div id="contenedor-imagen" style="position: relative;">
     <img src="{{ url_for('static', filename=imagen_path_web) }}" id="imagen-diagnostico" class="imagen-analizada" />
     <div id="overlay-markers"></div>
+    <div id="tooltip" class="tooltip"></div>
   </div>
   <ul id="lista-advertencias">
     {% set tipo_clases = {
@@ -158,6 +157,7 @@
     const advertencias = {{ advertencias_iconos|tojson }};
     const overlay = document.getElementById('overlay-markers');
     const imagen = document.getElementById('imagen-diagnostico');
+    const tooltip = document.getElementById('tooltip');
     const tipoClase = {
       'texto_pequeno': 'tipo-texto',
       'trama_debil': 'tipo-trama',
@@ -180,14 +180,6 @@
       'imagen_baja': 'Imagen de baja resolución',
       'overprint': 'Sobreimpresión',
       'sin_sangrado': 'Sin sangrado'
-    };
-
-    const sugerencias = {
-      'texto_pequeno': 'Aumentar tamaño de la fuente.',
-      'trama_debil': 'Incrementar cobertura de tinta.',
-      'imagen_baja': 'Usar imágenes con mayor resolución.',
-      'overprint': 'Verificar configuración de sobreimpresión.',
-      'sin_sangrado': 'Extender el diseño más allá del borde.'
     };
 
     function evitarSuperposicion(icon) {
@@ -238,26 +230,34 @@
           (item.mensaje && item.mensaje.trim()) ? item.mensaje.trim() :
           'Advertencia sin descripción detallada.';
 
-        const tooltip = document.createElement('div');
-        tooltip.className = 'tooltip';
-        const nombre = nombresTipo[item.tipo] || item.tipo;
-        const sugerencia = sugerencias[item.tipo] || 'Revisar diseño.';
-        tooltip.innerHTML = `<strong>${nombre}</strong><br>${descripcion}<br><em>${sugerencia}</em>`;
-        icon.appendChild(tooltip);
-
-        icon.dataset.tipo = item.tipo || 'Advertencia';
-        icon.dataset.descripcion = descripcion;
+        const nombre = nombresTipo[item.tipo] || item.tipo || 'Sin tipo';
+        icon.dataset.tipo = nombre;
+        icon.dataset.descripcion = descripcion || 'Sin descripción';
 
         icon.addEventListener('click', ev => {
           ev.stopPropagation();
-          tooltip.classList.toggle('visible');
+          const tipo = icon.dataset.tipo || 'Advertencia';
+          const desc = icon.dataset.descripcion || 'Sin descripción técnica.';
+          tooltip.innerHTML = `<button id="cerrar-tooltip">❌</button><strong>${tipo}</strong><br><p>${desc}</p>`;
+          tooltip.style.top = icon.style.top;
+          tooltip.style.left = icon.style.left;
+          tooltip.classList.add('visible');
+          const btnCerrar = document.getElementById('cerrar-tooltip');
+          btnCerrar.addEventListener('click', (e) => {
+            e.stopPropagation();
+            tooltip.classList.remove('visible');
+          });
         });
 
         evitarSuperposicion(icon);
       });
 
       document.addEventListener('click', () => {
-        overlay.querySelectorAll('.tooltip.visible').forEach(t => t.classList.remove('visible'));
+        tooltip.classList.remove('visible');
+      });
+
+      tooltip.addEventListener('click', ev => {
+        ev.stopPropagation();
       });
 
       document.querySelectorAll('#lista-advertencias li').forEach(li => {
