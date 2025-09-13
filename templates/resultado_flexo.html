@@ -144,6 +144,53 @@
     #simulacion-avanzada h3 { text-align: center; }
     #simulacion-avanzada label { display: block; margin-top: 10px; }
     #simulacion-avanzada canvas { width: 100%; border: 1px solid #ccc; margin-top: 15px; }
+
+    /* Modal para ver simulación en grande */
+    #sim-modal {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(0, 0, 0, 0.6);
+      display: none;
+      align-items: center;
+      justify-content: center;
+      z-index: 1000;
+    }
+    #sim-modal .modal-content {
+      background: #fff;
+      position: relative;
+      padding: 10px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      max-width: 80%;
+      max-height: 80%;
+      width: 100%;
+      overflow: auto;
+    }
+    #sim-modal img {
+      width: 100%;
+      height: auto;
+      transform-origin: center;
+      touch-action: none;
+    }
+    #sim-close {
+      position: absolute;
+      top: 5px;
+      right: 10px;
+      background: none;
+      border: none;
+      font-size: 1.5rem;
+      cursor: pointer;
+    }
+    @media (max-width: 768px) {
+      #sim-modal .modal-content {
+        max-width: 100%;
+        max-height: 100%;
+      }
+    }
   </style>
 </head>
 <body>
@@ -319,8 +366,16 @@
       <span id="sim-vel-val">{{ diag.get('velocidad', diag.get('velocidad_impresion', 150)) }} m/min</span>
     </label>
     <canvas id="sim-canvas" width="280" height="280"></canvas>
+    <button id="sim-view-large" class="btn" type="button">🔍 Ver simulación en grande</button>
     <div id="sim-ml"></div>
   </section>
+
+  <div id="sim-modal">
+    <div class="modal-content">
+      <button id="sim-close">❌</button>
+      <img id="sim-modal-img" alt="Simulación en grande" />
+    </div>
+  </div>
 
   <div class="botones">
     <a href="{{ url_for('static', filename=imagen_iconos_web) }}" class="btn" download>⬇ Descargar imagen con advertencias</a>
