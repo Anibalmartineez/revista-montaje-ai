@@ -1,4 +1,10 @@
 document.addEventListener('DOMContentLoaded', () => {
+  document.querySelectorAll('.tooltip-icon').forEach(icon => {
+    icon.addEventListener('click', () => {
+      icon.classList.toggle('show');
+    });
+  });
+
   const form = document.getElementById('vista-previa-form');
   const previewContainer = document.getElementById('preview-container');
   const img = document.getElementById('preview-img');

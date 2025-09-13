@@ -4,193 +4,279 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>Flexografía | Revisión previa a clichés</title>
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600&display=swap" rel="stylesheet">
   <style>
+    * {
+      box-sizing: border-box;
+    }
     body {
-      font-family: Arial, sans-serif;
-      background-color: #f4f4f4;
+      font-family: 'Poppins', sans-serif;
+      background-color: #f3f4f6;
       margin: 0;
-      padding: 0;
+      padding: 20px;
     }
-
     .container {
-      max-width: 700px;
-      margin: 40px auto;
-      background: white;
-      padding: 30px;
-      box-shadow: 0 0 10px rgba(0,0,0,0.1);
-      border-radius: 8px;
+      max-width: 900px;
+      margin: auto;
     }
-
+    .card-form {
+      background: #ffffff;
+      border-radius: 16px;
+      box-shadow: 0 4px 10px rgba(0,0,0,0.1);
+      padding: 30px;
+    }
     h1 {
       text-align: center;
       margin-bottom: 30px;
-      color: #003366;
+      color: #1e3a8a;
     }
-
+    .form-block {
+      border-left: 4px solid #2563eb;
+      background: #f9fafb;
+      padding: 20px;
+      margin-bottom: 25px;
+      border-radius: 8px;
+    }
+    .form-block h2 {
+      margin: 0 0 15px;
+      font-size: 1.2rem;
+      color: #1e3a8a;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
     label {
       display: block;
-      font-weight: bold;
-      margin-top: 15px;
+      font-weight: 600;
       margin-bottom: 5px;
     }
-
-    input[type="number"],
-    input[type="file"] {
-      width: 100%;
-      padding: 10px;
-      border: 1px solid #ccc;
-      border-radius: 4px;
-      margin-bottom: 15px;
-    }
-
-    button {
+    .input-field,
+    select {
       width: 100%;
       padding: 12px;
-      background-color: #0056b3;
-      color: white;
-      font-weight: bold;
+      border: 1px solid #d1d5db;
+      border-radius: 8px;
+      margin-bottom: 15px;
+      transition: border-color .3s, box-shadow .3s;
+    }
+    .input-field:focus,
+    select:focus {
+      outline: none;
+      border-color: #2563eb;
+      box-shadow: 0 0 0 2px rgba(37,99,235,0.2);
+    }
+    select {
+      appearance: none;
+      background-color: #fff;
+      background-image: url("data:image/svg+xml;charset=UTF-8,%3Csvg width='20' height='20' viewBox='0 0 20 20' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M5 7l5 5 5-5' stroke='%23333' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+      background-repeat: no-repeat;
+      background-position: right 12px center;
+    }
+    .btn {
+      width: 100%;
+      padding: 14px;
       border: none;
-      border-radius: 4px;
+      border-radius: 8px;
+      color: #fff;
+      font-weight: 600;
+      font-size: 1rem;
       cursor: pointer;
-      margin-top: 20px;
+      background: linear-gradient(90deg,#2563eb,#60a5fa);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      transition: box-shadow .3s, opacity .3s;
+      margin-top: 10px;
     }
-
-    button:hover {
-      background-color: #003f80;
+    .btn:hover {
+      box-shadow: 0 4px 14px rgba(37,99,235,0.4);
+      opacity: 0.95;
     }
-
+    .tooltip-icon {
+      display: inline-block;
+      margin-left: 5px;
+      color: #2563eb;
+      cursor: pointer;
+      position: relative;
+      font-weight: bold;
+    }
+    .tooltip-text {
+      visibility: hidden;
+      opacity: 0;
+      position: absolute;
+      top: -5px;
+      left: 20px;
+      background: #1f2937;
+      color: #fff;
+      padding: 6px 10px;
+      border-radius: 6px;
+      font-size: 0.85rem;
+      white-space: nowrap;
+      transition: opacity .3s;
+      z-index: 10;
+    }
+    .tooltip-icon:hover .tooltip-text,
+    .tooltip-icon.show .tooltip-text {
+      visibility: visible;
+      opacity: 1;
+    }
     .mensaje, .resultado {
       margin-top: 25px;
       padding: 15px;
       border-radius: 6px;
     }
-
     .mensaje {
       background-color: #ffe0e0;
       color: #a30000;
       border: 1px solid #cc0000;
     }
-
     .resultado {
       background-color: #f1faff;
       color: #003366;
       border: 1px solid #b0d4ef;
     }
-
     .resultado pre {
       white-space: pre-wrap;
       word-wrap: break-word;
       overflow-wrap: anywhere;
       margin: 0;
     }
-
-    .diagnostico {
-      display: flex;
-      flex-direction: column;
-      gap: 20px;
-    }
-
-    .card {
-      background: #fff;
-      border-radius: 8px;
-      box-shadow: 0 2px 5px rgba(0,0,0,0.1);
-      padding: 15px;
-    }
-
-    .card h3 {
-      margin-top: 0;
-      color: #003366;
-    }
-
-    .card ul {
-      padding-left: 20px;
-      margin: 0;
-    }
-
-    .icono {
-      font-weight: bold;
-      margin-right: 5px;
-    }
-
-    .ok { color: green; }
-    .warn, .warning { color: #e69500; }
-    .error { color: red; }
-
     .print-btn {
       margin-top: 20px;
       text-align: right;
+    }
+    @media (max-width: 600px) {
+      body {
+        padding: 10px;
+      }
+      .card-form {
+        padding: 20px;
+      }
+      .form-block {
+        padding: 15px;
+      }
+      .btn {
+        font-size: 0.95rem;
+      }
     }
   </style>
 </head>
 <body>
   <div class="container">
-    <h1>🔍 Revisión previa al envío a clichés</h1>
+    <div class="card-form">
+      <h1>🔍 Revisión previa al envío a clichés</h1>
 
-    <form action="/revision" method="POST" enctype="multipart/form-data">
-      <label for="archivo_revision">Archivo PDF del diseño:</label>
-      <input type="file" name="archivo_revision" accept="application/pdf" required>
+      <form action="/revision" method="POST" enctype="multipart/form-data">
+        <div class="form-block">
+          <h2>📂 Archivo del diseño</h2>
+          <label for="archivo_revision">Archivo PDF del diseño
+            <span class="tooltip-icon">❓
+              <span class="tooltip-text">Carga el archivo final en formato PDF.</span>
+            </span>
+          </label>
+          <input class="input-field" type="file" name="archivo_revision" accept="application/pdf" required>
+        </div>
 
-      <label for="material">Material de impresión:</label>
-      <select name="material">
-        <option value="film">Film</option>
-        <option value="papel">Papel</option>
-        <option value="carton">Cartón</option>
-        <option value="etiqueta adhesiva">Etiqueta adhesiva</option>
-      </select>
+        <div class="form-block">
+          <h2>🌀 Parámetros del anilox</h2>
+          <label for="anilox_lpi">LPI del anilox
+            <span class="tooltip-icon">❓
+              <span class="tooltip-text">Líneas por pulgada del rodillo anilox.</span>
+            </span>
+          </label>
+          <input class="input-field" type="number" name="anilox_lpi" placeholder="Ej: 360 lpi">
+          <label for="anilox_bcm">BCM del anilox
+            <span class="tooltip-icon">❓
+              <span class="tooltip-text">Volumen de celdas en cm³/m².</span>
+            </span>
+          </label>
+          <input class="input-field" type="number" step="0.1" name="anilox_bcm" placeholder="Ej: 4.0">
+        </div>
 
-      <button type="submit">Revisar diseño</button>
-    </form>
+        <div class="form-block">
+          <h2>⚙️ Condiciones de impresión</h2>
+          <label for="material">Material de impresión
+            <span class="tooltip-icon">❓
+              <span class="tooltip-text">Sustrato donde se imprimirá.</span>
+            </span>
+          </label>
+          <select name="material">
+            <option value="film">Film</option>
+            <option value="papel">Papel</option>
+            <option value="carton">Cartón</option>
+            <option value="etiqueta adhesiva">Etiqueta adhesiva</option>
+          </select>
+          <label for="velocidad">Velocidad de impresión (m/min)
+            <span class="tooltip-icon">❓
+              <span class="tooltip-text">Velocidad estimada de la prensa.</span>
+            </span>
+          </label>
+          <input class="input-field" type="number" name="velocidad" placeholder="Ej: 150">
+          <label for="cobertura">Cobertura estimada (%)
+            <span class="tooltip-icon">❓
+              <span class="tooltip-text">Promedio de cobertura de tinta.</span>
+            </span>
+          </label>
+          <input class="input-field" type="number" name="cobertura" placeholder="Ej: 25">
+        </div>
 
-    <form id="vista-previa-form" action="/vista_previa_tecnica" method="POST">
-      <input type="hidden" name="archivo_guardado" id="archivo_guardado" value="{{ session.get('archivo_pdf', '') }}">
-      <button id="vista-previa-btn" class="btn btn-secondary" type="submit">Vista previa técnica</button>
-    </form>
-    <div id="preview-container" style="margin-top:20px;">
-      <img id="preview-img" src="" style="max-width:100%; border:1px solid #ccc;">
-    </div>
+        <button class="btn" type="submit"><span>🔎</span> Revisar diseño</button>
+      </form>
 
-    {% if mensaje %}
-      <div class="mensaje">{{ mensaje }}</div>
-    {% endif %}
+      <form id="vista-previa-form" action="/vista_previa_tecnica" method="POST">
+        <input type="hidden" name="archivo_guardado" id="archivo_guardado" value="{{ session.get('archivo_pdf', '') }}">
+        <button id="vista-previa-btn" class="btn" type="submit"><span>📊</span> Vista previa técnica</button>
+      </form>
 
-    {% if resultado_revision %}
-      <div class="resultado">
-        {{ resultado_revision | safe }}
-        <div class="print-btn"><button onclick="window.print()">🖨️ Imprimir Diagnóstico</button></div>
+      <div id="preview-container" style="margin-top:20px;">
+        <img id="preview-img" src="" style="max-width:100%; border:1px solid #ccc;">
       </div>
-      {% if grafico_tinta %}
-        <div class="resultado" style="text-align:center;">
-          <img src="data:image/png;base64,{{ grafico_tinta }}" alt="Gráfico de tinta"/>
+
+      {% if mensaje %}
+        <div class="mensaje">{{ mensaje }}</div>
+      {% endif %}
+
+      {% if resultado_revision %}
+        <div class="resultado">
+          {{ resultado_revision | safe }}
+          <div class="print-btn"><button onclick="window.print()">🖨️ Imprimir Diagnóstico</button></div>
+        </div>
+        {% if grafico_tinta %}
+          <div class="resultado" style="text-align:center;">
+            <img src="data:image/png;base64,{{ grafico_tinta }}" alt="Gráfico de tinta"/>
+          </div>
+        {% endif %}
+        <form action="/sugerencia_ia" method="POST">
+          <input type="hidden" name="diagnostico_texto_b64" value="{{ diagnostico_texto_b64 }}">
+          <input type="hidden" name="resultado_revision_b64" value="{{ resultado_revision_b64 }}">
+          <input type="hidden" name="grafico_tinta" value="{{ grafico_tinta }}">
+          <button class="btn" type="submit">🧠 Obtener sugerencia IA</button>
+        </form>
+        <form action="/sugerencia_produccion" method="POST">
+          <input type="hidden" name="diagnostico_texto_b64" value="{{ diagnostico_texto_b64 }}">
+          <input type="hidden" name="resultado_revision_b64" value="{{ resultado_revision_b64 }}">
+          <input type="hidden" name="grafico_tinta" value="{{ grafico_tinta }}">
+          <button class="btn" type="submit">🏭 Sugerencia de producción IA</button>
+        </form>
+      {% endif %}
+
+      {% if sugerencia_ia %}
+        <div class="resultado">
+          <h2>🔍 Sugerencia de IA</h2>
+          <pre>{{ sugerencia_ia }}</pre>
         </div>
       {% endif %}
-      <form action="/sugerencia_ia" method="POST">
-        <input type="hidden" name="diagnostico_texto_b64" value="{{ diagnostico_texto_b64 }}">
-        <input type="hidden" name="resultado_revision_b64" value="{{ resultado_revision_b64 }}">
-        <input type="hidden" name="grafico_tinta" value="{{ grafico_tinta }}">
-        <button type="submit">🧠 Obtener sugerencia IA</button>
-      </form>
-      <form action="/sugerencia_produccion" method="POST">
-        <input type="hidden" name="diagnostico_texto_b64" value="{{ diagnostico_texto_b64 }}">
-        <input type="hidden" name="resultado_revision_b64" value="{{ resultado_revision_b64 }}">
-        <input type="hidden" name="grafico_tinta" value="{{ grafico_tinta }}">
-        <button type="submit">🏭 Sugerencia de producción IA</button>
-      </form>
-    {% endif %}
 
-    {% if sugerencia_ia %}
-      <div class="resultado">
-        <h2>🔍 Sugerencia de IA</h2>
-        <pre>{{ sugerencia_ia }}</pre>
-      </div>
-    {% endif %}
-
-    {% if sugerencia_produccion %}
-      <div class="resultado">
-        <h2>🏭 Sugerencia de producción IA</h2>
-        <pre>{{ sugerencia_produccion }}</pre>
-      </div>
-    {% endif %}
+      {% if sugerencia_produccion %}
+        <div class="resultado">
+          <h2>🏭 Sugerencia de producción IA</h2>
+          <pre>{{ sugerencia_produccion }}</pre>
+        </div>
+      {% endif %}
+    </div>
   </div>
   <script src="{{ url_for('static', filename='js/flexografia.js') }}"></script>
 </body>
 </html>
+
