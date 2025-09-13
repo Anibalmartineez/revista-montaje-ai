@@ -553,7 +553,19 @@ def revisar_diseño_flexo(
     montaje_info = [
         f"<li><span class='icono design'>🧱</span> Paso del cilindro: <b>{paso_mm} mm</b></li>",
     ]
+    if anilox_bcm is not None:
+        diseno_info.append(
+            f"<li><span class='icono anilox'>🟤</span> BCM del anilox: <b>{anilox_bcm:.2f} cm³/m²</b></li>"
+        )
+    if velocidad_impresion is not None:
+        montaje_info.append(
+            f"<li><span class='icono info'>⚡</span> Velocidad estimada de impresión: <b>{velocidad_impresion:.2f} m/min</b></li>"
+        )
     cobertura_info = []
+    if cobertura_estimada is not None:
+        cobertura_info.append(
+            f"<li><span class='icono ink'>🖨️</span> Cobertura ingresada para simulación: <b>{cobertura_estimada:.2f}%</b></li>"
+        )
     riesgos_info = []
 
     metricas_cobertura = None
