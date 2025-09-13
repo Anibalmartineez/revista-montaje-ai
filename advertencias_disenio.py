@@ -7,6 +7,32 @@ from utils import convertir_pts_a_mm
 PT_PER_MM = 72 / 25.4
 
 
+def _color_to_cmyk(color: Any) -> str:
+    """Convierte un valor de color RGB o entero a una cadena CMYK."""
+    try:
+        if isinstance(color, int):
+            r = (color >> 16) & 255
+            g = (color >> 8) & 255
+            b = color & 255
+        elif isinstance(color, (list, tuple)) and len(color) >= 3:
+            r, g, b = [int(c * 255) if isinstance(c, float) and c <= 1 else int(c) for c in color[:3]]
+        else:
+            r = g = b = 0
+        c = 1 - r / 255
+        m = 1 - g / 255
+        y = 1 - b / 255
+        k = min(c, m, y)
+        if k < 1:
+            c = (c - k) / (1 - k)
+            m = (m - k) / (1 - k)
+            y = (y - k) / (1 - k)
+        else:
+            c = m = y = 0
+        return f"C{int(c*100)}M{int(m*100)}Y{int(y*100)}K{int(k*100)}"
+    except Exception:
+        return "C0M0Y0K0"
+
+
 def verificar_textos_pequenos(contenido: Dict[str, Any]) -> tuple[List[str], List[Dict[str, Any]]]:
     advertencias: List[str] = []
     overlay: List[Dict[str, Any]] = []
@@ -30,6 +56,8 @@ def verificar_textos_pequenos(contenido: Dict[str, Any]) -> tuple[List[str], Lis
                                     "tipo": "texto_pequeno",
                                     "bbox": list(bbox),
                                     "etiqueta": f"{round(size, 1)} pt",
+                                    "tamano": round(size, 1),
+                                    "color": _color_to_cmyk(s.get("color", 0)),
                                 }
                             )
     if not encontrados:

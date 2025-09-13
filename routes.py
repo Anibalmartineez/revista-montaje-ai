@@ -1263,6 +1263,23 @@ def revision_flexo():
 
                 tabla_riesgos = simular_riesgos(resumen)
 
+                cobertura_dict = analisis_detallado.get("cobertura_por_canal", {})
+                diagnostico_json = {
+                    "cobertura": {
+                        "C": round(cobertura_dict.get("Cyan", 0)),
+                        "M": round(cobertura_dict.get("Magenta", 0)),
+                        "Y": round(cobertura_dict.get("Amarillo", 0)),
+                        "K": round(cobertura_dict.get("Negro", 0)),
+                    },
+                    "trama_minima": analisis_detallado.get("trama_minima", 5),
+                    "resolucion_minima": analisis_detallado.get("resolucion_minima", 0),
+                    "textos_pequenos": [
+                        {"tamano": o.get("tamano"), "color": o.get("color")}
+                        for o in advertencias_overlay
+                        if o.get("tipo") == "texto_pequeno"
+                    ],
+                }
+
                 session["diagnostico_flexo"] = {
                     "pdf_path": path,
                     "resultados_diagnostico": analisis_detallado,
@@ -1288,6 +1305,7 @@ def revision_flexo():
                     texto=texto,
                     analisis=analisis_detallado,
                     advertencias_iconos=advertencias_iconos,
+                    diagnostico_json=diagnostico_json,
                 )
             else:
                 mensaje = "Archivo inválido. Subí un PDF."

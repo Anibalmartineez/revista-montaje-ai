@@ -131,6 +131,24 @@
     .warning-icon.tipo-resolucion { background: orange; }
     .warning-icon.tipo-overprint { background: blue; }
     .warning-icon.tipo-borde { background: darkgreen; }
+
+    #panel-simulacion {
+      position: fixed;
+      top: 0;
+      right: 0;
+      width: 300px;
+      height: 100%;
+      background: #fff;
+      box-shadow: -2px 0 5px rgba(0,0,0,0.3);
+      transform: translateX(100%);
+      transition: transform 0.3s;
+      z-index: 10001;
+      padding: 15px;
+      overflow-y: auto;
+    }
+    #panel-simulacion.abierto { transform: translateX(0); }
+    #panel-simulacion label { display: block; margin-top: 10px; }
+    #panel-simulacion canvas { width: 100%; border: 1px solid #ccc; margin-top: 10px; }
   </style>
 </head>
 <body>
@@ -281,8 +299,20 @@
   <div id="resumen-diagnostico">{{ resumen|safe }}</div>
   {{ tabla_riesgos|safe }}
   <div class="botones">
+    <button id="btn-simulacion-flexo" class="btn" type="button">Simulación Flexo</button>
     <a href="{{ url_for('static', filename=imagen_iconos_web) }}" class="btn" download>⬇ Descargar imagen con advertencias</a>
     <a href="{{ url_for('routes.revision_flexo') }}" class="btn">⬅ Volver a revisar otro diseño</a>
   </div>
+  <div id="panel-simulacion">
+    <button id="cerrar-simulacion" class="btn" type="button">Cerrar ✖</button>
+    <label>Anilox LPI: <input type="range" id="sim-lpi" min="200" max="600" value="400"></label>
+    <label>BCM: <input type="range" id="sim-bcm" min="1" max="8" step="0.1" value="4"></label>
+    <label>Velocidad (m/min): <input type="range" id="sim-velocidad" min="50" max="300" value="150"></label>
+    <canvas id="sim-canvas" width="280" height="280"></canvas>
+  </div>
+  <script>
+    window.diagnosticoFlexo = {{ diagnostico_json | default({}) | tojson }};
+  </script>
+  <script src="{{ url_for('static', filename='js/simulacion_flexo.js') }}"></script>
 </body>
 </html>
