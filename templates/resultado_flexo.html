@@ -154,9 +154,6 @@
     }
     #simulacion-en-vivo label { display: block; margin-top: 10px; }
     #simulacion-en-vivo canvas { width: 100%; border: 1px solid #ccc; margin-top: 10px; }
-    #simulacion-tinta { margin-top: 20px; }
-    #simulacion-tinta label { display: block; margin-top: 10px; }
-    #simulacion-tinta canvas { width: 100%; border: 1px solid #ccc; margin-top: 10px; }
   </style>
 </head>
 <body>
@@ -306,11 +303,6 @@
   </script>
   <div id="resumen-diagnostico">{{ resumen|safe }}</div>
   {{ tabla_riesgos|safe }}
-  <div id="simulacion-tinta">
-    <h3>Transmisión de tinta (ml/min)</h3>
-    <canvas id="tinta-grafico" width="280" height="200"></canvas>
-    <div id="tinta-detalles"></div>
-  </div>
   <div class="botones">
     <button id="btn-simulacion-flexo" class="btn" type="button">Ver Simulación en vivo</button>
     <a href="{{ url_for('static', filename=imagen_iconos_web) }}" class="btn" download>⬇ Descargar imagen con advertencias</a>
@@ -319,6 +311,7 @@
   <div id="simulacion-en-vivo">
     <div class="modal-contenido">
       <button id="cerrar-simulacion" class="btn" type="button">Cerrar ✖</button>
+      <h3>Transmisión de tinta (ml/min) — Simulación en vivo</h3>
       <label>Anilox LPI: <input type="range" id="sim-lpi" min="200" max="600" value="400"></label>
       <label>BCM (ml/m²): <input type="range" id="sim-bcm" min="1" max="8" step="0.1" value="4"></label>
       <label>Velocidad (m/min): <input type="range" id="sim-velocidad" min="50" max="300" value="150"></label>
@@ -333,7 +326,6 @@
   <script>
     window.diagnosticoFlexo = {{ diagnostico_json | default({}) | tojson }};
   </script>
-  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <script src="{{ url_for('static', filename='js/simulacion_flexo.js') }}"></script>
 </body>
 </html>
