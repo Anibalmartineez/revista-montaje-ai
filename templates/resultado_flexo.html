@@ -132,28 +132,18 @@
     .warning-icon.tipo-overprint { background: blue; }
     .warning-icon.tipo-borde { background: darkgreen; }
 
-    #simulacion-en-vivo {
-      display: none;
-      position: fixed;
-      top: 0;
-      left: 0;
-      width: 100%;
-      height: 100%;
-      background: rgba(0,0,0,0.5);
-      z-index: 10001;
+    #simulacion-avanzada {
+      margin-top: 40px;
+      background: #f1faff;
+      padding: 20px;
+      border-radius: 8px;
+      max-width: 800px;
+      margin-left: auto;
+      margin-right: auto;
     }
-    #simulacion-en-vivo.abierto { display: block; }
-    #simulacion-en-vivo .modal-contenido {
-      background: #fff;
-      margin: 5% auto;
-      padding: 15px;
-      width: 95%;
-      max-width: 95%;
-      overflow: auto;
-      position: relative;
-    }
-    #simulacion-en-vivo label { display: block; margin-top: 10px; }
-    #simulacion-en-vivo canvas { width: 100%; border: 1px solid #ccc; margin-top: 10px; }
+    #simulacion-avanzada h3 { text-align: center; }
+    #simulacion-avanzada label { display: block; margin-top: 10px; }
+    #simulacion-avanzada canvas { width: 100%; border: 1px solid #ccc; margin-top: 15px; }
   </style>
 </head>
 <body>
@@ -178,6 +168,7 @@
   </ul>
   <script>
     const advertencias = {{ advertencias_iconos|tojson }};
+    window.advertencias = advertencias;
     const overlay = document.getElementById('overlay-markers');
     const imagen = document.getElementById('imagen-diagnostico');
     const tooltip = document.getElementById('tooltip');
@@ -301,27 +292,23 @@
       imagen.onload = dibujarIconos;
     }
   </script>
+  {% set diag = diagnostico_json or {} %}
   <div id="resumen-diagnostico">{{ resumen|safe }}</div>
   {{ tabla_riesgos|safe }}
+
+  <section id="simulacion-avanzada">
+    <h3>Simulación avanzada de impresión</h3>
+    <label>Lineatura del Anilox (LPI): <input type="range" id="sim-lpi" min="200" max="600" value="{{ diag.get('lpi', 400) }}"></label>
+    <label>BCM del anilox (cm³/m²): <input type="range" id="sim-bcm" min="1" max="8" step="0.1" value="{{ diag.get('bcm', 4) }}"></label>
+    <label>Paso del cilindro (mm): <input type="range" id="sim-paso" min="200" max="1000" step="1" value="{{ diag.get('paso', 330) }}"></label>
+    <label>Velocidad estimada de impresión (m/min): <input type="range" id="sim-velocidad" min="50" max="300" value="{{ diag.get('velocidad', 150) }}"></label>
+    <canvas id="sim-canvas" width="280" height="280"></canvas>
+    <div id="sim-ml"></div>
+  </section>
+
   <div class="botones">
-    <button id="btn-simulacion-flexo" class="btn" type="button">Ver Simulación en vivo</button>
     <a href="{{ url_for('static', filename=imagen_iconos_web) }}" class="btn" download>⬇ Descargar imagen con advertencias</a>
     <a href="{{ url_for('routes.revision_flexo') }}" class="btn">⬅ Volver a revisar otro diseño</a>
-  </div>
-  <div id="simulacion-en-vivo">
-    <div class="modal-contenido">
-      <button id="cerrar-simulacion" class="btn" type="button">Cerrar ✖</button>
-      <h3>Transmisión de tinta (ml/min) — Simulación en vivo</h3>
-      <label>Anilox LPI: <input type="range" id="sim-lpi" min="200" max="600" value="400"></label>
-      <label>BCM (ml/m²): <input type="range" id="sim-bcm" min="1" max="8" step="0.1" value="4"></label>
-      <label>Velocidad (m/min): <input type="range" id="sim-velocidad" min="50" max="300" value="150"></label>
-      <label>Eficiencia (0-1): <input type="range" id="sim-eficiencia" min="0" max="1" step="0.01" value="0.30"></label>
-      <label>Ancho (m): <input type="range" id="sim-ancho" min="0.1" max="2" step="0.01" value="0.50"></label>
-      <div id="sim-canvas-container" style="position:relative;">
-        <canvas id="sim-canvas" width="280" height="280"></canvas>
-      </div>
-      <div id="sim-ml"></div>
-    </div>
   </div>
   <script>
     window.diagnosticoFlexo = {{ diagnostico_json | default({}) | tojson }};

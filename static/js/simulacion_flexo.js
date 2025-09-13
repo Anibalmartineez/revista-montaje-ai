@@ -1,9 +1,12 @@
 document.addEventListener('DOMContentLoaded', () => {
-  inicializarSimulacionViva();
+  inicializarSimulacionAvanzada();
 });
 
-function calcularTransmisionTinta({ bcm, eficiencia, cobertura, ancho, velocidad }) {
-  const mlPorMin = bcm * eficiencia * cobertura * ancho * velocidad;
+function calcularTransmisionTinta({ bcm, eficiencia, cobertura, ancho, velocidad, paso }) {
+  const paso_m = paso / 1000;
+  const volumenPorVuelta = bcm * eficiencia * cobertura * ancho * paso_m;
+  const vueltasPorMin = paso_m > 0 ? velocidad / paso_m : 0;
+  const mlPorMin = volumenPorVuelta * vueltasPorMin;
   return parseFloat(mlPorMin.toFixed(2));
 }
 
@@ -12,35 +15,21 @@ function obtenerCobertura(datos) {
   return (c.C + c.M + c.Y + c.K) / 400 || 0;
 }
 
-
-function inicializarSimulacionViva() {
-  const btn = document.getElementById('btn-simulacion-flexo');
-  const modal = document.getElementById('simulacion-en-vivo');
-  const cerrar = document.getElementById('cerrar-simulacion');
+function inicializarSimulacionAvanzada() {
   const lpi = document.getElementById('sim-lpi');
   const bcm = document.getElementById('sim-bcm');
+  const paso = document.getElementById('sim-paso');
   const vel = document.getElementById('sim-velocidad');
-  const eficiencia = document.getElementById('sim-eficiencia');
-  const ancho = document.getElementById('sim-ancho');
   const canvas = document.getElementById('sim-canvas');
   const resultado = document.getElementById('sim-ml');
-  if (
-    !btn ||
-    !modal ||
-    !cerrar ||
-    !lpi ||
-    !bcm ||
-    !vel ||
-    !eficiencia ||
-    !ancho ||
-    !canvas ||
-    !resultado
-  ) {
+  if (!lpi || !bcm || !paso || !vel || !canvas || !resultado) {
     return;
   }
 
   const datos = window.diagnosticoFlexo || {};
   const coberturaBase = obtenerCobertura(datos);
+  const eficiencia = datos.eficiencia || 0.30;
+  const ancho = datos.ancho || 0.50;
   const ctx = canvas.getContext('2d');
   const img = new Image();
   const baseImg = document.getElementById('imagen-diagnostico');
@@ -87,13 +76,16 @@ function inicializarSimulacionViva() {
 
     const params = {
       bcm: parseFloat(bcm.value),
-      eficiencia: parseFloat(eficiencia.value),
-      cobertura: coberturaBase,
-      ancho: parseFloat(ancho.value),
+      paso: parseFloat(paso.value),
       velocidad: parseFloat(vel.value),
+      eficiencia,
+      cobertura: coberturaBase,
+      ancho,
     };
     const mlMin = calcularTransmisionTinta(params);
-    resultado.textContent = `ml/min: ${mlMin}`;
+    const paso_m = params.paso / 1000;
+    const repeticiones = paso_m > 0 ? params.velocidad / paso_m : 0;
+    resultado.textContent = `ml/min: ${mlMin} | rep/min: ${repeticiones.toFixed(1)}`;
   }
 
   img.onload = dibujar;
@@ -101,12 +93,6 @@ function inicializarSimulacionViva() {
     img.src = baseImg.src;
   }
 
-  [lpi, bcm, vel, eficiencia, ancho].forEach(el => el.addEventListener('input', dibujar));
-
-  btn.addEventListener('click', () => {
-    modal.classList.add('abierto');
-    if (img.complete) dibujar();
-  });
-  cerrar.addEventListener('click', () => modal.classList.remove('abierto'));
+  [lpi, bcm, paso, vel].forEach(el => el.addEventListener('input', dibujar));
+  if (img.complete) dibujar();
 }
-
