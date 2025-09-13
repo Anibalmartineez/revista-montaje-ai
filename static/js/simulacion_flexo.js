@@ -1,5 +1,4 @@
 document.addEventListener('DOMContentLoaded', () => {
-  renderizarDiagnostico();
   inicializarSimulacionViva();
 });
 
@@ -13,49 +12,6 @@ function obtenerCobertura(datos) {
   return (c.C + c.M + c.Y + c.K) / 400 || 0;
 }
 
-function renderizarDiagnostico() {
-  const datos = window.diagnosticoFlexo || {};
-  const cobertura = obtenerCobertura(datos);
-  const params = {
-    bcm: datos.bcm || 4,
-    eficiencia: datos.eficiencia || 0.3,
-    cobertura,
-    ancho: datos.ancho || 0.5,
-    velocidad: datos.velocidad || 150,
-  };
-  const mlMin = calcularTransmisionTinta(params);
-  const sustrato = datos.material || 'papel';
-  const cargaObjetivo = sustrato === 'film' ? 4.0 : 3.0;
-  const ideal = parseFloat((cargaObjetivo * params.ancho * params.velocidad).toFixed(2));
-  const ctx = document.getElementById('tinta-grafico').getContext('2d');
-  new Chart(ctx, {
-    type: 'bar',
-    data: {
-      labels: ['Calculado', 'Ideal'],
-      datasets: [
-        {
-          label: 'ml/min',
-          backgroundColor: ['#36a2eb', '#4caf50'],
-          data: [mlMin, ideal],
-        },
-      ],
-    },
-    options: {
-      responsive: false,
-      scales: {
-        y: { beginAtZero: true, max: Math.max(mlMin, ideal) * 1.2 },
-      },
-    },
-  });
-  const detalles = document.getElementById('tinta-detalles');
-  detalles.innerHTML =
-    `BCM: ${params.bcm} ml/m²<br>` +
-    `Eficiencia: ${params.eficiencia}<br>` +
-    `Cobertura: ${cobertura.toFixed(2)}<br>` +
-    `Ancho: ${params.ancho} m<br>` +
-    `Velocidad: ${params.velocidad} m/min<br>` +
-    `<strong>${mlMin} ml/min</strong> (ideal ${ideal} ml/min)`;
-}
 
 function inicializarSimulacionViva() {
   const btn = document.getElementById('btn-simulacion-flexo');

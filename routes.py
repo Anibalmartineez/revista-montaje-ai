@@ -1271,13 +1271,6 @@ def revision_flexo():
                         "Y": round(cobertura_dict.get("Amarillo", 0)),
                         "K": round(cobertura_dict.get("Negro", 0)),
                     },
-                    "trama_minima": analisis_detallado.get("trama_minima", 5),
-                    "resolucion_minima": analisis_detallado.get("resolucion_minima", 0),
-                    "textos_pequenos": [
-                        {"tamano": o.get("tamano"), "color": o.get("color")}
-                        for o in advertencias_overlay
-                        if o.get("tipo") == "texto_pequeno"
-                    ],
                     "bcm": anilox_bcm,
                     "eficiencia": 0.30,
                     "ancho": 0.50,
