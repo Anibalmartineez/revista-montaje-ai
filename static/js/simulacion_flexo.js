@@ -7,7 +7,11 @@ function inicializarSimulacionFlexo() {
   const bcm = document.getElementById('sim-bcm');
   const vel = document.getElementById('sim-velocidad');
   const canvasTrama = document.getElementById('sim-canvas');
-  if (!btn || !panel || !canvasTrama) return;
+  const eficiencia = document.getElementById('sim-eficiencia');
+  const ancho = document.getElementById('sim-ancho');
+  const canvasGrafico = document.getElementById('sim-grafico');
+  const detalles = document.getElementById('sim-detalles');
+  if (!btn || !panel || !canvasTrama || !canvasGrafico || !bcm || !vel || !ancho || !eficiencia) return;
 
   // Preparar capa de textos separada
   const canvasTextos = document.createElement('canvas');
@@ -24,6 +28,7 @@ function inicializarSimulacionFlexo() {
 
   const ctxTrama = canvasTrama.getContext('2d');
   const ctxTextos = canvasTextos.getContext('2d');
+  const ctxGrafico = canvasGrafico.getContext('2d');
 
   const img = new Image();
   const baseImg = document.getElementById('imagen-diagnostico');
@@ -33,6 +38,49 @@ function inicializarSimulacionFlexo() {
 
   const datos = window.diagnosticoFlexo || {};
   const textos = datos.textos_pequenos || [];
+  const coberturaDatos = datos.cobertura || {};
+  const tac = typeof datos.tac_p95 === 'number' ? datos.tac_p95 : null;
+  const cobertura = Math.min(1, Math.max(0, tac ? tac / 400 : (coberturaDatos.C + coberturaDatos.M + coberturaDatos.Y + coberturaDatos.K) / 400));
+  const sustrato = datos.material || 'papel';
+
+  let chart;
+  function inicializarGrafico() {
+    chart = new Chart(ctxGrafico, {
+      type: 'bar',
+      data: {
+        labels: ['Calculado', 'Ideal'],
+        datasets: [{
+          label: 'ml/min',
+          backgroundColor: ['#36a2eb', '#4caf50'],
+          data: [0, 0]
+        }]
+      },
+      options: {
+        responsive: false,
+        scales: {
+          y: {
+            beginAtZero: true,
+            title: { display: true, text: 'ml/min' }
+          }
+        }
+      }
+    });
+  }
+
+  function actualizarCalculo() {
+    const bcmVal = parseFloat(bcm.value);
+    const eficienciaVal = parseFloat(eficiencia.value);
+    const anchoVal = parseFloat(ancho.value);
+    const velVal = parseFloat(vel.value);
+    const mlPorMin = bcmVal * eficienciaVal * cobertura * anchoVal * velVal;
+    const cargaObjetivo = (sustrato === 'film') ? 4.0 : 3.0;
+    const idealMlMin = cargaObjetivo * anchoVal * velVal;
+    const eje = Math.max(idealMlMin, mlPorMin) * 1.2;
+    chart.data.datasets[0].data = [mlPorMin, idealMlMin];
+    chart.options.scales.y.max = eje;
+    chart.update();
+    detalles.innerHTML = `BCM: ${bcmVal} ml/m²<br>Eficiencia: ${eficienciaVal}<br>Cobertura: ${cobertura.toFixed(2)}<br>Ancho: ${anchoVal} m<br>Velocidad: ${velVal} m/min<br><code>ml/min = ${bcmVal} * ${eficienciaVal} * ${cobertura.toFixed(2)} * ${anchoVal} * ${velVal} = ${mlPorMin.toFixed(2)}</code><br>Ideal: ${idealMlMin.toFixed(2)} ml/min`;
+  }
 
   function dibujarTextos() {
     ctxTextos.clearRect(0, 0, canvasTextos.width, canvasTextos.height);
@@ -88,12 +136,16 @@ function inicializarSimulacionFlexo() {
   function iniciar() {
     dibujarTrama();
     dibujarTextos();
+    inicializarGrafico();
+    actualizarCalculo();
   }
 
   img.onload = iniciar;
   lpi.addEventListener('input', dibujarTrama);
-  bcm.addEventListener('input', dibujarTrama);
-  vel.addEventListener('input', dibujarTrama);
+  bcm.addEventListener('input', () => { dibujarTrama(); actualizarCalculo(); });
+  vel.addEventListener('input', () => { dibujarTrama(); actualizarCalculo(); });
+  eficiencia.addEventListener('input', actualizarCalculo);
+  ancho.addEventListener('input', actualizarCalculo);
   btn.addEventListener('click', () => panel.classList.add('abierto'));
   cerrar.addEventListener('click', () => panel.classList.remove('abierto'));
 }
