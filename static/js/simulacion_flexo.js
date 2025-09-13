@@ -20,13 +20,21 @@ function inicializarSimulacionAvanzada() {
   const bcm = document.getElementById('sim-bcm');
   const paso = document.getElementById('sim-paso');
   const vel = document.getElementById('sim-velocidad');
+  const lpiVal = document.getElementById('sim-lpi-val');
+  const bcmVal = document.getElementById('sim-bcm-val');
+  const pasoVal = document.getElementById('sim-paso-val');
+  const velVal = document.getElementById('sim-vel-val');
   const canvas = document.getElementById('sim-canvas');
   const resultado = document.getElementById('sim-ml');
-  if (!lpi || !bcm || !paso || !vel || !canvas || !resultado) {
+  if (!lpi || !bcm || !paso || !vel || !canvas || !resultado || !lpiVal || !bcmVal || !pasoVal || !velVal) {
     return;
   }
 
   const datos = window.diagnosticoFlexo || {};
+  lpi.value = datos.anilox_lpi ?? datos.lpi ?? lpi.value;
+  bcm.value = datos.anilox_bcm ?? datos.bcm ?? bcm.value;
+  paso.value = datos.paso_cilindro ?? datos.paso ?? paso.value;
+  vel.value = datos.velocidad ?? datos.velocidad_impresion ?? vel.value;
   const coberturaBase = obtenerCobertura(datos);
   const eficiencia = datos.eficiencia || 0.30;
   const ancho = datos.ancho || 0.50;
@@ -34,7 +42,15 @@ function inicializarSimulacionAvanzada() {
   const img = new Image();
   const baseImg = document.getElementById('imagen-diagnostico');
 
+  function actualizarValores() {
+    lpiVal.textContent = `${lpi.value} lpi`;
+    bcmVal.textContent = `${bcm.value} cm³/m²`;
+    pasoVal.textContent = `${paso.value} mm`;
+    velVal.textContent = `${vel.value} m/min`;
+  }
+
   function dibujar() {
+    actualizarValores();
     if (!img.complete) return;
     canvas.width = img.width;
     canvas.height = img.height;
@@ -94,5 +110,6 @@ function inicializarSimulacionAvanzada() {
   }
 
   [lpi, bcm, paso, vel].forEach(el => el.addEventListener('input', dibujar));
+  actualizarValores();
   if (img.complete) dibujar();
 }
