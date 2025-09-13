@@ -132,23 +132,30 @@
     .warning-icon.tipo-overprint { background: blue; }
     .warning-icon.tipo-borde { background: darkgreen; }
 
-    #panel-simulacion {
+    #simulacion-en-vivo {
+      display: none;
       position: fixed;
       top: 0;
-      right: 0;
-      width: 300px;
+      left: 0;
+      width: 100%;
       height: 100%;
-      background: #fff;
-      box-shadow: -2px 0 5px rgba(0,0,0,0.3);
-      transform: translateX(100%);
-      transition: transform 0.3s;
+      background: rgba(0,0,0,0.5);
       z-index: 10001;
-      padding: 15px;
-      overflow-y: auto;
     }
-    #panel-simulacion.abierto { transform: translateX(0); }
-    #panel-simulacion label { display: block; margin-top: 10px; }
-    #panel-simulacion canvas { width: 100%; border: 1px solid #ccc; margin-top: 10px; }
+    #simulacion-en-vivo.abierto { display: block; }
+    #simulacion-en-vivo .modal-contenido {
+      background: #fff;
+      margin: 5% auto;
+      padding: 15px;
+      width: 90%;
+      max-width: 600px;
+      position: relative;
+    }
+    #simulacion-en-vivo label { display: block; margin-top: 10px; }
+    #simulacion-en-vivo canvas { width: 100%; border: 1px solid #ccc; margin-top: 10px; }
+    #simulacion-tinta { margin-top: 20px; }
+    #simulacion-tinta label { display: block; margin-top: 10px; }
+    #simulacion-tinta canvas { width: 100%; border: 1px solid #ccc; margin-top: 10px; }
   </style>
 </head>
 <body>
@@ -298,21 +305,30 @@
   </script>
   <div id="resumen-diagnostico">{{ resumen|safe }}</div>
   {{ tabla_riesgos|safe }}
+  <div id="simulacion-tinta">
+    <h3>Transmisión de tinta (ml/min)</h3>
+    <label>BCM (ml/m²): <input type="range" id="tinta-bcm" min="1" max="8" step="0.1" value="4"></label>
+    <label>Eficiencia (0-1): <input type="range" id="tinta-eficiencia" min="0" max="1" step="0.01" value="0.30"></label>
+    <label>Ancho (m): <input type="number" id="tinta-ancho" min="0.1" step="0.01" value="0.50"></label>
+    <label>Velocidad (m/min): <input type="range" id="tinta-velocidad" min="50" max="300" value="150"></label>
+    <canvas id="tinta-grafico" width="280" height="200"></canvas>
+    <div id="tinta-detalles"></div>
+  </div>
   <div class="botones">
-    <button id="btn-simulacion-flexo" class="btn" type="button">Simulación Flexo</button>
+    <button id="btn-simulacion-flexo" class="btn" type="button">Ver Simulación en vivo</button>
     <a href="{{ url_for('static', filename=imagen_iconos_web) }}" class="btn" download>⬇ Descargar imagen con advertencias</a>
     <a href="{{ url_for('routes.revision_flexo') }}" class="btn">⬅ Volver a revisar otro diseño</a>
   </div>
-  <div id="panel-simulacion">
-    <button id="cerrar-simulacion" class="btn" type="button">Cerrar ✖</button>
-    <label>Anilox LPI: <input type="range" id="sim-lpi" min="200" max="600" value="400"></label>
-    <label>BCM (ml/m²): <input type="range" id="sim-bcm" min="1" max="8" step="0.1" value="4"></label>
-    <label>Velocidad (m/min): <input type="range" id="sim-velocidad" min="50" max="300" value="150"></label>
-    <label>Eficiencia (0-1): <input type="range" id="sim-eficiencia" min="0" max="1" step="0.01" value="0.30"></label>
-    <label>Ancho (m): <input type="number" id="sim-ancho" min="0.1" step="0.01" value="0.50"></label>
-    <canvas id="sim-canvas" width="280" height="280"></canvas>
-    <canvas id="sim-grafico" width="280" height="200"></canvas>
-    <div id="sim-detalles"></div>
+  <div id="simulacion-en-vivo">
+    <div class="modal-contenido">
+      <button id="cerrar-simulacion" class="btn" type="button">Cerrar ✖</button>
+      <label>Anilox LPI: <input type="range" id="sim-lpi" min="200" max="600" value="400"></label>
+      <label>BCM (ml/m²): <input type="range" id="sim-bcm" min="1" max="8" step="0.1" value="4"></label>
+      <label>Velocidad (m/min): <input type="range" id="sim-velocidad" min="50" max="300" value="150"></label>
+      <div id="sim-canvas-container" style="position:relative;">
+        <canvas id="sim-canvas" width="280" height="280"></canvas>
+      </div>
+    </div>
   </div>
   <script>
     window.diagnosticoFlexo = {{ diagnostico_json | default({}) | tojson }};
