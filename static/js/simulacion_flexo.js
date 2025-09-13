@@ -102,9 +102,30 @@ function inicializarSimulacionFlexo() {
     const promedio = (cobertura.C + cobertura.M + cobertura.Y + cobertura.K) / 400 || 0;
     const minTrama = (datos.trama_minima || 0) / 100;
 
+    // Umbral dinámico de trama débil según LPI
+    let umbralTrama = minTrama;
+    if (valLpi > 500) {
+      umbralTrama = Math.max(umbralTrama, 0.05); // eliminar tramas muy débiles
+    } else if (valLpi < 300) {
+      umbralTrama = Math.min(umbralTrama, 0.03); // permitir tramas muy bajas
+    }
+
     const spacing = Math.max(2, (600 / valLpi) * 4);
     const baseRadio = spacing / 2;
     const transferencia = (1 - (valVel - 50) / 250) * (0.5 + promedio);
+
+    // Ganancia de punto según BCM y velocidad
+    let ganancia = 1;
+    if (valBcm >= 6) {
+      ganancia += 0.15 + ((Math.min(valBcm, 8) - 6) / 2) * 0.05; // 6→15%, 8→20%
+    } else if (valBcm <= 3) {
+      ganancia -= 0.1; // BCM muy bajo reduce el punto
+    }
+    if (valVel < 100) {
+      ganancia += 0.10; // velocidad baja aumenta el punto
+    } else if (valVel > 150 && valBcm <= 3) {
+      ganancia -= 0.05; // velocidad alta con BCM bajo afina
+    }
 
     ctxTrama.clearRect(0, 0, canvasTrama.width, canvasTrama.height);
     const off = document.createElement('canvas');
@@ -122,9 +143,34 @@ function inicializarSimulacionFlexo() {
         const b = data[px + 2];
         const gray = (r + g + b) / 3;
         const coberturaLocal = 1 - gray / 255;
-        if (coberturaLocal < minTrama) continue;
-        const radio = baseRadio * Math.sqrt(coberturaLocal);
-        const alpha = coberturaLocal * (valBcm / 8) * transferencia;
+
+        // Manejo de pérdida de tramas débiles
+        if (coberturaLocal < umbralTrama) {
+          if (valLpi > 500) {
+            // tramas muy finas desaparecen
+            continue;
+          } else if (valLpi < 300) {
+            // mostrar tramas bajas con irregularidad
+            const jitterX = x + (Math.random() - 0.5) * spacing * 0.3;
+            const jitterY = y + (Math.random() - 0.5) * spacing * 0.3;
+            const radioIrregular = baseRadio * Math.sqrt(Math.max(coberturaLocal, 0.02)) * (0.5 + Math.random() * 0.5) * ganancia;
+            const alphaIrregular = coberturaLocal * (valBcm / 8) * transferencia * 0.5;
+            ctxTrama.beginPath();
+            ctxTrama.fillStyle = `rgba(0,0,0,${alphaIrregular})`;
+            ctxTrama.arc(jitterX, jitterY, radioIrregular, 0, Math.PI * 2);
+            ctxTrama.fill();
+            continue;
+          } else {
+            continue;
+          }
+        }
+
+        // Dibujo normal con ganancia de punto
+        const radio = baseRadio * Math.sqrt(coberturaLocal) * ganancia;
+        let alpha = coberturaLocal * (valBcm / 8) * transferencia;
+        if (valLpi > 500 && coberturaLocal < 0.05) {
+          alpha *= 0.1; // casi invisible
+        }
         ctxTrama.beginPath();
         ctxTrama.fillStyle = `rgba(0,0,0,${alpha})`;
         ctxTrama.arc(x, y, radio, 0, Math.PI * 2);
