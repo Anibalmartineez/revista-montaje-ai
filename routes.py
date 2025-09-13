@@ -1216,18 +1216,13 @@ def revision_flexo():
     if request.method == "POST":
         try:
             archivo = request.files.get("archivo_revision")
-            anilox_lpi = int(request.form.get("anilox_lpi", 360))
-            paso_mm = int(request.form.get("paso_cilindro", 330))
             material = request.form.get("material", "")
-            anilox_bcm = request.form.get("anilox_bcm")
-            velocidad = request.form.get("velocidad_impresion")
+            # Valores predeterminados para la simulación avanzada
+            anilox_lpi = 360
+            paso_mm = 330
+            anilox_bcm = None
+            velocidad = None
             cobertura = None
-
-            if anilox_bcm and velocidad:
-                anilox_bcm = float(anilox_bcm)
-                velocidad = float(velocidad)
-            else:
-                anilox_bcm = velocidad = None
 
             if archivo and archivo.filename.endswith(".pdf"):
                 # Siempre guardamos el PDF con un nombre fijo para evitar usar uno previo.
@@ -1276,6 +1271,7 @@ def revision_flexo():
                     "ancho": 0.50,
                     "velocidad": velocidad,
                     "lpi": anilox_lpi,
+                    "paso": paso_mm,
                     "material": material,
                 }
 
