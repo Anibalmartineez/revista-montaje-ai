@@ -1,5 +1,6 @@
 document.addEventListener('DOMContentLoaded', () => {
   inicializarSimulacionAvanzada();
+  inicializarModalSimulacion();
 });
 
 function calcularTransmisionTinta({ bcm, eficiencia, cobertura, ancho, velocidad, paso }) {
@@ -112,4 +113,60 @@ function inicializarSimulacionAvanzada() {
   [lpi, bcm, paso, vel].forEach(el => el.addEventListener('input', dibujar));
   actualizarValores();
   if (img.complete) dibujar();
+}
+
+function inicializarModalSimulacion() {
+  const btn = document.getElementById('sim-view-large');
+  const modal = document.getElementById('sim-modal');
+  const modalImg = document.getElementById('sim-modal-img');
+  const closeBtn = document.getElementById('sim-close');
+  if (!btn || !modal || !modalImg || !closeBtn) return;
+
+  let scale = 1;
+  let lastDist = null;
+
+  btn.addEventListener('click', () => {
+    const canvas = document.getElementById('sim-canvas');
+    if (!canvas) return;
+    modalImg.src = canvas.toDataURL('image/png');
+    scale = 1;
+    modalImg.style.transform = 'scale(1)';
+    modal.style.display = 'flex';
+  });
+
+  function cerrar() {
+    modal.style.display = 'none';
+  }
+
+  closeBtn.addEventListener('click', cerrar);
+  modal.addEventListener('click', e => { if (e.target === modal) cerrar(); });
+
+  modalImg.addEventListener('wheel', e => {
+    e.preventDefault();
+    scale += e.deltaY * -0.001;
+    scale = Math.min(Math.max(1, scale), 5);
+    modalImg.style.transform = `scale(${scale})`;
+  });
+
+  modalImg.addEventListener('touchstart', e => {
+    if (e.touches.length === 2) {
+      e.preventDefault();
+      lastDist = dist(e.touches[0], e.touches[1]);
+    }
+  }, { passive: false });
+
+  modalImg.addEventListener('touchmove', e => {
+    if (e.touches.length === 2 && lastDist) {
+      e.preventDefault();
+      const newDist = dist(e.touches[0], e.touches[1]);
+      const factor = newDist / lastDist;
+      scale = Math.min(Math.max(1, scale * factor), 5);
+      lastDist = newDist;
+      modalImg.style.transform = `scale(${scale})`;
+    }
+  }, { passive: false });
+
+  function dist(t1, t2) {
+    return Math.hypot(t1.clientX - t2.clientX, t1.clientY - t2.clientY);
+  }
 }
