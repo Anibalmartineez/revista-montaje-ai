@@ -1278,6 +1278,12 @@ def revision_flexo():
                         for o in advertencias_overlay
                         if o.get("tipo") == "texto_pequeno"
                     ],
+                    "bcm": anilox_bcm,
+                    "eficiencia": 0.30,
+                    "ancho": 0.50,
+                    "velocidad": velocidad,
+                    "lpi": anilox_lpi,
+                    "material": material,
                 }
 
                 session["diagnostico_flexo"] = {
