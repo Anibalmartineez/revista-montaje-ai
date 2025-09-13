@@ -1217,12 +1217,27 @@ def revision_flexo():
         try:
             archivo = request.files.get("archivo_revision")
             material = request.form.get("material", "")
+
+            def _parse_int(name: str, default: int | None) -> int | None:
+                try:
+                    valor = request.form.get(name, "").strip()
+                    return int(valor) if valor != "" else default
+                except (ValueError, TypeError):
+                    return default
+
+            def _parse_float(name: str, default: float | None) -> float | None:
+                try:
+                    valor = request.form.get(name, "").strip()
+                    return float(valor) if valor != "" else default
+                except (ValueError, TypeError):
+                    return default
+
             # Valores predeterminados para la simulación avanzada
-            anilox_lpi = 360
+            anilox_lpi = _parse_int("anilox_lpi", 360)
             paso_mm = 330
-            anilox_bcm = None
-            velocidad = None
-            cobertura = None
+            anilox_bcm = _parse_float("anilox_bcm", None)
+            velocidad = _parse_float("velocidad", None)
+            cobertura = _parse_float("cobertura", None)
 
             if archivo and archivo.filename.endswith(".pdf"):
                 # Siempre guardamos el PDF con un nombre fijo para evitar usar uno previo.
@@ -1259,19 +1274,33 @@ def revision_flexo():
                 tabla_riesgos = simular_riesgos(resumen)
 
                 cobertura_dict = analisis_detallado.get("cobertura_por_canal", {})
-                diagnostico_json = {
-                    "cobertura": {
+                if cobertura is not None:
+                    cobertura_json = {
+                        "C": cobertura,
+                        "M": 0,
+                        "Y": 0,
+                        "K": 0,
+                    }
+                else:
+                    cobertura_json = {
                         "C": round(cobertura_dict.get("Cyan", 0)),
                         "M": round(cobertura_dict.get("Magenta", 0)),
                         "Y": round(cobertura_dict.get("Amarillo", 0)),
                         "K": round(cobertura_dict.get("Negro", 0)),
-                    },
+                    }
+
+                diagnostico_json = {
+                    "cobertura": cobertura_json,
                     "bcm": anilox_bcm,
+                    "anilox_bcm": anilox_bcm,
                     "eficiencia": 0.30,
                     "ancho": 0.50,
                     "velocidad": velocidad,
+                    "velocidad_impresion": velocidad,
                     "lpi": anilox_lpi,
+                    "anilox_lpi": anilox_lpi,
                     "paso": paso_mm,
+                    "paso_cilindro": paso_mm,
                     "material": material,
                 }
 
