@@ -590,6 +590,12 @@ def revisar_diseño_flexo(
     sangrado_adv = adv_res["sangrado"]
     advertencias_overlay = adv_res["overlay"]
     resolucion_items = verificar_resolucion_imagenes(path_pdf)
+    resolucion_minima = None
+    for item in resolucion_items:
+        m = re.search(r">\s*(\d+)\s*DPI", item)
+        if m:
+            dpi = int(m.group(1))
+            resolucion_minima = dpi if resolucion_minima is None else min(resolucion_minima, dpi)
     if metricas_cobertura:
         til_items = resumen_cobertura_tac(metricas_cobertura, material)
     else:
@@ -742,6 +748,8 @@ def revisar_diseño_flexo(
         "tramas_debiles": tramas_adv,
         "cobertura_por_canal": metricas_cobertura["cobertura_promedio"] if metricas_cobertura else {},
         "textos_pequenos": textos_adv,
+        "resolucion_minima": resolucion_minima or 0,
+        "trama_minima": 5,
     }
     diagnostico_texto = generar_diagnostico_texto(resumen)
     return resumen, imagen_tinta, diagnostico_texto, analisis_detallado, advertencias_overlay
