@@ -1418,7 +1418,8 @@ def guardar_simulacion(revision_id):
     save_path = os.path.join(sim_dir, filename)
     img_file.save(save_path)
     rel_path = os.path.relpath(save_path, current_app.static_folder)
-    return jsonify({"path": rel_path})
+    url = url_for("static", filename=rel_path)
+    return jsonify({"path": rel_path, "url": url})
 
 
 @routes_bp.route("/vista_previa_tecnica", methods=["POST"])

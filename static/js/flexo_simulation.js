@@ -33,25 +33,28 @@ function obtenerCobertura(datos) {
 function inicializarSimulacionAvanzada() {
   const canvas = document.getElementById('sim-canvas');
   const ctx = canvas ? canvas.getContext('2d') : null;
-  const lpi = document.getElementById('sim-lpi');
-  const bcm = document.getElementById('sim-bcm');
-  const vel = document.getElementById('sim-velocidad');
-  const cob = document.getElementById('sim-cobertura');
-  const lpiVal = document.getElementById('sim-lpi-val');
-  const bcmVal = document.getElementById('sim-bcm-val');
-  const velVal = document.getElementById('sim-vel-val');
-  const cobVal = document.getElementById('sim-cobertura-val');
+  const lpi = document.getElementById('lpi_slider');
+  const bcm = document.getElementById('bcm_slider');
+  const vel = document.getElementById('vel_slider');
+  const cob = document.getElementById('cov_slider');
+  const lpiVal = document.getElementById('lpi_val');
+  const bcmVal = document.getElementById('bcm_val');
+  const velVal = document.getElementById('vel_val');
+  const cobVal = document.getElementById('cov_val');
   const resultado = document.getElementById('sim-ml');
   const saveBtn = document.getElementById('sim-save');
+  const debugEl = document.getElementById('sim-debug');
+  if (DEBUG && debugEl) debugEl.style.display = 'block';
   if (!canvas || !ctx || !lpi || !bcm || !vel || !cob || !resultado || !lpiVal || !bcmVal || !velVal || !cobVal) {
-    if (DEBUG) console.debug('Elementos de la simulación incompletos');
+    if (debugEl) debugEl.textContent = 'Elementos de la simulación incompletos';
+    if (DEBUG) console.warn('Elementos de la simulación incompletos');
     return;
   }
   if (DEBUG) console.debug('inicializarSimulacionAvanzada');
 
   const datos = window.diagnosticoFlexo || {};
-  lpi.value = datos.lpi ?? 360;
-  bcm.value = datos.bcm ?? 4;
+  lpi.value = datos.lpi ?? 120;
+  bcm.value = datos.bcm ?? 2.0;
   vel.value = datos.velocidad ?? datos.velocidad_impresion ?? 150;
   cob.value = datos.cobertura_estimada ?? Math.round(obtenerCobertura(datos) * 100) || 25;
   const paso = datos.paso_cilindro ?? datos.paso ?? 330;
@@ -74,6 +77,14 @@ function inicializarSimulacionAvanzada() {
     cobVal.textContent = `${cob.value} %`;
   }
 
+  function updateDebug(err) {
+    if (!DEBUG || !debugEl) return;
+    const dpr = window.devicePixelRatio || 1;
+    debugEl.textContent = `css:${canvas.clientWidth}x${canvas.clientHeight} real:${canvas.width}x${canvas.height} DPR:${dpr}`;
+    debugEl.textContent += `\nLPI:${lpi.value} BCM:${bcm.value} Vel:${vel.value} Cob:${cob.value}`;
+    if (err) debugEl.textContent += `\nError: ${err.message}`;
+  }
+
   function drawBasePattern() {
     ctx.fillStyle = '#ccc';
     for (let x = 0; x < canvas.width; x += 25) {
@@ -84,102 +95,109 @@ function inicializarSimulacionAvanzada() {
   }
 
   function render() {
-    if (DEBUG) console.debug('render start');
-    if (canvas.width === 0 || canvas.height === 0) {
-      if (DEBUG) console.warn('canvas 0x0, forzando resize');
-      resizeCanvas();
-    }
-    actualizarValores();
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-    const hasImg = img && img.complete && img.naturalWidth > 0;
-    if (hasImg) {
-      ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-    } else {
-      drawBasePattern();
-    }
+    try {
+      if (DEBUG) console.debug('render start');
+      if (canvas.width === 0 || canvas.height === 0) {
+        if (DEBUG) console.warn('canvas 0x0, forzando resize');
+        resizeCanvas();
+      }
+      actualizarValores();
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      const hasImg = img && img.complete && img.naturalWidth > 0;
+      if (hasImg) {
+        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+      } else {
+        drawBasePattern();
+      }
 
-    if (window.advertencias) {
-      const colores = {
-        texto_pequeno: 'red',
-        trama_debil: 'purple',
-        imagen_baja: 'orange',
-        overprint: 'blue',
-        sin_sangrado: 'darkgreen',
-      };
-      window.advertencias.forEach(a => {
-        const box = a.bbox || a.box;
-        if (!box) return;
-        const x0 = box[0];
-        const y0 = box[1];
-        const w = box[2] - box[0];
-        const h = box[3] - box[1];
-        ctx.strokeStyle = colores[a.tipo] || 'red';
-        ctx.lineWidth = 2;
-        ctx.strokeRect(x0, y0, w, h);
-      });
-    }
+      if (window.advertencias) {
+        const colores = {
+          texto_pequeno: 'red',
+          trama_debil: 'purple',
+          imagen_baja: 'orange',
+          overprint: 'blue',
+          sin_sangrado: 'darkgreen',
+        };
+        window.advertencias.forEach(a => {
+          const box = a.bbox || a.box;
+          if (!box) return;
+          const x0 = box[0];
+          const y0 = box[1];
+          const w = box[2] - box[0];
+          const h = box[3] - box[1];
+          ctx.strokeStyle = colores[a.tipo] || 'red';
+          ctx.lineWidth = 2;
+          ctx.strokeRect(x0, y0, w, h);
+        });
+      }
 
-    const valLpi = parseFloat(lpi.value);
-    const valBcm = parseFloat(bcm.value);
-    const valVel = parseFloat(vel.value);
-    const valCob = parseFloat(cob.value);
+      const valLpi = Number(lpi.value) || 0;
+      const valBcm = Number(bcm.value) || 0;
+      const valVel = Number(vel.value) || 0;
+      const valCob = Number(cob.value) || 0;
 
-    const spacing = Math.max(2, (600 / valLpi) * 4);
-    const radio = Math.max(1, spacing / 2);
-    const alpha = Math.min(1, Math.max(0.05, valBcm / 10));
-    const blur = (valVel / 500) * 2;
-    const jitter = (valVel / 500) * spacing * 0.5;
-    ctx.filter = blur > 0 ? `blur(${blur}px)` : 'none';
+      const spacing = Math.max(2, (600 / Math.max(valLpi, 1)) * 4);
+      const radio = Math.max(1, spacing / 2);
+      const alpha = Math.min(1, Math.max(0.05, valBcm / 10));
+      const blur = (valVel / 500) * 2;
+      const jitter = (valVel / 500) * spacing * 0.5;
+      ctx.filter = blur > 0 ? `blur(${blur}px)` : 'none';
 
-    function dibujarCapa(offsetX = 0, offsetY = 0, prob = 1) {
-      for (let y = 0; y < canvas.height; y += spacing) {
-        for (let x = 0; x < canvas.width; x += spacing) {
-          if (Math.random() > prob) continue;
-          const dx = x + offsetX + (Math.random() * 2 - 1) * jitter;
-          const dy = y + offsetY + (Math.random() * 2 - 1) * jitter;
-          ctx.beginPath();
-          ctx.fillStyle = `rgba(0,0,0,${alpha})`;
-          ctx.arc(dx, dy, radio, 0, Math.PI * 2);
-          ctx.fill();
+      function dibujarCapa(offsetX = 0, offsetY = 0, prob = 1) {
+        for (let y = 0; y < canvas.height; y += spacing) {
+          for (let x = 0; x < canvas.width; x += spacing) {
+            if (Math.random() > prob) continue;
+            const dx = x + offsetX + (Math.random() * 2 - 1) * jitter;
+            const dy = y + offsetY + (Math.random() * 2 - 1) * jitter;
+            ctx.beginPath();
+            ctx.fillStyle = `rgba(0,0,0,${alpha})`;
+            ctx.arc(dx, dy, radio, 0, Math.PI * 2);
+            ctx.fill();
+          }
         }
       }
+
+      const cobertura = valCob;
+      const probBase = Math.min(cobertura, 100) / 100;
+      dibujarCapa(0, 0, probBase);
+      if (cobertura > 100) {
+        const probExtra = Math.min((cobertura - 100) / 100, 1);
+        dibujarCapa(spacing / 2, spacing / 2, probExtra);
+      }
+
+      ctx.filter = 'none';
+
+      const params = {
+        bcm: valBcm,
+        paso,
+        velocidad: valVel,
+        eficiencia,
+        cobertura: valCob / 100,
+        ancho,
+      };
+      const mlMin = calcularTransmisionTinta(params);
+      const paso_m = params.paso / 1000;
+      const repeticiones = paso_m > 0 ? params.velocidad / paso_m : 0;
+      resultado.textContent = `ml/min: ${mlMin} | rep/min: ${repeticiones.toFixed(1)}`;
+      if (DEBUG) console.debug('render end');
+      updateDebug();
+    } catch (err) {
+      if (DEBUG) console.error(err);
+      updateDebug(err);
     }
-
-    const cobertura = valCob;
-    const probBase = Math.min(cobertura, 100) / 100;
-    dibujarCapa(0, 0, probBase);
-    if (cobertura > 100) {
-      const probExtra = Math.min((cobertura - 100) / 100, 1);
-      dibujarCapa(spacing / 2, spacing / 2, probExtra);
-    }
-
-    ctx.filter = 'none';
-
-    const params = {
-      bcm: parseFloat(bcm.value),
-      paso,
-      velocidad: parseFloat(vel.value),
-      eficiencia,
-      cobertura: parseFloat(cob.value) / 100,
-      ancho,
-    };
-    const mlMin = calcularTransmisionTinta(params);
-    const paso_m = params.paso / 1000;
-    const repeticiones = paso_m > 0 ? params.velocidad / paso_m : 0;
-    resultado.textContent = `ml/min: ${mlMin} | rep/min: ${repeticiones.toFixed(1)}`;
-    if (DEBUG) console.debug('render end');
   }
 
   function resizeCanvas() {
     if (DEBUG) console.debug('resizeCanvas');
-    const ratio = window.devicePixelRatio || 1;
-    const w = canvas.clientWidth || 800;
-    const h = (w * 9 / 16) | 0;
-    canvas.width = Math.max(600, w) * ratio;
-    canvas.height = Math.max(300, h) * ratio;
-    canvas.style.width = w + 'px';
-    canvas.style.height = h + 'px';
-    ctx.setTransform(ratio, 0, 0, ratio, 0, 0);
+    const DPR = window.devicePixelRatio || 1;
+    const cssW = canvas.clientWidth || 800;
+    const cssH = Math.round((cssW * 9) / 16);
+    canvas.width = Math.floor(Math.max(cssW, 600) * DPR);
+    canvas.height = Math.floor(Math.max(cssH, 300) * DPR);
+    canvas.style.width = cssW + 'px';
+    canvas.style.height = cssH + 'px';
+    ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+    updateDebug();
     render();
   }
 
@@ -196,10 +214,10 @@ function inicializarSimulacionAvanzada() {
         });
         if (!resp.ok) throw new Error('respuesta no OK');
         const data = await resp.json();
-        if (data.path) {
+        if (data.url) {
           const link = document.createElement('a');
-          link.href = `/static/${data.path}`;
-          link.download = data.path.split('/').pop();
+          link.href = data.url;
+          link.download = data.url.split('/').pop();
           document.body.appendChild(link);
           link.click();
           document.body.removeChild(link);
@@ -214,7 +232,13 @@ function inicializarSimulacionAvanzada() {
     el.addEventListener('input', render);
   });
   if (DEBUG) console.debug('listeners attached');
-  window.addEventListener('resize', resizeCanvas);
+  let resizeTimeout;
+  const onResize = () => {
+    clearTimeout(resizeTimeout);
+    resizeTimeout = setTimeout(resizeCanvas, 150);
+  };
+  window.addEventListener('resize', onResize);
+  window.addEventListener('orientationchange', onResize);
   resizeCanvas();
   if (!baseImg) render();
   if (saveBtn) {
