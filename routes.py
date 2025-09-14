@@ -1379,6 +1379,7 @@ def revision():
     return render_template(
         "resultado_flexo.html",
         **resultado_data,
+        revision_id=revision_id,
     )
 
 
@@ -1402,7 +1403,22 @@ def resultado_flexo():
             "warning",
         )
         return redirect(url_for("revision"))
-    return render_template("resultado_flexo.html", **datos)
+    return render_template("resultado_flexo.html", **datos, revision_id=revision_id)
+
+
+@routes_bp.route("/guardar_simulacion/<revision_id>", methods=["POST"])
+def guardar_simulacion(revision_id):
+    """Guarda la imagen de la simulación enviada desde el frontend."""
+    img_file = request.files.get("image")
+    if not img_file:
+        return jsonify({"error": "No se recibió imagen"}), 400
+    sim_dir = os.path.join(current_app.static_folder, "simulaciones")
+    os.makedirs(sim_dir, exist_ok=True)
+    filename = f"sim_{revision_id}.png"
+    save_path = os.path.join(sim_dir, filename)
+    img_file.save(save_path)
+    rel_path = os.path.relpath(save_path, current_app.static_folder)
+    return jsonify({"path": rel_path})
 
 
 @routes_bp.route("/vista_previa_tecnica", methods=["POST"])
