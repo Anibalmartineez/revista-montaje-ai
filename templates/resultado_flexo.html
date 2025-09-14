@@ -141,14 +141,10 @@
       margin-left: auto;
       margin-right: auto;
     }
+    #simulacion-avanzada { min-height: 300px; }
     #simulacion-avanzada h3 { text-align: center; }
     #simulacion-avanzada label { display: block; margin-top: 10px; }
-    #sim-canvas {
-      max-width: 100%;
-      height: auto;
-      border: 1px solid #ccc;
-      margin-top: 15px;
-    }
+    #sim-canvas{max-width:100%;height:auto;display:block}
 
     /* Modal para ver simulación en grande */
     #sim-modal {
@@ -391,7 +387,7 @@
       <input type="range" id="sim-cobertura" min="0" max="200" value="{{ cob_in if cob_in is not none else 25 }}">
       <span id="sim-cobertura-val">{{ cob_in if cob_in is not none else '(calculado en diagnóstico)' }}{% if cob_in is not none %} %{% endif %}</span>
     </label>
-    <canvas id="sim-canvas" width="280" height="280"></canvas>
+    <canvas id="sim-canvas" width="800" height="450"></canvas>
     <button id="sim-save" class="btn" type="button">🖼️ Generar PNG final</button>
     <button id="sim-view-large" class="btn" type="button">🔍 Ver imagen completa</button>
     <div id="sim-ml"></div>
@@ -412,6 +408,6 @@
     window.diagnosticoFlexo = {{ diagnostico_json | default({}) | tojson }};
     window.revisionId = "{{ revision_id or '' }}";
   </script>
-  <script src="{{ url_for('static', filename='js/flexo_simulation.js') }}"></script>
+  <script defer src="{{ url_for('static', filename='js/flexo_simulation.js') }}"></script>
 </body>
 </html>
