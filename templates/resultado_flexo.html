@@ -344,7 +344,7 @@
   {{ tabla_riesgos|safe }}
 
   <section id="simulacion-avanzada">
-    <h3>Simulación avanzada de impresión</h3>
+    <h3>⚙️ Simulación Avanzada de Impresión</h3>
     <label>
       Lineatura del Anilox (LPI):
       <input type="range" id="sim-lpi" min="80" max="600" value="{{ diag.get('anilox_lpi', diag.get('lpi', 360)) }}">
@@ -356,17 +356,17 @@
       <span id="sim-bcm-val">{{ diag.get('anilox_bcm', diag.get('bcm', 4)) }} cm³/m²</span>
     </label>
     <label>
-      Paso del cilindro (mm):
-      <input type="range" id="sim-paso" min="250" max="1200" step="1" value="{{ diag.get('paso_cilindro', diag.get('paso', 330)) }}">
-      <span id="sim-paso-val">{{ diag.get('paso_cilindro', diag.get('paso', 330)) }} mm</span>
-    </label>
-    <label>
       Velocidad estimada de impresión (m/min):
       <input type="range" id="sim-velocidad" min="50" max="500" value="{{ diag.get('velocidad', diag.get('velocidad_impresion', 150)) }}">
       <span id="sim-vel-val">{{ diag.get('velocidad', diag.get('velocidad_impresion', 150)) }} m/min</span>
     </label>
+    <label>
+      Cobertura estimada (%):
+      <input type="range" id="sim-cobertura" min="0" max="100" value="{{ diag.get('cobertura_estimada', 25) }}">
+      <span id="sim-cobertura-val">{{ diag.get('cobertura_estimada', 25) }} %</span>
+    </label>
     <canvas id="sim-canvas" width="280" height="280"></canvas>
-    <button id="sim-view-large" class="btn" type="button">🔍 Ver simulación en grande</button>
+    <button id="sim-view-large" class="btn" type="button">🔍 Ver imagen completa</button>
     <div id="sim-ml"></div>
   </section>
 

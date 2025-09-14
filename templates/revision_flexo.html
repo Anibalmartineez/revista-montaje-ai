@@ -179,23 +179,7 @@
         </div>
 
         <div class="form-block">
-          <h2>🌀 Parámetros del anilox</h2>
-          <label for="anilox_lpi">LPI del anilox
-            <span class="tooltip-icon">❓
-              <span class="tooltip-text">Líneas por pulgada del rodillo anilox.</span>
-            </span>
-          </label>
-          <input class="input-field" type="number" name="anilox_lpi" placeholder="Ej: 360 lpi">
-          <label for="anilox_bcm">BCM del anilox
-            <span class="tooltip-icon">❓
-              <span class="tooltip-text">Volumen de celdas en cm³/m².</span>
-            </span>
-          </label>
-          <input class="input-field" type="number" step="0.1" name="anilox_bcm" placeholder="Ej: 4.0">
-        </div>
-
-        <div class="form-block">
-          <h2>⚙️ Condiciones de impresión</h2>
+          <h2>📦 Material de impresión</h2>
           <label for="material">Material de impresión
             <span class="tooltip-icon">❓
               <span class="tooltip-text">Sustrato donde se imprimirá.</span>
@@ -205,23 +189,11 @@
             <option value="film">Film</option>
             <option value="papel">Papel</option>
             <option value="carton">Cartón</option>
-            <option value="etiqueta adhesiva">Etiqueta adhesiva</option>
+            <option value="adhesivo">Adhesivo</option>
           </select>
-          <label for="velocidad">Velocidad de impresión (m/min)
-            <span class="tooltip-icon">❓
-              <span class="tooltip-text">Velocidad estimada de la prensa.</span>
-            </span>
-          </label>
-          <input class="input-field" type="number" name="velocidad" placeholder="Ej: 150">
-          <label for="cobertura">Cobertura estimada (%)
-            <span class="tooltip-icon">❓
-              <span class="tooltip-text">Promedio de cobertura de tinta.</span>
-            </span>
-          </label>
-          <input class="input-field" type="number" name="cobertura" placeholder="Ej: 25">
         </div>
 
-        <button class="btn" type="submit"><span>🔎</span> Revisar diseño</button>
+        <button class="btn" type="submit"><span>🔍</span> Revisar diseño</button>
       </form>
 
       <form id="vista-previa-form" action="/vista_previa_tecnica" method="POST">
