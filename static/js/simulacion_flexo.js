@@ -19,24 +19,24 @@ function obtenerCobertura(datos) {
 function inicializarSimulacionAvanzada() {
   const lpi = document.getElementById('sim-lpi');
   const bcm = document.getElementById('sim-bcm');
-  const paso = document.getElementById('sim-paso');
   const vel = document.getElementById('sim-velocidad');
+  const cob = document.getElementById('sim-cobertura');
   const lpiVal = document.getElementById('sim-lpi-val');
   const bcmVal = document.getElementById('sim-bcm-val');
-  const pasoVal = document.getElementById('sim-paso-val');
   const velVal = document.getElementById('sim-vel-val');
+  const cobVal = document.getElementById('sim-cobertura-val');
   const canvas = document.getElementById('sim-canvas');
   const resultado = document.getElementById('sim-ml');
-  if (!lpi || !bcm || !paso || !vel || !canvas || !resultado || !lpiVal || !bcmVal || !pasoVal || !velVal) {
+  if (!lpi || !bcm || !vel || !cob || !canvas || !resultado || !lpiVal || !bcmVal || !velVal || !cobVal) {
     return;
   }
 
   const datos = window.diagnosticoFlexo || {};
-  lpi.value = datos.anilox_lpi ?? datos.lpi ?? lpi.value;
-  bcm.value = datos.anilox_bcm ?? datos.bcm ?? bcm.value;
-  paso.value = datos.paso_cilindro ?? datos.paso ?? paso.value;
-  vel.value = datos.velocidad ?? datos.velocidad_impresion ?? vel.value;
-  const coberturaBase = obtenerCobertura(datos);
+  lpi.value = datos.anilox_lpi ?? datos.lpi ?? lpi.value ?? 360;
+  bcm.value = datos.anilox_bcm ?? datos.bcm ?? bcm.value ?? 4;
+  vel.value = datos.velocidad ?? datos.velocidad_impresion ?? vel.value ?? 150;
+  cob.value = datos.cobertura_estimada ?? Math.round(obtenerCobertura(datos) * 100) || 25;
+  const paso = datos.paso_cilindro ?? datos.paso ?? 330;
   const eficiencia = datos.eficiencia || 0.30;
   const ancho = datos.ancho || 0.50;
   const ctx = canvas.getContext('2d');
@@ -46,8 +46,8 @@ function inicializarSimulacionAvanzada() {
   function actualizarValores() {
     lpiVal.textContent = `${lpi.value} lpi`;
     bcmVal.textContent = `${bcm.value} cm³/m²`;
-    pasoVal.textContent = `${paso.value} mm`;
     velVal.textContent = `${vel.value} m/min`;
+    cobVal.textContent = `${cob.value} %`;
   }
 
   function dibujar() {
@@ -93,10 +93,10 @@ function inicializarSimulacionAvanzada() {
 
     const params = {
       bcm: parseFloat(bcm.value),
-      paso: parseFloat(paso.value),
+      paso,
       velocidad: parseFloat(vel.value),
       eficiencia,
-      cobertura: coberturaBase,
+      cobertura: parseFloat(cob.value) / 100,
       ancho,
     };
     const mlMin = calcularTransmisionTinta(params);
@@ -110,7 +110,7 @@ function inicializarSimulacionAvanzada() {
     img.src = baseImg.src;
   }
 
-  [lpi, bcm, paso, vel].forEach(el => el.addEventListener('input', dibujar));
+  [lpi, bcm, vel, cob].forEach(el => el.addEventListener('input', dibujar));
   actualizarValores();
   if (img.complete) dibujar();
 }

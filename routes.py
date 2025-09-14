@@ -1207,37 +1207,22 @@ def generar_pdf_final():
 @routes_bp.route("/revision", methods=["GET", "POST"])
 def revision_flexo():
     mensaje = ""
-    resultado_revision = ""
-    grafico_tinta = ""
-    diagnostico_texto = ""
-    resultado_revision_b64 = ""
-    diagnostico_texto_b64 = ""
 
     if request.method == "POST":
         try:
             archivo = request.files.get("archivo_revision")
             material = request.form.get("material", "")
 
-            def _parse_int(name: str, default: int | None) -> int | None:
-                try:
-                    valor = request.form.get(name, "").strip()
-                    return int(valor) if valor != "" else default
-                except (ValueError, TypeError):
-                    return default
-
-            def _parse_float(name: str, default: float | None) -> float | None:
-                try:
-                    valor = request.form.get(name, "").strip()
-                    return float(valor) if valor != "" else default
-                except (ValueError, TypeError):
-                    return default
-
             # Valores predeterminados para la simulación avanzada
-            anilox_lpi = _parse_int("anilox_lpi", 360)
+            anilox_lpi = 360
             paso_mm = 330
-            anilox_bcm = _parse_float("anilox_bcm", None)
-            velocidad = _parse_float("velocidad", None)
-            cobertura = _parse_float("cobertura", None)
+            default_bcm = 4.0
+            default_velocidad = 150.0
+            default_cobertura = 25.0
+
+            anilox_bcm = None
+            velocidad = None
+            cobertura = None
 
             if archivo and archivo.filename.endswith(".pdf"):
                 # Siempre guardamos el PDF con un nombre fijo para evitar usar uno previo.
@@ -1274,29 +1259,22 @@ def revision_flexo():
                 tabla_riesgos = simular_riesgos(resumen)
 
                 cobertura_dict = analisis_detallado.get("cobertura_por_canal", {})
-                if cobertura is not None:
-                    cobertura_json = {
-                        "C": cobertura,
-                        "M": 0,
-                        "Y": 0,
-                        "K": 0,
-                    }
-                else:
-                    cobertura_json = {
-                        "C": round(cobertura_dict.get("Cyan", 0)),
-                        "M": round(cobertura_dict.get("Magenta", 0)),
-                        "Y": round(cobertura_dict.get("Amarillo", 0)),
-                        "K": round(cobertura_dict.get("Negro", 0)),
-                    }
+                cobertura_json = {
+                    "C": round(cobertura_dict.get("Cyan", 0)),
+                    "M": round(cobertura_dict.get("Magenta", 0)),
+                    "Y": round(cobertura_dict.get("Amarillo", 0)),
+                    "K": round(cobertura_dict.get("Negro", 0)),
+                }
 
                 diagnostico_json = {
                     "cobertura": cobertura_json,
-                    "bcm": anilox_bcm,
-                    "anilox_bcm": anilox_bcm,
+                    "cobertura_estimada": default_cobertura,
+                    "bcm": default_bcm,
+                    "anilox_bcm": default_bcm,
                     "eficiencia": 0.30,
                     "ancho": 0.50,
-                    "velocidad": velocidad,
-                    "velocidad_impresion": velocidad,
+                    "velocidad": default_velocidad,
+                    "velocidad_impresion": default_velocidad,
                     "lpi": anilox_lpi,
                     "anilox_lpi": anilox_lpi,
                     "paso": paso_mm,
@@ -1309,34 +1287,53 @@ def revision_flexo():
                     "resultados_diagnostico": analisis_detallado,
                     "datos_formulario": {
                         "anilox_lpi": anilox_lpi,
-                        "anilox_bcm": anilox_bcm,
+                        "anilox_bcm": default_bcm,
                         "paso_cilindro": paso_mm,
                         "material": material,
-                        "velocidad_impresion": velocidad,
-                        "cobertura": cobertura,
+                        "velocidad_impresion": default_velocidad,
+                        "cobertura": default_cobertura,
                         "advertencias": overlay_info.get("advertencias", []),
                     },
                     "overlay_path": overlay_info["overlay_path"],
                     "dpi": overlay_info["dpi"],
                 }
 
-                return render_template(
-                    "resultado_flexo.html",
-                    resumen=resumen,
-                    tabla_riesgos=tabla_riesgos,
-                    imagen_path_web=imagen_rel,
-                    imagen_iconos_web=imagen_iconos_rel,
-                    texto=texto,
-                    analisis=analisis_detallado,
-                    advertencias_iconos=advertencias_iconos,
-                    diagnostico_json=diagnostico_json,
-                )
+                session["resultado_flexo"] = {
+                    "resumen": resumen,
+                    "tabla_riesgos": tabla_riesgos,
+                    "imagen_path_web": imagen_rel,
+                    "imagen_iconos_web": imagen_iconos_rel,
+                    "texto": texto,
+                    "analisis": analisis_detallado,
+                    "advertencias_iconos": advertencias_iconos,
+                    "diagnostico_json": diagnostico_json,
+                }
+
+                return redirect(url_for("routes.resultado_flexo"))
             else:
                 mensaje = "Archivo inválido. Subí un PDF."
         except Exception as e:
             mensaje = f"Error al revisar diseño: {str(e)}"
 
     return render_template("revision_flexo.html", mensaje=mensaje)
+
+
+@routes_bp.route("/resultado", methods=["GET"])
+def resultado_flexo():
+    datos = session.get("resultado_flexo")
+    if not datos:
+        return redirect(url_for("routes.revision_flexo"))
+    return render_template(
+        "resultado_flexo.html",
+        resumen=datos.get("resumen", ""),
+        tabla_riesgos=datos.get("tabla_riesgos", ""),
+        imagen_path_web=datos.get("imagen_path_web", ""),
+        imagen_iconos_web=datos.get("imagen_iconos_web", ""),
+        texto=datos.get("texto", ""),
+        analisis=datos.get("analisis", {}),
+        advertencias_iconos=datos.get("advertencias_iconos", []),
+        diagnostico_json=datos.get("diagnostico_json", {}),
+    )
 
 
 @routes_bp.route("/vista_previa_tecnica", methods=["POST"])
