@@ -5,6 +5,8 @@ import math
 import fitz
 import uuid
 import tempfile
+import shutil
+import json
 from threading import Lock
 from PIL import Image
 from reportlab.pdfgen import canvas
@@ -1241,7 +1243,8 @@ def revision():
 
     base_upload = os.path.join(current_app.static_folder, "uploads")
     os.makedirs(base_upload, exist_ok=True)
-    tmpdir = tempfile.mkdtemp(dir=base_upload)
+
+    tmpdir = tempfile.mkdtemp()
     save_path = os.path.join(tmpdir, secure_filename(file.filename))
     file.save(save_path)
     current_app.logger.info(
@@ -1258,6 +1261,8 @@ def revision():
     anilox_bcm = 4.0
     velocidad = 150.0
     cobertura = 25.0
+
+    revision_id = uuid.uuid4().hex
 
     try:
         (
@@ -1298,7 +1303,10 @@ def revision():
             2,
         )
 
-        pdf_rel = os.path.relpath(save_path, current_app.static_folder)
+        final_pdf_path = os.path.join(base_upload, f"{revision_id}.pdf")
+        shutil.copy(save_path, final_pdf_path)
+        pdf_rel = os.path.relpath(final_pdf_path, current_app.static_folder)
+
         diagnostico_json = {
             "archivo": secure_filename(file.filename),
             "pdf_path": pdf_rel,
@@ -1311,9 +1319,8 @@ def revision():
             "material": material_norm,
         }
 
-        session["archivo_pdf"] = save_path
-        session["diagnostico_flexo"] = {
-            "pdf_path": save_path,
+        diagnostico_data = {
+            "pdf_path": final_pdf_path,
             "resultados_diagnostico": analisis_detallado,
             "datos_formulario": {
                 "anilox_lpi": anilox_lpi,
@@ -1328,7 +1335,7 @@ def revision():
             "dpi": overlay_info["dpi"],
         }
 
-        session["resultado_flexo"] = {
+        resultado_data = {
             "resumen": resumen,
             "tabla_riesgos": tabla_riesgos,
             "imagen_path_web": imagen_rel,
@@ -1340,49 +1347,62 @@ def revision():
             "diagnostico_json": diagnostico_json,
         }
 
+        diag_json_path = os.path.join(base_upload, f"{revision_id}_diag.json")
+        res_json_path = os.path.join(base_upload, f"{revision_id}_res.json")
+        with open(diag_json_path, "w", encoding="utf-8") as f:
+            json.dump(diagnostico_data, f)
+        with open(res_json_path, "w", encoding="utf-8") as f:
+            json.dump(resultado_data, f)
+
+        session["revision_flexo_id"] = revision_id
+        session["archivo_pdf"] = pdf_rel
+
     except Exception as e:
         current_app.logger.exception("REV FLEXO: fallo analizando")
         flash(f"Ocurrió un error procesando el PDF: {e}", "danger")
         return render_template("revision_flexo.html")
+    finally:
+        shutil.rmtree(tmpdir, ignore_errors=True)
 
     return render_template(
         "resultado_flexo.html",
-        resumen=resumen,
-        tabla_riesgos=tabla_riesgos,
-        imagen_path_web=imagen_rel,
-        imagen_iconos_web=imagen_iconos_rel,
-        pdf_path_web=pdf_rel,
-        texto=texto,
-        analisis=analisis_detallado,
-        advertencias_iconos=advertencias_iconos,
-        diagnostico_json=diagnostico_json,
+        **resultado_data,
     )
 
 
 @routes_bp.route("/resultado", methods=["GET"])
 def resultado_flexo():
-    datos = session.get("resultado_flexo")
-    if not datos:
+    revision_id = session.get("revision_flexo_id")
+    if not revision_id:
         return redirect(url_for("revision"))
-    return render_template(
-        "resultado_flexo.html",
-        resumen=datos.get("resumen", ""),
-        tabla_riesgos=datos.get("tabla_riesgos", ""),
-        imagen_path_web=datos.get("imagen_path_web", ""),
-        imagen_iconos_web=datos.get("imagen_iconos_web", ""),
-        pdf_path_web=datos.get("pdf_path_web", ""),
-        texto=datos.get("texto", ""),
-        analisis=datos.get("analisis", {}),
-        advertencias_iconos=datos.get("advertencias_iconos", []),
-        diagnostico_json=datos.get("diagnostico_json", {}),
+    res_json_path = os.path.join(
+        current_app.static_folder, "uploads", f"{revision_id}_res.json"
     )
+    try:
+        with open(res_json_path, "r", encoding="utf-8") as f:
+            datos = json.load(f)
+    except FileNotFoundError:
+        current_app.logger.error(
+            "REV FLEXO: resultados no encontrados en %s", res_json_path
+        )
+        flash(
+            "No se encontraron los resultados de la revisión. Volvé a cargar el PDF.",
+            "warning",
+        )
+        return redirect(url_for("revision"))
+    return render_template("resultado_flexo.html", **datos)
 
 
 @routes_bp.route("/vista_previa_tecnica", methods=["POST"])
 def vista_previa_tecnica():
     try:
-        # Permite recuperar la ruta desde el formulario o la sesión
-        pdf_path = request.form.get("archivo_guardado") or session.get("archivo_pdf")
+        pdf_path = request.form.get("archivo_guardado")
+        revision_id = session.get("revision_flexo_id")
+        if not pdf_path and revision_id:
+            pdf_rel = os.path.join("uploads", f"{revision_id}.pdf")
+            pdf_path = os.path.join(current_app.static_folder, pdf_rel)
+        elif pdf_path and not os.path.isabs(pdf_path):
+            pdf_path = os.path.join(current_app.static_folder, pdf_path)
         if not pdf_path:
             return (
                 jsonify(
@@ -1394,6 +1414,7 @@ def vista_previa_tecnica():
             )
 
         if not os.path.exists(pdf_path):
+            current_app.logger.error("REV FLEXO: archivo PDF faltante %s", pdf_path)
             return (
                 jsonify(
                     {
@@ -1403,7 +1424,19 @@ def vista_previa_tecnica():
                 400,
             )
 
-        diag = session.get("diagnostico_flexo", {})
+        diag = {}
+        if revision_id:
+            diag_path = os.path.join(
+                current_app.static_folder, "uploads", f"{revision_id}_diag.json"
+            )
+            try:
+                with open(diag_path, "r", encoding="utf-8") as f:
+                    diag = json.load(f)
+            except FileNotFoundError:
+                current_app.logger.error(
+                    "REV FLEXO: datos de diagnóstico faltantes %s", diag_path
+                )
+
         rel_path = generar_preview_tecnico(
             pdf_path,
             diag.get("datos_formulario"),
@@ -1411,10 +1444,10 @@ def vista_previa_tecnica():
             dpi=diag.get("dpi", 200),
         )
         url = url_for("static", filename=rel_path)
-        # Mostrar en consola la URL pública generada
         print("🌐 URL pública vista previa técnica:", url)
         return jsonify({"preview_url": url})
     except Exception as e:
+        current_app.logger.exception("vista_previa_tecnica")
         return jsonify({"error": str(e)}), 500
 
 
