@@ -68,7 +68,13 @@ function inicializarSimulacionAvanzada() {
 
   const img = new Image();
   img.crossOrigin = 'anonymous';
-  const diagUrl = window.diagImg;
+  // Intentar reutilizar la imagen del diagnóstico con advertencias.  Si no se
+  // proporciona explícitamente, buscarla en uploads/<revision_id>.
+  const diagUrl =
+    window.diagImg ||
+    (window.revisionId
+      ? `/static/uploads/${window.revisionId}/diagnostico_iconos.png`
+      : null);
   if (diagUrl) {
     img.onload = () => {
       if (DEBUG) console.log('[SIM] imagen base cargada');
@@ -103,20 +109,17 @@ function inicializarSimulacionAvanzada() {
   }
 
   function drawBasePattern() {
-    ctx.fillStyle = '#eef7ff';
+    // Patron de puntos como fondo de reserva para que el canvas nunca quede vacío
+    ctx.fillStyle = '#fff';
     ctx.fillRect(0, 0, canvas.width, canvas.height);
-    ctx.strokeStyle = '#ccc';
-    for (let x = 0; x < canvas.width; x += 25) {
-      ctx.beginPath();
-      ctx.moveTo(x, 0);
-      ctx.lineTo(x, canvas.height);
-      ctx.stroke();
-    }
-    for (let y = 0; y < canvas.height; y += 25) {
-      ctx.beginPath();
-      ctx.moveTo(0, y);
-      ctx.lineTo(canvas.width, y);
-      ctx.stroke();
+    ctx.fillStyle = '#ccc';
+    const spacing = 20;
+    for (let y = 0; y < canvas.height; y += spacing) {
+      for (let x = 0; x < canvas.width; x += spacing) {
+        ctx.beginPath();
+        ctx.arc(x + spacing / 2, y + spacing / 2, 1.5, 0, Math.PI * 2);
+        ctx.fill();
+      }
     }
   }
 
@@ -257,10 +260,12 @@ function inicializarSimulacionAvanzada() {
   }
 
   [lpi, bcm, vel, cob].forEach(el => {
-    el.addEventListener('input', () => {
+    const handler = () => {
       if (DEBUG) console.log('[SIM] slider', el.id, el.value);
       renderSimulation();
-    });
+    };
+    el.addEventListener('input', handler);
+    el.addEventListener('change', handler);
   });
   if (DEBUG) console.debug('listeners attached');
   let resizeTimeout;

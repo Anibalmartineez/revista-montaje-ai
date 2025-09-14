@@ -1376,7 +1376,10 @@ def revision():
             "advertencias_iconos": advertencias_iconos,
             "diagnostico_json": diagnostico_json,
             "sim_img_web": sim_rel,
-            "diag_img_web": diag_rel,
+            # Usar la imagen de diagnóstico con advertencias como base de la simulación
+            # avanzada para que el canvas cargue la misma vista que vio el usuario
+            # durante el análisis.
+            "diag_img_web": imagen_iconos_rel,
         }
 
         diag_json_path = os.path.join(rev_dir, "diag.json")
