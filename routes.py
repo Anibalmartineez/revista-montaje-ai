@@ -1216,23 +1216,33 @@ def revision_flexo():
 
             # Valores predeterminados para el modo simplificado
             paso_mm = 330
-            anilox_lpi = 360
-            anilox_bcm = 4.0
-            velocidad = 150.0
+            anilox_lpi_default = 360
+            anilox_bcm_default = 4.0
+            velocidad_default = 150.0
+            cobertura_default = 25.0
 
-            # Permite sobrescribir en un futuro con campos opcionales
+            # Valores reales utilizados en el diagnóstico
+            anilox_lpi_form = request.form.get("anilox_lpi")
+            anilox_bcm_form = request.form.get("anilox_bcm")
+            velocidad_form = request.form.get("velocidad")
+            cobertura_form = request.form.get("cobertura")
+
             try:
-                anilox_lpi = float(request.form.get("anilox_lpi") or anilox_lpi)
+                anilox_lpi = float(anilox_lpi_form) if anilox_lpi_form else anilox_lpi_default
             except (TypeError, ValueError):
-                pass
+                anilox_lpi = anilox_lpi_default
             try:
-                anilox_bcm = float(request.form.get("anilox_bcm") or anilox_bcm)
+                anilox_bcm = float(anilox_bcm_form) if anilox_bcm_form else anilox_bcm_default
             except (TypeError, ValueError):
-                pass
+                anilox_bcm = anilox_bcm_default
             try:
-                velocidad = float(request.form.get("velocidad") or velocidad)
+                velocidad = float(velocidad_form) if velocidad_form else velocidad_default
             except (TypeError, ValueError):
-                pass
+                velocidad = velocidad_default
+            try:
+                cobertura = float(cobertura_form) if cobertura_form else cobertura_default
+            except (TypeError, ValueError):
+                cobertura = cobertura_default
 
             if archivo and archivo.filename.lower().endswith(".pdf") and material:
                 # Siempre guardamos el PDF con un nombre fijo para evitar usar uno previo.
@@ -1241,6 +1251,12 @@ def revision_flexo():
                 if os.path.exists(path):
                     os.remove(path)
                 archivo.save(path)
+                if not os.path.exists(path):
+                    raise Exception("No se pudo guardar el PDF subido")
+                try:
+                    fitz.open(path).close()
+                except Exception:
+                    raise Exception("El archivo PDF está dañado o no es válido")
                 pdf_rel = os.path.join("uploads", filename)
 
                 # Guardamos la ruta en sesión para reutilizarla en la vista previa
@@ -1259,7 +1275,7 @@ def revision_flexo():
                     material,
                     anilox_bcm,
                     velocidad,
-                    None,
+                    cobertura,
                 )
                 overlay_info = analizar_riesgos_pdf(path, advertencias=advertencias_overlay)
 
@@ -1289,18 +1305,22 @@ def revision_flexo():
                     "pdf_path": pdf_rel,
                     "cobertura": cobertura_json,
                     "cobertura_estimada": cobertura_total,
-                    "bcm": anilox_bcm,
-                    "anilox_bcm": anilox_bcm,
                     "eficiencia": 0.30,
                     "ancho": 0.50,
-                    "velocidad": velocidad,
-                    "velocidad_impresion": velocidad,
-                    "lpi": anilox_lpi,
-                    "anilox_lpi": anilox_lpi,
                     "paso": paso_mm,
                     "paso_cilindro": paso_mm,
                     "material": material,
                 }
+                if anilox_bcm_form:
+                    diagnostico_json.update({"bcm": anilox_bcm, "anilox_bcm": anilox_bcm})
+                if anilox_lpi_form:
+                    diagnostico_json.update({"lpi": anilox_lpi, "anilox_lpi": anilox_lpi})
+                if velocidad_form:
+                    diagnostico_json.update(
+                        {"velocidad": velocidad, "velocidad_impresion": velocidad}
+                    )
+                if cobertura_form:
+                    diagnostico_json.update({"cobertura_ingresada": cobertura})
 
                 session["diagnostico_flexo"] = {
                     "pdf_path": path,

@@ -140,6 +140,7 @@ MATERIAL_ALIAS: Dict[str, str] = {
     "film": "film",
     "adhesivo": "etiqueta adhesiva",
     "etiqueta": "etiqueta adhesiva",
+    "etiqueta_adhesiva": "etiqueta adhesiva",
     "etiqueta adhesiva": "etiqueta adhesiva",
     "carton": "cartón",
     "cartón": "cartón",
@@ -157,5 +158,5 @@ def normalizar_material(material: str) -> str:
 
     if not material:
         return ""
-    mat = material.lower().strip()
+    mat = material.lower().strip().replace("_", " ")
     return MATERIAL_ALIAS.get(mat, mat)
