@@ -21,6 +21,7 @@ from flask import (
     jsonify,
     current_app,
     session,
+    flash,
 )
 from werkzeug.utils import secure_filename
 from werkzeug.exceptions import RequestEntityTooLarge
@@ -1205,165 +1206,164 @@ def generar_pdf_final():
     return send_file(output_pdf_path, as_attachment=True)
 
 
-@routes_bp.route("/revision", methods=["GET", "POST"])
-def revision_flexo():
-    mensaje = ""
+@routes_bp.route("/revision", methods=["GET", "POST"], endpoint="revision")
+def revision():
+    if request.method == "GET":
+        return render_template("revision_flexo.html")
 
-    if request.method == "POST":
-        try:
-            archivo = request.files.get("archivo_revision")
-            material = normalizar_material(request.form.get("material", ""))
+    current_app.logger.info(
+        "REV FLEXO: method=%s form=%s files=%s",
+        request.method,
+        list(request.form.keys()),
+        list(request.files.keys()),
+    )
 
-            # Valores predeterminados para el modo simplificado
-            paso_mm = 330
-            anilox_lpi_default = 360
-            anilox_bcm_default = 4.0
-            velocidad_default = 150.0
-            cobertura_default = 25.0
+    file = request.files.get("archivo_revision")
+    material = (request.form.get("material") or "").strip()
 
-            # Valores reales utilizados en el diagnóstico
-            anilox_lpi_form = request.form.get("anilox_lpi")
-            anilox_bcm_form = request.form.get("anilox_bcm")
-            velocidad_form = request.form.get("velocidad")
-            cobertura_form = request.form.get("cobertura")
+    if not file or file.filename == "":
+        flash("Subí un PDF válido.", "warning")
+        return render_template("revision_flexo.html")
+    if not material:
+        flash("Elegí el material de impresión.", "warning")
+        return render_template("revision_flexo.html")
+    if not file.filename.lower().endswith(".pdf"):
+        flash("Formato no permitido. Solo PDF.", "warning")
+        return render_template("revision_flexo.html")
 
-            try:
-                anilox_lpi = float(anilox_lpi_form) if anilox_lpi_form else anilox_lpi_default
-            except (TypeError, ValueError):
-                anilox_lpi = anilox_lpi_default
-            try:
-                anilox_bcm = float(anilox_bcm_form) if anilox_bcm_form else anilox_bcm_default
-            except (TypeError, ValueError):
-                anilox_bcm = anilox_bcm_default
-            try:
-                velocidad = float(velocidad_form) if velocidad_form else velocidad_default
-            except (TypeError, ValueError):
-                velocidad = velocidad_default
-            try:
-                cobertura = float(cobertura_form) if cobertura_form else cobertura_default
-            except (TypeError, ValueError):
-                cobertura = cobertura_default
+    file.seek(0, os.SEEK_END)
+    size = file.tell()
+    file.seek(0)
+    max_size = current_app.config.get("MAX_CONTENT_LENGTH", 20 * 1024 * 1024)
+    if size > max_size:
+        flash("El PDF supera el tamaño permitido.", "danger")
+        return render_template("revision_flexo.html")
 
-            if archivo and archivo.filename.lower().endswith(".pdf") and material:
-                # Siempre guardamos el PDF con un nombre fijo para evitar usar uno previo.
-                filename = "diagnostico.pdf"
-                path = os.path.abspath(os.path.join(UPLOAD_FOLDER, filename))
-                if os.path.exists(path):
-                    os.remove(path)
-                archivo.save(path)
-                if not os.path.exists(path):
-                    raise Exception("No se pudo guardar el PDF subido")
-                try:
-                    fitz.open(path).close()
-                except Exception:
-                    raise Exception("El archivo PDF está dañado o no es válido")
-                pdf_rel = os.path.join("uploads", filename)
+    base_upload = os.path.join(current_app.static_folder, "uploads")
+    os.makedirs(base_upload, exist_ok=True)
+    tmpdir = tempfile.mkdtemp(dir=base_upload)
+    save_path = os.path.join(tmpdir, secure_filename(file.filename))
+    file.save(save_path)
+    current_app.logger.info(
+        "REV FLEXO: guardado %s (%d bytes)", save_path, os.path.getsize(save_path)
+    )
 
-                # Guardamos la ruta en sesión para reutilizarla en la vista previa
-                session["archivo_pdf"] = path
+    material_norm = normalizar_material(material)
+    current_app.logger.info(
+        "REV FLEXO: material='%s' -> '%s'", material, material_norm
+    )
 
-                (
-                    resumen,
-                    _imagen_tinta,
-                    texto,
-                    analisis_detallado,
-                    advertencias_overlay,
-                ) = revisar_diseño_flexo(
-                    path,
-                    anilox_lpi,
-                    paso_mm,
-                    material,
-                    anilox_bcm,
-                    velocidad,
-                    cobertura,
-                )
-                overlay_info = analizar_riesgos_pdf(path, advertencias=advertencias_overlay)
+    paso_mm = 330
+    anilox_lpi = 360
+    anilox_bcm = 4.0
+    velocidad = 150.0
+    cobertura = 25.0
 
-                _, imagen_rel, imagen_iconos_rel, advertencias_iconos = generar_preview_diagnostico(
-                    path, overlay_info["advertencias"], dpi=overlay_info["dpi"]
-                )
+    try:
+        (
+            resumen,
+            _imagen_tinta,
+            texto,
+            analisis_detallado,
+            advertencias_overlay,
+        ) = revisar_diseño_flexo(
+            save_path,
+            anilox_lpi,
+            paso_mm,
+            material_norm,
+            anilox_bcm,
+            velocidad,
+            cobertura,
+        )
+        overlay_info = analizar_riesgos_pdf(
+            save_path, advertencias=advertencias_overlay
+        )
+        _, imagen_rel, imagen_iconos_rel, advertencias_iconos = generar_preview_diagnostico(
+            save_path, overlay_info["advertencias"], dpi=overlay_info["dpi"]
+        )
+        tabla_riesgos = simular_riesgos(resumen)
 
-                tabla_riesgos = simular_riesgos(resumen)
+        cobertura_dict = analisis_detallado.get("cobertura_por_canal", {})
+        cobertura_json = {
+            "C": round(cobertura_dict.get("Cyan", 0)),
+            "M": round(cobertura_dict.get("Magenta", 0)),
+            "Y": round(cobertura_dict.get("Amarillo", 0)),
+            "K": round(cobertura_dict.get("Negro", 0)),
+        }
+        cobertura_total = round(
+            cobertura_dict.get("Cyan", 0)
+            + cobertura_dict.get("Magenta", 0)
+            + cobertura_dict.get("Amarillo", 0)
+            + cobertura_dict.get("Negro", 0),
+            2,
+        )
 
-                cobertura_dict = analisis_detallado.get("cobertura_por_canal", {})
-                cobertura_json = {
-                    "C": round(cobertura_dict.get("Cyan", 0)),
-                    "M": round(cobertura_dict.get("Magenta", 0)),
-                    "Y": round(cobertura_dict.get("Amarillo", 0)),
-                    "K": round(cobertura_dict.get("Negro", 0)),
-                }
-                cobertura_total = round(
-                    cobertura_dict.get("Cyan", 0)
-                    + cobertura_dict.get("Magenta", 0)
-                    + cobertura_dict.get("Amarillo", 0)
-                    + cobertura_dict.get("Negro", 0),
-                    2,
-                )
+        pdf_rel = os.path.relpath(save_path, current_app.static_folder)
+        diagnostico_json = {
+            "archivo": secure_filename(file.filename),
+            "pdf_path": pdf_rel,
+            "cobertura": cobertura_json,
+            "cobertura_estimada": cobertura_total,
+            "eficiencia": 0.30,
+            "ancho": 0.50,
+            "paso": paso_mm,
+            "paso_cilindro": paso_mm,
+            "material": material_norm,
+        }
 
-                diagnostico_json = {
-                    "archivo": filename,
-                    "pdf_path": pdf_rel,
-                    "cobertura": cobertura_json,
-                    "cobertura_estimada": cobertura_total,
-                    "eficiencia": 0.30,
-                    "ancho": 0.50,
-                    "paso": paso_mm,
-                    "paso_cilindro": paso_mm,
-                    "material": material,
-                }
-                if anilox_bcm_form:
-                    diagnostico_json.update({"bcm": anilox_bcm, "anilox_bcm": anilox_bcm})
-                if anilox_lpi_form:
-                    diagnostico_json.update({"lpi": anilox_lpi, "anilox_lpi": anilox_lpi})
-                if velocidad_form:
-                    diagnostico_json.update(
-                        {"velocidad": velocidad, "velocidad_impresion": velocidad}
-                    )
-                if cobertura_form:
-                    diagnostico_json.update({"cobertura_ingresada": cobertura})
+        session["archivo_pdf"] = save_path
+        session["diagnostico_flexo"] = {
+            "pdf_path": save_path,
+            "resultados_diagnostico": analisis_detallado,
+            "datos_formulario": {
+                "anilox_lpi": anilox_lpi,
+                "anilox_bcm": anilox_bcm,
+                "paso_cilindro": paso_mm,
+                "material": material_norm,
+                "velocidad_impresion": velocidad,
+                "cobertura": cobertura_total,
+                "advertencias": overlay_info.get("advertencias", []),
+            },
+            "overlay_path": overlay_info["overlay_path"],
+            "dpi": overlay_info["dpi"],
+        }
 
-                session["diagnostico_flexo"] = {
-                    "pdf_path": path,
-                    "resultados_diagnostico": analisis_detallado,
-                    "datos_formulario": {
-                        "anilox_lpi": anilox_lpi,
-                        "anilox_bcm": anilox_bcm,
-                        "paso_cilindro": paso_mm,
-                        "material": material,
-                        "velocidad_impresion": velocidad,
-                        "cobertura": cobertura_total,
-                        "advertencias": overlay_info.get("advertencias", []),
-                    },
-                    "overlay_path": overlay_info["overlay_path"],
-                    "dpi": overlay_info["dpi"],
-                }
+        session["resultado_flexo"] = {
+            "resumen": resumen,
+            "tabla_riesgos": tabla_riesgos,
+            "imagen_path_web": imagen_rel,
+            "imagen_iconos_web": imagen_iconos_rel,
+            "pdf_path_web": pdf_rel,
+            "texto": texto,
+            "analisis": analisis_detallado,
+            "advertencias_iconos": advertencias_iconos,
+            "diagnostico_json": diagnostico_json,
+        }
 
-                session["resultado_flexo"] = {
-                    "resumen": resumen,
-                    "tabla_riesgos": tabla_riesgos,
-                    "imagen_path_web": imagen_rel,
-                    "imagen_iconos_web": imagen_iconos_rel,
-                    "pdf_path_web": pdf_rel,
-                    "texto": texto,
-                    "analisis": analisis_detallado,
-                    "advertencias_iconos": advertencias_iconos,
-                    "diagnostico_json": diagnostico_json,
-                }
+    except Exception as e:
+        current_app.logger.exception("REV FLEXO: fallo analizando")
+        flash(f"Ocurrió un error procesando el PDF: {e}", "danger")
+        return render_template("revision_flexo.html")
 
-                return redirect(url_for("routes.resultado_flexo"))
-            else:
-                mensaje = "Debes subir un PDF válido y seleccionar un material."
-        except Exception as e:
-            mensaje = f"Error al revisar diseño: {str(e)}"
-
-    return render_template("revision_flexo.html", mensaje=mensaje)
+    return render_template(
+        "resultado_flexo.html",
+        resumen=resumen,
+        tabla_riesgos=tabla_riesgos,
+        imagen_path_web=imagen_rel,
+        imagen_iconos_web=imagen_iconos_rel,
+        pdf_path_web=pdf_rel,
+        texto=texto,
+        analisis=analisis_detallado,
+        advertencias_iconos=advertencias_iconos,
+        diagnostico_json=diagnostico_json,
+    )
 
 
 @routes_bp.route("/resultado", methods=["GET"])
 def resultado_flexo():
     datos = session.get("resultado_flexo")
     if not datos:
-        return redirect(url_for("routes.revision_flexo"))
+        return redirect(url_for("revision"))
     return render_template(
         "resultado_flexo.html",
         resumen=datos.get("resumen", ""),
