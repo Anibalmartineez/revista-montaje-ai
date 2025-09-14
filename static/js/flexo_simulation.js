@@ -1,7 +1,17 @@
 document.addEventListener('DOMContentLoaded', () => {
+  inicializarRevisionBasica();
   inicializarSimulacionAvanzada();
   inicializarModalSimulacion();
 });
+
+function inicializarRevisionBasica() {
+  const form = document.querySelector('form[action="/revision"]');
+  if (!form) return;
+  form.addEventListener('submit', (e) => {
+    // El formulario solo necesita enviar el PDF y el material.
+    // Se deja que el navegador maneje la validación básica.
+  });
+}
 
 function calcularTransmisionTinta({ bcm, eficiencia, cobertura, ancho, velocidad, paso }) {
   const paso_m = paso / 1000;
@@ -32,8 +42,8 @@ function inicializarSimulacionAvanzada() {
   }
 
   const datos = window.diagnosticoFlexo || {};
-  lpi.value = datos.anilox_lpi ?? datos.lpi ?? lpi.value ?? 360;
-  bcm.value = datos.anilox_bcm ?? datos.bcm ?? bcm.value ?? 4;
+  lpi.value = datos.lpi ?? lpi.value ?? 360;
+  bcm.value = datos.bcm ?? bcm.value ?? 4;
   vel.value = datos.velocidad ?? datos.velocidad_impresion ?? vel.value ?? 150;
   cob.value = datos.cobertura_estimada ?? Math.round(obtenerCobertura(datos) * 100) || 25;
   const paso = datos.paso_cilindro ?? datos.paso ?? 330;
