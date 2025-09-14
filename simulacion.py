@@ -3,6 +3,53 @@ import fitz
 from PIL import Image, ImageDraw
 
 
+def generar_simulacion_avanzada(base_img_path, advertencias, lpi, output_path):
+    """Genera una imagen PNG con la simulación avanzada.
+
+    Se superpone la imagen base con las advertencias marcadas y un patrón de
+    puntos para simular la lineatura especificada. El resultado se guarda en
+    ``output_path``.
+    """
+
+    base = Image.open(base_img_path).convert("RGBA")
+    overlay = Image.new("RGBA", base.size, (0, 0, 0, 0))
+    draw = ImageDraw.Draw(overlay, "RGBA")
+
+    colores = {
+        "texto_pequeno": "red",
+        "trama_debil": "purple",
+        "imagen_baja": "orange",
+        "overprint": "blue",
+        "sin_sangrado": "darkgreen",
+    }
+
+    for adv in advertencias or []:
+        bbox = adv.get("bbox") or adv.get("box")
+        if not bbox or len(bbox) != 4:
+            continue
+        x0, y0, x1, y1 = bbox
+        color = colores.get(adv.get("tipo"), "red")
+        draw.rectangle([x0, y0, x1, y1], outline=color, width=2)
+
+    try:
+        lpi_val = float(lpi) if lpi else 1.0
+    except Exception:
+        lpi_val = 1.0
+    spacing = max(2, (600 / lpi_val) * 4)
+    radius = spacing / 2
+    step = int(spacing)
+    alpha = int(0.2 * 255)
+    width, height = base.size
+    for y in range(0, height, step):
+        for x in range(0, width, step):
+            draw.ellipse((x - radius, y - radius, x + radius, y + radius), fill=(0, 0, 0, alpha))
+
+    compuesto = Image.alpha_composite(base, overlay).convert("RGB")
+    os.makedirs(os.path.dirname(output_path), exist_ok=True)
+    compuesto.save(output_path, "PNG")
+    return output_path
+
+
 def generar_preview_interactivo(input_path, output_folder="preview_temp"):
     """Genera una vista previa interactiva del montaje del PDF."""
     os.makedirs(output_folder, exist_ok=True)

@@ -36,7 +36,11 @@ from utils import (
     calcular_etiquetas_por_fila,
     normalizar_material,
 )
-from simulacion import generar_preview_interactivo, generar_preview_virtual
+from simulacion import (
+    generar_preview_interactivo,
+    generar_preview_virtual,
+    generar_simulacion_avanzada,
+)
 from ia_sugerencias import chat_completion, transcribir_audio
 from montaje_flexo import (
     revisar_diseño_flexo,
@@ -1283,10 +1287,17 @@ def revision():
         overlay_info = analizar_riesgos_pdf(
             save_path, advertencias=advertencias_overlay
         )
-        _, imagen_rel, imagen_iconos_rel, advertencias_iconos = generar_preview_diagnostico(
+        base_img_path, imagen_rel, imagen_iconos_rel, advertencias_iconos = generar_preview_diagnostico(
             save_path, overlay_info["advertencias"], dpi=overlay_info["dpi"]
         )
         tabla_riesgos = simular_riesgos(resumen)
+
+        sim_dir = os.path.join(current_app.static_folder, "simulaciones")
+        os.makedirs(sim_dir, exist_ok=True)
+        sim_filename = f"sim_{revision_id}.png"
+        sim_abs = os.path.join(sim_dir, sim_filename)
+        generar_simulacion_avanzada(base_img_path, advertencias_iconos, anilox_lpi, sim_abs)
+        sim_rel = os.path.relpath(sim_abs, current_app.static_folder)
 
         cobertura_dict = analisis_detallado.get("cobertura_por_canal", {})
         cobertura_json = {
@@ -1345,6 +1356,7 @@ def revision():
             "analisis": analisis_detallado,
             "advertencias_iconos": advertencias_iconos,
             "diagnostico_json": diagnostico_json,
+            "sim_img_web": sim_rel,
         }
 
         diag_json_path = os.path.join(base_upload, f"{revision_id}_diag.json")

@@ -387,7 +387,11 @@
       <span id="sim-cobertura-val">{{ cob_in if cob_in is not none else '(calculado en diagnóstico)' }}{% if cob_in is not none %} %{% endif %}</span>
     </label>
     <canvas id="sim-canvas" width="280" height="280" style="display:none;"></canvas>
+    {% if sim_img_web %}
+    <img id="sim-output" src="{{ url_for('static', filename=sim_img_web) }}" alt="Simulación" />
+    {% else %}
     <img id="sim-output" alt="Simulación" />
+    {% endif %}
     <button id="sim-view-large" class="btn" type="button">🔍 Ver imagen completa</button>
     <div id="sim-ml"></div>
   </section>
