@@ -388,7 +388,7 @@
     <label>
       Cobertura estimada (%):
       {% set cob_in = diag.get('cobertura_estimada') %}
-      <input type="range" id="sim-cobertura" min="0" max="100" value="{{ cob_in if cob_in is not none else 25 }}">
+      <input type="range" id="sim-cobertura" min="0" max="200" value="{{ cob_in if cob_in is not none else 25 }}">
       <span id="sim-cobertura-val">{{ cob_in if cob_in is not none else '(calculado en diagnóstico)' }}{% if cob_in is not none %} %{% endif %}</span>
     </label>
     <canvas id="sim-canvas" width="280" height="280"></canvas>
