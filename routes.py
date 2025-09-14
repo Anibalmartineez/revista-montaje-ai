@@ -1267,6 +1267,8 @@ def revision():
     cobertura = 25.0
 
     revision_id = uuid.uuid4().hex
+    rev_dir = os.path.join(base_upload, revision_id)
+    os.makedirs(rev_dir, exist_ok=True)
 
     try:
         (
@@ -1287,9 +1289,26 @@ def revision():
         overlay_info = analizar_riesgos_pdf(
             save_path, advertencias=advertencias_overlay
         )
+        if overlay_info.get("overlay_path"):
+            overlay_persist = os.path.join(rev_dir, "overlay.png")
+            shutil.copy(overlay_info["overlay_path"], overlay_persist)
+            overlay_info["overlay_path"] = overlay_persist
         base_img_path, imagen_rel, imagen_iconos_rel, advertencias_iconos = generar_preview_diagnostico(
             save_path, overlay_info["advertencias"], dpi=overlay_info["dpi"]
         )
+
+        # Persistir imágenes de diagnóstico en uploads/<revision_id>
+        diag_abs = os.path.join(rev_dir, "diagnostico.png")
+        shutil.copy(base_img_path, diag_abs)
+        base_img_path = diag_abs
+        diag_rel = os.path.relpath(diag_abs, current_app.static_folder)
+
+        iconos_src = os.path.join(current_app.static_folder, imagen_iconos_rel)
+        iconos_abs = os.path.join(rev_dir, "diagnostico_iconos.png")
+        shutil.copy(iconos_src, iconos_abs)
+        imagen_rel = diag_rel
+        imagen_iconos_rel = os.path.relpath(iconos_abs, current_app.static_folder)
+
         tabla_riesgos = simular_riesgos(resumen)
 
         sim_dir = os.path.join(current_app.static_folder, "simulaciones")
@@ -1314,7 +1333,7 @@ def revision():
             2,
         )
 
-        final_pdf_path = os.path.join(base_upload, f"{revision_id}.pdf")
+        final_pdf_path = os.path.join(rev_dir, f"{revision_id}.pdf")
         shutil.copy(save_path, final_pdf_path)
         pdf_rel = os.path.relpath(final_pdf_path, current_app.static_folder)
 
@@ -1357,10 +1376,11 @@ def revision():
             "advertencias_iconos": advertencias_iconos,
             "diagnostico_json": diagnostico_json,
             "sim_img_web": sim_rel,
+            "diag_img_web": diag_rel,
         }
 
-        diag_json_path = os.path.join(base_upload, f"{revision_id}_diag.json")
-        res_json_path = os.path.join(base_upload, f"{revision_id}_res.json")
+        diag_json_path = os.path.join(rev_dir, "diag.json")
+        res_json_path = os.path.join(rev_dir, "res.json")
         with open(diag_json_path, "w", encoding="utf-8") as f:
             json.dump(diagnostico_data, f)
         with open(res_json_path, "w", encoding="utf-8") as f:
@@ -1389,7 +1409,7 @@ def resultado_flexo():
     if not revision_id:
         return redirect(url_for("revision"))
     res_json_path = os.path.join(
-        current_app.static_folder, "uploads", f"{revision_id}_res.json"
+        current_app.static_folder, "uploads", revision_id, "res.json"
     )
     try:
         with open(res_json_path, "r", encoding="utf-8") as f:
@@ -1406,8 +1426,8 @@ def resultado_flexo():
     return render_template("resultado_flexo.html", **datos, revision_id=revision_id)
 
 
-@routes_bp.route("/guardar_simulacion/<revision_id>", methods=["POST"])
-def guardar_simulacion(revision_id):
+@routes_bp.route("/simulacion/exportar/<revision_id>", methods=["POST"])
+def exportar_simulacion(revision_id):
     """Guarda la imagen de la simulación enviada desde el frontend."""
     img_file = request.files.get("image")
     if not img_file:
@@ -1428,7 +1448,7 @@ def vista_previa_tecnica():
         pdf_path = request.form.get("archivo_guardado")
         revision_id = session.get("revision_flexo_id")
         if not pdf_path and revision_id:
-            pdf_rel = os.path.join("uploads", f"{revision_id}.pdf")
+            pdf_rel = os.path.join("uploads", revision_id, f"{revision_id}.pdf")
             pdf_path = os.path.join(current_app.static_folder, pdf_rel)
         elif pdf_path and not os.path.isabs(pdf_path):
             pdf_path = os.path.join(current_app.static_folder, pdf_path)
@@ -1456,7 +1476,7 @@ def vista_previa_tecnica():
         diag = {}
         if revision_id:
             diag_path = os.path.join(
-                current_app.static_folder, "uploads", f"{revision_id}_diag.json"
+                current_app.static_folder, "uploads", revision_id, "diag.json"
             )
             try:
                 with open(diag_path, "r", encoding="utf-8") as f:
