@@ -37,7 +37,8 @@ function inicializarSimulacionAvanzada() {
   const cobVal = document.getElementById('sim-cobertura-val');
   const canvas = document.getElementById('sim-canvas');
   const resultado = document.getElementById('sim-ml');
-  if (!lpi || !bcm || !vel || !cob || !canvas || !resultado || !lpiVal || !bcmVal || !velVal || !cobVal) {
+  const outImg = document.getElementById('sim-output');
+  if (!lpi || !bcm || !vel || !cob || !canvas || !resultado || !lpiVal || !bcmVal || !velVal || !cobVal || !outImg) {
     return;
   }
 
@@ -113,6 +114,8 @@ function inicializarSimulacionAvanzada() {
     const paso_m = params.paso / 1000;
     const repeticiones = paso_m > 0 ? params.velocidad / paso_m : 0;
     resultado.textContent = `ml/min: ${mlMin} | rep/min: ${repeticiones.toFixed(1)}`;
+
+    outImg.src = canvas.toDataURL('image/png');
   }
 
   img.onload = dibujar;
@@ -130,15 +133,14 @@ function inicializarModalSimulacion() {
   const modal = document.getElementById('sim-modal');
   const modalImg = document.getElementById('sim-modal-img');
   const closeBtn = document.getElementById('sim-close');
-  if (!btn || !modal || !modalImg || !closeBtn) return;
+  const outImg = document.getElementById('sim-output');
+  if (!btn || !modal || !modalImg || !closeBtn || !outImg) return;
 
   let scale = 1;
   let lastDist = null;
 
   btn.addEventListener('click', () => {
-    const canvas = document.getElementById('sim-canvas');
-    if (!canvas) return;
-    modalImg.src = canvas.toDataURL('image/png');
+    modalImg.src = outImg.src;
     scale = 1;
     modalImg.style.transform = 'scale(1)';
     modal.style.display = 'flex';
