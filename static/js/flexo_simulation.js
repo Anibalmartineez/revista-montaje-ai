@@ -1,8 +1,12 @@
-document.addEventListener('DOMContentLoaded', () => {
+const DEBUG = new URLSearchParams(location.search).has('debug');
+document.addEventListener('DOMContentLoaded', initSim);
+
+function initSim() {
+  if (DEBUG) console.debug('initSim');
   inicializarRevisionBasica();
   inicializarSimulacionAvanzada();
   inicializarModalSimulacion();
-});
+}
 
 function inicializarRevisionBasica() {
   const form = document.querySelector('form[action="/revision"]');
@@ -27,6 +31,8 @@ function obtenerCobertura(datos) {
 }
 
 function inicializarSimulacionAvanzada() {
+  const canvas = document.getElementById('sim-canvas');
+  const ctx = canvas ? canvas.getContext('2d') : null;
   const lpi = document.getElementById('sim-lpi');
   const bcm = document.getElementById('sim-bcm');
   const vel = document.getElementById('sim-velocidad');
@@ -35,12 +41,13 @@ function inicializarSimulacionAvanzada() {
   const bcmVal = document.getElementById('sim-bcm-val');
   const velVal = document.getElementById('sim-vel-val');
   const cobVal = document.getElementById('sim-cobertura-val');
-  const canvas = document.getElementById('sim-canvas');
   const resultado = document.getElementById('sim-ml');
   const saveBtn = document.getElementById('sim-save');
-  if (!lpi || !bcm || !vel || !cob || !canvas || !resultado || !lpiVal || !bcmVal || !velVal || !cobVal) {
+  if (!canvas || !ctx || !lpi || !bcm || !vel || !cob || !resultado || !lpiVal || !bcmVal || !velVal || !cobVal) {
+    if (DEBUG) console.debug('Elementos de la simulación incompletos');
     return;
   }
+  if (DEBUG) console.debug('inicializarSimulacionAvanzada');
 
   const datos = window.diagnosticoFlexo || {};
   lpi.value = datos.lpi ?? 360;
@@ -50,9 +57,15 @@ function inicializarSimulacionAvanzada() {
   const paso = datos.paso_cilindro ?? datos.paso ?? 330;
   const eficiencia = datos.eficiencia || 0.30;
   const ancho = datos.ancho || 0.50;
-  const ctx = canvas.getContext('2d');
+
   const img = new Image();
+  img.crossOrigin = 'anonymous';
   const baseImg = document.getElementById('imagen-diagnostico');
+  if (baseImg && baseImg.src) {
+    img.onload = () => { if (DEBUG) console.debug('imagen base cargada'); render(); };
+    img.onerror = () => { if (DEBUG) console.debug('imagen base falló'); render(); };
+    img.src = baseImg.src;
+  }
 
   function actualizarValores() {
     lpiVal.textContent = `${lpi.value} lpi`;
@@ -61,23 +74,28 @@ function inicializarSimulacionAvanzada() {
     cobVal.textContent = `${cob.value} %`;
   }
 
-  function dibujar() {
+  function drawBasePattern() {
+    ctx.fillStyle = '#ccc';
+    for (let x = 0; x < canvas.width; x += 25) {
+      for (let y = 0; y < canvas.height; y += 25) {
+        ctx.fillRect(x, y, 1, 1);
+      }
+    }
+  }
+
+  function render() {
+    if (DEBUG) console.debug('render start');
+    if (canvas.width === 0 || canvas.height === 0) {
+      if (DEBUG) console.warn('canvas 0x0, forzando resize');
+      resizeCanvas();
+    }
     actualizarValores();
-
-    // Ajusta el tamaño del canvas. Si no hay imagen base se respeta el
-    // tamaño actual definido en el HTML para evitar que quede en 0x0.
-    const hasImg = img.src && img.complete && img.naturalWidth > 0;
-    const width = hasImg ? img.width : (canvas.width || 280);
-    const height = hasImg ? img.height : (canvas.height || 280);
-    canvas.width = width;
-    canvas.height = height;
-
-    // Asegura adaptación al contenedor
-    canvas.style.width = '100%';
-    canvas.style.height = 'auto';
     ctx.clearRect(0, 0, canvas.width, canvas.height);
+    const hasImg = img && img.complete && img.naturalWidth > 0;
     if (hasImg) {
       ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+    } else {
+      drawBasePattern();
     }
 
     if (window.advertencias) {
@@ -101,29 +119,22 @@ function inicializarSimulacionAvanzada() {
       });
     }
 
-    // Valores de los sliders
-    const valLpi = parseFloat(lpi.value); // densidad de puntos
-    const valBcm = parseFloat(bcm.value); // volumen de celda → opacidad
-    const valVel = parseFloat(vel.value); // velocidad → desenfoque / ruido
-    const valCob = parseFloat(cob.value); // cobertura en porcentaje
+    const valLpi = parseFloat(lpi.value);
+    const valBcm = parseFloat(bcm.value);
+    const valVel = parseFloat(vel.value);
+    const valCob = parseFloat(cob.value);
 
-    // --- LPI: cantidad y tamaño de puntos ---
-    const spacing = Math.max(2, (600 / valLpi) * 4); // separación entre centros
-    const radio = Math.max(1, spacing / 2); // tamaño base de cada punto
-
-    // --- BCM: opacidad de los puntos ---
+    const spacing = Math.max(2, (600 / valLpi) * 4);
+    const radio = Math.max(1, spacing / 2);
     const alpha = Math.min(1, Math.max(0.05, valBcm / 10));
-
-    // --- Velocidad: pérdida de definición ---
-    const blur = (valVel / 500) * 2; // píxeles de desenfoque
-    const jitter = (valVel / 500) * spacing * 0.5; // desplazamiento aleatorio
+    const blur = (valVel / 500) * 2;
+    const jitter = (valVel / 500) * spacing * 0.5;
     ctx.filter = blur > 0 ? `blur(${blur}px)` : 'none';
 
-    // --- Cobertura: porcentaje de área pintada ---
     function dibujarCapa(offsetX = 0, offsetY = 0, prob = 1) {
       for (let y = 0; y < canvas.height; y += spacing) {
         for (let x = 0; x < canvas.width; x += spacing) {
-          if (Math.random() > prob) continue; // deja huecos
+          if (Math.random() > prob) continue;
           const dx = x + offsetX + (Math.random() * 2 - 1) * jitter;
           const dy = y + offsetY + (Math.random() * 2 - 1) * jitter;
           ctx.beginPath();
@@ -137,11 +148,8 @@ function inicializarSimulacionAvanzada() {
     const cobertura = valCob;
     const probBase = Math.min(cobertura, 100) / 100;
     dibujarCapa(0, 0, probBase);
-
-    // Capas extra cuando la cobertura supera el 100%
     if (cobertura > 100) {
       const probExtra = Math.min((cobertura - 100) / 100, 1);
-      // Desfase para aumentar densidad
       dibujarCapa(spacing / 2, spacing / 2, probExtra);
     }
 
@@ -159,43 +167,58 @@ function inicializarSimulacionAvanzada() {
     const paso_m = params.paso / 1000;
     const repeticiones = paso_m > 0 ? params.velocidad / paso_m : 0;
     resultado.textContent = `ml/min: ${mlMin} | rep/min: ${repeticiones.toFixed(1)}`;
+    if (DEBUG) console.debug('render end');
   }
 
-  img.onload = dibujar;
-  if (baseImg) {
-    img.src = baseImg.src;
+  function resizeCanvas() {
+    if (DEBUG) console.debug('resizeCanvas');
+    const ratio = window.devicePixelRatio || 1;
+    const w = canvas.clientWidth || 800;
+    const h = (w * 9 / 16) | 0;
+    canvas.width = Math.max(600, w) * ratio;
+    canvas.height = Math.max(300, h) * ratio;
+    canvas.style.width = w + 'px';
+    canvas.style.height = h + 'px';
+    ctx.setTransform(ratio, 0, 0, ratio, 0, 0);
+    render();
   }
 
-  [lpi, bcm, vel, cob].forEach(el => el.addEventListener('input', dibujar));
-  // Redibuja al cambiar el tamaño de la ventana para mantener la respuesta
-  window.addEventListener('resize', dibujar);
-  actualizarValores();
-  // Render inicial del patrón aun cuando no haya imagen base.
-  dibujar();
-
-  if (saveBtn) {
-    saveBtn.addEventListener('click', () => {
-      canvas.toBlob(blob => {
-        if (!blob) return;
+  function savePNG() {
+    if (DEBUG) console.debug('savePNG');
+    canvas.toBlob(async blob => {
+      try {
+        if (!blob) throw new Error('blob nulo');
         const formData = new FormData();
         formData.append('image', blob, `sim_${window.revisionId || 'resultado'}.png`);
-        fetch(`/guardar_simulacion/${window.revisionId}`, {
+        const resp = await fetch(`/guardar_simulacion/${window.revisionId}`, {
           method: 'POST',
           body: formData,
-        })
-          .then(r => r.json())
-          .then(data => {
-            if (data.path) {
-              const link = document.createElement('a');
-              link.href = `/static/${data.path}`;
-              link.download = data.path.split('/').pop();
-              document.body.appendChild(link);
-              link.click();
-              document.body.removeChild(link);
-            }
-          });
-      });
+        });
+        if (!resp.ok) throw new Error('respuesta no OK');
+        const data = await resp.json();
+        if (data.path) {
+          const link = document.createElement('a');
+          link.href = `/static/${data.path}`;
+          link.download = data.path.split('/').pop();
+          document.body.appendChild(link);
+          link.click();
+          document.body.removeChild(link);
+        }
+      } catch (err) {
+        if (DEBUG) console.error('savePNG error', err);
+      }
     });
+  }
+
+  [lpi, bcm, vel, cob].forEach(el => {
+    el.addEventListener('input', render);
+  });
+  if (DEBUG) console.debug('listeners attached');
+  window.addEventListener('resize', resizeCanvas);
+  resizeCanvas();
+  if (!baseImg) render();
+  if (saveBtn) {
+    saveBtn.addEventListener('click', savePNG);
   }
 }
 
