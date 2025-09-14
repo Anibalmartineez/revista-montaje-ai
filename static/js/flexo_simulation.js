@@ -1,5 +1,8 @@
 const DEBUG = new URLSearchParams(location.search).has('debug');
-document.addEventListener('DOMContentLoaded', initSim);
+document.addEventListener('DOMContentLoaded', () => {
+  console.log('[SIM] init');
+  initSim();
+});
 
 function initSim() {
   if (DEBUG) console.debug('initSim');
@@ -50,6 +53,7 @@ function inicializarSimulacionAvanzada() {
     if (DEBUG) console.warn('Elementos de la simulación incompletos');
     return;
   }
+  console.log('[SIM] inicializarSimulacionAvanzada');
   if (DEBUG) console.debug('inicializarSimulacionAvanzada');
 
   const datos = window.diagnosticoFlexo || {};
@@ -86,17 +90,26 @@ function inicializarSimulacionAvanzada() {
   }
 
   function drawBasePattern() {
-    ctx.fillStyle = '#ccc';
+    ctx.fillStyle = '#eef7ff';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    ctx.strokeStyle = '#ccc';
     for (let x = 0; x < canvas.width; x += 25) {
-      for (let y = 0; y < canvas.height; y += 25) {
-        ctx.fillRect(x, y, 1, 1);
-      }
+      ctx.beginPath();
+      ctx.moveTo(x, 0);
+      ctx.lineTo(x, canvas.height);
+      ctx.stroke();
+    }
+    for (let y = 0; y < canvas.height; y += 25) {
+      ctx.beginPath();
+      ctx.moveTo(0, y);
+      ctx.lineTo(canvas.width, y);
+      ctx.stroke();
     }
   }
 
   function renderSimulation() {
     try {
-      console.log('renderSimulation', {
+      console.log('[SIM] render', {
         lpi: lpi.value,
         bcm: bcm.value,
         vel: vel.value,
@@ -236,7 +249,7 @@ function inicializarSimulacionAvanzada() {
 
   [lpi, bcm, vel, cob].forEach(el => {
     el.addEventListener('input', () => {
-      console.log('slider change', el.id, el.value);
+      console.log('[SIM] slider', el.id, el.value);
       renderSimulation();
     });
   });
