@@ -65,8 +65,8 @@ function inicializarSimulacionAvanzada() {
   img.crossOrigin = 'anonymous';
   const baseImg = document.getElementById('imagen-diagnostico');
   if (baseImg && baseImg.src) {
-    img.onload = () => { if (DEBUG) console.debug('imagen base cargada'); render(); };
-    img.onerror = () => { if (DEBUG) console.debug('imagen base falló'); render(); };
+    img.onload = () => { if (DEBUG) console.debug('imagen base cargada'); renderSimulation(); };
+    img.onerror = () => { if (DEBUG) console.debug('imagen base falló'); renderSimulation(); };
     img.src = baseImg.src;
   }
 
@@ -94,8 +94,14 @@ function inicializarSimulacionAvanzada() {
     }
   }
 
-  function render() {
+  function renderSimulation() {
     try {
+      console.log('renderSimulation', {
+        lpi: lpi.value,
+        bcm: bcm.value,
+        vel: vel.value,
+        cob: cob.value,
+      });
       if (DEBUG) console.debug('render start');
       if (canvas.width === 0 || canvas.height === 0) {
         if (DEBUG) console.warn('canvas 0x0, forzando resize');
@@ -198,7 +204,7 @@ function inicializarSimulacionAvanzada() {
     canvas.style.height = cssH + 'px';
     ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
     updateDebug();
-    render();
+    renderSimulation();
   }
 
   function savePNG() {
@@ -229,7 +235,10 @@ function inicializarSimulacionAvanzada() {
   }
 
   [lpi, bcm, vel, cob].forEach(el => {
-    el.addEventListener('input', render);
+    el.addEventListener('input', () => {
+      console.log('slider change', el.id, el.value);
+      renderSimulation();
+    });
   });
   if (DEBUG) console.debug('listeners attached');
   let resizeTimeout;
@@ -240,7 +249,6 @@ function inicializarSimulacionAvanzada() {
   window.addEventListener('resize', onResize);
   window.addEventListener('orientationchange', onResize);
   resizeCanvas();
-  if (!baseImg) render();
   if (saveBtn) {
     saveBtn.addEventListener('click', savePNG);
   }
