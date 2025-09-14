@@ -1426,6 +1426,12 @@ def resultado_flexo():
             "warning",
         )
         return redirect(url_for("revision"))
+    # Asegurar que la simulación avanzada reciba la ruta de la imagen del
+    # diagnóstico.  Versiones anteriores podían no incluir ``diag_img_web`` en
+    # ``res.json``; en ese caso, reutilizamos la imagen con iconos si existe.
+    if "diag_img_web" not in datos:
+        datos["diag_img_web"] = datos.get("imagen_iconos_web") or datos.get("imagen_path_web")
+
     return render_template("resultado_flexo.html", **datos, revision_id=revision_id)
 
 

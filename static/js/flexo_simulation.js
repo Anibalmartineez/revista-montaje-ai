@@ -68,30 +68,38 @@ function inicializarSimulacionAvanzada() {
 
   const img = new Image();
   img.crossOrigin = 'anonymous';
-  // Intentar reutilizar la imagen del diagnóstico con advertencias.  Si no se
-  // proporciona explícitamente, buscarla en uploads/<revision_id>.
-  const diagUrl =
-    window.diagImg ||
-    (window.revisionId
-      ? `/static/uploads/${window.revisionId}/diagnostico_iconos.png`
-      : null);
-  if (diagUrl) {
-    img.onload = () => {
+
+  // Carga la imagen base del diagnóstico, con un fallback si la ruta no
+  // está disponible.  Esto garantiza que el canvas nunca se dibuje vacío.
+  function cargarImagenBase() {
+    const diagUrl =
+      window.diagImg ||
+      (window.revisionId
+        ? `/static/uploads/${window.revisionId}/diagnostico_iconos.png`
+        : null);
+
+    if (!diagUrl) {
+      renderSimulation();
+      return;
+    }
+
+    const onReady = () => {
       if (DEBUG) console.log('[SIM] imagen base cargada');
       renderSimulation();
     };
+
+    img.onload = onReady;
     img.onerror = () => {
       if (DEBUG) console.warn('[SIM] error cargando imagen base');
       renderSimulation();
     };
     img.src = diagUrl;
-    if (img.complete && img.naturalWidth > 0) {
-      if (DEBUG) console.log('[SIM] imagen base ya disponible');
-      renderSimulation();
-    }
-  } else {
-    renderSimulation();
+
+    // Si la imagen ya está en caché, forzar el render inmediatamente.
+    if (img.complete && img.naturalWidth > 0) onReady();
   }
+
+  cargarImagenBase();
 
   function actualizarValores() {
     lpiVal.textContent = `${lpi.value} lpi`;
