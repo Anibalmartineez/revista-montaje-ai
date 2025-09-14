@@ -1216,21 +1216,20 @@ def revision_flexo():
 
             # Valores predeterminados (sobrescribibles en modo avanzado)
             paso_mm = 330
-
             try:
-                anilox_lpi = float(request.form.get("anilox_lpi") or 360)
+                anilox_lpi = float(request.form.get("anilox_lpi", 360) or 360)
             except (TypeError, ValueError):
                 anilox_lpi = 360
             try:
-                anilox_bcm = float(request.form.get("anilox_bcm") or 4.0)
+                anilox_bcm = float(request.form.get("anilox_bcm", 4.0) or 4.0)
             except (TypeError, ValueError):
                 anilox_bcm = 4.0
             try:
-                velocidad = float(request.form.get("velocidad") or 150.0)
+                velocidad = float(request.form.get("velocidad", 150.0) or 150.0)
             except (TypeError, ValueError):
                 velocidad = 150.0
 
-            if archivo and archivo.filename.endswith(".pdf"):
+            if archivo and archivo.filename.lower().endswith(".pdf") and material:
                 # Siempre guardamos el PDF con un nombre fijo para evitar usar uno previo.
                 filename = "diagnostico.pdf"
                 path = os.path.abspath(os.path.join(UPLOAD_FOLDER, filename))
@@ -1324,7 +1323,7 @@ def revision_flexo():
 
                 return redirect(url_for("routes.resultado_flexo"))
             else:
-                mensaje = "Archivo inválido. Subí un PDF."
+                mensaje = "Debes subir un PDF válido y seleccionar un material."
         except Exception as e:
             mensaje = f"Error al revisar diseño: {str(e)}"
 
