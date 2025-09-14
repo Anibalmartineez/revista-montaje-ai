@@ -167,7 +167,7 @@
     <div class="card-form">
       <h1>🔍 Revisión previa al envío a clichés</h1>
 
-      <form action="/revision" method="POST" enctype="multipart/form-data">
+      <form action="{{ url_for('routes.revision_flexo') }}" method="POST" enctype="multipart/form-data">
         <div class="form-block">
           <h2>📂 Archivo del diseño</h2>
           <label for="archivo_revision">Archivo PDF del diseño
@@ -196,7 +196,7 @@
         <button class="btn" type="submit"><span>🔍</span> Revisar diseño</button>
       </form>
 
-      <form id="vista-previa-form" action="/vista_previa_tecnica" method="POST">
+      <form id="vista-previa-form" action="{{ url_for('routes.vista_previa_tecnica') }}" method="POST">
         <input type="hidden" name="archivo_guardado" id="archivo_guardado" value="{{ session.get('archivo_pdf', '') }}">
         <button id="vista-previa-btn" class="btn" type="submit"><span>📊</span> Vista previa técnica</button>
       </form>
@@ -219,13 +219,13 @@
             <img src="data:image/png;base64,{{ grafico_tinta }}" alt="Gráfico de tinta"/>
           </div>
         {% endif %}
-        <form action="/sugerencia_ia" method="POST">
+        <form action="{{ url_for('routes.sugerencia_ia') }}" method="POST">
           <input type="hidden" name="diagnostico_texto_b64" value="{{ diagnostico_texto_b64 }}">
           <input type="hidden" name="resultado_revision_b64" value="{{ resultado_revision_b64 }}">
           <input type="hidden" name="grafico_tinta" value="{{ grafico_tinta }}">
           <button class="btn" type="submit">🧠 Obtener sugerencia IA</button>
         </form>
-        <form action="/sugerencia_produccion" method="POST">
+        <form action="{{ url_for('routes.sugerencia_produccion') }}" method="POST">
           <input type="hidden" name="diagnostico_texto_b64" value="{{ diagnostico_texto_b64 }}">
           <input type="hidden" name="resultado_revision_b64" value="{{ resultado_revision_b64 }}">
           <input type="hidden" name="grafico_tinta" value="{{ grafico_tinta }}">

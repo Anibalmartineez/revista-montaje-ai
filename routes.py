@@ -1214,20 +1214,25 @@ def revision_flexo():
             archivo = request.files.get("archivo_revision")
             material = normalizar_material(request.form.get("material", ""))
 
-            # Valores predeterminados (sobrescribibles en modo avanzado)
+            # Valores predeterminados para el modo simplificado
             paso_mm = 330
+            anilox_lpi = 360
+            anilox_bcm = 4.0
+            velocidad = 150.0
+
+            # Permite sobrescribir en un futuro con campos opcionales
             try:
-                anilox_lpi = float(request.form.get("anilox_lpi", 360) or 360)
+                anilox_lpi = float(request.form.get("anilox_lpi") or anilox_lpi)
             except (TypeError, ValueError):
-                anilox_lpi = 360
+                pass
             try:
-                anilox_bcm = float(request.form.get("anilox_bcm", 4.0) or 4.0)
+                anilox_bcm = float(request.form.get("anilox_bcm") or anilox_bcm)
             except (TypeError, ValueError):
-                anilox_bcm = 4.0
+                pass
             try:
-                velocidad = float(request.form.get("velocidad", 150.0) or 150.0)
+                velocidad = float(request.form.get("velocidad") or velocidad)
             except (TypeError, ValueError):
-                velocidad = 150.0
+                pass
 
             if archivo and archivo.filename.lower().endswith(".pdf") and material:
                 # Siempre guardamos el PDF con un nombre fijo para evitar usar uno previo.
@@ -1236,6 +1241,7 @@ def revision_flexo():
                 if os.path.exists(path):
                     os.remove(path)
                 archivo.save(path)
+                pdf_rel = os.path.join("uploads", filename)
 
                 # Guardamos la ruta en sesión para reutilizarla en la vista previa
                 session["archivo_pdf"] = path
@@ -1279,6 +1285,8 @@ def revision_flexo():
                 )
 
                 diagnostico_json = {
+                    "archivo": filename,
+                    "pdf_path": pdf_rel,
                     "cobertura": cobertura_json,
                     "cobertura_estimada": cobertura_total,
                     "bcm": anilox_bcm,
@@ -1315,6 +1323,7 @@ def revision_flexo():
                     "tabla_riesgos": tabla_riesgos,
                     "imagen_path_web": imagen_rel,
                     "imagen_iconos_web": imagen_iconos_rel,
+                    "pdf_path_web": pdf_rel,
                     "texto": texto,
                     "analisis": analisis_detallado,
                     "advertencias_iconos": advertencias_iconos,
@@ -1341,6 +1350,7 @@ def resultado_flexo():
         tabla_riesgos=datos.get("tabla_riesgos", ""),
         imagen_path_web=datos.get("imagen_path_web", ""),
         imagen_iconos_web=datos.get("imagen_iconos_web", ""),
+        pdf_path_web=datos.get("pdf_path_web", ""),
         texto=datos.get("texto", ""),
         analisis=datos.get("analisis", {}),
         advertencias_iconos=datos.get("advertencias_iconos", []),

@@ -199,6 +199,13 @@
     <div id="overlay-markers"></div>
     <div id="tooltip" class="tooltip"></div>
   </div>
+  {% if pdf_path_web %}
+  <div style="text-align:center;margin-top:20px;">
+    <object data="{{ url_for('static', filename=pdf_path_web) }}" type="application/pdf" width="100%" height="600px">
+      <p>Tu navegador no puede mostrar PDFs. <a href="{{ url_for('static', filename=pdf_path_web) }}">Descargar PDF</a>.</p>
+    </object>
+  </div>
+  {% endif %}
   <ul id="lista-advertencias">
     {% set tipo_clases = {
       'texto_pequeno': 'tipo-texto',
