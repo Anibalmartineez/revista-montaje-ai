@@ -661,7 +661,17 @@ def revisar_diseño_flexo(
 
     diagnostico_material = []
     material_norm = material.lower().strip()
-    if material_norm == "film":
+    # Normalizar alias de materiales
+    material_alias = {
+        "adhesivo": "etiqueta adhesiva",
+        "etiqueta adhesiva": "etiqueta adhesiva",
+        "film": "película",
+        "pelicula": "película",
+        "carton": "cartón",
+    }
+    material_norm = material_alias.get(material_norm, material_norm)
+
+    if material_norm in ("film", "película"):
         negro = metricas_cobertura["cobertura_promedio"].get("Negro", 0) if metricas_cobertura else 0
         if negro > 50:
             diagnostico_material.append(
