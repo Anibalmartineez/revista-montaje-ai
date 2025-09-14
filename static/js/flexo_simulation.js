@@ -63,14 +63,22 @@ function inicializarSimulacionAvanzada() {
 
   function dibujar() {
     actualizarValores();
-    if (!img.complete) return;
-    canvas.width = img.width;
-    canvas.height = img.height;
+
+    // Ajusta el tamaño del canvas. Si no hay imagen base se respeta el
+    // tamaño actual definido en el HTML para evitar que quede en 0x0.
+    const hasImg = img.src && img.complete && img.naturalWidth > 0;
+    const width = hasImg ? img.width : (canvas.width || 280);
+    const height = hasImg ? img.height : (canvas.height || 280);
+    canvas.width = width;
+    canvas.height = height;
+
     // Asegura adaptación al contenedor
     canvas.style.width = '100%';
     canvas.style.height = 'auto';
     ctx.clearRect(0, 0, canvas.width, canvas.height);
-    ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+    if (hasImg) {
+      ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+    }
 
     if (window.advertencias) {
       const colores = {
@@ -162,7 +170,8 @@ function inicializarSimulacionAvanzada() {
   // Redibuja al cambiar el tamaño de la ventana para mantener la respuesta
   window.addEventListener('resize', dibujar);
   actualizarValores();
-  if (img.complete) dibujar();
+  // Render inicial del patrón aun cuando no haya imagen base.
+  dibujar();
 
   if (saveBtn) {
     saveBtn.addEventListener('click', () => {
