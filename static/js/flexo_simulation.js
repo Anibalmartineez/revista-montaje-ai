@@ -37,8 +37,8 @@ function inicializarSimulacionAvanzada() {
   const cobVal = document.getElementById('sim-cobertura-val');
   const canvas = document.getElementById('sim-canvas');
   const resultado = document.getElementById('sim-ml');
-  const outImg = document.getElementById('sim-output');
-  if (!lpi || !bcm || !vel || !cob || !canvas || !resultado || !lpiVal || !bcmVal || !velVal || !cobVal || !outImg) {
+  const saveBtn = document.getElementById('sim-save');
+  if (!lpi || !bcm || !vel || !cob || !canvas || !resultado || !lpiVal || !bcmVal || !velVal || !cobVal) {
     return;
   }
 
@@ -91,16 +91,22 @@ function inicializarSimulacionAvanzada() {
     }
 
     const valLpi = parseFloat(lpi.value);
+    const valBcm = parseFloat(bcm.value);
+    const valCob = parseFloat(cob.value) / 100;
+    const valVel = parseFloat(vel.value);
     const spacing = Math.max(2, (600 / valLpi) * 4);
-    const baseRadio = spacing / 2;
+    const baseRadio = (spacing / 2) * (valBcm / 4);
+    const alpha = Math.min(1, 0.2 + valCob);
+    ctx.globalAlpha = Math.max(0.3, 1 - valVel / 600);
     for (let y = 0; y < canvas.height; y += spacing) {
       for (let x = 0; x < canvas.width; x += spacing) {
         ctx.beginPath();
-        ctx.fillStyle = 'rgba(0,0,0,0.2)';
+        ctx.fillStyle = `rgba(0,0,0,${alpha})`;
         ctx.arc(x, y, baseRadio, 0, Math.PI * 2);
         ctx.fill();
       }
     }
+    ctx.globalAlpha = 1;
 
     const params = {
       bcm: parseFloat(bcm.value),
@@ -114,8 +120,6 @@ function inicializarSimulacionAvanzada() {
     const paso_m = params.paso / 1000;
     const repeticiones = paso_m > 0 ? params.velocidad / paso_m : 0;
     resultado.textContent = `ml/min: ${mlMin} | rep/min: ${repeticiones.toFixed(1)}`;
-
-    outImg.src = canvas.toDataURL('image/png');
   }
 
   img.onload = dibujar;
@@ -126,6 +130,31 @@ function inicializarSimulacionAvanzada() {
   [lpi, bcm, vel, cob].forEach(el => el.addEventListener('input', dibujar));
   actualizarValores();
   if (img.complete) dibujar();
+
+  if (saveBtn) {
+    saveBtn.addEventListener('click', () => {
+      canvas.toBlob(blob => {
+        if (!blob) return;
+        const formData = new FormData();
+        formData.append('image', blob, `sim_${window.revisionId || 'resultado'}.png`);
+        fetch(`/guardar_simulacion/${window.revisionId}`, {
+          method: 'POST',
+          body: formData,
+        })
+          .then(r => r.json())
+          .then(data => {
+            if (data.path) {
+              const link = document.createElement('a');
+              link.href = `/static/${data.path}`;
+              link.download = data.path.split('/').pop();
+              document.body.appendChild(link);
+              link.click();
+              document.body.removeChild(link);
+            }
+          });
+      });
+    });
+  }
 }
 
 function inicializarModalSimulacion() {
@@ -133,14 +162,14 @@ function inicializarModalSimulacion() {
   const modal = document.getElementById('sim-modal');
   const modalImg = document.getElementById('sim-modal-img');
   const closeBtn = document.getElementById('sim-close');
-  const outImg = document.getElementById('sim-output');
-  if (!btn || !modal || !modalImg || !closeBtn || !outImg) return;
+  const canvas = document.getElementById('sim-canvas');
+  if (!btn || !modal || !modalImg || !closeBtn || !canvas) return;
 
   let scale = 1;
   let lastDist = null;
 
   btn.addEventListener('click', () => {
-    modalImg.src = outImg.src;
+    modalImg.src = canvas.toDataURL('image/png');
     scale = 1;
     modalImg.style.transform = 'scale(1)';
     modal.style.display = 'flex';
