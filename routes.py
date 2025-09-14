@@ -1376,9 +1376,10 @@ def revision():
             "advertencias_iconos": advertencias_iconos,
             "diagnostico_json": diagnostico_json,
             "sim_img_web": sim_rel,
-            # Usar la imagen de diagnóstico con advertencias como base de la simulación
-            # avanzada para que el canvas cargue la misma vista que vio el usuario
-            # durante el análisis.
+            # Persistir la ruta web de la imagen del diagnóstico con advertencias.
+            # Se usará como base de la simulación avanzada y permite que, al
+            # recargar la página de resultados, el canvas dibuje de inmediato la
+            # misma imagen analizada.
             "diag_img_web": imagen_iconos_rel,
         }
 
@@ -1403,6 +1404,10 @@ def revision():
         "resultado_flexo.html",
         **resultado_data,
         revision_id=revision_id,
+        # Usar la imagen de diagnóstico con advertencias como base inicial
+        # para la simulación.  Si no existiera, el frontend mostrará un patrón
+        # de puntos como fallback.
+        sim_base_img=imagen_iconos_rel,
     )
 
 
@@ -1432,7 +1437,12 @@ def resultado_flexo():
     if "diag_img_web" not in datos:
         datos["diag_img_web"] = datos.get("imagen_iconos_web") or datos.get("imagen_path_web")
 
-    return render_template("resultado_flexo.html", **datos, revision_id=revision_id)
+    return render_template(
+        "resultado_flexo.html",
+        **datos,
+        revision_id=revision_id,
+        sim_base_img=datos.get("diag_img_web"),
+    )
 
 
 @routes_bp.route("/simulacion/exportar/<revision_id>", methods=["POST"])
