@@ -144,7 +144,8 @@
     #simulacion-avanzada { min-height: 300px; }
     #simulacion-avanzada h3 { text-align: center; }
     #simulacion-avanzada label { display: block; margin-top: 10px; }
-    #sim-canvas{max-width:100%;height:auto;display:block}
+    #sim-canvas{max-width:100%;height:auto;background:#eef7ff;display:block}
+    #sim-container{min-height:260px}
 
     /* Modal para ver simulación en grande */
     #sim-modal {
@@ -351,43 +352,48 @@
   <section id="datos-basicos">
     <p><strong>Archivo PDF:</strong> {{ diag.get('archivo', 'diagnostico.pdf') }}</p>
     <p><strong>Material de impresión:</strong> {{ diag.get('material', '(calculado en diagnóstico)') }}</p>
-    <p><strong>Anilox LPI:</strong> {{ diag.get('lpi', '(calculado en diagnóstico)') }}</p>
-    <p><strong>BCM del anilox:</strong> {{ diag.get('bcm', '(calculado en diagnóstico)') }}</p>
+    {% set lpi_diag = diag.get('lpi') %}
+    <p><strong>Anilox LPI:</strong> {{ (lpi_diag if lpi_diag is not none else 120) }} {% if lpi_diag is not none %}(calculado en diagnóstico){% else %}(predeterminado){% endif %}</p>
+    {% set bcm_diag = diag.get('bcm') %}
+    <p><strong>BCM del anilox:</strong> {{ (bcm_diag if bcm_diag is not none else 2.0) }} {% if bcm_diag is not none %}(calculado en diagnóstico){% else %}(predeterminado){% endif %}</p>
     {% set vel = diag.get('velocidad') or diag.get('velocidad_impresion') %}
-    <p><strong>Velocidad estimada:</strong> {{ vel if vel is not none else '(calculado en diagnóstico)' }}</p>
+    <p><strong>Velocidad estimada:</strong> {{ (vel if vel is not none else 150) }} {% if vel is not none %}(calculado en diagnóstico){% else %}(predeterminado){% endif %}</p>
     {% set cob = diag.get('cobertura_estimada') %}
-    <p><strong>Cobertura estimada:</strong> {{ cob ~ ' %' if cob is not none else '(calculado en diagnóstico)' }}</p>
+    <p><strong>Cobertura estimada:</strong> {{ (cob if cob is not none else 25) }} % {% if cob is not none %}(calculado en diagnóstico){% else %}(predeterminado){% endif %}</p>
   </section>
   <div id="resumen-diagnostico">{{ resumen|safe }}</div>
   {{ tabla_riesgos|safe }}
 
-  <section id="simulacion-avanzada">
+    <section id="simulacion-avanzada">
     <h3>⚙️ Simulación Avanzada de Impresión</h3>
     <label>
       Lineatura del Anilox (LPI):
-      <input type="range" id="sim-lpi" min="80" max="600" value="{{ diag.get('lpi', 360) }}">
+      <input type="range" id="lpi_slider" min="80" max="600" value="{{ diag.get('lpi', 120) }}">
       {% set lpi_val = diag.get('lpi') %}
-      <span id="sim-lpi-val">{{ lpi_val if lpi_val is not none else '(calculado en diagnóstico)' }}{% if lpi_val is not none %} lpi{% endif %}</span>
+      <span id="lpi_val">{{ (lpi_val if lpi_val is not none else 120) }} lpi {% if lpi_val is not none %}(calculado en diagnóstico){% else %}(predeterminado){% endif %}</span>
     </label>
     <label>
       BCM del anilox (cm³/m²):
-      <input type="range" id="sim-bcm" min="1" max="15" step="0.1" value="{{ diag.get('bcm', 4) }}">
+      <input type="range" id="bcm_slider" min="1" max="15" step="0.1" value="{{ diag.get('bcm', 2.0) }}">
       {% set bcm_val = diag.get('bcm') %}
-      <span id="sim-bcm-val">{{ bcm_val if bcm_val is not none else '(calculado en diagnóstico)' }}{% if bcm_val is not none %} cm³/m²{% endif %}</span>
+      <span id="bcm_val">{{ (bcm_val if bcm_val is not none else 2.0) }} cm³/m² {% if bcm_val is not none %}(calculado en diagnóstico){% else %}(predeterminado){% endif %}</span>
     </label>
     <label>
       Velocidad estimada de impresión (m/min):
       {% set vel_in = diag.get('velocidad') or diag.get('velocidad_impresion') %}
-      <input type="range" id="sim-velocidad" min="50" max="500" value="{{ vel_in if vel_in is not none else 150 }}">
-      <span id="sim-vel-val">{{ vel_in if vel_in is not none else '(calculado en diagnóstico)' }}{% if vel_in is not none %} m/min{% endif %}</span>
+      <input type="range" id="vel_slider" min="50" max="500" value="{{ vel_in if vel_in is not none else 150 }}">
+      <span id="vel_val">{{ (vel_in if vel_in is not none else 150) }} m/min {% if vel_in is not none %}(calculado en diagnóstico){% else %}(predeterminado){% endif %}</span>
     </label>
     <label>
       Cobertura estimada (%):
       {% set cob_in = diag.get('cobertura_estimada') %}
-      <input type="range" id="sim-cobertura" min="0" max="200" value="{{ cob_in if cob_in is not none else 25 }}">
-      <span id="sim-cobertura-val">{{ cob_in if cob_in is not none else '(calculado en diagnóstico)' }}{% if cob_in is not none %} %{% endif %}</span>
+      <input type="range" id="cov_slider" min="0" max="200" value="{{ cob_in if cob_in is not none else 25 }}">
+      <span id="cov_val">{{ (cob_in if cob_in is not none else 25) }} % {% if cob_in is not none %}(calculado en diagnóstico){% else %}(predeterminado){% endif %}</span>
     </label>
-    <canvas id="sim-canvas" width="800" height="450"></canvas>
+    <div id="sim-container">
+      <canvas id="sim-canvas" width="800" height="450"></canvas>
+      <pre id="sim-debug" style="display:none"></pre>
+    </div>
     <button id="sim-save" class="btn" type="button">🖼️ Generar PNG final</button>
     <button id="sim-view-large" class="btn" type="button">🔍 Ver imagen completa</button>
     <div id="sim-ml"></div>
@@ -408,6 +414,6 @@
     window.diagnosticoFlexo = {{ diagnostico_json | default({}) | tojson }};
     window.revisionId = "{{ revision_id or '' }}";
   </script>
-  <script defer src="{{ url_for('static', filename='js/flexo_simulation.js') }}"></script>
+  <script src="{{ url_for('static', filename='js/flexo_simulation.js') }}?v=2" defer></script>
 </body>
 </html>
