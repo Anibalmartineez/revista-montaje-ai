@@ -2,7 +2,7 @@ import fitz
 from typing import List, Dict, Any
 
 from diagnostico_flexo import filtrar_objetos_sistema, consolidar_advertencias
-from utils import convertir_pts_a_mm
+from utils import convertir_pts_a_mm, normalizar_material
 
 PT_PER_MM = 72 / 25.4
 
@@ -67,7 +67,8 @@ def verificar_textos_pequenos(contenido: Dict[str, Any]) -> tuple[List[str], Lis
 
 def verificar_lineas_finas_v2(page: fitz.Page, material: str) -> tuple[List[str], List[Dict[str, Any]]]:
     mins = {"film": 0.12, "papel": 0.20, "etiqueta adhesiva": 0.18}
-    thr = mins.get((material or "").strip().lower(), 0.20)
+    mat_norm = normalizar_material(material)
+    thr = mins.get(mat_norm, 0.20)
     min_detectada = None
     n_riesgo = 0
     overlay: List[Dict[str, Any]] = []

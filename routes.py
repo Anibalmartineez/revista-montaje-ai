@@ -31,6 +31,7 @@ from utils import (
     corregir_sangrado,
     redimensionar_pdf,
     calcular_etiquetas_por_fila,
+    normalizar_material,
 )
 from simulacion import generar_preview_interactivo, generar_preview_virtual
 from ia_sugerencias import chat_completion, transcribir_audio
@@ -1211,7 +1212,7 @@ def revision_flexo():
     if request.method == "POST":
         try:
             archivo = request.files.get("archivo_revision")
-            material = request.form.get("material", "")
+            material = normalizar_material(request.form.get("material", ""))
 
             # Valores predeterminados para la simulación avanzada
             anilox_lpi = 360
