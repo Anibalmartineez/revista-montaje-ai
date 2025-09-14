@@ -1,14 +1,13 @@
-const DEBUG = new URLSearchParams(location.search).has('debug');
+const DEBUG = false; // Cambiar a true para habilitar logs detallados
 document.addEventListener('DOMContentLoaded', () => {
-  console.log('[SIM] init');
+  if (DEBUG) console.log('[SIM] init');
   initSim();
 });
 
 function initSim() {
-  if (DEBUG) console.debug('initSim');
+  if (DEBUG) console.debug('[SIM] initSim');
   inicializarRevisionBasica();
   inicializarSimulacionAvanzada();
-  inicializarModalSimulacion();
 }
 
 function inicializarRevisionBasica() {
@@ -53,8 +52,10 @@ function inicializarSimulacionAvanzada() {
     if (DEBUG) console.warn('Elementos de la simulación incompletos');
     return;
   }
-  console.log('[SIM] inicializarSimulacionAvanzada');
-  if (DEBUG) console.debug('inicializarSimulacionAvanzada');
+  if (DEBUG) {
+    console.log('[SIM] inicializarSimulacionAvanzada');
+    console.debug('inicializarSimulacionAvanzada');
+  }
 
   const datos = window.diagnosticoFlexo || {};
   lpi.value = datos.lpi ?? 120;
@@ -67,24 +68,22 @@ function inicializarSimulacionAvanzada() {
 
   const img = new Image();
   img.crossOrigin = 'anonymous';
-  const baseImg = document.getElementById('imagen-diagnostico');
-  if (baseImg && baseImg.src) {
+  const diagUrl = window.diagImg;
+  if (diagUrl) {
     img.onload = () => {
-      if (DEBUG) console.debug('imagen base cargada');
+      if (DEBUG) console.log('[SIM] imagen base cargada');
       renderSimulation();
     };
     img.onerror = () => {
-      if (DEBUG) console.debug('imagen base falló');
+      if (DEBUG) console.warn('[SIM] error cargando imagen base');
       renderSimulation();
     };
-    img.src = baseImg.src;
-    // Si la imagen ya está en caché, onload podría no dispararse
+    img.src = diagUrl;
     if (img.complete && img.naturalWidth > 0) {
-      if (DEBUG) console.debug('imagen base ya disponible');
+      if (DEBUG) console.log('[SIM] imagen base ya disponible');
       renderSimulation();
     }
   } else {
-    // No hay imagen de diagnóstico disponible
     renderSimulation();
   }
 
@@ -123,13 +122,12 @@ function inicializarSimulacionAvanzada() {
 
   function renderSimulation() {
     try {
-      console.log('[SIM] render', {
+      if (DEBUG) console.log('[SIM] render', {
         lpi: lpi.value,
         bcm: bcm.value,
         vel: vel.value,
         cob: cob.value,
       });
-      if (DEBUG) console.debug('render start');
       if (canvas.width === 0 || canvas.height === 0) {
         if (DEBUG) console.warn('canvas 0x0, forzando resize');
         resizeCanvas();
@@ -221,12 +219,13 @@ function inicializarSimulacionAvanzada() {
   }
 
   function resizeCanvas() {
-    if (DEBUG) console.debug('resizeCanvas');
+    if (DEBUG) console.debug('[SIM] resizeCanvas');
     const DPR = window.devicePixelRatio || 1;
-    const cssW = canvas.clientWidth || 800;
+    const parent = canvas.parentElement;
+    const cssW = parent ? parent.clientWidth : canvas.clientWidth || 300;
     const cssH = Math.round((cssW * 9) / 16);
-    canvas.width = Math.floor(Math.max(cssW, 600) * DPR);
-    canvas.height = Math.floor(Math.max(cssH, 300) * DPR);
+    canvas.width = Math.max(cssW, 300) * DPR;
+    canvas.height = Math.max(cssH, 150) * DPR;
     canvas.style.width = cssW + 'px';
     canvas.style.height = cssH + 'px';
     ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
@@ -241,29 +240,25 @@ function inicializarSimulacionAvanzada() {
         if (!blob) throw new Error('blob nulo');
         const formData = new FormData();
         formData.append('image', blob, `sim_${window.revisionId || 'resultado'}.png`);
-        const resp = await fetch(`/guardar_simulacion/${window.revisionId}`, {
+        const resp = await fetch(`/simulacion/exportar/${window.revisionId}`, {
           method: 'POST',
           body: formData,
         });
         if (!resp.ok) throw new Error('respuesta no OK');
         const data = await resp.json();
         if (data.url) {
-          const link = document.createElement('a');
-          link.href = data.url;
-          link.download = data.url.split('/').pop();
-          document.body.appendChild(link);
-          link.click();
-          document.body.removeChild(link);
+          const link = document.getElementById('sim-view');
+          if (link) link.href = data.url;
         }
       } catch (err) {
-        if (DEBUG) console.error('savePNG error', err);
+        if (DEBUG) console.error('[SIM] savePNG error', err);
       }
     });
   }
 
   [lpi, bcm, vel, cob].forEach(el => {
     el.addEventListener('input', () => {
-      console.log('[SIM] slider', el.id, el.value);
+      if (DEBUG) console.log('[SIM] slider', el.id, el.value);
       renderSimulation();
     });
   });
@@ -278,60 +273,5 @@ function inicializarSimulacionAvanzada() {
   resizeCanvas();
   if (saveBtn) {
     saveBtn.addEventListener('click', savePNG);
-  }
-}
-
-function inicializarModalSimulacion() {
-  const btn = document.getElementById('sim-view-large');
-  const modal = document.getElementById('sim-modal');
-  const modalImg = document.getElementById('sim-modal-img');
-  const closeBtn = document.getElementById('sim-close');
-  const canvas = document.getElementById('sim-canvas');
-  if (!btn || !modal || !modalImg || !closeBtn || !canvas) return;
-
-  let scale = 1;
-  let lastDist = null;
-
-  btn.addEventListener('click', () => {
-    modalImg.src = canvas.toDataURL('image/png');
-    scale = 1;
-    modalImg.style.transform = 'scale(1)';
-    modal.style.display = 'flex';
-  });
-
-  function cerrar() {
-    modal.style.display = 'none';
-  }
-
-  closeBtn.addEventListener('click', cerrar);
-  modal.addEventListener('click', e => { if (e.target === modal) cerrar(); });
-
-  modalImg.addEventListener('wheel', e => {
-    e.preventDefault();
-    scale += e.deltaY * -0.001;
-    scale = Math.min(Math.max(1, scale), 5);
-    modalImg.style.transform = `scale(${scale})`;
-  });
-
-  modalImg.addEventListener('touchstart', e => {
-    if (e.touches.length === 2) {
-      e.preventDefault();
-      lastDist = dist(e.touches[0], e.touches[1]);
-    }
-  }, { passive: false });
-
-  modalImg.addEventListener('touchmove', e => {
-    if (e.touches.length === 2 && lastDist) {
-      e.preventDefault();
-      const newDist = dist(e.touches[0], e.touches[1]);
-      const factor = newDist / lastDist;
-      scale = Math.min(Math.max(1, scale * factor), 5);
-      lastDist = newDist;
-      modalImg.style.transform = `scale(${scale})`;
-    }
-  }, { passive: false });
-
-  function dist(t1, t2) {
-    return Math.hypot(t1.clientX - t2.clientX, t1.clientY - t2.clientY);
   }
 }

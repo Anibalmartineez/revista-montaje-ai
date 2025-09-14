@@ -20,5 +20,6 @@ def test_default_warning_message_in_template():
                 tabla_riesgos='',
                 imagen_iconos_web='dummy.png',
                 sim_img_web='simulaciones/sim_dummy.png',
+                diag_img_web='dummy.png',
             )
     assert 'Advertencia sin descripción detallada.' in html
