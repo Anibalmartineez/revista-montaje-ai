@@ -21,4 +21,5 @@ def handle_413(e):
 
 
 app.register_blueprint(routes_bp)
+app.add_url_rule('/revision', endpoint='revision', view_func=app.view_functions['routes.revision'])
 

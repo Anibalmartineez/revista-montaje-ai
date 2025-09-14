@@ -93,6 +93,27 @@
       box-shadow: 0 4px 14px rgba(37,99,235,0.4);
       opacity: 0.95;
     }
+    .btn-submit {
+      width: 100%;
+      padding: 14px;
+      border: none;
+      border-radius: 8px;
+      color: #fff;
+      font-weight: 600;
+      font-size: 1rem;
+      cursor: pointer;
+      background: linear-gradient(90deg,#2563eb,#60a5fa);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      transition: box-shadow .3s, opacity .3s;
+      margin-top: 10px;
+    }
+    .btn-submit:hover {
+      box-shadow: 0 4px 14px rgba(37,99,235,0.4);
+      opacity: 0.95;
+    }
     .tooltip-icon {
       display: inline-block;
       margin-left: 5px;
@@ -167,7 +188,7 @@
     <div class="card-form">
       <h1>🔍 Revisión previa al envío a clichés</h1>
 
-      <form action="{{ url_for('routes.revision_flexo') }}" method="POST" enctype="multipart/form-data">
+      <form action="{{ url_for('revision') }}" method="POST" enctype="multipart/form-data" id="form-revision">
         <div class="form-block">
           <h2>📂 Archivo del diseño</h2>
           <label for="archivo_revision">Archivo PDF del diseño
@@ -193,7 +214,17 @@
           </select>
         </div>
 
-        <button class="btn" type="submit"><span>🔍</span> Revisar diseño</button>
+        <button type="submit" class="btn-submit">🔎 Revisar diseño</button>
+
+        {% with msgs = get_flashed_messages(with_categories=true) %}
+        {% if msgs %}
+        <div class="alertas">
+          {% for cat,msg in msgs %}
+          <div class="alert alert-{{cat}}">{{ msg|safe }}</div>
+          {% endfor %}
+        </div>
+        {% endif %}
+        {% endwith %}
       </form>
 
       <form id="vista-previa-form" action="{{ url_for('routes.vista_previa_tecnica') }}" method="POST">
