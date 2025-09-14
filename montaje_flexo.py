@@ -12,7 +12,12 @@ from io import BytesIO
 import base64
 from html import unescape
 
-from utils import convertir_pts_a_mm, obtener_info_basica, verificar_dimensiones
+from utils import (
+    convertir_pts_a_mm,
+    obtener_info_basica,
+    verificar_dimensiones,
+    normalizar_material,
+)
 
 from diagnostico_flexo import filtrar_objetos_sistema
 from advertencias_disenio import analizar_advertencias_disenio
@@ -544,6 +549,7 @@ def revisar_diseño_flexo(
     doc = fitz.open(path_pdf)
     pagina = doc[0]
     contenido = pagina.get_text("dict")
+    material_norm = normalizar_material(material)
     ancho_mm, alto_mm = obtener_info_basica(pagina)
 
     diseno_info = [
@@ -595,7 +601,7 @@ def revisar_diseño_flexo(
     )
 
     dim_adv = verificar_dimensiones(ancho_mm, alto_mm, paso_mm)
-    adv_res = analizar_advertencias_disenio(path_pdf, material, pagina=pagina, contenido=contenido)
+    adv_res = analizar_advertencias_disenio(path_pdf, material_norm, pagina=pagina, contenido=contenido)
     textos_adv = adv_res["textos"]
     lineas_adv = adv_res["lineas"]
     modo_color_adv = adv_res["modo_color"]
@@ -609,7 +615,7 @@ def revisar_diseño_flexo(
             dpi = int(m.group(1))
             resolucion_minima = dpi if resolucion_minima is None else min(resolucion_minima, dpi)
     if metricas_cobertura:
-        til_items = resumen_cobertura_tac(metricas_cobertura, material)
+        til_items = resumen_cobertura_tac(metricas_cobertura, material_norm)
     else:
         til_items = ["<li><span class='icono warn'>⚠️</span> No se pudo estimar TAC/cobertura.</li>"]
     capas_items = detectar_capas_especiales(path_pdf)
@@ -660,18 +666,8 @@ def revisar_diseño_flexo(
         )
 
     diagnostico_material = []
-    material_norm = material.lower().strip()
-    # Normalizar alias de materiales
-    material_alias = {
-        "adhesivo": "etiqueta adhesiva",
-        "etiqueta adhesiva": "etiqueta adhesiva",
-        "film": "película",
-        "pelicula": "película",
-        "carton": "cartón",
-    }
-    material_norm = material_alias.get(material_norm, material_norm)
 
-    if material_norm in ("film", "película"):
+    if material_norm == "film":
         negro = metricas_cobertura["cobertura_promedio"].get("Negro", 0) if metricas_cobertura else 0
         if negro > 50:
             diagnostico_material.append(

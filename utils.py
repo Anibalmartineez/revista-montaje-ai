@@ -3,6 +3,7 @@ from PIL import Image
 import numpy as np
 from io import BytesIO
 import math
+from typing import Dict
 
 
 def corregir_sangrado(input_path, output_path):
@@ -130,3 +131,31 @@ def verificar_dimensiones(
             f"<span class='icono warn'>⚠️</span> El ancho del diseño (<b>{ancho_mm} mm</b>) podría exceder el ancho útil de la máquina. Verificar configuración."
         )
     return advertencias
+
+
+# Mapeo centralizado de alias de materiales a sus valores estándar
+MATERIAL_ALIAS: Dict[str, str] = {
+    "película": "film",
+    "pelicula": "film",
+    "film": "film",
+    "adhesivo": "etiqueta adhesiva",
+    "etiqueta": "etiqueta adhesiva",
+    "etiqueta adhesiva": "etiqueta adhesiva",
+    "carton": "cartón",
+    "cartón": "cartón",
+}
+
+
+def normalizar_material(material: str) -> str:
+    """Devuelve el nombre estándar del material.
+
+    Se utiliza un diccionario de alias para unificar las distintas formas en que
+    puede recibirse el dato desde el formulario, evitando duplicar claves en
+    tablas internas. El resultado siempre está en minúsculas para facilitar las
+    comparaciones.
+    """
+
+    if not material:
+        return ""
+    mat = material.lower().strip()
+    return MATERIAL_ALIAS.get(mat, mat)

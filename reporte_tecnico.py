@@ -1,6 +1,8 @@
 from __future__ import annotations
 from typing import List, Dict, Any
 
+from utils import normalizar_material
+
 
 def _card(titulo: str, items_html: List[str] | str) -> str:
     """Envuelve una lista de elementos en un contenedor con título."""
@@ -17,7 +19,7 @@ def resumen_cobertura_tac(metricas: Dict[str, Any], material: str) -> List[str]:
     tac_p95 = metricas["tac_p95"]
     tac_max = metricas["tac_max"]
     limites = {"film": 320, "papel": 300, "etiqueta adhesiva": 280}
-    mat = (material or "").strip().lower()
+    mat = normalizar_material(material)
     lim = limites.get(mat, 300)
     estado = "ok" if tac_p95 <= lim else ("warn" if tac_p95 <= lim + 20 else "error")
     icon = {"ok": "✔️", "warn": "⚠️", "error": "❌"}[estado]
