@@ -366,7 +366,7 @@
   <script>
     window.diagnosticoFlexo = {{ diagnostico_json | default({}) | tojson }};
     window.revisionId = "{{ revision_id or '' }}";
-    window.diagImg = "{{ url_for('static', filename=diag_img_web) if diag_img_web else '' }}";
+    window.diagImg = "{{ url_for('static', filename=diag_img_web or imagen_iconos_web or imagen_path_web) if (diag_img_web or imagen_iconos_web or imagen_path_web) else '' }}";
   </script>
   <script src="{{ url_for('static', filename='js/flexo_simulation.js') }}?v=3" defer></script>
 </body>
