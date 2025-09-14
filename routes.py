@@ -1214,16 +1214,21 @@ def revision_flexo():
             archivo = request.files.get("archivo_revision")
             material = normalizar_material(request.form.get("material", ""))
 
-            # Valores predeterminados para la simulación avanzada
-            anilox_lpi = 360
+            # Valores predeterminados (sobrescribibles en modo avanzado)
             paso_mm = 330
-            default_bcm = 4.0
-            default_velocidad = 150.0
-            default_cobertura = 25.0
 
-            anilox_bcm = None
-            velocidad = None
-            cobertura = None
+            try:
+                anilox_lpi = float(request.form.get("anilox_lpi") or 360)
+            except (TypeError, ValueError):
+                anilox_lpi = 360
+            try:
+                anilox_bcm = float(request.form.get("anilox_bcm") or 4.0)
+            except (TypeError, ValueError):
+                anilox_bcm = 4.0
+            try:
+                velocidad = float(request.form.get("velocidad") or 150.0)
+            except (TypeError, ValueError):
+                velocidad = 150.0
 
             if archivo and archivo.filename.endswith(".pdf"):
                 # Siempre guardamos el PDF con un nombre fijo para evitar usar uno previo.
@@ -1249,7 +1254,7 @@ def revision_flexo():
                     material,
                     anilox_bcm,
                     velocidad,
-                    cobertura,
+                    None,
                 )
                 overlay_info = analizar_riesgos_pdf(path, advertencias=advertencias_overlay)
 
@@ -1266,16 +1271,23 @@ def revision_flexo():
                     "Y": round(cobertura_dict.get("Amarillo", 0)),
                     "K": round(cobertura_dict.get("Negro", 0)),
                 }
+                cobertura_total = round(
+                    cobertura_dict.get("Cyan", 0)
+                    + cobertura_dict.get("Magenta", 0)
+                    + cobertura_dict.get("Amarillo", 0)
+                    + cobertura_dict.get("Negro", 0),
+                    2,
+                )
 
                 diagnostico_json = {
                     "cobertura": cobertura_json,
-                    "cobertura_estimada": default_cobertura,
-                    "bcm": default_bcm,
-                    "anilox_bcm": default_bcm,
+                    "cobertura_estimada": cobertura_total,
+                    "bcm": anilox_bcm,
+                    "anilox_bcm": anilox_bcm,
                     "eficiencia": 0.30,
                     "ancho": 0.50,
-                    "velocidad": default_velocidad,
-                    "velocidad_impresion": default_velocidad,
+                    "velocidad": velocidad,
+                    "velocidad_impresion": velocidad,
                     "lpi": anilox_lpi,
                     "anilox_lpi": anilox_lpi,
                     "paso": paso_mm,
@@ -1288,11 +1300,11 @@ def revision_flexo():
                     "resultados_diagnostico": analisis_detallado,
                     "datos_formulario": {
                         "anilox_lpi": anilox_lpi,
-                        "anilox_bcm": default_bcm,
+                        "anilox_bcm": anilox_bcm,
                         "paso_cilindro": paso_mm,
                         "material": material,
-                        "velocidad_impresion": default_velocidad,
-                        "cobertura": default_cobertura,
+                        "velocidad_impresion": velocidad,
+                        "cobertura": cobertura_total,
                         "advertencias": overlay_info.get("advertencias", []),
                     },
                     "overlay_path": overlay_info["overlay_path"],
