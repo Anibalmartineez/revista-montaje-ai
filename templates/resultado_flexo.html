@@ -145,7 +145,7 @@
     #simulacion-avanzada h3 { text-align: center; }
     #simulacion-avanzada label { display: block; margin-top: 10px; }
     #sim-canvas {
-      max-width: 100%;
+      width: 100%;
       height: auto;
       background: #eef7ff;
       display: block;
@@ -328,30 +328,36 @@
     <h3>⚙️ Simulación Avanzada de Impresión</h3>
     <label>
       Lineatura del Anilox (LPI):
-      <input type="range" id="lpi_slider" min="80" max="600" value="{{ diag.get('lpi', 120) }}">
       {% set lpi_val = diag.get('lpi') %}
-      <span id="lpi_val">{{ (lpi_val if lpi_val is not none else 120) }} lpi {% if lpi_val is not none %}(calculado en diagnóstico){% else %}(predeterminado){% endif %}</span>
+      <input type="range" id="lpi" name="lpi" min="80" max="600" value="{{ lpi_val if lpi_val is not none else 120 }}">
+      <span id="lpi-val">{{ (lpi_val if lpi_val is not none else 120) }} lpi {% if lpi_val is not none %}(calculado en diagnóstico){% else %}(predeterminado){% endif %}</span>
     </label>
     <label>
       BCM del anilox (cm³/m²):
-      <input type="range" id="bcm_slider" min="1" max="15" step="0.1" value="{{ diag.get('bcm', 2.0) }}">
       {% set bcm_val = diag.get('bcm') %}
-      <span id="bcm_val">{{ (bcm_val if bcm_val is not none else 2.0) }} cm³/m² {% if bcm_val is not none %}(calculado en diagnóstico){% else %}(predeterminado){% endif %}</span>
+      <input type="range" id="bcm" name="bcm" min="1" max="15" step="0.1" value="{{ bcm_val if bcm_val is not none else 2.0 }}">
+      <span id="bcm-val">{{ (bcm_val if bcm_val is not none else 2.0) }} cm³/m² {% if bcm_val is not none %}(calculado en diagnóstico){% else %}(predeterminado){% endif %}</span>
+    </label>
+    <label>
+      Paso del cilindro (mm):
+      {% set paso_val = diag.get('paso') or diag.get('paso_cilindro') %}
+      <input type="range" id="paso" name="paso" min="100" max="1000" value="{{ paso_val if paso_val is not none else 330 }}">
+      <span id="paso-val">{{ (paso_val if paso_val is not none else 330) }} mm {% if paso_val is not none %}(calculado en diagnóstico){% else %}(predeterminado){% endif %}</span>
     </label>
     <label>
       Velocidad estimada de impresión (m/min):
       {% set vel_in = diag.get('velocidad') or diag.get('velocidad_impresion') %}
-      <input type="range" id="vel_slider" min="50" max="500" value="{{ vel_in if vel_in is not none else 150 }}">
-      <span id="vel_val">{{ (vel_in if vel_in is not none else 150) }} m/min {% if vel_in is not none %}(calculado en diagnóstico){% else %}(predeterminado){% endif %}</span>
+      <input type="range" id="vel" name="vel" min="50" max="500" value="{{ vel_in if vel_in is not none else 150 }}">
+      <span id="vel-val">{{ (vel_in if vel_in is not none else 150) }} m/min {% if vel_in is not none %}(calculado en diagnóstico){% else %}(predeterminado){% endif %}</span>
     </label>
     <label>
       Cobertura estimada (%):
       {% set cob_in = diag.get('cobertura_estimada') %}
-      <input type="range" id="cov_slider" min="0" max="200" value="{{ cob_in if cob_in is not none else 25 }}">
-      <span id="cov_val">{{ (cob_in if cob_in is not none else 25) }} % {% if cob_in is not none %}(calculado en diagnóstico){% else %}(predeterminado){% endif %}</span>
+      <input type="range" id="cov" name="cov" min="0" max="200" value="{{ cob_in if cob_in is not none else 25 }}">
+      <span id="cov-val">{{ (cob_in if cob_in is not none else 25) }} % {% if cob_in is not none %}(calculado en diagnóstico){% else %}(predeterminado){% endif %}</span>
     </label>
     <div id="sim-container">
-      <canvas id="sim-canvas" width="300" height="150"></canvas>
+      <canvas id="sim-canvas" data-sim-img="{{ sim_base_img or '' }}"></canvas>
       <pre id="sim-debug" style="display:none"></pre>
     </div>
     <button id="sim-save" class="btn" type="button">🖼️ Generar PNG final</button>
@@ -364,10 +370,8 @@
     <a href="{{ url_for('revision') }}" class="btn">⬅ Volver a revisar otro diseño</a>
   </div>
   <script>
-    window.diagnosticoFlexo = {{ diagnostico_json | default({}) | tojson }};
     window.revisionId = "{{ revision_id or '' }}";
-    window.diagImg = "{{ url_for('static', filename=diag_img_web or imagen_iconos_web or imagen_path_web) if (diag_img_web or imagen_iconos_web or imagen_path_web) else '' }}";
   </script>
-  <script src="{{ url_for('static', filename='js/flexo_simulation.js') }}?v=3" defer></script>
+  <script src="{{ url_for('static', filename='js/flexo_simulation.js') }}?v={{ revision_id }}" defer></script>
 </body>
 </html>
