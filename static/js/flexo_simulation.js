@@ -69,9 +69,23 @@ function inicializarSimulacionAvanzada() {
   img.crossOrigin = 'anonymous';
   const baseImg = document.getElementById('imagen-diagnostico');
   if (baseImg && baseImg.src) {
-    img.onload = () => { if (DEBUG) console.debug('imagen base cargada'); renderSimulation(); };
-    img.onerror = () => { if (DEBUG) console.debug('imagen base falló'); renderSimulation(); };
+    img.onload = () => {
+      if (DEBUG) console.debug('imagen base cargada');
+      renderSimulation();
+    };
+    img.onerror = () => {
+      if (DEBUG) console.debug('imagen base falló');
+      renderSimulation();
+    };
     img.src = baseImg.src;
+    // Si la imagen ya está en caché, onload podría no dispararse
+    if (img.complete && img.naturalWidth > 0) {
+      if (DEBUG) console.debug('imagen base ya disponible');
+      renderSimulation();
+    }
+  } else {
+    // No hay imagen de diagnóstico disponible
+    renderSimulation();
   }
 
   function actualizarValores() {
