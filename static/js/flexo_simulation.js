@@ -66,6 +66,9 @@ function inicializarSimulacionAvanzada() {
     if (!img.complete) return;
     canvas.width = img.width;
     canvas.height = img.height;
+    // Asegura adaptación al contenedor
+    canvas.style.width = '100%';
+    canvas.style.height = 'auto';
     ctx.clearRect(0, 0, canvas.width, canvas.height);
     ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
 
@@ -90,23 +93,51 @@ function inicializarSimulacionAvanzada() {
       });
     }
 
-    const valLpi = parseFloat(lpi.value);
-    const valBcm = parseFloat(bcm.value);
-    const valCob = parseFloat(cob.value) / 100;
-    const valVel = parseFloat(vel.value);
-    const spacing = Math.max(2, (600 / valLpi) * 4);
-    const baseRadio = (spacing / 2) * (valBcm / 4);
-    const alpha = Math.min(1, 0.2 + valCob);
-    ctx.globalAlpha = Math.max(0.3, 1 - valVel / 600);
-    for (let y = 0; y < canvas.height; y += spacing) {
-      for (let x = 0; x < canvas.width; x += spacing) {
-        ctx.beginPath();
-        ctx.fillStyle = `rgba(0,0,0,${alpha})`;
-        ctx.arc(x, y, baseRadio, 0, Math.PI * 2);
-        ctx.fill();
+    // Valores de los sliders
+    const valLpi = parseFloat(lpi.value); // densidad de puntos
+    const valBcm = parseFloat(bcm.value); // volumen de celda → opacidad
+    const valVel = parseFloat(vel.value); // velocidad → desenfoque / ruido
+    const valCob = parseFloat(cob.value); // cobertura en porcentaje
+
+    // --- LPI: cantidad y tamaño de puntos ---
+    const spacing = Math.max(2, (600 / valLpi) * 4); // separación entre centros
+    const radio = Math.max(1, spacing / 2); // tamaño base de cada punto
+
+    // --- BCM: opacidad de los puntos ---
+    const alpha = Math.min(1, Math.max(0.05, valBcm / 10));
+
+    // --- Velocidad: pérdida de definición ---
+    const blur = (valVel / 500) * 2; // píxeles de desenfoque
+    const jitter = (valVel / 500) * spacing * 0.5; // desplazamiento aleatorio
+    ctx.filter = blur > 0 ? `blur(${blur}px)` : 'none';
+
+    // --- Cobertura: porcentaje de área pintada ---
+    function dibujarCapa(offsetX = 0, offsetY = 0, prob = 1) {
+      for (let y = 0; y < canvas.height; y += spacing) {
+        for (let x = 0; x < canvas.width; x += spacing) {
+          if (Math.random() > prob) continue; // deja huecos
+          const dx = x + offsetX + (Math.random() * 2 - 1) * jitter;
+          const dy = y + offsetY + (Math.random() * 2 - 1) * jitter;
+          ctx.beginPath();
+          ctx.fillStyle = `rgba(0,0,0,${alpha})`;
+          ctx.arc(dx, dy, radio, 0, Math.PI * 2);
+          ctx.fill();
+        }
       }
     }
-    ctx.globalAlpha = 1;
+
+    const cobertura = valCob;
+    const probBase = Math.min(cobertura, 100) / 100;
+    dibujarCapa(0, 0, probBase);
+
+    // Capas extra cuando la cobertura supera el 100%
+    if (cobertura > 100) {
+      const probExtra = Math.min((cobertura - 100) / 100, 1);
+      // Desfase para aumentar densidad
+      dibujarCapa(spacing / 2, spacing / 2, probExtra);
+    }
+
+    ctx.filter = 'none';
 
     const params = {
       bcm: parseFloat(bcm.value),
@@ -128,6 +159,8 @@ function inicializarSimulacionAvanzada() {
   }
 
   [lpi, bcm, vel, cob].forEach(el => el.addEventListener('input', dibujar));
+  // Redibuja al cambiar el tamaño de la ventana para mantener la respuesta
+  window.addEventListener('resize', dibujar);
   actualizarValores();
   if (img.complete) dibujar();
 
