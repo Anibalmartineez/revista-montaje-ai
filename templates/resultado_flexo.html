@@ -156,6 +156,8 @@
   </style>
 </head>
 <body>
+  {% set diag_img_static = url_for('static', filename=diag_img_web) if diag_img_web else '' %}
+  {% set sim_canvas_base = diag_img_static or (url_for('static', filename=sim_base_img) if sim_base_img else '') %}
   <div id="contenedor-imagen" style="position: relative;">
     <img src="{{ url_for('static', filename=imagen_path_web) }}" id="imagen-diagnostico" class="imagen-analizada" />
     <div id="overlay-markers"></div>
@@ -357,7 +359,7 @@
       <span id="cov-val">{{ (cob_in if cob_in is not none else 25) }} % {% if cob_in is not none %}(calculado en diagnóstico){% else %}(predeterminado){% endif %}</span>
     </label>
     <div id="sim-container">
-      <canvas id="sim-canvas" data-sim-img="{{ sim_base_img or '' }}"></canvas>
+      <canvas id="sim-canvas" data-sim-img="{{ sim_canvas_base }}"></canvas>
       <pre id="sim-debug" style="display:none"></pre>
     </div>
     <button id="sim-save" class="btn" type="button">🖼️ Generar PNG final</button>
@@ -370,7 +372,8 @@
     <a href="{{ url_for('revision') }}" class="btn">⬅ Volver a revisar otro diseño</a>
   </div>
   <script>
-    window.revisionId = "{{ revision_id or '' }}";
+    window.diag_img_web = {{ diag_img_static|tojson }};
+    window.revisionId = {{ (revision_id or '')|tojson }};
   </script>
   <script src="{{ url_for('static', filename='js/flexo_simulation.js') }}?v={{ revision_id }}" defer></script>
 </body>

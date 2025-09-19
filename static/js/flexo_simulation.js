@@ -6,6 +6,7 @@ document.addEventListener('DOMContentLoaded', () => {
   const canvas = document.getElementById('sim-canvas');
   if (!canvas) return;
   const ctx = canvas.getContext('2d');
+  if (!ctx) return;
 
   const lpi = document.getElementById('lpi');
   const bcm = document.getElementById('bcm');
@@ -19,90 +20,120 @@ document.addEventListener('DOMContentLoaded', () => {
   const velVal = document.getElementById('vel-val');
   const cobVal = document.getElementById('cov-val');
 
-  const baseUrl = canvas.dataset.simImg;
-  const img = new Image();
-  img.crossOrigin = 'anonymous';
+  const viewLink = document.getElementById('sim-view');
+  const saveBtn = document.getElementById('sim-save');
+
+  let rafId = null;
+  let debounceId = null;
+  let currentDpr = window.devicePixelRatio || 1;
+
+  function normalizeUrl(url) {
+    if (!url) return '';
+    const trimmed = String(url).trim();
+    if (!trimmed) return '';
+    if (/^(?:https?:|data:|blob:)/i.test(trimmed) || trimmed.startsWith('//')) {
+      return trimmed;
+    }
+    if (trimmed.startsWith('/')) {
+      return trimmed;
+    }
+    const clean = trimmed.replace(/^\.?\//, '');
+    if (clean.startsWith('static/')) {
+      return `/${clean}`;
+    }
+    return `/static/${clean}`;
+  }
+
+  const diagImgUrl = normalizeUrl(window.diag_img_web || canvas.dataset.simImg || '');
+  const baseImage = new Image();
+  baseImage.crossOrigin = 'anonymous';
   let baseReady = false;
 
-  img.onload = () => {
+  baseImage.onload = () => {
     baseReady = true;
     if (DEBUG) console.log('[SIM] imagen base cargada');
-    resize();
+    render();
   };
-  img.onerror = () => {
+  baseImage.onerror = () => {
     baseReady = false;
     if (DEBUG) console.warn('[SIM] error cargando imagen base');
-    resize();
+    render();
   };
-  if (baseUrl) {
-    img.src = baseUrl + '?cb=' + Date.now();
-  } else {
-    resize();
+  if (diagImgUrl) {
+    const cacheBusted = diagImgUrl.includes('?')
+      ? `${diagImgUrl}&cb=${Date.now()}`
+      : `${diagImgUrl}?cb=${Date.now()}`;
+    baseImage.src = cacheBusted;
   }
 
   function updateLabels() {
-    if (lpiVal) lpiVal.textContent = `${lpi.value} lpi`;
-    if (bcmVal) bcmVal.textContent = `${bcm.value} cm³/m²`;
-    if (pasoVal) pasoVal.textContent = `${paso.value} mm`;
-    if (velVal) velVal.textContent = `${vel.value} m/min`;
-    if (cobVal) cobVal.textContent = `${cob.value} %`;
+    if (lpi && lpiVal) lpiVal.textContent = `${lpi.value} lpi`;
+    if (bcm && bcmVal) bcmVal.textContent = `${bcm.value} cm³/m²`;
+    if (paso && pasoVal) pasoVal.textContent = `${paso.value} mm`;
+    if (vel && velVal) velVal.textContent = `${vel.value} m/min`;
+    if (cob && cobVal) cobVal.textContent = `${cob.value} %`;
   }
 
-  function drawFallback() {
-    ctx.fillStyle = '#fff';
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
-    ctx.fillStyle = '#ccc';
+  function drawFallback(targetCtx, width, height) {
+    targetCtx.fillStyle = '#fff';
+    targetCtx.fillRect(0, 0, width, height);
+    targetCtx.fillStyle = '#ccc';
     const spacing = 20;
-    for (let y = 0; y < canvas.height; y += spacing) {
-      for (let x = 0; x < canvas.width; x += spacing) {
-        ctx.beginPath();
-        ctx.arc(x + spacing / 2, y + spacing / 2, 1.5, 0, Math.PI * 2);
-        ctx.fill();
+    for (let y = 0; y < height; y += spacing) {
+      for (let x = 0; x < width; x += spacing) {
+        targetCtx.beginPath();
+        targetCtx.arc(x + spacing / 2, y + spacing / 2, 1.5, 0, Math.PI * 2);
+        targetCtx.fill();
       }
     }
   }
 
-  function render() {
-    if (DEBUG) console.log('[SIM] render');
-    updateLabels();
-
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-    if (baseReady) {
-      ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-    } else {
-      drawFallback();
-    }
-
-    const l = Number(lpi.value) || 0;
-    const b = Number(bcm.value) || 0;
-    const p = Number(paso.value) || 0;
-    const v = Number(vel.value) || 0;
-    const c = Number(cob.value) || 0;
+  function drawSimulationOverlay(targetCtx, width, height) {
+    const l = Number(lpi ? lpi.value : 0) || 0;
+    const b = Number(bcm ? bcm.value : 0) || 0;
+    const p = Number(paso ? paso.value : 0) || 0;
+    const v = Number(vel ? vel.value : 0) || 0;
+    const c = Number(cob ? cob.value : 0) || 0;
 
     const spacing = Math.max(2, (600 / Math.max(l, 1)) * 4);
     const alpha = Math.min(1, Math.max(0.05, (c / 100) * (b / 10)));
     const blur = (v / 500) * 2;
     const offset = (p / 1000) * spacing;
 
-    ctx.filter = blur > 0 ? `blur(${blur}px)` : 'none';
-    for (let y = offset; y < canvas.height; y += spacing) {
-      for (let x = offset; x < canvas.width; x += spacing) {
-        ctx.beginPath();
-        ctx.fillStyle = `rgba(0,0,0,${alpha})`;
-        ctx.arc(x, y, spacing / 2, 0, Math.PI * 2);
-        ctx.fill();
+    targetCtx.filter = blur > 0 ? `blur(${blur}px)` : 'none';
+    for (let y = offset; y < height; y += spacing) {
+      for (let x = offset; x < width; x += spacing) {
+        targetCtx.beginPath();
+        targetCtx.fillStyle = `rgba(0,0,0,${alpha})`;
+        targetCtx.arc(x, y, spacing / 2, 0, Math.PI * 2);
+        targetCtx.fill();
       }
     }
-    ctx.filter = 'none';
+    targetCtx.filter = 'none';
   }
 
-  let rafId = null;
-  let debounceId = null;
+  function render(targetCtx = ctx, targetCanvas = canvas, updateUi = true) {
+    if (!targetCtx || !targetCanvas) return;
+    if (DEBUG) console.log('[SIM] render');
+    if (updateUi) updateLabels();
+
+    const { width, height } = targetCanvas;
+    targetCtx.clearRect(0, 0, width, height);
+
+    if (baseReady && diagImgUrl) {
+      targetCtx.drawImage(baseImage, 0, 0, width, height);
+    } else {
+      drawFallback(targetCtx, width, height);
+    }
+
+    drawSimulationOverlay(targetCtx, width, height);
+  }
+
   function scheduleRender() {
     clearTimeout(debounceId);
     debounceId = setTimeout(() => {
       cancelAnimationFrame(rafId);
-      rafId = requestAnimationFrame(render);
+      rafId = requestAnimationFrame(() => render());
     }, 120);
   }
 
@@ -114,23 +145,38 @@ document.addEventListener('DOMContentLoaded', () => {
 
   function resize() {
     const rect = canvas.getBoundingClientRect();
-    const dpr = window.devicePixelRatio || 1;
-    canvas.width = rect.width * dpr;
-    canvas.height = rect.height * dpr;
-    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    currentDpr = window.devicePixelRatio || 1;
+    canvas.width = Math.max(1, rect.width * currentDpr);
+    canvas.height = Math.max(1, rect.height * currentDpr);
+    ctx.setTransform(currentDpr, 0, 0, currentDpr, 0, 0);
     render();
   }
 
-  window.addEventListener('resize', () => {
-    resize();
-  });
+  window.addEventListener('resize', resize);
 
-  const saveBtn = document.getElementById('sim-save');
-  const viewLink = document.getElementById('sim-view');
+  // Ajustar el lienzo desde el inicio para dibujar el diagnóstico o el patrón.
+  resize();
+  if (!diagImgUrl) {
+    render();
+  }
+
   if (saveBtn) {
     saveBtn.addEventListener('click', () => {
       if (DEBUG) console.log('[SIM] export');
-      canvas.toBlob(async (blob) => {
+      if (diagImgUrl && !baseReady) {
+        alert('La imagen base aún se está cargando. Intentá nuevamente en unos segundos.');
+        return;
+      }
+
+      const exportCanvas = document.createElement('canvas');
+      exportCanvas.width = canvas.width;
+      exportCanvas.height = canvas.height;
+      const exportCtx = exportCanvas.getContext('2d');
+      if (!exportCtx) return;
+      exportCtx.setTransform(currentDpr, 0, 0, currentDpr, 0, 0);
+      render(exportCtx, exportCanvas, false);
+
+      exportCanvas.toBlob(async (blob) => {
         if (!blob) return;
         const fd = new FormData();
         fd.append('image', blob, `sim_${window.revisionId || 'resultado'}.png`);
