@@ -311,15 +311,24 @@
     }
   </script>
   {% set diag = diagnostico_json or {} %}
+  {% set lpi_diag = diag.get('anilox_lpi') if diag.get('anilox_lpi') is not none else diag.get('lpi') %}
+  {% set bcm_diag = diag.get('anilox_bcm') if diag.get('anilox_bcm') is not none else diag.get('bcm') %}
+  {% set paso_diag = diag.get('paso_del_cilindro') if diag.get('paso_del_cilindro') is not none else (diag.get('paso_cilindro') or diag.get('paso')) %}
+  {% set vel_diag = diag.get('velocidad_impresion') if diag.get('velocidad_impresion') is not none else (diag.get('velocidad') if diag.get('velocidad') is not none else diag.get('velocidad_estimada')) %}
+  {% set lpi_val = lpi_diag if lpi_diag is not none else 120 %}
+  {% set bcm_val = bcm_diag if bcm_diag is not none else 2.0 %}
+  {% set paso_val = paso_diag if paso_diag is not none else 330 %}
+  {% set vel_val = vel_diag if vel_diag is not none else 150 %}
+  {% set lpi_display = '%g' % lpi_val %}
+  {% set bcm_display = '%g' % bcm_val %}
+  {% set paso_display = '%g' % paso_val %}
+  {% set vel_display = '%g' % vel_val %}
   <section id="datos-basicos">
     <p><strong>Archivo PDF:</strong> {{ diag.get('archivo', 'diagnostico.pdf') }}</p>
     <p><strong>Material de impresión:</strong> {{ diag.get('material', '(calculado en diagnóstico)') }}</p>
-    {% set lpi_diag = diag.get('lpi') %}
-    <p><strong>Anilox LPI:</strong> {{ (lpi_diag if lpi_diag is not none else 120) }} {% if lpi_diag is not none %}(calculado en diagnóstico){% else %}(predeterminado){% endif %}</p>
-    {% set bcm_diag = diag.get('bcm') %}
-    <p><strong>BCM del anilox:</strong> {{ (bcm_diag if bcm_diag is not none else 2.0) }} {% if bcm_diag is not none %}(calculado en diagnóstico){% else %}(predeterminado){% endif %}</p>
-    {% set vel = diag.get('velocidad') or diag.get('velocidad_impresion') %}
-    <p><strong>Velocidad estimada:</strong> {{ (vel if vel is not none else 150) }} {% if vel is not none %}(calculado en diagnóstico){% else %}(predeterminado){% endif %}</p>
+    <p><strong>Anilox LPI:</strong> {{ lpi_display }} {% if lpi_diag is not none %}(valor ingresado){% else %}(predeterminado){% endif %}</p>
+    <p><strong>BCM del anilox:</strong> {{ bcm_display }} {% if bcm_diag is not none %}(valor ingresado){% else %}(predeterminado){% endif %}</p>
+    <p><strong>Velocidad estimada:</strong> {{ vel_display }} {% if vel_diag is not none %}(valor ingresado){% else %}(predeterminado){% endif %}</p>
     {% set cob = diag.get('cobertura_estimada') %}
     <p><strong>Cobertura estimada:</strong> {{ (cob if cob is not none else 25) }} % {% if cob is not none %}(calculado en diagnóstico){% else %}(predeterminado){% endif %}</p>
   </section>
@@ -330,27 +339,23 @@
     <h3>⚙️ Simulación Avanzada de Impresión</h3>
     <label>
       Lineatura del Anilox (LPI):
-      {% set lpi_val = diag.get('lpi') %}
-      <input type="range" id="lpi" name="lpi" min="80" max="600" value="{{ lpi_val if lpi_val is not none else 120 }}">
-      <span id="lpi-val">{{ (lpi_val if lpi_val is not none else 120) }} lpi {% if lpi_val is not none %}(calculado en diagnóstico){% else %}(predeterminado){% endif %}</span>
+      <input type="range" id="lpi" name="lpi" min="80" max="600" value="{{ lpi_display }}">
+      <span id="lpi-val">{{ lpi_display }} lpi {% if lpi_diag is not none %}(valor ingresado){% else %}(predeterminado){% endif %}</span>
     </label>
     <label>
       BCM del anilox (cm³/m²):
-      {% set bcm_val = diag.get('bcm') %}
-      <input type="range" id="bcm" name="bcm" min="1" max="15" step="0.1" value="{{ bcm_val if bcm_val is not none else 2.0 }}">
-      <span id="bcm-val">{{ (bcm_val if bcm_val is not none else 2.0) }} cm³/m² {% if bcm_val is not none %}(calculado en diagnóstico){% else %}(predeterminado){% endif %}</span>
+      <input type="range" id="bcm" name="bcm" min="1" max="15" step="0.1" value="{{ bcm_display }}">
+      <span id="bcm-val">{{ bcm_display }} cm³/m² {% if bcm_diag is not none %}(valor ingresado){% else %}(predeterminado){% endif %}</span>
     </label>
     <label>
       Paso del cilindro (mm):
-      {% set paso_val = diag.get('paso') or diag.get('paso_cilindro') %}
-      <input type="range" id="paso" name="paso" min="100" max="1000" value="{{ paso_val if paso_val is not none else 330 }}">
-      <span id="paso-val">{{ (paso_val if paso_val is not none else 330) }} mm {% if paso_val is not none %}(calculado en diagnóstico){% else %}(predeterminado){% endif %}</span>
+      <input type="range" id="paso" name="paso" min="100" max="1000" value="{{ paso_display }}">
+      <span id="paso-val">{{ paso_display }} mm {% if paso_diag is not none %}(valor ingresado){% else %}(predeterminado){% endif %}</span>
     </label>
     <label>
       Velocidad estimada de impresión (m/min):
-      {% set vel_in = diag.get('velocidad') or diag.get('velocidad_impresion') %}
-      <input type="range" id="vel" name="vel" min="50" max="500" value="{{ vel_in if vel_in is not none else 150 }}">
-      <span id="vel-val">{{ (vel_in if vel_in is not none else 150) }} m/min {% if vel_in is not none %}(calculado en diagnóstico){% else %}(predeterminado){% endif %}</span>
+      <input type="range" id="vel" name="vel" min="50" max="500" value="{{ vel_display }}">
+      <span id="vel-val">{{ vel_display }} m/min {% if vel_diag is not none %}(valor ingresado){% else %}(predeterminado){% endif %}</span>
     </label>
     <label>
       Cobertura estimada (%):
@@ -374,6 +379,7 @@
   <script>
     window.diag_img_web = {{ diag_img_static|tojson }};
     window.revisionId = {{ (revision_id or '')|tojson }};
+    window.diagnosticoJson = {{ diag|tojson }};
   </script>
   <script src="{{ url_for('static', filename='js/flexo_simulation.js') }}?v={{ revision_id }}" defer></script>
 </body>

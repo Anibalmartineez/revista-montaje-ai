@@ -52,7 +52,10 @@ from montaje_offset import montar_pliego_offset
 from montaje_offset_inteligente import montar_pliego_offset_inteligente
 from montaje_offset_personalizado import montar_pliego_offset_personalizado
 from imposicion_offset_auto import imponer_pliego_offset_auto
-from diagnostico_flexo import generar_preview_diagnostico
+from diagnostico_flexo import (
+    generar_preview_diagnostico,
+    inyectar_parametros_simulacion,
+)
 from simulador_riesgos import simular_riesgos
 
 # Carpeta de subidas dentro de ``static`` para persistir archivos entre
@@ -1227,6 +1230,25 @@ def revision():
     file = request.files.get("archivo_revision")
     material = (request.form.get("material") or "").strip()
 
+    def _parse_parametro_float(nombre, descripcion, minimo=0.0):
+        raw = (request.form.get(nombre) or "").strip()
+        if not raw:
+            flash(f"Ingresá {descripcion}.", "warning")
+            return None
+        raw = raw.replace(",", ".")
+        try:
+            valor = float(raw)
+        except ValueError:
+            flash(f"El valor ingresado para {descripcion} no es numérico.", "warning")
+            return None
+        if valor <= minimo:
+            flash(
+                f"El valor de {descripcion} debe ser mayor a {minimo if minimo else 0}.",
+                "warning",
+            )
+            return None
+        return valor
+
     if not file or file.filename == "":
         flash("Subí un PDF válido.", "warning")
         return render_template("revision_flexo.html")
@@ -1260,11 +1282,31 @@ def revision():
         "REV FLEXO: material='%s' -> '%s'", material, material_norm
     )
 
-    paso_mm = 330
-    anilox_lpi = 360
-    anilox_bcm = 4.0
-    velocidad = 150.0
+    anilox_lpi_val = _parse_parametro_float(
+        "anilox_lpi", "la lineatura del anilox (LPI)", minimo=0.0
+    )
+    anilox_bcm = _parse_parametro_float(
+        "anilox_bcm", "el BCM del anilox (cm³/m²)", minimo=0.0
+    )
+    paso_mm = _parse_parametro_float(
+        "paso_cilindro", "el paso del cilindro (mm)", minimo=0.0
+    )
+    velocidad = _parse_parametro_float(
+        "velocidad_impresion", "la velocidad estimada de impresión (m/min)", minimo=0.0
+    )
+
+    if any(v is None for v in [anilox_lpi_val, anilox_bcm, paso_mm, velocidad]):
+        return render_template("revision_flexo.html")
+
+    anilox_lpi = int(round(anilox_lpi_val))
     cobertura = 25.0
+
+    parametros_maquina = {
+        "anilox_lpi": anilox_lpi,
+        "anilox_bcm": anilox_bcm,
+        "paso_del_cilindro": paso_mm,
+        "velocidad_impresion": velocidad,
+    }
 
     revision_id = uuid.uuid4().hex
     rev_dir = os.path.join(base_upload, revision_id)
@@ -1348,6 +1390,9 @@ def revision():
             "paso_cilindro": paso_mm,
             "material": material_norm,
         }
+        diagnostico_json = inyectar_parametros_simulacion(
+            diagnostico_json, parametros_maquina
+        )
 
         diagnostico_data = {
             "pdf_path": final_pdf_path,
@@ -1356,6 +1401,7 @@ def revision():
                 "anilox_lpi": anilox_lpi,
                 "anilox_bcm": anilox_bcm,
                 "paso_cilindro": paso_mm,
+                "paso_del_cilindro": paso_mm,
                 "material": material_norm,
                 "velocidad_impresion": velocidad,
                 "cobertura": cobertura_total,
