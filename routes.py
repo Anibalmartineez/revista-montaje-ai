@@ -1363,6 +1363,10 @@ def revision():
             },
             "overlay_path": overlay_info["overlay_path"],
             "dpi": overlay_info["dpi"],
+            # Persistimos las rutas web del diagnóstico para que sigan
+            # disponibles incluso si la simulación avanzada no se usa.
+            "diag_base_web": diag_rel,
+            "diag_img_web": imagen_iconos_rel,
         }
 
         resultado_data = {
@@ -1376,6 +1380,7 @@ def revision():
             "advertencias_iconos": advertencias_iconos,
             "diagnostico_json": diagnostico_json,
             "sim_img_web": sim_rel,
+            "diag_base_web": diag_rel,
             # Persistir la ruta web de la imagen del diagnóstico con advertencias.
             # Se usará como base de la simulación avanzada y permite que, al
             # recargar la página de resultados, el canvas dibuje de inmediato la
