@@ -7,7 +7,12 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from cobertura_utils import calcular_metricas_cobertura
-from diagnostico_flexo import resumen_advertencias, semaforo_riesgo
+from diagnostico_flexo import (
+    resumen_advertencias,
+    semaforo_riesgo,
+    coeficiente_material,
+    obtener_coeficientes_material,
+)
 from montaje_flexo import detectar_tramas_débiles
 from simulador_riesgos import simular_riesgos
 
@@ -106,3 +111,24 @@ def test_simulador_riesgos_ignora_texto_negado():
     resumen = "✔️ No se encontraron textos menores a 4 pt."
     html = simular_riesgos(resumen)
     assert "Textos < 4 pt" not in html
+
+
+def test_coeficiente_material_usa_json():
+    """Los coeficientes de materiales se obtienen desde el JSON compartido."""
+
+    coefs = obtener_coeficientes_material()
+    assert coefs, "Se esperaba un mapa de coeficientes cargado desde data/material_coefficients.json"
+    film = coefs.get("film")
+    carton = coefs.get("carton")
+    default_val = coefs.get("default")
+
+    if film is not None:
+        assert coeficiente_material("Film") == film
+    if carton is not None:
+        assert coeficiente_material("cartón") == carton
+
+    if default_val is not None:
+        assert coeficiente_material("material desconocido") == default_val
+
+    override = coeficiente_material("material sin registrar", default=0.71)
+    assert override == 0.71

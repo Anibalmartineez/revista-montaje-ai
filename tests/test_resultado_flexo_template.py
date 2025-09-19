@@ -23,3 +23,4 @@ def test_default_warning_message_in_template():
                 diag_img_web='dummy.png',
             )
     assert 'Advertencia sin descripción detallada.' in html
+    assert 'metric-ml-colors' in html

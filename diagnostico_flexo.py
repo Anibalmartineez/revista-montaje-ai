@@ -1,6 +1,9 @@
+import json
 import math
 import os
+import unicodedata
 from collections import Counter
+from functools import lru_cache
 
 import fitz
 import numpy as np
@@ -20,6 +23,73 @@ DESCRIPCIONES_POR_TIPO = {
     "imagen_fuera_cmyk": "Imagen en RGB. Convertir a modo CMYK.",
     "overprint": "Sobreimpresión detectada. Verificar configuración.",
 }
+
+
+_BASE_DIR = os.path.dirname(__file__)
+_COEFICIENTES_PATH = os.path.join(_BASE_DIR, "data", "material_coefficients.json")
+
+
+def _normalizar_clave_material(nombre: str) -> str:
+    """Normaliza un nombre de material para usarlo como clave."""
+
+    if not nombre:
+        return ""
+    texto = unicodedata.normalize("NFKD", str(nombre))
+    sin_tildes = "".join(ch for ch in texto if not unicodedata.combining(ch))
+    filtrado = "".join(
+        ch for ch in sin_tildes.lower() if ch.isalnum() or ch in {" ", "_"}
+    )
+    return filtrado.strip().replace(" ", "_")
+
+
+@lru_cache(maxsize=1)
+def _cargar_coeficientes_material() -> dict[str, float]:
+    """Lee desde disco los coeficientes de absorción/transmisión."""
+
+    try:
+        with open(_COEFICIENTES_PATH, "r", encoding="utf-8") as fh:
+            data = json.load(fh)
+    except FileNotFoundError:
+        return {}
+    except json.JSONDecodeError:
+        return {}
+
+    coeficientes: dict[str, float] = {}
+    for clave, valor in (data or {}).items():
+        try:
+            coef = float(valor)
+        except (TypeError, ValueError):
+            continue
+        coeficientes[_normalizar_clave_material(clave)] = coef
+    return coeficientes
+
+
+def obtener_coeficientes_material() -> dict[str, float]:
+    """Devuelve una copia del mapeo de coeficientes configurado."""
+
+    return dict(_cargar_coeficientes_material())
+
+
+def coeficiente_material(material: str, *, default: float | None = None) -> float | None:
+    """Obtiene el coeficiente de transmisión configurado para ``material``.
+
+    Si no existe un coeficiente específico, se retorna ``default`` (si se
+    proporcionó) o el valor definido como ``default`` en el JSON, cuando esté
+    disponible.
+    """
+
+    coeficientes = _cargar_coeficientes_material()
+    if not coeficientes:
+        return default
+
+    clave = _normalizar_clave_material(material)
+    if clave and clave in coeficientes:
+        return coeficientes[clave]
+
+    if default is not None:
+        return default
+
+    return coeficientes.get("default")
 
 
 def inyectar_parametros_simulacion(

@@ -58,6 +58,8 @@ from diagnostico_flexo import (
     inyectar_parametros_simulacion,
     resumen_advertencias,
     indicadores_advertencias,
+    coeficiente_material,
+    obtener_coeficientes_material,
 )
 from simulador_riesgos import simular_riesgos
 
@@ -1284,6 +1286,10 @@ def revision():
     current_app.logger.info(
         "REV FLEXO: material='%s' -> '%s'", material, material_norm
     )
+    material_coeffs = obtener_coeficientes_material()
+    material_coef = coeficiente_material(material_norm)
+    if material_coef is None:
+        material_coef = material_coeffs.get("default")
 
     anilox_lpi_val = _parse_parametro_float(
         "anilox_lpi", "la lineatura del anilox (LPI)", minimo=0.0
@@ -1421,6 +1427,7 @@ def revision():
             "paso_cilindro": paso_mm,
             "paso_del_cilindro": paso_mm,
             "material": material_norm,
+            "coef_material": material_coef,
             "velocidad_impresion": velocidad,
             "ancho_mm": round(ancho_mm, 2) if ancho_mm else 0.0,
             "alto_mm": round(alto_mm, 2) if alto_mm else 0.0,
@@ -1459,6 +1466,7 @@ def revision():
             "tac_total": cobertura_total,
             "ancho_mm": ancho_mm,
             "alto_mm": alto_mm,
+            "coef_material": material_coef,
             # Persistimos las rutas web del diagnóstico para que sigan
             # disponibles incluso si la simulación avanzada no se usa.
             "diag_base_web": diag_rel,
@@ -1484,6 +1492,8 @@ def revision():
             # recargar la página de resultados, el canvas dibuje de inmediato la
             # misma imagen analizada.
             "diag_img_web": imagen_iconos_rel,
+            "material_coeficiente": material_coef,
+            "material_coefficients": material_coeffs,
         }
 
         diag_json_path = os.path.join(rev_dir, "diag.json")
@@ -1539,6 +1549,30 @@ def resultado_flexo():
     # ``res.json``; en ese caso, reutilizamos la imagen con iconos si existe.
     if "diag_img_web" not in datos:
         datos["diag_img_web"] = datos.get("imagen_iconos_web") or datos.get("imagen_path_web")
+
+    diag_json = datos.get("diagnostico_json")
+    if not isinstance(diag_json, dict):
+        diag_json = {}
+        datos["diagnostico_json"] = diag_json
+
+    material_coeffs = obtener_coeficientes_material()
+    if "material_coefficients" not in datos:
+        datos["material_coefficients"] = material_coeffs
+
+    material_nombre = diag_json.get("material") if isinstance(diag_json, dict) else ""
+    if not material_nombre:
+        material_nombre = datos.get("material") or ""
+
+    coef_actual = diag_json.get("coef_material") if isinstance(diag_json, dict) else None
+    if coef_actual is None:
+        coef_actual = coeficiente_material(material_nombre)
+        if coef_actual is None:
+            coef_actual = material_coeffs.get("default")
+        if isinstance(diag_json, dict):
+            diag_json["coef_material"] = coef_actual
+
+    if datos.get("material_coeficiente") is None:
+        datos["material_coeficiente"] = coef_actual
 
     return render_template(
         "resultado_flexo.html",
