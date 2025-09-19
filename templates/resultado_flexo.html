@@ -290,15 +290,29 @@
       min-height: 280px;
       margin-top: 1rem;
     }
-    #sim-canvas {
+    .sim-stage {
+      position: relative;
       width: 100%;
-      height: auto;
       background: #eef7ff;
-      display: block;
-      min-width: 320px;
-      min-height: 200px;
       border-radius: 8px;
       box-shadow: inset 0 0 0 1px rgba(8, 48, 90, 0.08);
+      overflow: hidden;
+      min-height: 200px;
+    }
+    #sim-base-image {
+      display: block;
+      width: 100%;
+      height: auto;
+      object-fit: contain;
+      mix-blend-mode: normal;
+    }
+    #sim-canvas {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      display: block;
+      pointer-events: none;
     }
     .sim-actions {
       display: flex;
@@ -597,12 +611,31 @@
     </div>
     <ul id="riesgo-detalle" class="riesgo-detalle"></ul>
     <div id="sim-container">
-      <canvas id="sim-canvas" data-sim-img="{{ sim_canvas_base }}"></canvas>
+      <div class="sim-stage">
+        {% set diag_base_static = url_for('static', filename=diag_base_web) if diag_base_web else '' %}
+        <img
+          id="sim-base-image"
+          src="{{ diag_base_static or sim_canvas_base }}"
+          alt="Diagnóstico base"
+          loading="lazy"
+        />
+        <canvas
+          id="sim-canvas"
+          data-sim-img="{{ sim_canvas_base }}"
+          data-base-img="{{ diag_base_static or sim_canvas_base }}"
+        ></canvas>
+      </div>
       <pre id="sim-debug" style="display:none"></pre>
     </div>
     <div class="sim-actions">
       <button id="sim-save" class="btn" type="button">🖼️ Generar PNG final</button>
-      <a id="sim-view" class="btn" href="{{ url_for('static', filename=sim_img_web) }}" target="_blank" rel="noopener">🔍 Ver imagen completa</a>
+      <a
+        id="sim-view"
+        class="btn"
+        href="{{ url_for('static', filename=sim_img_web) if sim_img_web else '#' }}"
+        target="_blank"
+        rel="noopener"
+      >🔍 Ver imagen completa</a>
     </div>
   </section>
 
