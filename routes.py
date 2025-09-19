@@ -8,7 +8,7 @@ import tempfile
 import shutil
 import json
 from threading import Lock
-from PIL import Image
+from PIL import Image, ImageDraw
 from reportlab.pdfgen import canvas
 from reportlab.lib.units import mm
 from flask import (
@@ -1584,18 +1584,258 @@ def resultado_flexo():
 
 @routes_bp.route("/simulacion/exportar/<revision_id>", methods=["POST"])
 def exportar_simulacion(revision_id):
-    """Guarda la imagen de la simulación enviada desde el frontend."""
-    img_file = request.files.get("image")
-    if not img_file:
-        return jsonify({"error": "No se recibió imagen"}), 400
-    sim_dir = os.path.join(current_app.static_folder, "simulaciones")
-    os.makedirs(sim_dir, exist_ok=True)
-    filename = f"sim_{revision_id}.png"
-    save_path = os.path.join(sim_dir, filename)
-    img_file.save(save_path)
-    rel_path = os.path.relpath(save_path, current_app.static_folder)
-    url = url_for("static", filename=rel_path)
-    return jsonify({"path": rel_path, "url": url})
+    """Genera el PNG final de la simulación en memoria y lo devuelve como descarga."""
+
+    def _as_number(value):
+        if value is None:
+            return None
+        if isinstance(value, (int, float)):
+            if isinstance(value, float) and math.isnan(value):
+                return None
+            return float(value)
+        if isinstance(value, str):
+            texto = value.strip().replace(",", ".")
+            if not texto:
+                return None
+            try:
+                return float(texto)
+            except ValueError:
+                return None
+        return None
+
+    def _resolve_value(diag, keys):
+        for key in keys:
+            if isinstance(diag, dict) and key in diag:
+                val = _as_number(diag.get(key))
+                if val is not None:
+                    return val
+        return None
+
+    def _parse_coverage_base(diag):
+        channel_names = {"C": "Cyan", "M": "Magenta", "Y": "Amarillo", "K": "Negro"}
+        base = {canal: 0.0 for canal in "CMYK"}
+        cobertura = diag.get("cobertura") if isinstance(diag, dict) else {}
+        por_nombre = diag.get("cobertura_por_canal") if isinstance(diag, dict) else {}
+        base_sum = 0.0
+        for canal in "CMYK":
+            valor = _as_number(cobertura.get(canal) if isinstance(cobertura, dict) else None)
+            if valor is None and isinstance(por_nombre, dict):
+                valor = _as_number(por_nombre.get(channel_names[canal]))
+            if valor is None:
+                valor = 0.0
+            base[canal] = max(0.0, valor)
+            base_sum += base[canal]
+        fallback = _as_number(diag.get("tac_total") if isinstance(diag, dict) else None)
+        if fallback is None:
+            fallback = _as_number(diag.get("cobertura_estimada") if isinstance(diag, dict) else None)
+        if fallback is None:
+            fallback = _as_number(diag.get("cobertura") if isinstance(diag, dict) else None)
+        if base_sum <= 0 and fallback:
+            per = fallback / 4.0
+            for canal in "CMYK":
+                base[canal] = max(0.0, per)
+            base_sum = fallback
+        return base, base_sum, fallback or 0.0
+
+    def _scale_coverage(base_tuple, slider_value):
+        base, base_sum, fallback = base_tuple
+        values = dict(base)
+        factor = 1.0
+        slider = _as_number(slider_value)
+        if slider is not None:
+            if base_sum > 0:
+                factor = slider / base_sum if base_sum else 1.0
+            elif slider > 0:
+                per = slider / 4.0
+                for canal in "CMYK":
+                    values[canal] = per
+                factor = 1.0
+        scaled = {canal: max(0.0, min(120.0, values[canal] * factor)) for canal in "CMYK"}
+        total = sum(scaled.values())
+        return scaled, total
+
+    def _cmyk_to_rgb(c, m, y, k):
+        r = int(round(255 * (1 - c) * (1 - k)))
+        g = int(round(255 * (1 - m) * (1 - k)))
+        b = int(round(255 * (1 - y) * (1 - k)))
+        return max(0, min(255, r)), max(0, min(255, g)), max(0, min(255, b))
+
+    revision = (revision_id or "").strip()
+    if not revision or revision.lower() in {"actual", "undefined", "null"}:
+        revision = session.get("revision_flexo_id")
+    if not revision:
+        return jsonify({"error": "No se encontró la revisión solicitada."}), 404
+
+    res_json_path = os.path.join(current_app.static_folder, "uploads", revision, "res.json")
+    try:
+        with open(res_json_path, "r", encoding="utf-8") as f:
+            datos = json.load(f)
+    except FileNotFoundError:
+        current_app.logger.error("REV FLEXO: resultados faltantes en %s", res_json_path)
+        return jsonify({"error": "Los datos de la simulación ya no están disponibles."}), 404
+    except json.JSONDecodeError:
+        current_app.logger.exception("REV FLEXO: resultados corruptos en %s", res_json_path)
+        return jsonify({"error": "No se pudieron leer los datos guardados de la simulación."}), 500
+
+    payload = request.get_json(silent=True) or {}
+    diagnostico = datos.get("diagnostico_json") if isinstance(datos, dict) else {}
+
+    lpi = _as_number(payload.get("lpi"))
+    if lpi is None:
+        lpi = _resolve_value(diagnostico, ["anilox_lpi", "lpi"])
+    bcm = _as_number(payload.get("bcm"))
+    if bcm is None:
+        bcm = _resolve_value(diagnostico, ["anilox_bcm", "bcm"])
+    paso = _as_number(payload.get("paso"))
+    if paso is None:
+        paso = _resolve_value(diagnostico, ["paso_del_cilindro", "paso_cilindro", "paso"])
+    velocidad = _as_number(payload.get("velocidad"))
+    if velocidad is None:
+        velocidad = _resolve_value(diagnostico, ["velocidad_impresion", "velocidad"])
+
+    cobertura_mapa = {}
+    cobertura_payload = payload.get("cobertura")
+    if isinstance(cobertura_payload, dict):
+        for canal in "CMYK":
+            valor = _as_number(cobertura_payload.get(canal))
+            cobertura_mapa[canal] = max(0.0, valor or 0.0)
+
+    cobertura_total = sum(cobertura_mapa.values())
+    if cobertura_total <= 0:
+        cobertura_base = _parse_coverage_base(diagnostico)
+        cobertura_mapa, cobertura_total = _scale_coverage(
+            cobertura_base, payload.get("tacObjetivo")
+        )
+
+    base_rel = (
+        datos.get("diag_base_web")
+        or datos.get("diag_img_web")
+        or datos.get("imagen_iconos_web")
+        or datos.get("imagen_path_web")
+    )
+    base_rel = (base_rel or "").lstrip("/\\")
+    base_path = os.path.join(current_app.static_folder, base_rel) if base_rel else None
+
+    try:
+        if base_path and os.path.exists(base_path):
+            base_image = Image.open(base_path).convert("RGBA")
+        else:
+            raise FileNotFoundError(base_path or "")
+    except FileNotFoundError:
+        current_app.logger.warning("REV FLEXO: imagen base no encontrada en %s", base_path)
+        base_image = Image.new("RGBA", (1600, 1200), (238, 247, 255, 255))
+    except Exception:  # pragma: no cover - protección ante imágenes corruptas
+        current_app.logger.exception("REV FLEXO: error abriendo imagen base %s", base_path)
+        base_image = Image.new("RGBA", (1600, 1200), (238, 247, 255, 255))
+
+    width, height = base_image.size
+    overlay = Image.new("RGBA", (width, height), (0, 0, 0, 0))
+
+    if cobertura_total > 0 and width > 0 and height > 0:
+        lpi_val = lpi or 0.0
+        spacing_raw = max(2.5, (540.0 / max(lpi_val or 0.0, 40.0)) * 3.0)
+        spacing = max(6.0, spacing_raw)
+        bcm_factor = min(1.2, (bcm or 0.0) / 12.0)
+        coverage_factor = max(0.05, min(1.0, cobertura_total / 300.0))
+        density = min(0.9, 0.12 + coverage_factor * (0.6 + bcm_factor))
+        offset = ((paso or 0.0) % spacing) / 2.0 if spacing else 0.0
+        c_val = min(1.0, (cobertura_mapa.get("C", 0.0) or 0.0) / 100.0)
+        m_val = min(1.0, (cobertura_mapa.get("M", 0.0) or 0.0) / 100.0)
+        y_val = min(1.0, (cobertura_mapa.get("Y", 0.0) or 0.0) / 100.0)
+        k_val = min(1.0, (cobertura_mapa.get("K", 0.0) or 0.0) / 100.0)
+        rgb = _cmyk_to_rgb(c_val, m_val, y_val, k_val)
+        radius_base = max(1.2, (spacing / 2.0) * min(0.85, 0.25 + coverage_factor))
+        radius = min(radius_base, spacing * 0.48)
+        rotation_rad = math.sin((paso or 0.0) / 90.0)
+        rotation_deg = math.degrees(rotation_rad)
+
+        tile_size = max(8, int(round(spacing)))
+        tile_size = max(tile_size, int(math.ceil(radius * 2 + 4)))
+        dot = Image.new("RGBA", (tile_size, tile_size), (0, 0, 0, 0))
+        draw_dot = ImageDraw.Draw(dot)
+        radius_y = radius * 0.82
+        cx = tile_size / 2.0
+        cy = tile_size / 2.0
+        bbox = (cx - radius, cy - radius_y, cx + radius, cy + radius_y)
+        draw_dot.ellipse(
+            bbox,
+            fill=(rgb[0], rgb[1], rgb[2], int(round(density * 255))),
+        )
+        if rotation_deg:
+            dot = dot.rotate(rotation_deg, resample=Image.BICUBIC, expand=True)
+
+        tile = Image.new("RGBA", (tile_size, tile_size), (0, 0, 0, 0))
+        paste_x = tile_size // 2 - dot.width // 2
+        paste_y = tile_size // 2 - dot.height // 2
+        tile.paste(dot, (paste_x, paste_y), dot)
+
+        pattern_width = width + tile_size * 2
+        pattern_height = height + tile_size * 2
+        tiled = Image.new("RGBA", (pattern_width, pattern_height), (0, 0, 0, 0))
+        for pos_y in range(0, pattern_height, tile_size):
+            for pos_x in range(0, pattern_width, tile_size):
+                tiled.paste(tile, (pos_x, pos_y), tile)
+
+        offset_px = int(round(offset % tile_size)) if tile_size else 0
+        pattern_cropped = tiled.crop(
+            (offset_px, offset_px, offset_px + width, offset_px + height)
+        )
+        overlay.paste(pattern_cropped, (0, 0), pattern_cropped)
+
+        shadow_alpha = max(0.0, min(1.0, density * 0.3))
+        if shadow_alpha > 0:
+            shadow = Image.new(
+                "RGBA", (width, height), (20, 40, 60, int(round(shadow_alpha * 255)))
+            )
+            overlay.paste(shadow, (0, 0), shadow)
+
+    advertencias = datos.get("advertencias_iconos") if isinstance(datos, dict) else []
+    if isinstance(advertencias, list) and advertencias:
+        warning_colors = {
+            "texto_pequeno": {"stroke": (220, 53, 69, 230), "fill": (220, 53, 69, 46)},
+            "trama_debil": {"stroke": (128, 0, 128, 230), "fill": (128, 0, 128, 46)},
+            "imagen_baja": {"stroke": (255, 140, 0, 230), "fill": (255, 140, 0, 46)},
+            "overprint": {"stroke": (0, 123, 255, 230), "fill": (0, 123, 255, 46)},
+            "sin_sangrado": {"stroke": (0, 150, 0, 230), "fill": (0, 150, 0, 46)},
+            "default": {"stroke": (255, 193, 7, 230), "fill": (255, 193, 7, 46)},
+        }
+        draw_overlay = ImageDraw.Draw(overlay)
+        line_width = max(2, int(round(2)))
+        for adv in advertencias:
+            bbox = None
+            if isinstance(adv, dict):
+                bbox = adv.get("bbox") or adv.get("box")
+            if not isinstance(bbox, (list, tuple)) or len(bbox) != 4:
+                continue
+            try:
+                x0, y0, x1, y1 = [float(v) for v in bbox]
+            except (TypeError, ValueError):
+                continue
+            tipo_raw = str(adv.get("tipo") or adv.get("type") or "").lower()
+            tipo = "trama_debil" if tipo_raw.startswith("trama") else tipo_raw
+            colores = warning_colors.get(tipo, warning_colors["default"])
+            draw_overlay.rectangle(
+                [(x0, y0), (x1, y1)],
+                fill=colores["fill"],
+                outline=colores["stroke"],
+                width=line_width,
+            )
+
+    resultado = base_image.convert("RGBA")
+    resultado.paste(overlay, (0, 0), overlay)
+
+    output = io.BytesIO()
+    resultado.save(output, format="PNG")
+    output.seek(0)
+
+    safe_revision = secure_filename(str(revision)) or "resultado"
+    filename = f"sim_{safe_revision}.png"
+    return send_file(
+        output,
+        mimetype="image/png",
+        as_attachment=True,
+        download_name=filename,
+    )
 
 
 @routes_bp.route("/vista_previa_tecnica", methods=["POST"])

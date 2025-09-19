@@ -3,10 +3,13 @@ const DEBUG = false;
 document.addEventListener('DOMContentLoaded', () => {
   if (DEBUG) console.log('[SIM] DOM ready');
 
+  const PREVIEW_PIXEL_SCALE = 0.28;
+  const RENDER_DEBOUNCE_MS = 380;
   const canvas = document.getElementById('sim-canvas');
   if (!canvas) return;
   const ctx = canvas.getContext('2d');
   if (!ctx) return;
+  const baseImgEl = document.getElementById('sim-base-image');
 
   const inputs = {
     lpi: document.getElementById('lpi'),
@@ -56,7 +59,13 @@ document.addEventListener('DOMContentLoaded', () => {
 
   const coverageBase = parseCoverageBase(diagnostico);
   const materialNombre = (diagnostico.material || '').toString();
-  const diagImgUrl = normalizeUrl(window.diag_img_web || canvas.dataset.simImg || '');
+  const baseImgUrl = normalizeUrl(
+    canvas.dataset.baseImg ||
+      (baseImgEl ? baseImgEl.getAttribute('src') : '') ||
+      window.diag_img_web ||
+      canvas.dataset.simImg ||
+      '',
+  );
 
   const baseImage = new Image();
   baseImage.crossOrigin = 'anonymous';
@@ -78,22 +87,43 @@ document.addEventListener('DOMContentLoaded', () => {
     if (DEBUG) console.warn('[SIM] error cargando imagen base');
     render();
   };
-  if (diagImgUrl) {
-    const cacheBusted = diagImgUrl.includes('?')
-      ? `${diagImgUrl}&cb=${Date.now()}`
-      : `${diagImgUrl}?cb=${Date.now()}`;
+  if (baseImgUrl) {
+    const cacheBusted = baseImgUrl.includes('?')
+      ? `${baseImgUrl}&cb=${Date.now()}`
+      : `${baseImgUrl}?cb=${Date.now()}`;
     baseImage.src = cacheBusted;
   }
 
   let rafId = null;
   let debounceId = null;
   let currentDpr = window.devicePixelRatio || 1;
+  let previewScaleFactor = 1;
+  let displayWidth = 0;
+  let displayHeight = 0;
+  let lastDownloadUrl = null;
+  const patternCache = {
+    key: null,
+    canvas: null,
+    spacing: 0,
+    offset: 0,
+    blur: 0,
+    shadow: 0,
+  };
 
   applyInitialValues();
 
   window.addEventListener('resize', resize);
+  window.addEventListener('beforeunload', () => {
+    if (lastDownloadUrl) URL.revokeObjectURL(lastDownloadUrl);
+  });
+  if (baseImgEl) {
+    baseImgEl.addEventListener('load', () => {
+      if (DEBUG) console.log('[SIM] base img element load');
+      resize();
+    });
+  }
   resize();
-  if (!diagImgUrl) render();
+  if (!baseImgUrl) render();
 
   Object.values(inputs).forEach((el) => {
     if (!el) return;
@@ -110,57 +140,117 @@ document.addEventListener('DOMContentLoaded', () => {
     debounceId = setTimeout(() => {
       cancelAnimationFrame(rafId);
       rafId = requestAnimationFrame(() => render());
-    }, 120);
+    }, RENDER_DEBOUNCE_MS);
   }
 
   function resize() {
-    const rect = canvas.getBoundingClientRect();
+    const rect = baseImgEl ? baseImgEl.getBoundingClientRect() : canvas.getBoundingClientRect();
+    const container = canvas.parentElement;
+    const fallbackWidth = container ? container.clientWidth : rect.width;
+    const fallbackHeight = container ? container.clientHeight : rect.height;
+    displayWidth = rect.width || fallbackWidth || canvas.clientWidth || canvas.width || 0;
+    displayHeight = rect.height || fallbackHeight || canvas.clientHeight || canvas.height || 0;
     currentDpr = window.devicePixelRatio || 1;
-    canvas.width = Math.max(1, rect.width * currentDpr);
-    canvas.height = Math.max(1, rect.height * currentDpr);
-    ctx.setTransform(currentDpr, 0, 0, currentDpr, 0, 0);
+    previewScaleFactor = Math.max(0.12, currentDpr * PREVIEW_PIXEL_SCALE);
+    const targetWidth = Math.max(1, Math.round(displayWidth * previewScaleFactor));
+    const targetHeight = Math.max(1, Math.round(displayHeight * previewScaleFactor));
+    if (canvas.width !== targetWidth) canvas.width = targetWidth;
+    if (canvas.height !== targetHeight) canvas.height = targetHeight;
+    ctx.setTransform(previewScaleFactor, 0, 0, previewScaleFactor, 0, 0);
     render();
   }
 
-  function handleExport() {
+  async function handleExport() {
     if (DEBUG) console.log('[SIM] export');
-    if (diagImgUrl && !baseReady) {
+    if (baseImgUrl && !baseReady) {
       alert('La imagen base aún se está cargando. Intentá nuevamente en unos segundos.');
       return;
     }
 
-    const exportCanvas = document.createElement('canvas');
-    exportCanvas.width = canvas.width;
-    exportCanvas.height = canvas.height;
-    const exportCtx = exportCanvas.getContext('2d');
-    if (!exportCtx) return;
-    exportCtx.setTransform(currentDpr, 0, 0, currentDpr, 0, 0);
-    render(exportCtx, exportCanvas, false);
+    const revisionId = (window.revisionId || '').toString().trim() || 'actual';
+    const coverageState = getCoverageState();
+    const payload = {
+      lpi: asNumber(inputs.lpi ? inputs.lpi.value : null),
+      bcm: asNumber(inputs.bcm ? inputs.bcm.value : null),
+      paso: asNumber(inputs.paso ? inputs.paso.value : null),
+      velocidad: asNumber(inputs.vel ? inputs.vel.value : null),
+      tacObjetivo: coverageState.slider ?? coverageState.sum,
+    };
 
-    exportCanvas.toBlob(async (blob) => {
-      if (!blob) return;
-      const fd = new FormData();
-      fd.append('image', blob, `sim_${window.revisionId || 'resultado'}.png`);
-      try {
-        const resp = await fetch(`/simulacion/exportar/${window.revisionId}`, {
-          method: 'POST',
-          body: fd,
-        });
-        const data = await resp.json();
-        if (data && data.url) {
-          if (metricsEls.viewLink) metricsEls.viewLink.href = data.url;
-          alert(`PNG generado: ${data.url}`);
-        }
-      } catch (err) {
-        if (DEBUG) console.error('[SIM] export error', err);
-      }
+    const overlay = {};
+    ['C', 'M', 'Y', 'K'].forEach((canal) => {
+      overlay[canal] = coverageState.scaled[canal] || 0;
     });
+    payload.cobertura = overlay;
+
+    if (metricsEls.saveBtn) {
+      metricsEls.saveBtn.disabled = true;
+      metricsEls.saveBtn.dataset.originalText = metricsEls.saveBtn.dataset.originalText || metricsEls.saveBtn.textContent;
+      metricsEls.saveBtn.textContent = 'Generando PNG…';
+    }
+
+    try {
+      const resp = await fetch(`/simulacion/exportar/${revisionId}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+
+      if (!resp.ok) {
+        let message = 'No se pudo generar el PNG final.';
+        try {
+          const errorJson = await resp.json();
+          if (errorJson && errorJson.error) message = errorJson.error;
+        } catch (e) {
+          if (DEBUG) console.warn('[SIM] export error payload parse', e);
+        }
+        alert(message);
+        return;
+      }
+
+      const blob = await resp.blob();
+      if (!blob) {
+        alert('No se recibió ningún archivo del servidor.');
+        return;
+      }
+
+      if (lastDownloadUrl) URL.revokeObjectURL(lastDownloadUrl);
+      lastDownloadUrl = URL.createObjectURL(blob);
+
+      let filename = `sim_${revisionId}.png`;
+      const disposition = resp.headers.get('Content-Disposition') || '';
+      const match = disposition.match(/filename\*=UTF-8''([^;]+)|filename="?([^";]+)"?/i);
+      if (match) {
+        filename = decodeURIComponent(match[1] || match[2]);
+      }
+
+      const tmpLink = document.createElement('a');
+      tmpLink.href = lastDownloadUrl;
+      tmpLink.download = filename;
+      document.body.appendChild(tmpLink);
+      tmpLink.click();
+      document.body.removeChild(tmpLink);
+
+      if (metricsEls.viewLink) {
+        metricsEls.viewLink.href = lastDownloadUrl;
+        metricsEls.viewLink.download = filename;
+        metricsEls.viewLink.textContent = '🔍 Abrir PNG generado';
+      }
+    } catch (err) {
+      if (DEBUG) console.error('[SIM] export error', err);
+      alert('Ocurrió un error al comunicarse con el servidor.');
+    } finally {
+      if (metricsEls.saveBtn) {
+        metricsEls.saveBtn.disabled = false;
+        const label = metricsEls.saveBtn.dataset.originalText || '🖼️ Generar PNG final';
+        metricsEls.saveBtn.textContent = label;
+      }
+    }
   }
 
-  function render(targetCtx = ctx, targetCanvas = canvas, updateUi = true) {
-    if (!targetCtx || !targetCanvas) return;
-    const width = targetCanvas.width / currentDpr;
-    const height = targetCanvas.height / currentDpr;
+  function render(updateUi = true) {
+    const width = displayWidth || canvas.clientWidth || 0;
+    const height = displayHeight || canvas.clientHeight || 0;
     if (width <= 0 || height <= 0) return;
 
     const coverageState = getCoverageState();
@@ -169,16 +259,9 @@ document.addEventListener('DOMContentLoaded', () => {
       updateMetrics(coverageState);
     }
 
-    targetCtx.clearRect(0, 0, width, height);
-
-    if (baseReady && diagImgUrl) {
-      targetCtx.drawImage(baseImage, 0, 0, width, height);
-    } else {
-      drawFallback(targetCtx, width, height);
-    }
-
-    drawInkOverlay(targetCtx, width, height, coverageState);
-    drawWarningOverlay(targetCtx, width, height);
+    ctx.clearRect(0, 0, width, height);
+    drawInkOverlay(ctx, width, height, coverageState);
+    drawWarningOverlay(ctx, width, height);
   }
 
   function applyInitialValues() {
@@ -391,15 +474,19 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   function drawInkOverlay(targetCtx, width, height, coverageState) {
+    if (!targetCtx || !coverageState || coverageState.sum <= 0) return;
+
     const lpiVal = asNumber(inputs.lpi ? inputs.lpi.value : null) || 0;
     const bcmVal = asNumber(inputs.bcm ? inputs.bcm.value : null) || 0;
     const velVal = asNumber(inputs.vel ? inputs.vel.value : null) || 0;
     const pasoVal = asNumber(inputs.paso ? inputs.paso.value : null) || 0;
 
-    const spacing = Math.max(2.5, (540 / Math.max(lpiVal, 40)) * 3);
+    const spacingRaw = Math.max(2.5, (540 / Math.max(lpiVal || 0, 40)) * 3);
+    const spacing = Math.max(6, spacingRaw);
     const bcmFactor = Math.min(1.2, (bcmVal || 0) / 12);
     const coverageFactor = Math.max(0.05, Math.min(1.0, coverageState.sum / 300));
     const density = Math.min(0.9, 0.12 + coverageFactor * (0.6 + bcmFactor));
+    if (density <= 0.01) return;
     const blur = Math.min(4, (velVal / 500) * 3);
     const offset = ((pasoVal || 0) % spacing) / 2;
     const c = Math.min(1, (coverageState.scaled.C || 0) / 100);
@@ -407,32 +494,75 @@ document.addEventListener('DOMContentLoaded', () => {
     const y = Math.min(1, (coverageState.scaled.Y || 0) / 100);
     const k = Math.min(1, (coverageState.scaled.K || 0) / 100);
     const rgb = cmykToRgb(c, m, y, k);
-    const radius = Math.max(1.2, (spacing / 2) * Math.min(0.85, 0.25 + coverageFactor));
+    const radiusBase = Math.max(1.2, (spacing / 2) * Math.min(0.85, 0.25 + coverageFactor));
+    const radius = Math.min(radiusBase, spacing * 0.48);
+    const rotation = Math.sin(pasoVal / 90);
+
+    const keyParts = [
+      spacing.toFixed(3),
+      radius.toFixed(3),
+      density.toFixed(4),
+      rotation.toFixed(4),
+      rgb.r,
+      rgb.g,
+      rgb.b,
+    ];
+    const patternKey = keyParts.join('|');
+    if (patternCache.key !== patternKey) {
+      const tileSize = Math.max(8, Math.round(spacing));
+      const tileCanvas = document.createElement('canvas');
+      tileCanvas.width = tileSize;
+      tileCanvas.height = tileSize;
+      const tileCtx = tileCanvas.getContext('2d');
+      if (!tileCtx) return;
+      tileCtx.clearRect(0, 0, tileSize, tileSize);
+      const safeRadius = Math.min(radius, tileSize * 0.45);
+      tileCtx.save();
+      tileCtx.translate(tileSize / 2, tileSize / 2);
+      tileCtx.rotate(rotation);
+      tileCtx.beginPath();
+      tileCtx.ellipse(0, 0, safeRadius, safeRadius * 0.82, 0, 0, Math.PI * 2);
+      tileCtx.fillStyle = `rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, ${density})`;
+      tileCtx.fill();
+      tileCtx.restore();
+
+      patternCache.key = patternKey;
+      patternCache.canvas = tileCanvas;
+      patternCache.spacing = tileSize;
+    }
+
+    patternCache.offset = offset % (patternCache.spacing || spacing || 1);
+    patternCache.blur = blur;
+    patternCache.shadow = density * 0.3;
+
+    if (!patternCache.canvas) return;
+    const pattern = targetCtx.createPattern(patternCache.canvas, 'repeat');
+    if (!pattern) return;
 
     targetCtx.save();
-    if (blur > 0.05) targetCtx.filter = `blur(${blur.toFixed(2)}px)`;
-    targetCtx.fillStyle = `rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, ${density})`;
-    for (let posY = offset; posY < height + spacing; posY += spacing) {
-      for (let posX = offset; posX < width + spacing; posX += spacing) {
-        targetCtx.beginPath();
-        targetCtx.ellipse(
-          posX,
-          posY,
-          radius,
-          radius * 0.82,
-          Math.sin(pasoVal / 90),
-          0,
-          Math.PI * 2,
-        );
-        targetCtx.fill();
-      }
+    if (pattern.setTransform && typeof DOMMatrix === 'function') {
+      const transform = new DOMMatrix();
+      transform.translateSelf(patternCache.offset, patternCache.offset);
+      pattern.setTransform(transform);
+      targetCtx.fillStyle = pattern;
+      if (blur > 0.05) targetCtx.filter = `blur(${blur.toFixed(2)}px)`;
+      targetCtx.fillRect(0, 0, width, height);
+    } else {
+      if (blur > 0.05) targetCtx.filter = `blur(${blur.toFixed(2)}px)`;
+      targetCtx.translate(patternCache.offset, patternCache.offset);
+      targetCtx.fillStyle = pattern;
+      const extend = patternCache.spacing || spacing;
+      targetCtx.fillRect(-patternCache.offset, -patternCache.offset, width + extend, height + extend);
     }
-    targetCtx.filter = 'none';
-
-    const shadowDensity = density * 0.35;
-    targetCtx.fillStyle = `rgba(20, 40, 60, ${shadowDensity})`;
-    targetCtx.fillRect(0, 0, width, height);
     targetCtx.restore();
+
+    const shadowDensity = patternCache.shadow;
+    if (shadowDensity > 0.001) {
+      targetCtx.save();
+      targetCtx.fillStyle = `rgba(20, 40, 60, ${shadowDensity})`;
+      targetCtx.fillRect(0, 0, width, height);
+      targetCtx.restore();
+    }
   }
 
   function drawWarningOverlay(targetCtx, width, height) {
