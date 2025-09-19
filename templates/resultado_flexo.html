@@ -132,27 +132,181 @@
     .warning-icon.tipo-overprint { background: blue; }
     .warning-icon.tipo-borde { background: darkgreen; }
 
+    #datos-basicos {
+      max-width: 980px;
+      margin: 30px auto 0;
+      background: #f6fbff;
+      border-radius: 12px;
+      padding: 20px 24px;
+      box-shadow: inset 0 0 0 1px rgba(8, 48, 90, 0.08);
+      color: #0b1f36;
+    }
+    #datos-basicos .datos-grid {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 1.5rem;
+    }
+    #datos-basicos .datos-col {
+      flex: 1 1 260px;
+    }
+    #datos-basicos p {
+      margin: 0.35rem 0;
+    }
+    #datos-basicos ul.datos-cobertura {
+      list-style: none;
+      padding: 0;
+      margin: 0.5rem 0 0;
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 0.25rem 0.75rem;
+    }
+    #datos-basicos ul.datos-cobertura li {
+      font-size: 0.9rem;
+      color: #1b3a57;
+    }
+
     #simulacion-avanzada {
       margin-top: 40px;
       background: #f1faff;
-      padding: 20px;
-      border-radius: 8px;
-      max-width: 800px;
+      padding: 24px;
+      border-radius: 12px;
+      max-width: 980px;
       margin-left: auto;
       margin-right: auto;
+      min-height: 320px;
     }
-    #simulacion-avanzada { min-height: 300px; }
-    #simulacion-avanzada h3 { text-align: center; }
-    #simulacion-avanzada label { display: block; margin-top: 10px; }
+    #simulacion-avanzada h3 {
+      text-align: center;
+      margin-bottom: 0.5rem;
+    }
+    #simulacion-avanzada p.sim-desc {
+      text-align: center;
+      margin-bottom: 1.5rem;
+      color: #3d566e;
+    }
+    .sim-grid {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 1.5rem;
+    }
+    .sim-controls {
+      flex: 1 1 260px;
+    }
+    .sim-controls label {
+      display: flex;
+      flex-direction: column;
+      gap: 0.35rem;
+      margin-bottom: 1rem;
+      font-weight: 600;
+      color: #1b3a57;
+    }
+    .sim-controls input[type="range"] {
+      width: 100%;
+    }
+    .sim-controls span.valor {
+      font-weight: 400;
+      color: #0c2238;
+      font-size: 0.9rem;
+    }
+    .sim-metrics {
+      flex: 1 1 280px;
+      background: #fff;
+      border-radius: 12px;
+      padding: 1rem 1.25rem;
+      box-shadow: 0 12px 26px rgba(8, 48, 90, 0.12);
+    }
+    .riesgo-badge {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 0.75rem;
+      padding: 0.55rem 0.9rem;
+      border-radius: 999px;
+      font-weight: 600;
+      margin-bottom: 1rem;
+      transition: background-color 0.3s ease, color 0.3s ease;
+    }
+    .riesgo-verde { background: #d4f7d1; color: #104911; }
+    .riesgo-amarillo { background: #fff3c4; color: #6b4805; }
+    .riesgo-rojo { background: #ffd6d2; color: #8c1f16; }
+    .metricas-principales {
+      list-style: none;
+      padding: 0;
+      margin: 0;
+      display: flex;
+      flex-direction: column;
+      gap: 0.75rem;
+    }
+    .metricas-principales li {
+      display: flex;
+      flex-direction: column;
+      gap: 0.15rem;
+      border-bottom: 1px dashed #d4e4f2;
+      padding-bottom: 0.75rem;
+    }
+    .metricas-principales li:last-child {
+      border-bottom: none;
+      padding-bottom: 0;
+    }
+    .metricas-principales .titulo {
+      font-size: 0.85rem;
+      color: #3b4c63;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+    .metricas-principales .valor {
+      font-size: 1.2rem;
+      font-weight: 700;
+      color: #0b1f36;
+    }
+    .metricas-principales .detalle {
+      font-size: 0.8rem;
+      color: #526377;
+    }
+    .coverage-list {
+      list-style: none;
+      padding: 0;
+      margin: 0.75rem 0 0;
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 0.35rem 0.75rem;
+      font-size: 0.85rem;
+      color: #1b3a57;
+    }
+    .riesgo-detalle {
+      list-style: disc;
+      margin: 1rem 0;
+      padding-left: 1.5rem;
+      color: #27374d;
+    }
+    #sim-container {
+      min-height: 280px;
+      margin-top: 1rem;
+    }
     #sim-canvas {
       width: 100%;
       height: auto;
       background: #eef7ff;
       display: block;
-      min-width: 300px;
-      min-height: 150px;
+      min-width: 320px;
+      min-height: 200px;
+      border-radius: 8px;
+      box-shadow: inset 0 0 0 1px rgba(8, 48, 90, 0.08);
     }
-    #sim-container { min-height: 260px; }
+    .sim-actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.75rem;
+      margin-top: 1rem;
+      justify-content: flex-end;
+    }
+    .sim-actions .btn {
+      flex: 0 0 auto;
+    }
+    @media (max-width: 768px) {
+      .sim-grid { flex-direction: column; }
+      .sim-actions { justify-content: center; }
+    }
   </style>
 </head>
 <body>
@@ -323,53 +477,120 @@
   {% set bcm_display = '%g' % bcm_val %}
   {% set paso_display = '%g' % paso_val %}
   {% set vel_display = '%g' % vel_val %}
+  {% set diag_stats = indicadores_advertencias or diag.get('indicadores_advertencias') or {} %}
+  {% set diag_cob_letras = diag.get('cobertura') or {} %}
+  {% set diag_cob_nombres = diag.get('cobertura_por_canal') or {} %}
+  {% set tac_diag = diag.get('tac_total') if diag.get('tac_total') is not none else diag.get('cobertura_estimada') %}
+  {% set ancho_mm_val = diag.get('ancho_mm') %}
+  {% set ancho_m_val = diag.get('ancho_util_m') if diag.get('ancho_util_m') is not none else ((ancho_mm_val or 0) / 1000 if ancho_mm_val else none) %}
+  {% set advertencias_txt = advertencias_resumen or diag.get('advertencias_resumen') %}
   <section id="datos-basicos">
-    <p><strong>Archivo PDF:</strong> {{ diag.get('archivo', 'diagnostico.pdf') }}</p>
-    <p><strong>Material de impresión:</strong> {{ diag.get('material', '(calculado en diagnóstico)') }}</p>
-    <p><strong>Anilox LPI:</strong> {{ lpi_display }} {% if lpi_diag is not none %}(valor ingresado){% else %}(predeterminado){% endif %}</p>
-    <p><strong>BCM del anilox:</strong> {{ bcm_display }} {% if bcm_diag is not none %}(valor ingresado){% else %}(predeterminado){% endif %}</p>
-    <p><strong>Velocidad estimada:</strong> {{ vel_display }} {% if vel_diag is not none %}(valor ingresado){% else %}(predeterminado){% endif %}</p>
-    {% set cob = diag.get('cobertura_estimada') %}
-    <p><strong>Cobertura estimada:</strong> {{ (cob if cob is not none else 25) }} % {% if cob is not none %}(calculado en diagnóstico){% else %}(predeterminado){% endif %}</p>
+    <div class="datos-grid">
+      <div class="datos-col">
+        <p><strong>Archivo PDF:</strong> {{ diag.get('archivo', 'diagnostico.pdf') }}</p>
+        <p><strong>Material de impresión:</strong> {{ diag.get('material', '(calculado en diagnóstico)') }}</p>
+        <p><strong>Anilox LPI (diagnóstico):</strong> {{ lpi_display }}{% if lpi_diag is none %} (estimado){% endif %}</p>
+        <p><strong>BCM del anilox:</strong> {{ bcm_display }}{% if bcm_diag is none %} (estimado){% endif %}</p>
+        <p><strong>Velocidad de cálculo:</strong> {{ vel_display }} m/min{% if vel_diag is none %} (estimada){% endif %}</p>
+        <p><strong>Paso del cilindro:</strong> {{ paso_display }} mm</p>
+        {% if ancho_mm_val %}
+        <p><strong>Ancho útil estimado:</strong> {{ '%0.1f' % ancho_mm_val }} mm ({{ '%0.2f' % (ancho_m_val or 0) }} m)</p>
+        {% endif %}
+      </div>
+      <div class="datos-col">
+        <p><strong>TAC promedio detectado:</strong> {{ tac_diag|default(0, true)|round(2) }} %</p>
+        <p><strong>Cobertura CMYK:</strong></p>
+        {% set nombres_cmyk = {'C': 'Cian', 'M': 'Magenta', 'Y': 'Amarillo', 'K': 'Negro'} %}
+        <ul class="datos-cobertura">
+          {% for canal in ['C', 'M', 'Y', 'K'] %}
+            {% set valor = diag_cob_letras.get(canal) if diag_cob_letras else diag_cob_nombres.get(nombres_cmyk[canal]) %}
+            <li><strong>{{ nombres_cmyk[canal] }}:</strong> {{ valor|default(0, true)|round(2) }} %</li>
+          {% endfor %}
+        </ul>
+        {% if advertencias_txt %}
+          <p><strong>Advertencias:</strong> {{ advertencias_txt }}</p>
+        {% endif %}
+        {% if diag_stats.get('total') %}
+          <p><strong>Total de advertencias:</strong> {{ diag_stats.get('total') }}</p>
+        {% endif %}
+      </div>
+    </div>
   </section>
   <div id="resumen-diagnostico">{{ resumen|safe }}</div>
   {{ tabla_riesgos|safe }}
 
-    <section id="simulacion-avanzada">
+  <section id="simulacion-avanzada">
     <h3>⚙️ Simulación Avanzada de Impresión</h3>
-    <label>
-      Lineatura del Anilox (LPI):
-      <input type="range" id="lpi" name="lpi" min="80" max="600" value="{{ lpi_display }}">
-      <span id="lpi-val">{{ lpi_display }} lpi {% if lpi_diag is not none %}(valor ingresado){% else %}(predeterminado){% endif %}</span>
-    </label>
-    <label>
-      BCM del anilox (cm³/m²):
-      <input type="range" id="bcm" name="bcm" min="1" max="15" step="0.1" value="{{ bcm_display }}">
-      <span id="bcm-val">{{ bcm_display }} cm³/m² {% if bcm_diag is not none %}(valor ingresado){% else %}(predeterminado){% endif %}</span>
-    </label>
-    <label>
-      Paso del cilindro (mm):
-      <input type="range" id="paso" name="paso" min="100" max="1000" value="{{ paso_display }}">
-      <span id="paso-val">{{ paso_display }} mm {% if paso_diag is not none %}(valor ingresado){% else %}(predeterminado){% endif %}</span>
-    </label>
-    <label>
-      Velocidad estimada de impresión (m/min):
-      <input type="range" id="vel" name="vel" min="50" max="500" value="{{ vel_display }}">
-      <span id="vel-val">{{ vel_display }} m/min {% if vel_diag is not none %}(valor ingresado){% else %}(predeterminado){% endif %}</span>
-    </label>
-    <label>
-      Cobertura estimada (%):
-      {% set cob_in = diag.get('cobertura_estimada') %}
-      <input type="range" id="cov" name="cov" min="0" max="200" value="{{ cob_in if cob_in is not none else 25 }}">
-      <span id="cov-val">{{ (cob_in if cob_in is not none else 25) }} % {% if cob_in is not none %}(calculado en diagnóstico){% else %}(predeterminado){% endif %}</span>
-    </label>
+    <p class="sim-desc">Ajustá los parámetros de máquina para predecir transmisión de tinta y riesgos reales detectados en el PDF.</p>
+    <div class="sim-grid">
+      <div class="sim-controls">
+        <label>
+          <span>Lineatura del anilox (LPI)</span>
+          <input type="range" id="lpi" name="lpi" min="80" max="600" value="{{ lpi_display }}">
+          <span id="lpi-val" class="valor">{{ lpi_display }} lpi</span>
+        </label>
+        <label>
+          <span>BCM del anilox (cm³/m²)</span>
+          <input type="range" id="bcm" name="bcm" min="1" max="15" step="0.1" value="{{ bcm_display }}">
+          <span id="bcm-val" class="valor">{{ bcm_display }} cm³/m²</span>
+        </label>
+        <label>
+          <span>Paso del cilindro (mm)</span>
+          <input type="range" id="paso" name="paso" min="100" max="1000" value="{{ paso_display }}">
+          <span id="paso-val" class="valor">{{ paso_display }} mm</span>
+        </label>
+        <label>
+          <span>Velocidad de impresión (m/min)</span>
+          <input type="range" id="vel" name="vel" min="50" max="500" value="{{ vel_display }}">
+          <span id="vel-val" class="valor">{{ vel_display }} m/min</span>
+        </label>
+        {% set cob_in = tac_diag %}
+        <label>
+          <span>TAC objetivo para la simulación (%)</span>
+          <input type="range" id="cov" name="cov" min="0" max="400" step="0.5" value="{{ cob_in if cob_in is not none else 200 }}">
+          <span id="cov-val" class="valor">{{ (cob_in if cob_in is not none else 200)|round(1) }} %</span>
+        </label>
+      </div>
+      <div class="sim-metrics">
+        <div id="riesgo-global" class="riesgo-badge riesgo-verde">
+          <span class="riesgo-etiqueta">Riesgo global</span>
+          <strong id="riesgo-valor">Verde</strong>
+        </div>
+        <ul class="metricas-principales">
+          <li>
+            <span class="titulo">Transmisión de tinta estimada</span>
+            <span id="metric-ml" class="valor">--</span>
+            <small id="metric-ml-detalle" class="detalle"></small>
+          </li>
+          <li>
+            <span class="titulo">TAC del archivo</span>
+            <span id="metric-tac" class="valor">--</span>
+            <small id="metric-tac-limite" class="detalle"></small>
+          </li>
+          <li>
+            <span class="titulo">Tramas en altas luces</span>
+            <span id="metric-trama" class="valor">--</span>
+          </li>
+          <li>
+            <span class="titulo">Sobreimpresión</span>
+            <span id="metric-overprint" class="valor">--</span>
+          </li>
+        </ul>
+        <div class="cobertura-cmyk">
+          <h4>Cobertura CMYK detectada</h4>
+          <ul id="metric-coverage" class="coverage-list"></ul>
+        </div>
+      </div>
+    </div>
+    <ul id="riesgo-detalle" class="riesgo-detalle"></ul>
     <div id="sim-container">
       <canvas id="sim-canvas" data-sim-img="{{ sim_canvas_base }}"></canvas>
       <pre id="sim-debug" style="display:none"></pre>
     </div>
-    <button id="sim-save" class="btn" type="button">🖼️ Generar PNG final</button>
-    <a id="sim-view" class="btn" href="{{ url_for('static', filename=sim_img_web) }}" target="_blank" rel="noopener">🔍 Ver imagen completa</a>
-    <div id="sim-ml"></div>
+    <div class="sim-actions">
+      <button id="sim-save" class="btn" type="button">🖼️ Generar PNG final</button>
+      <a id="sim-view" class="btn" href="{{ url_for('static', filename=sim_img_web) }}" target="_blank" rel="noopener">🔍 Ver imagen completa</a>
+    </div>
   </section>
 
   <div class="botones">
@@ -380,6 +601,9 @@
     window.diag_img_web = {{ diag_img_static|tojson }};
     window.revisionId = {{ (revision_id or '')|tojson }};
     window.diagnosticoJson = {{ diag|tojson }};
+    window.analisisDetallado = {{ (analisis or {})|tojson }};
+    window.indicadoresAdvertencias = {{ (indicadores_advertencias or diag_stats or {})|tojson }};
+    window.advertenciasResumen = {{ (advertencias_txt or '')|tojson }};
   </script>
   <script src="{{ url_for('static', filename='js/flexo_simulation.js') }}?v={{ revision_id }}" defer></script>
 </body>
