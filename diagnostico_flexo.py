@@ -1,5 +1,7 @@
 import math
 import os
+from collections import Counter
+
 import fitz
 import numpy as np
 from typing import List, Dict, Any
@@ -255,6 +257,36 @@ def resumen_advertencias(advertencias: List[Dict[str, Any]]) -> str:
         f"{niveles['medio']} medias (🟡) y "
         f"{niveles['leve']} leves (🟢)."
     )
+
+
+def indicadores_advertencias(advertencias: List[Dict[str, Any]]) -> Dict[str, Any]:
+    """Compila estadísticas básicas de las advertencias detectadas."""
+
+    advertencias_norm = consolidar_advertencias(advertencias)
+    conteo: Counter[str] = Counter()
+    total = len(advertencias_norm)
+
+    for adv in advertencias_norm:
+        tipo = (adv.get("tipo") or adv.get("type") or "").lower().strip()
+        if tipo:
+            conteo[tipo] += 1
+
+    conteo_tramas = sum(
+        cantidad for nombre, cantidad in conteo.items() if "trama" in nombre
+    )
+    conteo_texto = conteo.get("texto_pequeno", 0)
+    conteo_overprint = conteo.get("overprint", 0)
+
+    return {
+        "total": total,
+        "por_tipo": dict(conteo),
+        "conteo_tramas": conteo_tramas,
+        "conteo_texto": conteo_texto,
+        "conteo_overprint": conteo_overprint,
+        "hay_tramas_debiles": conteo_tramas > 0,
+        "hay_texto_pequeno": conteo_texto > 0,
+        "hay_overprint": conteo_overprint > 0,
+    }
 
 
 def nivel_riesgo_global(advertencias: List[Dict[str, Any]]) -> str:

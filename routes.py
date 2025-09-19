@@ -35,6 +35,7 @@ from utils import (
     redimensionar_pdf,
     calcular_etiquetas_por_fila,
     normalizar_material,
+    convertir_pts_a_mm,
 )
 from simulacion import (
     generar_preview_interactivo,
@@ -55,6 +56,8 @@ from imposicion_offset_auto import imponer_pliego_offset_auto
 from diagnostico_flexo import (
     generar_preview_diagnostico,
     inyectar_parametros_simulacion,
+    resumen_advertencias,
+    indicadores_advertencias,
 )
 from simulador_riesgos import simular_riesgos
 
@@ -1360,18 +1363,43 @@ def revision():
         generar_simulacion_avanzada(base_img_path, advertencias_iconos, anilox_lpi, sim_abs)
         sim_rel = os.path.relpath(sim_abs, current_app.static_folder)
 
+        try:
+            with fitz.open(save_path) as doc_dimensiones:
+                page0 = doc_dimensiones.load_page(0)
+                ancho_mm = convertir_pts_a_mm(page0.rect.width)
+                alto_mm = convertir_pts_a_mm(page0.rect.height)
+        except Exception:
+            ancho_mm = 0.0
+            alto_mm = 0.0
+
+        advertencias_stats = indicadores_advertencias(advertencias_iconos)
+        advertencias_resumen_txt = resumen_advertencias(advertencias_iconos)
+
         cobertura_dict = analisis_detallado.get("cobertura_por_canal", {})
-        cobertura_json = {
-            "C": round(cobertura_dict.get("Cyan", 0)),
-            "M": round(cobertura_dict.get("Magenta", 0)),
-            "Y": round(cobertura_dict.get("Amarillo", 0)),
-            "K": round(cobertura_dict.get("Negro", 0)),
+
+        def _as_float(valor):
+            try:
+                return float(valor)
+            except (TypeError, ValueError):
+                return 0.0
+
+        cobertura_letras = {
+            "C": round(_as_float(cobertura_dict.get("Cyan")), 2),
+            "M": round(_as_float(cobertura_dict.get("Magenta")), 2),
+            "Y": round(_as_float(cobertura_dict.get("Amarillo")), 2),
+            "K": round(_as_float(cobertura_dict.get("Negro")), 2),
+        }
+        cobertura_por_canal = {
+            "Cyan": cobertura_letras["C"],
+            "Magenta": cobertura_letras["M"],
+            "Amarillo": cobertura_letras["Y"],
+            "Negro": cobertura_letras["K"],
         }
         cobertura_total = round(
-            cobertura_dict.get("Cyan", 0)
-            + cobertura_dict.get("Magenta", 0)
-            + cobertura_dict.get("Amarillo", 0)
-            + cobertura_dict.get("Negro", 0),
+            cobertura_letras["C"]
+            + cobertura_letras["M"]
+            + cobertura_letras["Y"]
+            + cobertura_letras["K"],
             2,
         )
 
@@ -1382,13 +1410,29 @@ def revision():
         diagnostico_json = {
             "archivo": secure_filename(file.filename),
             "pdf_path": pdf_rel,
-            "cobertura": cobertura_json,
+            "cobertura": cobertura_letras,
+            "cobertura_por_canal": cobertura_por_canal,
             "cobertura_estimada": cobertura_total,
-            "eficiencia": 0.30,
-            "ancho": 0.50,
+            "tac_total": cobertura_total,
+            "cobertura_base_sum": cobertura_total,
+            "anilox_lpi": anilox_lpi,
+            "anilox_bcm": anilox_bcm,
             "paso": paso_mm,
             "paso_cilindro": paso_mm,
+            "paso_del_cilindro": paso_mm,
             "material": material_norm,
+            "velocidad_impresion": velocidad,
+            "ancho_mm": round(ancho_mm, 2) if ancho_mm else 0.0,
+            "alto_mm": round(alto_mm, 2) if alto_mm else 0.0,
+            "ancho_util_m": round(ancho_mm / 1000.0, 4) if ancho_mm else 0.0,
+            "advertencias_resumen": advertencias_resumen_txt,
+            "indicadores_advertencias": advertencias_stats,
+            "advertencias_total": advertencias_stats.get("total", 0),
+            "tiene_tramas_debiles": advertencias_stats.get("hay_tramas_debiles", False),
+            "tiene_overprint": advertencias_stats.get("hay_overprint", False),
+            "tiene_texto_pequeno": advertencias_stats.get("hay_texto_pequeno", False),
+            "conteo_overprint": advertencias_stats.get("conteo_overprint", 0),
+            "conteo_tramas": advertencias_stats.get("conteo_tramas", 0),
         }
         diagnostico_json = inyectar_parametros_simulacion(
             diagnostico_json, parametros_maquina
@@ -1409,6 +1453,12 @@ def revision():
             },
             "overlay_path": overlay_info["overlay_path"],
             "dpi": overlay_info["dpi"],
+            "advertencias_resumen": advertencias_resumen_txt,
+            "indicadores_advertencias": advertencias_stats,
+            "cobertura_por_canal": cobertura_por_canal,
+            "tac_total": cobertura_total,
+            "ancho_mm": ancho_mm,
+            "alto_mm": alto_mm,
             # Persistimos las rutas web del diagnóstico para que sigan
             # disponibles incluso si la simulación avanzada no se usa.
             "diag_base_web": diag_rel,
@@ -1425,6 +1475,8 @@ def revision():
             "analisis": analisis_detallado,
             "advertencias_iconos": advertencias_iconos,
             "diagnostico_json": diagnostico_json,
+            "advertencias_resumen": advertencias_resumen_txt,
+            "indicadores_advertencias": advertencias_stats,
             "sim_img_web": sim_rel,
             "diag_base_web": diag_rel,
             # Persistir la ruta web de la imagen del diagnóstico con advertencias.
