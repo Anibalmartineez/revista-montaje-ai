@@ -23,9 +23,63 @@ document.addEventListener('DOMContentLoaded', () => {
   const viewLink = document.getElementById('sim-view');
   const saveBtn = document.getElementById('sim-save');
 
+  const diagnostico = window.diagnosticoJson || {};
+
   let rafId = null;
   let debounceId = null;
   let currentDpr = window.devicePixelRatio || 1;
+
+  function asNumber(value) {
+    if (value === null || value === undefined || value === '') return null;
+    const num = Number(value);
+    return Number.isFinite(num) ? num : null;
+  }
+
+  function clampToInputRange(num, input) {
+    if (!input) return num;
+    const min = asNumber(input.min);
+    const max = asNumber(input.max);
+    let result = num;
+    if (min !== null && result < min) result = min;
+    if (max !== null && result > max) result = max;
+    return result;
+  }
+
+  function resolveDiagnosticoValue(keys) {
+    for (const key of keys) {
+      if (Object.prototype.hasOwnProperty.call(diagnostico, key)) {
+        const val = diagnostico[key];
+        if (val !== null && val !== undefined) {
+          return val;
+        }
+      }
+    }
+    return null;
+  }
+
+  function applyInitialValues() {
+    const mapping = [
+      [lpi, ['anilox_lpi', 'lpi']],
+      [bcm, ['anilox_bcm', 'bcm']],
+      [paso, ['paso_del_cilindro', 'paso_cilindro', 'paso']],
+      [vel, ['velocidad_impresion', 'velocidad']],
+      [cob, ['cobertura_estimada', 'cobertura']],
+    ];
+
+    mapping.forEach(([input, keys]) => {
+      if (!input) return;
+      const valor = resolveDiagnosticoValue(keys);
+      if (valor === null) return;
+      const numerico = asNumber(valor);
+      if (numerico !== null) {
+        input.value = String(clampToInputRange(numerico, input));
+      } else {
+        input.value = valor;
+      }
+    });
+
+    updateLabels();
+  }
 
   function normalizeUrl(url) {
     if (!url) return '';
@@ -142,6 +196,8 @@ document.addEventListener('DOMContentLoaded', () => {
     el.addEventListener('input', scheduleRender);
     el.addEventListener('change', scheduleRender);
   });
+
+  applyInitialValues();
 
   function resize() {
     const rect = canvas.getBoundingClientRect();

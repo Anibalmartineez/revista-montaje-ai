@@ -214,6 +214,37 @@
           </select>
         </div>
 
+        <div class="form-block">
+          <h2>⚙️ Parámetros reales de máquina</h2>
+          <label for="anilox_lpi">Lineatura del anilox (LPI)
+            <span class="tooltip-icon">❓
+              <span class="tooltip-text">Indica la lineatura del rodillo anilox que usarás.</span>
+            </span>
+          </label>
+          <input class="input-field" id="anilox_lpi" type="number" name="anilox_lpi" min="1" step="1" required>
+
+          <label for="anilox_bcm">BCM del anilox (cm³/m²)
+            <span class="tooltip-icon">❓
+              <span class="tooltip-text">Capacidad de transferencia volumétrica del anilox.</span>
+            </span>
+          </label>
+          <input class="input-field" id="anilox_bcm" type="number" name="anilox_bcm" min="0" step="0.01" required>
+
+          <label for="paso_cilindro">Paso del cilindro (mm)
+            <span class="tooltip-icon">❓
+              <span class="tooltip-text">Perímetro efectivo del cilindro impresor.</span>
+            </span>
+          </label>
+          <input class="input-field" id="paso_cilindro" type="number" name="paso_cilindro" min="1" step="0.1" required>
+
+          <label for="velocidad_impresion">Velocidad estimada de impresión (m/min)
+            <span class="tooltip-icon">❓
+              <span class="tooltip-text">Velocidad real prevista para esta tirada.</span>
+            </span>
+          </label>
+          <input class="input-field" id="velocidad_impresion" type="number" name="velocidad_impresion" min="1" step="0.1" required>
+        </div>
+
         <button type="submit" class="btn-submit">🔎 Revisar diseño</button>
 
         {% with msgs = get_flashed_messages(with_categories=true) %}

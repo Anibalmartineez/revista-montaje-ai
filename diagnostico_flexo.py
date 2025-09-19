@@ -1,3 +1,4 @@
+import math
 import os
 import fitz
 import numpy as np
@@ -17,6 +18,57 @@ DESCRIPCIONES_POR_TIPO = {
     "imagen_fuera_cmyk": "Imagen en RGB. Convertir a modo CMYK.",
     "overprint": "Sobreimpresión detectada. Verificar configuración.",
 }
+
+
+def inyectar_parametros_simulacion(
+    diagnostico_json: Dict[str, Any] | None, parametros: Dict[str, Any] | None
+) -> Dict[str, Any]:
+    """Incorpora en ``diagnostico_json`` los parámetros reales de máquina.
+
+    Los sliders de la simulación avanzada y los resúmenes técnicos esperan
+    encontrar las claves heredadas (``lpi``, ``bcm``, ``paso``) además de las
+    nuevas que vienen del formulario.  Este helper sincroniza ambas fuentes
+    reutilizando los valores cargados por el usuario.
+    """
+
+    if diagnostico_json is None:
+        diagnostico_json = {}
+    else:
+        diagnostico_json = dict(diagnostico_json)
+
+    if not parametros:
+        return diagnostico_json
+
+    mapping = {
+        "anilox_lpi": ("anilox_lpi", "lpi"),
+        "anilox_bcm": ("anilox_bcm", "bcm"),
+        "paso_del_cilindro": ("paso_del_cilindro", "paso", "paso_cilindro"),
+        "velocidad_impresion": ("velocidad_impresion", "velocidad"),
+    }
+
+    for origen, destinos in mapping.items():
+        if origen not in parametros:
+            continue
+        valor = parametros.get(origen)
+        if valor is None:
+            continue
+
+        valor_normalizado: Any = valor
+        try:
+            valor_float = float(valor)
+        except (TypeError, ValueError):
+            valor_float = None
+
+        if valor_float is not None and math.isfinite(valor_float):
+            if abs(valor_float - round(valor_float)) < 1e-6:
+                valor_normalizado = int(round(valor_float))
+            else:
+                valor_normalizado = round(valor_float, 4)
+
+        for destino in destinos:
+            diagnostico_json[destino] = valor_normalizado
+
+    return diagnostico_json
 
 
 def generar_preview_diagnostico(
