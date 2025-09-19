@@ -1,0 +1,6 @@
+{
+  "default": 0.8,
+  "film": 0.92,
+  "papel": 0.78,
+  "carton": 0.85
+}

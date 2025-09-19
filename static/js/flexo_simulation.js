@@ -27,6 +27,7 @@ document.addEventListener('DOMContentLoaded', () => {
   const metricsEls = {
     ml: document.getElementById('metric-ml'),
     mlDetalle: document.getElementById('metric-ml-detalle'),
+    mlColors: document.getElementById('metric-ml-colors'),
     tac: document.getElementById('metric-tac'),
     tacDetalle: document.getElementById('metric-tac-limite'),
     trama: document.getElementById('metric-trama'),
@@ -46,6 +47,12 @@ document.addEventListener('DOMContentLoaded', () => {
     window.indicadoresAdvertencias,
     advertenciasLista,
   );
+
+  const materialCoefficients = window.materialCoefficients || {};
+  const materialCoefPreset = asNumber(window.materialCoefSeleccionado);
+  const materialCoefDiagnostico = asNumber(diagnostico.coef_material);
+  const materialCoefBase =
+    materialCoefDiagnostico ?? materialCoefPreset ?? asNumber(materialCoefficients.default);
 
   const coverageBase = parseCoverageBase(diagnostico);
   const materialNombre = (diagnostico.material || '').toString();
@@ -214,14 +221,19 @@ document.addEventListener('DOMContentLoaded', () => {
     const bcmVal = asNumber(inputs.bcm ? inputs.bcm.value : null);
     const velVal = asNumber(inputs.vel ? inputs.vel.value : null);
     const lpiVal = asNumber(inputs.lpi ? inputs.lpi.value : null) || 0;
-    const pasoVal = asNumber(inputs.paso ? inputs.paso.value : null) || 0;
     const widthM = getEffectiveWidth();
-    const coverageFraction = Math.max(0, Math.min(coverageState.sum / 400, 1.5));
-    let transmision = null;
-    if (bcmVal !== null && velVal !== null && widthM > 0) {
-      const valor = bcmVal * velVal * widthM * coverageFraction;
-      transmision = Number.isFinite(valor) ? valor : null;
-    }
+    const tacTotal = coverageState.sum;
+
+    const transmissionData = calculateInkTransmission({
+      bcm: bcmVal,
+      lpi: lpiVal,
+      tacPorColor: coverageState.scaled,
+      velocidad: velVal,
+      ancho: widthM,
+      material: materialNombre,
+      presetCoef: materialCoefBase,
+    });
+    const transmision = transmissionData.global;
 
     const tacInfo = getTacLimit(materialNombre);
     const tacLimit = tacInfo ? tacInfo.limit : null;
@@ -234,15 +246,26 @@ document.addEventListener('DOMContentLoaded', () => {
     if (metricsEls.mlDetalle) {
       const partes = [
         bcmVal !== null ? `BCM ${bcmVal.toFixed(2)}` : null,
+        transmissionData.coefMaterial !== null && transmissionData.coefMaterial !== undefined
+          ? `coef ${transmissionData.coefMaterial.toFixed(2)}`
+          : null,
+        transmissionData.eficiencia !== null && transmissionData.eficiencia !== undefined
+          ? `eficiencia ${transmissionData.eficiencia.toFixed(2)}`
+          : null,
+        transmissionData.factorLpi !== null && transmissionData.factorLpi !== undefined
+          ? `factor LPI ${transmissionData.factorLpi.toFixed(2)}`
+          : null,
         widthM ? `ancho ${widthM.toFixed(2)} m` : null,
         velVal !== null ? `velocidad ${velVal.toFixed(0)} m/min` : null,
-        `TAC ${coverageState.sum.toFixed(1)}%`,
+        `TAC ${tacTotal.toFixed(1)}%`,
       ].filter(Boolean);
       metricsEls.mlDetalle.textContent = partes.join(' · ');
     }
 
+    updateInkTransmissionList(transmissionData.porColor);
+
     if (metricsEls.tac) {
-      metricsEls.tac.textContent = `${coverageState.sum.toFixed(1)} %`;
+      metricsEls.tac.textContent = `${tacTotal.toFixed(1)} %`;
     }
     if (metricsEls.tacDetalle) {
       metricsEls.tacDetalle.textContent = tacLimit
@@ -276,12 +299,16 @@ document.addEventListener('DOMContentLoaded', () => {
     const risk = evaluateRisks(
       {
         ml: transmision,
-        tac: coverageState.sum,
+        tac: tacTotal,
         tacLimit,
         materialLabel: tacLabel,
         lpi: lpiVal,
         velocidad: velVal || 0,
         width: widthM,
+        perColor: transmissionData.porColor,
+        factorLpi: transmissionData.factorLpi,
+        coefMaterial: transmissionData.coefMaterial,
+        eficiencia: transmissionData.eficiencia,
       },
       coverageState,
       advertenciasStats,
@@ -307,6 +334,33 @@ document.addEventListener('DOMContentLoaded', () => {
         li.textContent = texto;
         metricsEls.riesgoDetalle.appendChild(li);
       });
+    }
+  }
+
+  function updateInkTransmissionList(transmissions) {
+    if (!metricsEls.mlColors) return;
+    metricsEls.mlColors.innerHTML = '';
+    const nombres = { C: 'Cian', M: 'Magenta', Y: 'Amarillo', K: 'Negro' };
+    const canales = ['C', 'M', 'Y', 'K'];
+    canales.forEach((canal) => {
+      const li = document.createElement('li');
+      let valor = null;
+      if (transmissions && Object.prototype.hasOwnProperty.call(transmissions, canal)) {
+        const num = Number(transmissions[canal]);
+        if (Number.isFinite(num)) valor = num;
+      }
+      if (valor === null) {
+        li.innerHTML = `<strong>${nombres[canal]}:</strong> --`;
+      } else {
+        li.innerHTML = `<strong>${nombres[canal]}:</strong> ${valor.toFixed(2)} ml/min`;
+      }
+      metricsEls.mlColors.appendChild(li);
+    });
+    if (!metricsEls.mlColors.children.length) {
+      const li = document.createElement('li');
+      li.textContent = 'Sin datos suficientes.';
+      li.style.gridColumn = '1 / -1';
+      metricsEls.mlColors.appendChild(li);
     }
   }
 
@@ -421,6 +475,107 @@ document.addEventListener('DOMContentLoaded', () => {
     targetCtx.restore();
   }
 
+  function calculateInkTransmission({
+    bcm,
+    lpi,
+    tacPorColor,
+    velocidad,
+    ancho,
+    material,
+    presetCoef,
+  }) {
+    const resultado = {
+      global: null,
+      porColor: {},
+      coefMaterial: null,
+      eficiencia: null,
+      factorLpi: null,
+    };
+
+    const bcmVal = asNumber(bcm);
+    const lpiVal = asNumber(lpi);
+    if (bcmVal === null || bcmVal <= 0 || lpiVal === null || lpiVal <= 0) {
+      return resultado;
+    }
+
+    const coefMaterial = resolveMaterialCoefficient(material, presetCoef);
+    resultado.coefMaterial = coefMaterial;
+    const eficiencia = calculateEfficiency(velocidad, ancho);
+    resultado.eficiencia = eficiencia;
+    const factorLpi = calculateLpiFactor(lpiVal);
+    resultado.factorLpi = factorLpi;
+
+    const base = bcmVal * coefMaterial * eficiencia / factorLpi;
+    if (!Number.isFinite(base)) {
+      return resultado;
+    }
+
+    const porColor = {};
+    let global = 0;
+    ['C', 'M', 'Y', 'K'].forEach((canal) => {
+      let cobertura = null;
+      if (tacPorColor && Object.prototype.hasOwnProperty.call(tacPorColor, canal)) {
+        cobertura = asNumber(tacPorColor[canal]);
+      }
+      const coberturaPct = cobertura !== null ? Math.max(0, cobertura) : 0;
+      const valor = base * (coberturaPct / 100);
+      porColor[canal] = Number.isFinite(valor) ? valor : 0;
+      global += porColor[canal];
+    });
+
+    resultado.porColor = porColor;
+    resultado.global = Number.isFinite(global) ? global : null;
+    return resultado;
+  }
+
+  function resolveMaterialCoefficient(material, preset) {
+    const presetNum = asNumber(preset);
+    if (presetNum !== null) return presetNum;
+
+    const clave = normalizeMaterialKey(material);
+    if (clave && Object.prototype.hasOwnProperty.call(materialCoefficients, clave)) {
+      const valor = asNumber(materialCoefficients[clave]);
+      if (valor !== null) return valor;
+    }
+
+    if (Object.prototype.hasOwnProperty.call(materialCoefficients, 'default')) {
+      const valorDefault = asNumber(materialCoefficients.default);
+      if (valorDefault !== null) return valorDefault;
+    }
+
+    return 0.8;
+  }
+
+  function normalizeMaterialKey(nombre) {
+    if (!nombre) return '';
+    return nombre
+      .toString()
+      .toLowerCase()
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .replace(/[^a-z0-9]+/g, ' ')
+      .trim()
+      .replace(/\s+/g, '_');
+  }
+
+  function calculateEfficiency(velocidad, ancho) {
+    const vel = asNumber(velocidad);
+    const anchoVal = asNumber(ancho);
+    const velBase = vel !== null ? Math.max(vel, 30) : 150;
+    const anchoBase = anchoVal !== null ? Math.max(anchoVal, 0.2) : 0.35;
+    const velFactor = velBase / 150;
+    const anchoFactor = anchoBase / 0.35;
+    const eficiencia = velFactor * 0.7 + anchoFactor * 0.3;
+    return Math.max(0.5, Math.min(2.5, eficiencia));
+  }
+
+  function calculateLpiFactor(lpi) {
+    const lpiVal = asNumber(lpi);
+    if (lpiVal === null || lpiVal <= 0) return 1;
+    const factor = lpiVal / 120;
+    return Math.max(0.6, Math.min(2.5, factor));
+  }
+
   function parseCoverageBase(diag) {
     const CHANNEL_NAMES = { C: 'Cyan', M: 'Magenta', Y: 'Amarillo', K: 'Negro' };
     const result = {
@@ -525,43 +680,80 @@ document.addEventListener('DOMContentLoaded', () => {
     let nivel = 0;
 
     if (metrics.ml === null) {
-      razones.push('No se pudo calcular la transmisión de tinta. Revisá BCM, ancho y velocidad.');
+      razones.push('No se pudo calcular la transmisión de tinta. Revisá BCM, material y velocidad para evitar subcarga.');
       nivel = Math.max(nivel, 1);
-    } else if (metrics.ml < 60) {
-      razones.push('Transmisión baja (<60 ml/min): posible subcarga y pérdida de densidad.');
-      nivel = Math.max(nivel, metrics.ml < 40 ? 2 : 1);
-    } else if (metrics.ml > 200) {
-      razones.push('Transmisión alta (>200 ml/min): riesgo de sobrecarga y ganancia de punto.');
-      nivel = Math.max(nivel, metrics.ml > 240 ? 2 : 1);
+    } else {
+      if (metrics.ml < 4) {
+        razones.push(
+          `Transmisión global baja (${metrics.ml.toFixed(2)} ml/min): riesgo de subcarga y falta de densidad.`,
+        );
+        nivel = Math.max(nivel, metrics.ml < 2.5 ? 2 : 1);
+      } else if (metrics.ml > 15) {
+        razones.push(
+          `Transmisión global alta (${metrics.ml.toFixed(2)} ml/min): riesgo de sobrecarga y ganancia de punto.`,
+        );
+        nivel = Math.max(nivel, metrics.ml > 18 ? 2 : 1);
+      }
     }
 
-    if (metrics.tacLimit) {
-      if (metrics.tac > metrics.tacLimit + 30) {
-        razones.push(
-          `TAC ${metrics.tac.toFixed(1)}% excede el límite ${metrics.tacLimit}% para ${metrics.materialLabel}.`,
-        );
-        nivel = Math.max(nivel, 2);
-      } else if (metrics.tac > metrics.tacLimit) {
-        razones.push(
-          `TAC ${metrics.tac.toFixed(1)}% está por encima del límite ${metrics.tacLimit}% para ${metrics.materialLabel}.`,
-        );
-        nivel = Math.max(nivel, 1);
-      } else if (metrics.tac > metrics.tacLimit - 20) {
-        razones.push(
-          `TAC ${metrics.tac.toFixed(1)}% cercano al límite recomendado de ${metrics.tacLimit}% (${metrics.materialLabel}).`,
+    const porColor = metrics.perColor || {};
+    const nombres = { C: 'Cian', M: 'Magenta', Y: 'Amarillo', K: 'Negro' };
+    let colorSevero = false;
+    const colorWarnings = [];
+    ['C', 'M', 'Y', 'K'].forEach((canal) => {
+      const valor = porColor[canal];
+      if (valor === undefined || valor === null) return;
+      const coberturaCanal = coverageState.scaled ? coverageState.scaled[canal] || 0 : 0;
+      const minEsperado =
+        coberturaCanal >= 65
+          ? 1.8
+          : coberturaCanal >= 40
+          ? 1.3
+          : coberturaCanal >= 20
+          ? 0.9
+          : coberturaCanal >= 10
+          ? 0.6
+          : 0;
+      if (minEsperado > 0 && valor < minEsperado) {
+        if (valor < minEsperado * 0.75) colorSevero = true;
+        colorWarnings.push(
+          `${nombres[canal]} (${valor.toFixed(2)} ml/min) insuficiente para ${coberturaCanal.toFixed(0)}% de cobertura`,
         );
       }
+    });
+    if (colorWarnings.length) {
+      razones.push(`Subcarga puntual: ${colorWarnings.join(' · ')}`);
+      nivel = Math.max(nivel, colorSevero ? 2 : 1);
+    }
+
+    const tacLimit = metrics.tacLimit;
+    const tac = metrics.tac ?? coverageState.sum;
+    if (tacLimit) {
+      if (tac > tacLimit + 15) {
+        razones.push(`Exceso de TAC: ${tac.toFixed(1)}% supera el límite ${tacLimit}% para ${metrics.materialLabel}.`);
+        nivel = Math.max(nivel, 2);
+      } else if (tac > tacLimit) {
+        razones.push(
+          `TAC ${tac.toFixed(1)}% ligeramente por encima del límite ${tacLimit}% (${metrics.materialLabel}).`,
+        );
+        nivel = Math.max(nivel, 1);
+      } else if (tac > tacLimit - 10) {
+        razones.push(`TAC ${tac.toFixed(1)}% cercano al límite recomendado (${tacLimit}%).`);
+      }
+    } else if (tac > 340) {
+      razones.push(`TAC ${tac.toFixed(1)}% elevado: vigilar secado y ganancia de punto.`);
+      nivel = Math.max(nivel, tac > 360 ? 2 : 1);
     }
 
     if (stats.hay_tramas_debiles) {
       if (metrics.lpi > 180) {
-        razones.push('LPI > 180 con tramas inferiores al 5%: alto riesgo de pérdida de altas luces.');
+        razones.push('Tramas débiles con LPI alto: ajustar presiones o lineatura para preservar altas luces.');
         nivel = Math.max(nivel, 2);
       } else if (metrics.lpi > 150) {
-        razones.push('Tramas débiles detectadas: mantener LPI ≤150 para conservar el detalle.');
+        razones.push('Tramas débiles detectadas: mantener LPI ≤150 para conservar el detalle en altas luces.');
         nivel = Math.max(nivel, 1);
       } else {
-        razones.push('El diagnóstico detectó tramas débiles. Controlar presión y ganancia de punto.');
+        razones.push('El diagnóstico detectó tramas débiles: controlar presión y limpieza del anilox.');
       }
     }
 
@@ -569,8 +761,8 @@ document.addEventListener('DOMContentLoaded', () => {
       const count = stats.conteo_overprint || 0;
       razones.push(
         count > 1
-          ? `${count} objetos con sobreimpresión detectados: revisar intención de color.`
-          : 'Se detectó sobreimpresión: confirmar intención de producción.',
+          ? `${count} objetos en sobreimpresión: validar intención de impresión para evitar mezclas indeseadas.`
+          : 'Se detectó sobreimpresión: confirmar intención para evitar mezclas inesperadas.',
       );
       nivel = Math.max(nivel, count > 5 ? 2 : 1);
     }

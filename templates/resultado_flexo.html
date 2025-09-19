@@ -273,6 +273,13 @@
       font-size: 0.85rem;
       color: #1b3a57;
     }
+    .coverage-ink {
+      margin-top: 0.5rem;
+    }
+    .coverage-ink li {
+      font-size: 0.8rem;
+      color: #3d566e;
+    }
     .riesgo-detalle {
       list-style: disc;
       margin: 1rem 0;
@@ -489,6 +496,10 @@
       <div class="datos-col">
         <p><strong>Archivo PDF:</strong> {{ diag.get('archivo', 'diagnostico.pdf') }}</p>
         <p><strong>Material de impresión:</strong> {{ diag.get('material', '(calculado en diagnóstico)') }}</p>
+        {% set coef_material_val = material_coeficiente if material_coeficiente is defined and material_coeficiente is not none else diag.get('coef_material') %}
+        {% if coef_material_val is not none %}
+        <p><strong>Coeficiente de transmisión:</strong> {{ '%0.2f' % coef_material_val }}</p>
+        {% endif %}
         <p><strong>Anilox LPI (diagnóstico):</strong> {{ lpi_display }}{% if lpi_diag is none %} (estimado){% endif %}</p>
         <p><strong>BCM del anilox:</strong> {{ bcm_display }}{% if bcm_diag is none %} (estimado){% endif %}</p>
         <p><strong>Velocidad de cálculo:</strong> {{ vel_display }} m/min{% if vel_diag is none %} (estimada){% endif %}</p>
@@ -561,6 +572,8 @@
             <span class="titulo">Transmisión de tinta estimada</span>
             <span id="metric-ml" class="valor">--</span>
             <small id="metric-ml-detalle" class="detalle"></small>
+            <small class="detalle">Distribución por canal:</small>
+            <ul id="metric-ml-colors" class="coverage-list coverage-ink"></ul>
           </li>
           <li>
             <span class="titulo">TAC del archivo</span>
@@ -597,6 +610,7 @@
     <a href="{{ url_for('static', filename=imagen_iconos_web) }}" class="btn" download>⬇ Descargar imagen con advertencias</a>
     <a href="{{ url_for('revision') }}" class="btn">⬅ Volver a revisar otro diseño</a>
   </div>
+  {% set coef_material_context = material_coeficiente if material_coeficiente is defined and material_coeficiente is not none else diag.get('coef_material') %}
   <script>
     window.diag_img_web = {{ diag_img_static|tojson }};
     window.revisionId = {{ (revision_id or '')|tojson }};
@@ -604,6 +618,8 @@
     window.analisisDetallado = {{ (analisis or {})|tojson }};
     window.indicadoresAdvertencias = {{ (indicadores_advertencias or diag_stats or {})|tojson }};
     window.advertenciasResumen = {{ (advertencias_txt or '')|tojson }};
+    window.materialCoefficients = {{ (material_coefficients|default({}, true))|tojson }};
+    window.materialCoefSeleccionado = {{ coef_material_context|tojson }};
   </script>
   <script src="{{ url_for('static', filename='js/flexo_simulation.js') }}?v={{ revision_id }}" defer></script>
 </body>
