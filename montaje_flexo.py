@@ -1,5 +1,6 @@
 import fitz  # PyMuPDF
 import os
+import math
 import numpy as np
 from pdf2image import convert_from_path
 import cv2
@@ -11,6 +12,7 @@ import matplotlib.pyplot as plt
 from io import BytesIO
 import base64
 from html import unescape
+from typing import Any, Dict, List
 
 from utils import (
     convertir_pts_a_mm,
@@ -567,32 +569,56 @@ def revisar_diseño_flexo(
         montaje_info.append(
             f"<li><span class='icono info'>⚡</span> Velocidad estimada de impresión: <b>{velocidad_impresion:.2f} m/min</b></li>"
         )
-    cobertura_info = []
+    cobertura_info: List[str] = []
+    cobertura_manual = None
     if cobertura_estimada is not None:
-        cobertura_info.append(
-            f"<li><span class='icono ink'>🖨️</span> Cobertura ingresada para simulación: <b>{cobertura_estimada:.2f}%</b></li>"
-        )
-    riesgos_info = []
+        try:
+            cobertura_manual = float(cobertura_estimada)
+        except (TypeError, ValueError):
+            cobertura_manual = None
+    riesgos_info: List[str] = []
 
-    metricas_cobertura = None
+    metricas_cobertura: Dict[str, Any] | None = None
+    cobertura_total = 0.0
+    tac_total = None
+    cobertura_promedio: Dict[str, float] = {}
     try:
         metricas_cobertura = calcular_metricas_cobertura(path_pdf, dpi=300)
-        cobertura_total = round(metricas_cobertura["cobertura_total"], 2)
+        cobertura_promedio = metricas_cobertura.get("cobertura_promedio", {}) or {}
+        cobertura_total = float(metricas_cobertura.get("cobertura_total") or 0.0)
+        cobertura_total_redondeada = round(cobertura_total, 2)
         cobertura_info.append(
-            f"<li><span class='icono ink'>🖨️</span> Cobertura total estimada del diseño: <b>{cobertura_total}%</b></li>"
+            "<li><span class='icono ink'>🖨️</span> Cobertura total estimada del diseño: "
+            f"<b>{cobertura_total_redondeada}%</b></li>"
         )
-        if cobertura_total > 85:
+        tac_total = float(sum(cobertura_promedio.values()))
+        if not math.isfinite(tac_total):
+            tac_total = 0.0
+        metricas_cobertura["tac_total"] = tac_total
+        cobertura_info.append(
+            "<li><span class='icono ink'>🖨️</span> TAC promedio detectado (suma CMYK): "
+            f"<b>{round(tac_total, 2)}%</b></li>"
+        )
+        if cobertura_total_redondeada > 85:
             riesgos_info.append(
                 "<li><span class='icono warning'>⚠️</span> Cobertura muy alta. Riesgo de sobrecarga de tinta.</li>"
             )
-        elif cobertura_total < 10:
+        elif cobertura_total_redondeada < 10:
             riesgos_info.append(
                 "<li><span class='icono warning'>⚠️</span> Cobertura muy baja. Posible subcarga o diseño incompleto.</li>"
             )
     except Exception as e:
         cobertura_total = 0.0
+        tac_total = cobertura_manual
+        metricas_cobertura = None
+        cobertura_promedio = {}
         riesgos_info.append(
             f"<li><span class='icono warning'>⚠️</span> No se pudo estimar la cobertura de tinta: {e}</li>"
+        )
+    if metricas_cobertura is None and cobertura_manual is not None:
+        cobertura_info.append(
+            "<li><span class='icono ink'>🖨️</span> Cobertura ingresada para simulación: "
+            f"<b>{cobertura_manual:.2f}%</b></li>"
         )
 
     repeticiones, sobrante = calcular_repeticiones_bobina(alto_mm, paso_mm)
@@ -631,7 +657,7 @@ def revisar_diseño_flexo(
     tramas_debiles_flag = any("Trama muy débil" in a and "warn" in a for a in tramas_adv)
 
     if metricas_cobertura:
-        for canal, porcentaje in metricas_cobertura["cobertura_promedio"].items():
+        for canal, porcentaje in cobertura_promedio.items():
             nombre = canal if canal != "Cyan" else "Cian"
             cobertura_info.append(
                 f"<li><span class='icono ink'>🖨️</span> Porcentaje estimado de cobertura de <b>{nombre}</b>: <b>{porcentaje:.2f}%</b></li>"
@@ -691,7 +717,7 @@ def revisar_diseño_flexo(
                 "<li><span class='icono ok'>✔️</span> No se detectaron elementos sensibles a la ganancia de punto en papel.</li>"
             )
     elif material_norm == "etiqueta adhesiva" and metricas_cobertura:
-        total_cobertura = sum(metricas_cobertura["cobertura_promedio"].values())
+        total_cobertura = tac_total if tac_total is not None else sum(cobertura_promedio.values())
         if total_cobertura > 240:
             diagnostico_material.append(
                 f"<li><span class='icono warn'>⚠️</span> Cobertura total alta (<b>{round(total_cobertura,2)}%</b>). Puede ocasionar problemas de secado en etiquetas adhesivas.</li>"
@@ -709,17 +735,18 @@ def revisar_diseño_flexo(
     tinta_data = None
     if anilox_bcm is not None and velocidad_impresion is not None:
         try:
-            if cobertura_estimada is None:
-                if metricas_cobertura:
-                    cobertura_estimada = sum(
-                        metricas_cobertura["cobertura_promedio"].values()
-                    )
-                else:
-                    cobertura_estimada = 0
+            cobertura_simulada = tac_total if tac_total is not None else cobertura_manual
+            if cobertura_simulada is None:
+                cobertura_simulada = 0.0
+            else:
+                cobertura_simulada = float(cobertura_simulada)
+            if not math.isfinite(cobertura_simulada):
+                cobertura_simulada = 0.0
+            cobertura_simulada = max(0.0, min(400.0, cobertura_simulada))
             factores = {"film": 0.7, "papel": 1.0, "etiqueta adhesiva": 0.85}
             factor_material = factores.get(material_norm, 1.0)
             # La suma de coberturas por canal puede alcanzar 400%
-            cobertura_frac = float(cobertura_estimada) / 400.0
+            cobertura_frac = cobertura_simulada / 400.0
             tinta_ml = anilox_bcm * cobertura_frac * velocidad_impresion * factor_material
             tinta_ml = round(tinta_ml, 2)
             umbral_bajo = 50
@@ -768,6 +795,8 @@ def revisar_diseño_flexo(
         "textos_pequenos": textos_adv,
         "resolucion_minima": resolucion_minima or 0,
         "trama_minima": 5,
+        "cobertura_total": round(cobertura_total, 2) if metricas_cobertura else None,
+        "tac_total": round(tac_total, 2) if tac_total is not None else None,
     }
     diagnostico_texto = generar_diagnostico_texto(resumen)
     return resumen, imagen_tinta, diagnostico_texto, analisis_detallado, advertencias_overlay
