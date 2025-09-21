@@ -127,8 +127,14 @@ document.addEventListener('DOMContentLoaded', () => {
 
   Object.values(inputs).forEach((el) => {
     if (!el) return;
-    el.addEventListener('input', scheduleRender);
-    el.addEventListener('change', scheduleRender);
+    const handleInput = () => {
+      if (el === inputs.cob) {
+        el.dataset.userModified = '1';
+      }
+      scheduleRender();
+    };
+    el.addEventListener('input', handleInput);
+    el.addEventListener('change', handleInput);
   });
 
   if (metricsEls.saveBtn) {
@@ -265,6 +271,9 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   function applyInitialValues() {
+    if (inputs.cob) {
+      inputs.cob.dataset.userModified = '0';
+    }
     const mapping = [
       [inputs.lpi, ['anilox_lpi', 'lpi']],
       [inputs.bcm, ['anilox_bcm', 'bcm']],
@@ -708,58 +717,69 @@ document.addEventListener('DOMContentLoaded', () => {
 
   function parseCoverageBase(diag) {
     const CHANNEL_NAMES = { C: 'Cyan', M: 'Magenta', Y: 'Amarillo', K: 'Negro' };
-    const result = {
-      base: { C: 0, M: 0, Y: 0, K: 0 },
-      sum: 0,
-      fallback: 0,
-    };
-    const letras = diag.cobertura || {};
-    const nombres = diag.cobertura_por_canal || {};
+    const base = { C: 0, M: 0, Y: 0, K: 0 };
+    let sum = 0;
+    let hasRealData = false;
+
+    const letras =
+      diag && typeof diag.cobertura === 'object' && diag.cobertura !== null ? diag.cobertura : null;
+    const nombres =
+      diag && typeof diag.cobertura_por_canal === 'object' && diag.cobertura_por_canal !== null
+        ? diag.cobertura_por_canal
+        : null;
 
     ['C', 'M', 'Y', 'K'].forEach((canal) => {
-      const letraVal = asNumber(letras[canal]);
-      const nombreVal = asNumber(nombres[CHANNEL_NAMES[canal]]);
-      const valor = letraVal !== null ? letraVal : nombreVal !== null ? nombreVal : 0;
-      result.base[canal] = valor;
+      const letraVal = letras ? asNumber(letras[canal]) : null;
+      const nombreVal = nombres ? asNumber(nombres[CHANNEL_NAMES[canal]]) : null;
+      const valor = letraVal !== null ? letraVal : nombreVal;
+      if (valor !== null) {
+        base[canal] = valor;
+        sum += valor;
+        hasRealData = true;
+      } else {
+        base[canal] = 0;
+      }
     });
-    result.sum = ['C', 'M', 'Y', 'K'].reduce((acc, canal) => acc + (result.base[canal] || 0), 0);
-    const fallback =
+
+    let fallback =
       asNumber(diag.tac_total) ??
       asNumber(diag.cobertura_estimada) ??
-      asNumber(diag.cobertura);
-    result.fallback = fallback || 0;
-    if (result.sum <= 0 && result.fallback > 0) {
-      const per = result.fallback / 4;
-      result.base = { C: per, M: per, Y: per, K: per };
-      result.sum = result.fallback;
+      asNumber(diag.cobertura_base_sum);
+    if (fallback === null && diag && typeof diag.cobertura !== 'object') {
+      fallback = asNumber(diag.cobertura);
     }
-    return result;
+
+    return {
+      base,
+      sum: hasRealData ? sum : 0,
+      fallback: fallback !== null ? fallback : null,
+      hasRealData,
+    };
   }
 
   function getCoverageState() {
     const baseValues = { ...coverageBase.base };
     let baseSum = coverageBase.sum;
-    if (baseSum <= 0 && coverageBase.fallback > 0) {
-      const per = coverageBase.fallback / 4;
+    const sliderVal = asNumber(inputs.cob ? inputs.cob.value : null);
+    const sliderTouched = inputs.cob && inputs.cob.dataset.userModified === '1';
+
+    if (
+      baseSum <= 0 &&
+      !coverageBase.hasRealData &&
+      sliderTouched &&
+      sliderVal !== null &&
+      sliderVal > 0
+    ) {
+      const per = sliderVal / 4;
       ['C', 'M', 'Y', 'K'].forEach((canal) => {
         baseValues[canal] = per;
       });
-      baseSum = coverageBase.fallback;
+      baseSum = sliderVal;
     }
 
-    const sliderVal = asNumber(inputs.cob ? inputs.cob.value : null);
     let factor = 1;
-    if (sliderVal !== null) {
-      if (baseSum > 0) {
-        factor = sliderVal / baseSum;
-      } else if (sliderVal > 0) {
-        const per = sliderVal / 4;
-        ['C', 'M', 'Y', 'K'].forEach((canal) => {
-          baseValues[canal] = per;
-        });
-        baseSum = sliderVal;
-        factor = 1;
-      }
+    if (sliderVal !== null && baseSum > 0) {
+      factor = sliderVal / baseSum;
     }
 
     const scaled = {};

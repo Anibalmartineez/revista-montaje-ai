@@ -7,6 +7,7 @@ import uuid
 import tempfile
 import shutil
 import json
+from typing import Dict
 from threading import Lock
 from PIL import Image, ImageDraw
 from reportlab.pdfgen import canvas
@@ -1380,43 +1381,49 @@ def revision():
         advertencias_stats = indicadores_advertencias(advertencias_iconos)
         advertencias_resumen_txt = resumen_advertencias(advertencias_iconos)
 
-        cobertura_dict = analisis_detallado.get("cobertura_por_canal", {}) or {}
+        cobertura_dict = analisis_detallado.get("cobertura_por_canal")
+        cobertura_dict = cobertura_dict if isinstance(cobertura_dict, dict) else {}
+        channel_names = {"C": "Cyan", "M": "Magenta", "Y": "Amarillo", "K": "Negro"}
 
-        def _as_float(valor):
+        def _as_number(valor):
+            if valor is None:
+                return None
             try:
-                return float(valor)
+                numero = float(valor)
             except (TypeError, ValueError):
-                return 0.0
+                return None
+            if not math.isfinite(numero):
+                return None
+            return numero
 
-        cobertura_letras = {
-            "C": round(_as_float(cobertura_dict.get("Cyan")), 2),
-            "M": round(_as_float(cobertura_dict.get("Magenta")), 2),
-            "Y": round(_as_float(cobertura_dict.get("Amarillo")), 2),
-            "K": round(_as_float(cobertura_dict.get("Negro")), 2),
-        }
-        cobertura_por_canal = {
-            "Cyan": cobertura_letras["C"],
-            "Magenta": cobertura_letras["M"],
-            "Amarillo": cobertura_letras["Y"],
-            "Negro": cobertura_letras["K"],
-        }
-        cobertura_sum = round(
-            cobertura_letras["C"]
-            + cobertura_letras["M"]
-            + cobertura_letras["Y"]
-            + cobertura_letras["K"],
-            2,
-        )
-        tac_total_val = analisis_detallado.get("tac_total")
-        if tac_total_val is None:
+        cobertura_letras: Dict[str, float] = {}
+        cobertura_por_canal: Dict[str, float] = {}
+        for letra, nombre in channel_names.items():
+            valor = _as_number(cobertura_dict.get(nombre))
+            if valor is None:
+                continue
+            valor_redondeado = round(valor, 2)
+            cobertura_letras[letra] = valor_redondeado
+            cobertura_por_canal[nombre] = valor_redondeado
+
+        if cobertura_letras:
+            for letra, nombre in channel_names.items():
+                if letra not in cobertura_letras:
+                    cobertura_letras[letra] = 0.0
+                    cobertura_por_canal[nombre] = 0.0
+            cobertura_sum = round(sum(cobertura_letras.values()), 2)
+        else:
+            cobertura_sum = None
+
+        tac_total_val = _as_number(analisis_detallado.get("tac_total"))
+        if tac_total_val is not None:
+            tac_total_val = round(tac_total_val, 2)
+        elif cobertura_sum is not None:
             tac_total_val = cobertura_sum
-        else:
-            tac_total_val = round(_as_float(tac_total_val), 2)
-        cobertura_total_val = analisis_detallado.get("cobertura_total")
-        if cobertura_total_val is None:
-            cobertura_total_val = 0.0
-        else:
-            cobertura_total_val = round(_as_float(cobertura_total_val), 2)
+
+        cobertura_total_val = _as_number(analisis_detallado.get("cobertura_total"))
+        if cobertura_total_val is not None:
+            cobertura_total_val = round(cobertura_total_val, 2)
 
         final_pdf_path = os.path.join(rev_dir, f"{revision_id}.pdf")
         shutil.copy(save_path, final_pdf_path)
@@ -1425,8 +1432,8 @@ def revision():
         diagnostico_json = {
             "archivo": secure_filename(file.filename),
             "pdf_path": pdf_rel,
-            "cobertura": cobertura_letras,
-            "cobertura_por_canal": cobertura_por_canal,
+            "cobertura": cobertura_letras if cobertura_letras else None,
+            "cobertura_por_canal": cobertura_por_canal if cobertura_por_canal else None,
             "cobertura_total": cobertura_total_val,
             "cobertura_estimada": tac_total_val,
             "tac_total": tac_total_val,
@@ -1472,7 +1479,7 @@ def revision():
             "dpi": overlay_info["dpi"],
             "advertencias_resumen": advertencias_resumen_txt,
             "indicadores_advertencias": advertencias_stats,
-            "cobertura_por_canal": cobertura_por_canal,
+            "cobertura_por_canal": cobertura_por_canal if cobertura_por_canal else None,
             "cobertura_total": cobertura_total_val,
             "tac_total": tac_total_val,
             "ancho_mm": ancho_mm,
