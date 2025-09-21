@@ -1308,7 +1308,6 @@ def revision():
         return render_template("revision_flexo.html")
 
     anilox_lpi = int(round(anilox_lpi_val))
-    cobertura = 25.0
 
     parametros_maquina = {
         "anilox_lpi": anilox_lpi,
@@ -1335,7 +1334,7 @@ def revision():
             material_norm,
             anilox_bcm,
             velocidad,
-            cobertura,
+            None,
         )
         overlay_info = analizar_riesgos_pdf(
             save_path, advertencias=advertencias_overlay
@@ -1381,7 +1380,7 @@ def revision():
         advertencias_stats = indicadores_advertencias(advertencias_iconos)
         advertencias_resumen_txt = resumen_advertencias(advertencias_iconos)
 
-        cobertura_dict = analisis_detallado.get("cobertura_por_canal", {})
+        cobertura_dict = analisis_detallado.get("cobertura_por_canal", {}) or {}
 
         def _as_float(valor):
             try:
@@ -1401,13 +1400,23 @@ def revision():
             "Amarillo": cobertura_letras["Y"],
             "Negro": cobertura_letras["K"],
         }
-        cobertura_total = round(
+        cobertura_sum = round(
             cobertura_letras["C"]
             + cobertura_letras["M"]
             + cobertura_letras["Y"]
             + cobertura_letras["K"],
             2,
         )
+        tac_total_val = analisis_detallado.get("tac_total")
+        if tac_total_val is None:
+            tac_total_val = cobertura_sum
+        else:
+            tac_total_val = round(_as_float(tac_total_val), 2)
+        cobertura_total_val = analisis_detallado.get("cobertura_total")
+        if cobertura_total_val is None:
+            cobertura_total_val = 0.0
+        else:
+            cobertura_total_val = round(_as_float(cobertura_total_val), 2)
 
         final_pdf_path = os.path.join(rev_dir, f"{revision_id}.pdf")
         shutil.copy(save_path, final_pdf_path)
@@ -1418,9 +1427,10 @@ def revision():
             "pdf_path": pdf_rel,
             "cobertura": cobertura_letras,
             "cobertura_por_canal": cobertura_por_canal,
-            "cobertura_estimada": cobertura_total,
-            "tac_total": cobertura_total,
-            "cobertura_base_sum": cobertura_total,
+            "cobertura_total": cobertura_total_val,
+            "cobertura_estimada": tac_total_val,
+            "tac_total": tac_total_val,
+            "cobertura_base_sum": tac_total_val,
             "anilox_lpi": anilox_lpi,
             "anilox_bcm": anilox_bcm,
             "paso": paso_mm,
@@ -1455,7 +1465,7 @@ def revision():
                 "paso_del_cilindro": paso_mm,
                 "material": material_norm,
                 "velocidad_impresion": velocidad,
-                "cobertura": cobertura_total,
+                "cobertura": tac_total_val,
                 "advertencias": overlay_info.get("advertencias", []),
             },
             "overlay_path": overlay_info["overlay_path"],
@@ -1463,7 +1473,8 @@ def revision():
             "advertencias_resumen": advertencias_resumen_txt,
             "indicadores_advertencias": advertencias_stats,
             "cobertura_por_canal": cobertura_por_canal,
-            "tac_total": cobertura_total,
+            "cobertura_total": cobertura_total_val,
+            "tac_total": tac_total_val,
             "ancho_mm": ancho_mm,
             "alto_mm": alto_mm,
             "coef_material": material_coef,
@@ -1494,6 +1505,7 @@ def revision():
             "diag_img_web": imagen_iconos_rel,
             "material_coeficiente": material_coef,
             "material_coefficients": material_coeffs,
+            "cobertura_total": cobertura_total_val,
         }
 
         diag_json_path = os.path.join(rev_dir, "diag.json")
