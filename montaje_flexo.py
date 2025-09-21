@@ -579,36 +579,59 @@ def revisar_diseño_flexo(
     riesgos_info: List[str] = []
 
     metricas_cobertura: Dict[str, Any] | None = None
-    cobertura_total = 0.0
-    tac_total = None
+    cobertura_total: float | None = None
+    tac_total: float | None = None
     cobertura_promedio: Dict[str, float] = {}
+    tiene_cobertura_por_canal = False
     try:
         metricas_cobertura = calcular_metricas_cobertura(path_pdf, dpi=300)
-        cobertura_promedio = metricas_cobertura.get("cobertura_promedio", {}) or {}
-        cobertura_total = float(metricas_cobertura.get("cobertura_total") or 0.0)
-        cobertura_total_redondeada = round(cobertura_total, 2)
-        cobertura_info.append(
-            "<li><span class='icono ink'>🖨️</span> Cobertura total estimada del diseño: "
-            f"<b>{cobertura_total_redondeada}%</b></li>"
-        )
-        tac_total = float(sum(cobertura_promedio.values()))
-        if not math.isfinite(tac_total):
-            tac_total = 0.0
-        metricas_cobertura["tac_total"] = tac_total
-        cobertura_info.append(
-            "<li><span class='icono ink'>🖨️</span> TAC promedio detectado (suma CMYK): "
-            f"<b>{round(tac_total, 2)}%</b></li>"
-        )
-        if cobertura_total_redondeada > 85:
-            riesgos_info.append(
-                "<li><span class='icono warning'>⚠️</span> Cobertura muy alta. Riesgo de sobrecarga de tinta.</li>"
+        cobertura_promedio_raw = metricas_cobertura.get("cobertura_promedio")
+        if isinstance(cobertura_promedio_raw, dict):
+            for canal, valor in cobertura_promedio_raw.items():
+                try:
+                    porcentaje = float(valor)
+                except (TypeError, ValueError):
+                    continue
+                if not math.isfinite(porcentaje):
+                    continue
+                cobertura_promedio[canal] = porcentaje
+            tiene_cobertura_por_canal = bool(cobertura_promedio)
+
+        cobertura_total_val = metricas_cobertura.get("cobertura_total")
+        if cobertura_total_val is not None:
+            try:
+                cobertura_total = float(cobertura_total_val)
+            except (TypeError, ValueError):
+                cobertura_total = None
+        if cobertura_total is not None and not math.isfinite(cobertura_total):
+            cobertura_total = None
+
+        if cobertura_total is not None:
+            cobertura_total_redondeada = round(cobertura_total, 2)
+            cobertura_info.append(
+                "<li><span class='icono ink'>🖨️</span> Cobertura total estimada del diseño: "
+                f"<b>{cobertura_total_redondeada}%</b></li>"
             )
-        elif cobertura_total_redondeada < 10:
-            riesgos_info.append(
-                "<li><span class='icono warning'>⚠️</span> Cobertura muy baja. Posible subcarga o diseño incompleto.</li>"
-            )
+            if cobertura_total_redondeada > 85:
+                riesgos_info.append(
+                    "<li><span class='icono warning'>⚠️</span> Cobertura muy alta. Riesgo de sobrecarga de tinta.</li>"
+                )
+            elif cobertura_total_redondeada < 10:
+                riesgos_info.append(
+                    "<li><span class='icono warning'>⚠️</span> Cobertura muy baja. Posible subcarga o diseño incompleto.</li>"
+                )
+
+        if tiene_cobertura_por_canal:
+            tac_total_calculado = sum(cobertura_promedio.values())
+            if math.isfinite(tac_total_calculado):
+                tac_total = float(tac_total_calculado)
+                metricas_cobertura["tac_total"] = tac_total
+                cobertura_info.append(
+                    "<li><span class='icono ink'>🖨️</span> TAC promedio detectado (suma CMYK): "
+                    f"<b>{round(tac_total, 2)}%</b></li>"
+                )
     except Exception as e:
-        cobertura_total = 0.0
+        cobertura_total = None
         tac_total = cobertura_manual
         metricas_cobertura = None
         cobertura_promedio = {}
@@ -656,7 +679,7 @@ def revisar_diseño_flexo(
     lineas_finas_flag = any("trazos" in a.lower() and "warn" in a for a in lineas_adv)
     tramas_debiles_flag = any("Trama muy débil" in a and "warn" in a for a in tramas_adv)
 
-    if metricas_cobertura:
+    if metricas_cobertura and cobertura_promedio:
         for canal, porcentaje in cobertura_promedio.items():
             nombre = canal if canal != "Cyan" else "Cian"
             cobertura_info.append(
@@ -694,7 +717,7 @@ def revisar_diseño_flexo(
     diagnostico_material = []
 
     if material_norm == "film":
-        negro = metricas_cobertura["cobertura_promedio"].get("Negro", 0) if metricas_cobertura else 0
+        negro = cobertura_promedio.get("Negro", 0) if cobertura_promedio else 0
         if negro > 50:
             diagnostico_material.append(
                 f"<li><span class='icono warn'>⚠️</span> Cobertura alta de negro (<b>{negro}%</b>). Puede generar problemas de adherencia o secado en film.</li>"
@@ -717,7 +740,7 @@ def revisar_diseño_flexo(
                 "<li><span class='icono ok'>✔️</span> No se detectaron elementos sensibles a la ganancia de punto en papel.</li>"
             )
     elif material_norm == "etiqueta adhesiva" and metricas_cobertura:
-        total_cobertura = tac_total if tac_total is not None else sum(cobertura_promedio.values())
+        total_cobertura = tac_total if tac_total is not None else sum(cobertura_promedio.values()) if cobertura_promedio else 0
         if total_cobertura > 240:
             diagnostico_material.append(
                 f"<li><span class='icono warn'>⚠️</span> Cobertura total alta (<b>{round(total_cobertura,2)}%</b>). Puede ocasionar problemas de secado en etiquetas adhesivas.</li>"
@@ -791,11 +814,11 @@ def revisar_diseño_flexo(
     resumen = generar_reporte_tecnico(datos_reporte)
     analisis_detallado = {
         "tramas_debiles": tramas_adv,
-        "cobertura_por_canal": metricas_cobertura["cobertura_promedio"] if metricas_cobertura else {},
+        "cobertura_por_canal": cobertura_promedio if cobertura_promedio else None,
         "textos_pequenos": textos_adv,
         "resolucion_minima": resolucion_minima or 0,
         "trama_minima": 5,
-        "cobertura_total": round(cobertura_total, 2) if metricas_cobertura else None,
+        "cobertura_total": round(cobertura_total, 2) if cobertura_total is not None else None,
         "tac_total": round(tac_total, 2) if tac_total is not None else None,
     }
     diagnostico_texto = generar_diagnostico_texto(resumen)
