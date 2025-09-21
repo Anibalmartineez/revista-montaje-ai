@@ -692,7 +692,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const vel = asNumber(velocidad);
     const anchoVal = asNumber(ancho);
     const velBase = vel !== null ? Math.max(vel, 30) : 150;
-    const anchoBase = anchoVal !== null ? Math.max(anchoVal, 0.2) : 0.35;
+    const anchoBase = anchoVal !== null && anchoVal > 0 ? anchoVal : 0.35;
     const velFactor = velBase / 150;
     const anchoFactor = anchoBase / 0.35;
     const eficiencia = velFactor * 0.7 + anchoFactor * 0.3;
