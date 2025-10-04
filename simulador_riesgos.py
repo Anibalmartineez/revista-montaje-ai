@@ -1,15 +1,17 @@
-"""Simulador de riesgos para diagnóstico flexográfico.
+"""Reglas heurísticas para clasificar el riesgo de advertencias flexográficas.
 
-Este módulo aplica reglas fijas para clasificar el nivel de riesgo de
-advertencias detectadas en un diagnóstico flexográfico. No utiliza IA ni
-requiere conexión externa, aunque se deja un parámetro ``usar_ia`` para una
-posible integración futura.
+El módulo no realiza llamadas externas ni usa IA, pero se deja un parámetro
+``usar_ia`` para eventuales integraciones futuras.
 """
 from __future__ import annotations
 
 import json
 import re
 from typing import Any, Dict, List
+
+from flexo_config import get_flexo_thresholds
+
+PT_PER_MM = 72 / 25.4
 
 
 def _a_texto(diagnostico: Any) -> str:
@@ -22,7 +24,18 @@ def _a_texto(diagnostico: Any) -> str:
         return str(diagnostico).lower()
 
 
-def simular_riesgos(diagnostico: str | Dict[str, Any], usar_ia: bool = False) -> str:
+def _format_number(value: float, decimals: int = 2) -> str:
+    text = f"{value:.{decimals}f}"
+    return text.rstrip("0").rstrip(".")
+
+
+def simular_riesgos(
+    diagnostico: str | Dict[str, Any],
+    usar_ia: bool = False,
+    *,
+    material: str | None = None,
+    anilox_lpi: float | None = None,
+) -> str:
     """Evalúa reglas fijas sobre el diagnóstico dado.
 
     Parameters
@@ -40,6 +53,7 @@ def simular_riesgos(diagnostico: str | Dict[str, Any], usar_ia: bool = False) ->
     """
 
     texto = _a_texto(diagnostico)
+    thresholds = get_flexo_thresholds(material=material, anilox_lpi=anilox_lpi)
     resultados: List[Dict[str, str]] = []
 
     def agregar(problema: str, nivel: str, sugerencia: str) -> None:
@@ -48,21 +62,65 @@ def simular_riesgos(diagnostico: str | Dict[str, Any], usar_ia: bool = False) ->
         )
 
     # Reglas fijas
-    texto_seguro = "no se encontraron textos menores a 4 pt" not in texto
-    if texto_seguro and (
-        re.search(r"text[oa]s?\s*(<|menores a)\s*4\s*pt", texto)
-        or "texto pequeño" in texto
-    ):
-        agregar("Textos < 4 pt", "🔴 Alto", "Aumentar a 5 pt mínimo para flexografía")
-
-    if re.search(r"traz[ao]s?\s*(<|menores a)\s*0\.25\s*pt", texto) or "trazo_fino" in texto:
-        agregar("Trazos < 0.25 pt", "🔴 Alto", "Engrosar trazos a 0.30 pt mínimo")
-
-    if re.search(r"resoluci[óo]n.*<\s*300\s*dpi", texto):
+    min_text = thresholds.min_text_pt
+    min_text_str = _format_number(min_text, 2)
+    texto_seguro = "no se encontraron textos menores a" not in texto
+    texto_pattern = re.search(r"text[oa]s?[^0-9]*(<|menores a)\s*([0-9]+(?:[\.,][0-9]+)?)\s*pt", texto)
+    texto_invalido = False
+    if texto_pattern:
+        try:
+            valor = float(texto_pattern.group(2).replace(",", "."))
+            texto_invalido = valor <= min_text + 1e-6
+        except ValueError:
+            texto_invalido = True
+    if texto_seguro and (texto_invalido or "texto pequeño" in texto or "texto_pequeno" in texto):
+        recomendado = max(min_text + 1, min_text * 1.2)
         agregar(
-            "Resolución < 300 dpi",
+            f"Textos < {min_text_str} pt",
+            "🔴 Alto",
+            f"Aumentar a {_format_number(recomendado, 1)} pt mínimo para flexografía",
+        )
+
+    stroke_threshold = thresholds.min_stroke_mm
+    stroke_str = _format_number(stroke_threshold, 2)
+    stroke_pattern = re.search(
+        r"traz[ao]s?[^0-9]*(<|menores a)\s*([0-9]+(?:[\.,][0-9]+)?)\s*(mm|pt)",
+        texto,
+    )
+    stroke_invalido = False
+    if stroke_pattern:
+        try:
+            valor = float(stroke_pattern.group(2).replace(",", "."))
+            unidad = stroke_pattern.group(3)
+            if unidad == "pt":
+                valor = valor / PT_PER_MM
+            stroke_invalido = valor <= stroke_threshold + 1e-6
+        except ValueError:
+            stroke_invalido = True
+    if stroke_invalido or "trazo_fino" in texto:
+        sugerido = max(stroke_threshold + 0.05, stroke_threshold * 1.2)
+        agregar(
+            f"Trazos < {stroke_str} mm",
+            "🔴 Alto",
+            f"Engrosar trazos a {_format_number(sugerido, 2)} mm mínimo",
+        )
+
+    resolucion_pattern = re.search(
+        r"resoluci[óo]n[^0-9]*([0-9]+(?:[\.,][0-9]+)?)\s*dpi",
+        texto,
+    )
+    resolucion_baja = False
+    if resolucion_pattern:
+        try:
+            valor = float(resolucion_pattern.group(1).replace(",", "."))
+            resolucion_baja = valor < thresholds.min_resolution_dpi - 1e-6
+        except ValueError:
+            resolucion_baja = True
+    if resolucion_baja:
+        agregar(
+            f"Resolución < {thresholds.min_resolution_dpi} dpi",
             "🟡 Medio",
-            "Incrementar la resolución de imágenes a 300 dpi",
+            f"Incrementar la resolución de imágenes a {thresholds.min_resolution_dpi} dpi",
         )
 
     if "rgb" in texto or ("pantone" in texto and "sin nombre" in texto):
@@ -82,20 +140,43 @@ def simular_riesgos(diagnostico: str | Dict[str, Any], usar_ia: bool = False) ->
     m_tac = re.search(r"tac[^0-9]*(\d+)", texto)
     if m_tac:
         tac_val = int(m_tac.group(1))
-        if tac_val > 320:
-            agregar("TAC > 320%", "🔴 Alto", "Reducir cobertura total de tinta")
-        elif 280 <= tac_val <= 320:
-            agregar("TAC 280%-320%", "🟡 Medio", "Optimizar separaciones para bajar TAC")
+        if tac_val > thresholds.tac_critical:
+            agregar(
+                f"TAC > {thresholds.tac_critical}%",
+                "🔴 Alto",
+                "Reducir cobertura total de tinta",
+            )
+        elif thresholds.tac_warning <= tac_val <= thresholds.tac_critical:
+            agregar(
+                f"TAC {thresholds.tac_warning}% - {thresholds.tac_critical}%",
+                "🟡 Medio",
+                "Optimizar separaciones para bajar TAC",
+            )
 
-    if "2 mm" in texto and ("borde" in texto or "margen" in texto):
+    borde_pattern = re.search(
+        r"([0-9]+(?:[\.,][0-9]+)?)\s*mm[^a-z]*(borde|margen)",
+        texto,
+    )
+    borde_cercano = False
+    if borde_pattern:
+        try:
+            distancia = float(borde_pattern.group(1).replace(",", "."))
+            borde_cercano = distancia <= thresholds.edge_distance_mm + 1e-6
+        except ValueError:
+            borde_cercano = True
+    if borde_cercano:
         agregar(
-            "Elementos < 2 mm del borde",
+            f"Elementos < {_format_number(thresholds.edge_distance_mm, 1)} mm del borde",
             "🟡 Medio",
-            "Aumentar margen de seguridad a 2 mm",
+            f"Aumentar margen de seguridad a {_format_number(thresholds.edge_distance_mm, 1)} mm",
         )
 
-    if "sin sangrado" in texto or "no se detect" in texto and "sangrado" in texto:
-        agregar("Sin sangrado", "🟡 Medio", "Agregar 3 mm de sangrado")
+    if "sin sangrado" in texto or ("no se detect" in texto and "sangrado" in texto):
+        agregar(
+            "Sin sangrado",
+            "🟡 Medio",
+            f"Agregar {_format_number(thresholds.min_bleed_mm, 1)} mm de sangrado",
+        )
 
     if "contraste débil" in texto or "contraste debil" in texto:
         agregar(

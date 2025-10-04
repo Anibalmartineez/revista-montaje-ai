@@ -2,9 +2,15 @@ import fitz
 from typing import List, Dict, Any
 
 from diagnostico_flexo import filtrar_objetos_sistema, consolidar_advertencias
-from utils import convertir_pts_a_mm, normalizar_material
+from flexo_config import FlexoThresholds, get_flexo_thresholds
+from utils import convertir_pts_a_mm
 
 PT_PER_MM = 72 / 25.4
+
+
+def _format_value(valor: float, decimales: int = 2) -> str:
+    texto = f"{valor:.{decimales}f}"
+    return texto.rstrip("0").rstrip(".")
 
 
 def _color_to_cmyk(color: Any) -> str:
@@ -33,17 +39,23 @@ def _color_to_cmyk(color: Any) -> str:
         return "C0M0Y0K0"
 
 
-def verificar_textos_pequenos(contenido: Dict[str, Any]) -> tuple[List[str], List[Dict[str, Any]]]:
+def verificar_textos_pequenos(
+    contenido: Dict[str, Any],
+    thresholds: FlexoThresholds | None = None,
+) -> tuple[List[str], List[Dict[str, Any]]]:
     advertencias: List[str] = []
     overlay: List[Dict[str, Any]] = []
     encontrados = False
+    thresholds = thresholds or get_flexo_thresholds()
+    min_text_pt = thresholds.min_text_pt
+    min_text_str = _format_value(min_text_pt, 2)
     for bloque in contenido.get("blocks", []):
         if "lines" in bloque:
             for l in bloque["lines"]:
                 for s in l.get("spans", []):
                     size = s.get("size", 0)
                     fuente = s.get("font", "")
-                    if size < 4:
+                    if size < min_text_pt:
                         encontrados = True
                         advertencias.append(
                             f"<span class='icono warn'>⚠️</span> Texto pequeño detectado: '<b>{s.get('text', '')}</b>' ({round(size, 1)}pt, fuente: {fuente}). Riesgo de pérdida en impresión."
@@ -55,20 +67,26 @@ def verificar_textos_pequenos(contenido: Dict[str, Any]) -> tuple[List[str], Lis
                                     "id": "sistema_texto_pequeno",
                                     "tipo": "texto_pequeno",
                                     "bbox": list(bbox),
-                                    "etiqueta": f"{round(size, 1)} pt",
+                                    "etiqueta": f"{_format_value(size, 1)} pt",
                                     "tamano": round(size, 1),
                                     "color": _color_to_cmyk(s.get("color", 0)),
                                 }
                             )
     if not encontrados:
-        advertencias.append("<span class='icono ok'>✔️</span> No se encontraron textos menores a 4 pt.")
+        advertencias.append(
+            f"<span class='icono ok'>✔️</span> No se encontraron textos menores a {min_text_str} pt."
+        )
     return advertencias, overlay
 
 
-def verificar_lineas_finas_v2(page: fitz.Page, material: str) -> tuple[List[str], List[Dict[str, Any]]]:
-    mins = {"film": 0.12, "papel": 0.20, "etiqueta adhesiva": 0.18}
-    mat_norm = normalizar_material(material)
-    thr = mins.get(mat_norm, 0.20)
+def verificar_lineas_finas_v2(
+    page: fitz.Page,
+    material: str,
+    thresholds: FlexoThresholds | None = None,
+) -> tuple[List[str], List[Dict[str, Any]]]:
+    thresholds = thresholds or get_flexo_thresholds(material=material)
+    thr = thresholds.min_stroke_mm
+    thr_str = _format_value(thr, 2)
     min_detectada = None
     n_riesgo = 0
     overlay: List[Dict[str, Any]] = []
@@ -88,16 +106,16 @@ def verificar_lineas_finas_v2(page: fitz.Page, material: str) -> tuple[List[str]
                         "id": "sistema_trazo_fino",
                         "tipo": "trazo_fino",
                         "bbox": list(bbox),
-                        "etiqueta": f"{w_mm:.2f} mm",
+                        "etiqueta": f"{_format_value(w_mm, 2)} mm",
                     }
                 )
     if n_riesgo:
         advertencias = [
-            f"<li><span class='icono warn'>⚠️</span> {n_riesgo} trazos por debajo de <b>{thr:.2f} mm</b>. Mínimo detectado: <b>{min_detectada:.2f} mm</b>.</li>"
+            f"<li><span class='icono warn'>⚠️</span> {n_riesgo} trazos por debajo de <b>{thr_str} mm</b>. Mínimo detectado: <b>{_format_value((min_detectada or thr), 2)} mm</b>.</li>"
         ]
     else:
         advertencias = [
-            f"<li><span class='icono ok'>✔️</span> Trazos ≥ <b>{thr:.2f} mm</b>. Mínimo detectado: <b>{(min_detectada or thr):.2f} mm</b>.</li>"
+            f"<li><span class='icono ok'>✔️</span> Trazos ≥ <b>{thr_str} mm</b>. Mínimo detectado: <b>{_format_value((min_detectada or thr), 2)} mm</b>.</li>"
         ]
     return advertencias, overlay
 
@@ -161,9 +179,16 @@ def verificar_modo_color(path_pdf: str) -> tuple[List[str], List[Dict[str, Any]]
     return advertencias, overlay
 
 
-def revisar_sangrado(pagina: fitz.Page, sangrado_esperado: float = 3) -> tuple[List[str], List[Dict[str, Any]]]:
+def revisar_sangrado(
+    pagina: fitz.Page,
+    sangrado_esperado: float | None = None,
+    thresholds: FlexoThresholds | None = None,
+) -> tuple[List[str], List[Dict[str, Any]]]:
     advertencias: List[str] = []
     overlay: List[Dict[str, Any]] = []
+    thresholds = thresholds or get_flexo_thresholds()
+    sangrado_min = sangrado_esperado if sangrado_esperado is not None else thresholds.min_bleed_mm
+    sangrado_str = _format_value(sangrado_min, 1)
     media = pagina.rect
     contenido = pagina.get_text("dict")
     for bloque in contenido.get("blocks", []):
@@ -174,7 +199,7 @@ def revisar_sangrado(pagina: fitz.Page, sangrado_esperado: float = 3) -> tuple[L
             margen_der = convertir_pts_a_mm(media.width - x1)
             margen_sup = convertir_pts_a_mm(y0)
             margen_inf = convertir_pts_a_mm(media.height - y1)
-            if min(margen_izq, margen_der, margen_sup, margen_inf) < sangrado_esperado:
+            if min(margen_izq, margen_der, margen_sup, margen_inf) < sangrado_min:
                 overlay.append(
                     {
                         "id": "sistema_cerca_borde",
@@ -184,7 +209,7 @@ def revisar_sangrado(pagina: fitz.Page, sangrado_esperado: float = 3) -> tuple[L
                 )
     if overlay:
         advertencias.append(
-            "<span class='icono warn'>⚠️</span> Elementos del diseño muy cercanos al borde. Verificar sangrado mínimo de 3 mm."
+            f"<span class='icono warn'>⚠️</span> Elementos del diseño muy cercanos al borde. Verificar sangrado mínimo de {sangrado_str} mm."
         )
     else:
         advertencias.append(
@@ -204,10 +229,15 @@ def analizar_advertencias_disenio(
         doc = fitz.open(path_pdf)
         pagina = doc[0]
         contenido = pagina.get_text("dict")
-    textos_adv, overlay_textos = verificar_textos_pequenos(contenido)
-    lineas_adv, overlay_lineas = verificar_lineas_finas_v2(pagina, material)
+    thresholds = get_flexo_thresholds(material=material)
+    textos_adv, overlay_textos = verificar_textos_pequenos(contenido, thresholds)
+    lineas_adv, overlay_lineas = verificar_lineas_finas_v2(
+        pagina, material, thresholds
+    )
     modo_color_adv, overlay_color = verificar_modo_color(path_pdf)
-    sangrado_adv, overlay_sangrado = revisar_sangrado(pagina)
+    sangrado_adv, overlay_sangrado = revisar_sangrado(
+        pagina, thresholds=thresholds
+    )
     overlay = consolidar_advertencias(overlay_textos, overlay_lineas, overlay_color, overlay_sangrado)
     if doc:
         doc.close()

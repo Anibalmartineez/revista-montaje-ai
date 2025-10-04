@@ -6,6 +6,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
+from advertencias_disenio import verificar_lineas_finas_v2, verificar_textos_pequenos
 from cobertura_utils import calcular_metricas_cobertura
 from diagnostico_flexo import (
     resumen_advertencias,
@@ -13,6 +14,7 @@ from diagnostico_flexo import (
     coeficiente_material,
     obtener_coeficientes_material,
 )
+from flexo_config import get_flexo_thresholds
 from montaje_flexo import detectar_tramas_débiles
 from simulador_riesgos import simular_riesgos
 
@@ -132,3 +134,100 @@ def test_coeficiente_material_usa_json():
 
     override = coeficiente_material("material sin registrar", default=0.71)
     assert override == 0.71
+
+
+def test_verificar_textos_pequenos_respeta_umbral():
+    thresholds = get_flexo_thresholds()
+    contenido_riesgo = {
+        "blocks": [
+            {
+                "lines": [
+                    {
+                        "spans": [
+                            {
+                                "size": thresholds.min_text_pt - 0.1,
+                                "font": "Test",
+                                "text": "hola",
+                                "bbox": [0, 0, 10, 10],
+                                "color": 0,
+                            }
+                        ]
+                    }
+                ]
+            }
+        ]
+    }
+    advertencias, overlay = verificar_textos_pequenos(contenido_riesgo, thresholds)
+    assert any("Texto pequeño" in a for a in advertencias)
+    assert overlay and overlay[0]["tipo"] == "texto_pequeno"
+
+    contenido_seguro = {
+        "blocks": [
+            {
+                "lines": [
+                    {
+                        "spans": [
+                            {
+                                "size": thresholds.min_text_pt,
+                                "font": "Test",
+                                "text": "hola",
+                                "bbox": [0, 0, 10, 10],
+                                "color": 0,
+                            }
+                        ]
+                    }
+                ]
+            }
+        ]
+    }
+    advertencias_seguras, overlay_seguro = verificar_textos_pequenos(
+        contenido_seguro, thresholds
+    )
+    assert any("No se encontraron textos" in a for a in advertencias_seguras)
+    assert overlay_seguro == []
+
+
+def test_verificar_lineas_finas_respeta_mm():
+    class FakePage:
+        def __init__(self, drawings):
+            self._drawings = drawings
+
+        def get_drawings(self):
+            return self._drawings
+
+    thresholds = get_flexo_thresholds(material="papel")
+    pt_per_mm = 72 / 25.4
+    riesgo_page = FakePage(
+        [
+            {
+                "width": thresholds.min_stroke_mm * pt_per_mm * 0.9,
+                "bbox": [0, 0, 10, 10],
+            }
+        ]
+    )
+    advertencias, overlay = verificar_lineas_finas_v2(riesgo_page, "papel", thresholds)
+    assert any("trazos por debajo" in a.lower() for a in advertencias)
+    assert overlay and overlay[0]["tipo"] == "trazo_fino"
+
+    seguro_page = FakePage(
+        [
+            {
+                "width": thresholds.min_stroke_mm * pt_per_mm * 1.2,
+                "bbox": [0, 0, 10, 10],
+            }
+        ]
+    )
+    advertencias_ok, overlay_ok = verificar_lineas_finas_v2(
+        seguro_page, "papel", thresholds
+    )
+    assert any("Trazos ≥" in a for a in advertencias_ok)
+    assert overlay_ok == []
+
+
+def test_get_flexo_thresholds_profiles():
+    default = get_flexo_thresholds()
+    film = get_flexo_thresholds("Film")
+    assert film.min_stroke_mm < default.min_stroke_mm
+
+    high_lpi = get_flexo_thresholds(anilox_lpi=700)
+    assert high_lpi.min_text_pt < default.min_text_pt

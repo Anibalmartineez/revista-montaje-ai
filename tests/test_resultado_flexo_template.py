@@ -24,3 +24,27 @@ def test_default_warning_message_in_template():
             )
     assert 'Advertencia sin descripción detallada.' in html
     assert 'metric-ml-colors' in html
+
+
+def test_template_escala_con_getboundingclientrect():
+    base_path = Path(__file__).resolve().parents[1]
+    app = Flask(
+        __name__,
+        template_folder=str(base_path / 'templates'),
+        static_folder=str(base_path / 'static'),
+    )
+    app.add_url_rule('/', endpoint='revision', view_func=lambda: '')
+    with app.app_context():
+        with app.test_request_context():
+            html = render_template(
+                'resultado_flexo.html',
+                imagen_path_web='dummy.png',
+                advertencias_iconos=[],
+                resumen='',
+                tabla_riesgos='',
+                imagen_iconos_web='dummy.png',
+                sim_img_web='simulaciones/sim_dummy.png',
+                diag_img_web='dummy.png',
+            )
+    assert 'getBoundingClientRect' in html
+    assert 'window.addEventListener' in html
