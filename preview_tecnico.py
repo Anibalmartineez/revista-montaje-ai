@@ -5,7 +5,9 @@ import tempfile
 from typing import Any, List, Dict
 from PIL import Image, ImageDraw
 from flask import current_app
+
 from advertencias_disenio import analizar_advertencias_disenio
+from flexo_config import get_flexo_thresholds
 
 
 def analizar_riesgos_pdf(
@@ -29,7 +31,8 @@ def analizar_riesgos_pdf(
     overlay_img = Image.new("RGBA", size, (0, 0, 0, 0))
     draw = ImageDraw.Draw(overlay_img, "RGBA")
 
-    sangrado_mm = 3
+    thresholds = get_flexo_thresholds(material=material)
+    sangrado_mm = thresholds.min_bleed_mm
     sangrado_pts = sangrado_mm * 72 / 25.4
     contenido_cerca_borde = any(adv.get("tipo") == "cerca_borde" for adv in advertencias)
 
@@ -54,7 +57,7 @@ def analizar_riesgos_pdf(
         tipo = (adv.get("tipo") or adv.get("type") or "").lower()
         if tipo == "texto_pequeno":
             draw.rectangle([x0, y0, x1, y1], outline=(255, 0, 0, 255), width=2)
-            etiqueta = adv.get("etiqueta") or "<4 pt"
+            etiqueta = adv.get("etiqueta") or f"<{thresholds.min_text_pt:g} pt"
             draw.text((x0 + 2, y0 + 2), etiqueta, fill=(255, 0, 0, 255))
         elif tipo in {"trazo_fino", "stroke_fino"}:
             draw.rectangle([x0, y0, x1, y1], outline=(255, 165, 0, 255), width=2)
@@ -97,6 +100,15 @@ def generar_preview_tecnico(
     Si ``overlay_path`` está definido, se utiliza la superposición previamente
     calculada; de lo contrario, se genera una imagen vacía (sin advertencias).
     """
+    material_form = ""
+    if datos_formulario and isinstance(datos_formulario, dict):
+        material_form = (
+            datos_formulario.get("material")
+            or datos_formulario.get("material_impresion")
+            or ""
+        )
+    thresholds = get_flexo_thresholds(material=material_form)
+
     doc = fitz.open(pdf_path)
     page = doc.load_page(0)
     zoom = dpi / 72.0
@@ -164,7 +176,11 @@ def generar_preview_tecnico(
                 draw.rectangle([x0, y0, x1, y1], fill=color)
             elif tipo == "texto_pequeno":
                 draw.rectangle([x0, y0, x1, y1], outline=(255, 0, 0, 255), width=2)
-                draw.text((x0 + 2, y0 + 2), "< 4 pt", fill=(255, 0, 0, 255))
+                draw.text(
+                    (x0 + 2, y0 + 2),
+                    f"<{thresholds.min_text_pt:g} pt",
+                    fill=(255, 0, 0, 255),
+                )
             elif tipo in {"trazo_fino", "stroke_fino"}:
                 draw.rectangle([x0, y0, x1, y1], outline=(255, 165, 0, 255), width=2)
             elif tipo in {"imagen_fuera_cmyk", "fuera_cmyk", "color_rgb", "rgb"}:

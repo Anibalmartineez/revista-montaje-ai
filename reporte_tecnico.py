@@ -1,7 +1,8 @@
 from __future__ import annotations
-from typing import List, Dict, Any
 
-from utils import normalizar_material
+from typing import Any, Dict, List
+
+from flexo_config import get_flexo_thresholds
 
 
 def _card(titulo: str, items_html: List[str] | str) -> str:
@@ -15,16 +16,27 @@ def _card(titulo: str, items_html: List[str] | str) -> str:
 
 def resumen_cobertura_tac(metricas: Dict[str, Any], material: str) -> List[str]:
     """Genera una lista de ítems HTML con TAC y cobertura por canal."""
+
     items: List[str] = []
     tac_p95 = metricas["tac_p95"]
     tac_max = metricas["tac_max"]
-    limites = {"film": 320, "papel": 300, "etiqueta adhesiva": 280}
-    mat = normalizar_material(material)
-    lim = limites.get(mat, 300)
-    estado = "ok" if tac_p95 <= lim else ("warn" if tac_p95 <= lim + 20 else "error")
+    thresholds = get_flexo_thresholds(material=material)
+    warn_lim = thresholds.tac_warning
+    crit_lim = thresholds.tac_critical
+
+    if tac_p95 <= warn_lim:
+        estado = "ok"
+    elif tac_p95 <= crit_lim:
+        estado = "warn"
+    else:
+        estado = "error"
     icon = {"ok": "✔️", "warn": "⚠️", "error": "❌"}[estado]
     items.append(
-        f"<li><span class='icono {estado}'>{icon}</span> TAC p95: <b>{tac_p95:.0f}%</b> (límite sugerido {lim}%). TAC máx: <b>{tac_max:.0f}%</b>.</li>"
+        (
+            f"<li><span class='icono {estado}'>{icon}</span> TAC p95: "
+            f"<b>{tac_p95:.0f}%</b> (límite sugerido {crit_lim}%). TAC máx: "
+            f"<b>{tac_max:.0f}%</b>.</li>"
+        )
     )
     for canal, area in metricas["cobertura_por_area"].items():
         nombre = canal if canal != "Cyan" else "Cian"

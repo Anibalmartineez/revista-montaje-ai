@@ -406,31 +406,62 @@
       }
     }
 
+    function obtenerEscalas() {
+      const rect = imagen.getBoundingClientRect();
+      const naturalWidth = imagen.naturalWidth || rect.width || 1;
+      const naturalHeight = imagen.naturalHeight || rect.height || 1;
+      return {
+        scaleX: rect.width / naturalWidth,
+        scaleY: rect.height / naturalHeight,
+        width: rect.width,
+        height: rect.height,
+      };
+    }
+
+    function limpiarOverlay() {
+      overlay.querySelectorAll('.warning-box, .warning-icon').forEach(el => el.remove());
+    }
+
     function dibujarIconos() {
-      const scaleX = imagen.clientWidth / imagen.naturalWidth;
-      const scaleY = imagen.clientHeight / imagen.naturalHeight;
+      if (!imagen) {
+        return;
+      }
+      const { scaleX, scaleY, width, height } = obtenerEscalas();
+      overlay.style.width = `${width}px`;
+      overlay.style.height = `${height}px`;
+      limpiarOverlay();
+
+      const fragment = document.createDocumentFragment();
+      const icons = [];
+
       advertencias.forEach((item, idx) => {
-        const x0 = item.bbox ? item.bbox[0] * scaleX : item.pos[0] * scaleX;
-        const y0 = item.bbox ? item.bbox[1] * scaleY : item.pos[1] * scaleY;
-        const ancho = item.bbox ? (item.bbox[2] - item.bbox[0]) * scaleX : 20;
-        const alto = item.bbox ? (item.bbox[3] - item.bbox[1]) * scaleY : 20;
+        const origen = item.bbox || item.box || item.pos;
+        if (!origen || origen.length < 2) {
+          return;
+        }
+        const bbox = item.bbox || item.box;
+        const x0 = origen[0] * scaleX;
+        const y0 = origen[1] * scaleY;
+        const ancho = bbox && bbox.length >= 4 ? (bbox[2] - bbox[0]) * scaleX : 20;
+        const alto = bbox && bbox.length >= 4 ? (bbox[3] - bbox[1]) * scaleY : 20;
 
         const box = document.createElement('div');
         box.className = 'warning-box ' + (tipoClase[item.tipo] || '');
-        box.style.left = x0 + 'px';
-        box.style.top = y0 + 'px';
-        box.style.width = ancho + 'px';
-        box.style.height = alto + 'px';
+        box.style.left = `${x0}px`;
+        box.style.top = `${y0}px`;
+        box.style.width = `${ancho}px`;
+        box.style.height = `${alto}px`;
         box.dataset.idx = idx;
-        overlay.appendChild(box);
+        fragment.appendChild(box);
 
         const icon = document.createElement('span');
         icon.className = 'warning-icon advertencia-marcador ' + (tipoClase[item.tipo] || '');
         icon.innerHTML = iconos[item.tipo] || '⚠️';
-        icon.style.left = x0 - 10 + 'px';
-        icon.style.top = y0 - 10 + 'px';
+        icon.style.left = `${x0 - 10}px`;
+        icon.style.top = `${y0 - 10}px`;
         icon.dataset.idx = idx;
-        overlay.appendChild(icon);
+        fragment.appendChild(icon);
+        icons.push(icon);
 
         const descripcion =
           (item.descripcion && item.descripcion.trim()) ? item.descripcion.trim() :
@@ -455,19 +486,16 @@
             tooltip.classList.remove('visible');
           });
         });
-
-        evitarSuperposicion(icon);
       });
 
-      document.addEventListener('click', () => {
-        tooltip.classList.remove('visible');
-      });
-
-      tooltip.addEventListener('click', ev => {
-        ev.stopPropagation();
-      });
+      overlay.appendChild(fragment);
+      icons.forEach(evitarSuperposicion);
 
       document.querySelectorAll('#lista-advertencias li').forEach(li => {
+        if (li.dataset.overlayBound === '1') {
+          return;
+        }
+        li.dataset.overlayBound = '1';
         li.addEventListener('click', () => {
           const idx = li.getAttribute('data-idx');
           overlay.querySelectorAll('.warning-box').forEach(m => m.classList.remove('highlighted'));
@@ -479,11 +507,24 @@
       });
     }
 
+    document.addEventListener('click', () => {
+      tooltip.classList.remove('visible');
+    });
+
+    tooltip.addEventListener('click', ev => {
+      ev.stopPropagation();
+    });
+
     if (imagen.complete) {
       dibujarIconos();
     } else {
       imagen.onload = dibujarIconos;
     }
+    window.addEventListener('resize', () => {
+      if (imagen.complete) {
+        dibujarIconos();
+      }
+    });
   </script>
   {% set diag = diagnostico_json or {} %}
   {% set lpi_diag = diag.get('anilox_lpi') if diag.get('anilox_lpi') is not none else diag.get('lpi') %}
