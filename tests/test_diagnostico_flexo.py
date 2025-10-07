@@ -13,6 +13,7 @@ from diagnostico_flexo import (
     semaforo_riesgo,
     coeficiente_material,
     obtener_coeficientes_material,
+    indicadores_advertencias,
 )
 from flexo_config import get_flexo_thresholds
 from montaje_flexo import detectar_tramas_débiles
@@ -98,13 +99,42 @@ def test_tramas_debiles_no_false_positive(tmp_path, monkeypatch):
     doc.save(pdf_path)
     doc.close()
 
-    advertencias = detectar_tramas_débiles(str(pdf_path))
+    resultado = detectar_tramas_débiles(str(pdf_path))
 
-    # Soporta tanto respuestas en texto como diccionarios de advertencias
-    mensajes = [a if isinstance(a, str) else a.get("mensaje", "") for a in advertencias]
+    mensajes = resultado["mensajes"]
 
     assert any("No se detectaron tramas débiles" in m for m in mensajes)
     assert not any("Trama muy débil" in m for m in mensajes)
+    assert resultado["advertencias"] == []
+    assert resultado["hay_tramas_debiles"] is False
+
+
+def test_tramas_debiles_activa_indicador(tmp_path, monkeypatch):
+    """Una trama débil en el canal negro se refleja en los indicadores globales."""
+
+    import numpy as np
+    from PIL import Image
+
+    def fake_convert_from_path(path_pdf, dpi=300, first_page=1, last_page=1):
+        data = np.zeros((50, 50, 4), dtype=np.uint8)
+        data[:, :, 3] = 10  # Canal K con cobertura muy baja pero presente
+        imagen = Image.fromarray(data, mode="CMYK")
+        return [imagen]
+
+    monkeypatch.setattr("montaje_flexo.convert_from_path", fake_convert_from_path)
+
+    doc = fitz.open()
+    doc.new_page()
+    pdf_path = tmp_path / "trama_debil.pdf"
+    doc.save(pdf_path)
+    doc.close()
+
+    resultado = detectar_tramas_débiles(str(pdf_path))
+
+    assert resultado["hay_tramas_debiles"] is True
+    assert any("Trama muy débil" in m for m in resultado["mensajes"])
+    stats = indicadores_advertencias(resultado["advertencias"])
+    assert stats["hay_tramas_debiles"] is True
 
 
 def test_simulador_riesgos_ignora_texto_negado():

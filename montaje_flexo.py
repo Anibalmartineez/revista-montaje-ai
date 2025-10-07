@@ -362,9 +362,24 @@ def analizar_contraste(path_pdf):
     return advertencias
 
 def detectar_tramas_débiles(path_pdf):
-    advertencias = []
+    mensajes: List[str] = []
+    advertencias_overlay: List[Dict[str, Any]] = []
+    hay_tramas = False
+
+    bbox_total: List[float] | None = None
     try:
-        imagen = convert_from_path(path_pdf, dpi=300, first_page=1, last_page=1)[0].convert("CMYK")
+        with fitz.open(path_pdf) as doc_bbox:
+            page0 = doc_bbox.load_page(0)
+            rect = page0.rect
+            bbox_total = [float(rect.x0), float(rect.y0), float(rect.x1), float(rect.y1)]
+    except Exception:
+        bbox_total = None
+
+    try:
+        imagenes = convert_from_path(path_pdf, dpi=300, first_page=1, last_page=1)
+        if not imagenes:
+            raise ValueError("No se pudieron rasterizar páginas del PDF")
+        imagen = imagenes[0].convert("CMYK")
         img_np = np.array(imagen)
 
         umbral_trama = 13  # Aproximadamente 5% de 255
@@ -372,25 +387,46 @@ def detectar_tramas_débiles(path_pdf):
 
         canales = ["Cian", "Magenta", "Amarillo", "Negro"]
         h, w, _ = img_np.shape
-        total_pixeles = h * w
+        total_pixeles = h * w if h and w else 1
 
         for i, nombre in enumerate(canales):
             canal = img_np[:, :, i]
             # Consideramos solo los píxeles con cobertura real (>0) por debajo del 5%
             mask = (canal > 0) & (canal < umbral_trama)
-            pixeles_debiles = np.sum(mask)
+            pixeles_debiles = int(np.sum(mask))
             proporcion = pixeles_debiles / total_pixeles
             if proporcion > min_pixeles_relevantes:
-                advertencias.append(
-                    f"<span class='icono warn'>⚠️</span> Trama muy débil detectada en <b>{nombre}</b>: {round(proporcion * 100, 2)}% del área está por debajo del 5%. Riesgo de pérdida en impresión."
+                hay_tramas = True
+                porcentaje = round(proporcion * 100, 2)
+                mensaje = (
+                    "<span class='icono warn'>⚠️</span> Trama muy débil detectada en "
+                    f"<b>{nombre}</b>: {porcentaje}% del área está por debajo del 5%. Riesgo de pérdida en impresión."
+                )
+                mensajes.append(mensaje)
+                bbox = bbox_total if bbox_total else [0.0, 0.0, 1.0, 1.0]
+                advertencias_overlay.append(
+                    {
+                        "id": f"sistema_trama_debil_{nombre.lower()}",
+                        "tipo": "trama_debil",
+                        "bbox": bbox,
+                        "nivel": "medio",
+                        "descripcion": f"Trama débil en {nombre} ({porcentaje}% del área)",
+                        "mensaje": f"Trama débil en {nombre}",
+                        "pagina": 1,
+                        "label": nombre,
+                    }
                 )
 
-        if not advertencias:
-            advertencias.append("<span class='icono ok'>✔️</span> No se detectaron tramas débiles en la imagen.")
+        if not mensajes:
+            mensajes.append("<span class='icono ok'>✔️</span> No se detectaron tramas débiles en la imagen.")
     except Exception as e:
-        advertencias.append(f"<span class='icono warn'>⚠️</span> No se pudo verificar la trama débil: {str(e)}")
+        mensajes.append(f"<span class='icono warn'>⚠️</span> No se pudo verificar la trama débil: {str(e)}")
 
-    return advertencias
+    return {
+        "mensajes": mensajes,
+        "advertencias": advertencias_overlay,
+        "hay_tramas_debiles": hay_tramas,
+    }
 
 
 def detectar_pantones_completamente(path_pdf):
@@ -670,14 +706,23 @@ def revisar_diseño_flexo(
     capas_items = detectar_capas_especiales(path_pdf)
     contraste_adv = analizar_contraste(path_pdf)
     tramas_adv = detectar_tramas_débiles(path_pdf)
+    tramas_mensajes = tramas_adv.get("mensajes", [])
+    tramas_overlay = tramas_adv.get("advertencias", [])
 
-    for lista in [dim_adv, textos_adv, contraste_adv, tramas_adv, modo_color_adv, sangrado_adv]:
+    if advertencias_overlay:
+        advertencias_overlay.extend(tramas_overlay)
+    else:
+        advertencias_overlay = list(tramas_overlay)
+
+    for lista in [dim_adv, textos_adv, contraste_adv, tramas_mensajes, modo_color_adv, sangrado_adv]:
         riesgos_info.extend([f"<li>{a}</li>" for a in lista])
     riesgos_info.extend(lineas_adv)
 
     textos_pequenos_flag = any("Texto pequeño" in a and "warn" in a for a in textos_adv)
     lineas_finas_flag = any("trazos" in a.lower() and "warn" in a for a in lineas_adv)
-    tramas_debiles_flag = any("Trama muy débil" in a and "warn" in a for a in tramas_adv)
+    tramas_debiles_flag = bool(tramas_adv.get("hay_tramas_debiles")) or any(
+        "Trama muy débil" in a and "warn" in a for a in tramas_mensajes
+    )
 
     if metricas_cobertura and cobertura_promedio:
         for canal, porcentaje in cobertura_promedio.items():
@@ -813,7 +858,7 @@ def revisar_diseño_flexo(
 
     resumen = generar_reporte_tecnico(datos_reporte)
     analisis_detallado = {
-        "tramas_debiles": tramas_adv,
+        "tramas_debiles": tramas_mensajes,
         "cobertura_por_canal": cobertura_promedio if cobertura_promedio else None,
         "textos_pequenos": textos_adv,
         "resolucion_minima": resolucion_minima or 0,
