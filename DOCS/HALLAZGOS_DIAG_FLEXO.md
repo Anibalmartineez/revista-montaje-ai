@@ -11,6 +11,8 @@
 | Baja | Tooling actual no detecta claves JSON huérfanas (p. ej. `advertencias_total`) ni alias redundantes | `routes.py` L1432-L1463 / plantilla |
 | Baja | Render doble del PDF (CMYK + RGB) en `calcular_metricas_cobertura` sin caché ⇒ costo alto en PDFs grandes | `cobertura_utils.py` L1-L46 |
 
+_Actualización 2025-10-09:_ la duplicación de fórmulas TAC/tinta en backend/plantilla/JS quedó resuelta. `montaje_flexo.py` consolida `diagnostico_json` con métricas únicas y `resultado_flexo.html` + `flexo_simulation.js` consumen exclusivamente ese JSON (ver `tinta_utils.calcular_transmision_tinta`).
+
 ## Detalles y reproducción
 
 ### 1. Alta – Umbral de resolución hardcodeado

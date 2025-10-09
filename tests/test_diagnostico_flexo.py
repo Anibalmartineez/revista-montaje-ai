@@ -24,6 +24,7 @@ from diagnostico_flexo import (
     obtener_coeficientes_material,
 )
 from flexo_config import FlexoThresholds, get_flexo_thresholds
+from tinta_utils import InkParams, calcular_transmision_tinta
 from montaje_flexo import detectar_tramas_débiles
 from advertencias_disenio import (
     revisar_sangrado,
@@ -55,7 +56,16 @@ def _make_pdf(path: Path) -> None:
     doc.close()
 
 
-def _setup_revision_app(tmp_path, monkeypatch, use_flag, tac_v2, tac_legacy):
+def _setup_revision_app(
+    tmp_path,
+    monkeypatch,
+    use_flag,
+    tac_v2,
+    tac_legacy,
+    *,
+    diag_json_override=None,
+    cobertura_override=None,
+):
     import routes
 
     static_dir = tmp_path / "static"
@@ -71,11 +81,17 @@ def _setup_revision_app(tmp_path, monkeypatch, use_flag, tac_v2, tac_legacy):
     overlay_path.write_bytes(b"overlay")
     base_img.write_bytes(b"base")
 
-    cobertura_por_canal = {
+    cobertura_por_canal = cobertura_override or {
         "Cian": 70.1,
         "Magenta": 65.2,
         "Amarillo": 55.3,
         "Negro": 45.4,
+    }
+    cobertura_letras = {
+        "C": cobertura_por_canal.get("Cian", 0.0),
+        "M": cobertura_por_canal.get("Magenta", 0.0),
+        "Y": cobertura_por_canal.get("Amarillo", 0.0),
+        "K": cobertura_por_canal.get("Negro", 0.0),
     }
 
     def fake_revisar(
@@ -87,6 +103,14 @@ def _setup_revision_app(tmp_path, monkeypatch, use_flag, tac_v2, tac_legacy):
         velocidad_impresion,
         cobertura_estimada,
     ):
+        diag_json = {
+            "tac_total_v2": tac_v2,
+            "tac_total": tac_legacy if tac_legacy is not None else tac_v2,
+            "cobertura_por_canal": cobertura_letras,
+        }
+        if diag_json_override:
+            diag_json.update(diag_json_override)
+
         analisis = {
             "tramas_debiles": [],
             "cobertura_por_canal": cobertura_por_canal,
@@ -98,6 +122,7 @@ def _setup_revision_app(tmp_path, monkeypatch, use_flag, tac_v2, tac_legacy):
             "tac_total_v2": tac_v2,
             "tac_p95": 310.0,
             "tac_max": 335.7,
+            "diagnostico_json": diag_json,
         }
         return ("<div>Resumen</div>", None, "Diagnóstico", analisis, [])
 
@@ -138,6 +163,28 @@ def _setup_revision_app(tmp_path, monkeypatch, use_flag, tac_v2, tac_legacy):
         endpoint="revision",
         view_func=app.view_functions["routes.revision"],
     )
+
+    try:
+        from flask import current_app as _current_app
+
+        _ = _current_app
+
+        try:
+            routes.current_app.config.setdefault(
+                "USE_PIPELINE_V2", True if use_flag else False
+            )
+        except Exception:
+            pass
+
+        if hasattr(routes, "app") and getattr(routes.app, "jinja_env", None):
+            routes.app.config.setdefault("USE_PIPELINE_V2", True if use_flag else False)
+            routes.app.jinja_env.globals.setdefault(
+                "USE_PIPELINE_V2", True if use_flag else False
+            )
+    except Exception:
+        pass
+
+    app.jinja_env.globals.setdefault("USE_PIPELINE_V2", True if use_flag else False)
     return app
 
 
@@ -411,6 +458,178 @@ def test_pipeline_v2_flag_on_prefiere_v2(tmp_path, monkeypatch):
     assert pytest.approx(diagnostico_json["tac_total"], rel=1e-6) == 205.7
 
 
+def _post_revision(app, pdf_path, data):
+    client = app.test_client()
+    with capture_templates(app) as templates:
+        with open(pdf_path, "rb") as fh:
+            response = client.post(
+                "/revision",
+                data={**data, "archivo_revision": (fh, "archivo.pdf")},
+                content_type="multipart/form-data",
+            )
+    return response, templates
+
+
+def test_pipeline_json_only_sin_duplicados(tmp_path, monkeypatch):
+    monkeypatch.setenv("OPENAI_API_KEY", "test-key")
+    tinta_por_canal = {"C": 1.24, "M": 1.24, "Y": 1.23, "K": 0.11}
+    diag_override = {
+        "ancho_util_m": 0.04,
+        "coef_material": 0.48,
+        "tinta_ml_min": 3.82,
+        "tinta_por_canal_ml_min": tinta_por_canal,
+    }
+    cobertura_override = {"Cian": 81.0, "Magenta": 81.0, "Amarillo": 80.1, "Negro": 7.0}
+    app = _setup_revision_app(
+        tmp_path,
+        monkeypatch,
+        use_flag=True,
+        tac_v2=249.1,
+        tac_legacy=None,
+        diag_json_override=diag_override,
+        cobertura_override=cobertura_override,
+    )
+    pdf_path = tmp_path / "archivo.pdf"
+    _make_pdf(pdf_path)
+
+    data = {
+        "material": "Film",
+        "anilox_lpi": "150",
+        "anilox_bcm": "1.0",
+        "paso_cilindro": "400",
+        "velocidad_impresion": "80",
+    }
+    response, templates = _post_revision(app, pdf_path, data)
+
+    assert response.status_code == 200
+    template, context = templates[-1]
+    assert template.name == "resultado_flexo.html"
+    dj = context["diagnostico_json"]
+    assert pytest.approx(dj["tinta_ml_min"], rel=1e-6) == 3.82
+    html = response.data.decode("utf-8")
+    assert "324.93 ml/min" not in html
+    assert '"tinta_ml_min": 3.82' in html
+
+
+def test_simulador_igual_a_backend_en_valores_iniciales(tmp_path, monkeypatch):
+    monkeypatch.setenv("OPENAI_API_KEY", "test-key")
+    cobertura_override = {"Cian": 81.0, "Magenta": 81.0, "Amarillo": 80.1, "Negro": 7.0}
+    material_coef = coeficiente_material("Film") or coeficiente_material("film") or 0.48
+    params = InkParams(
+        anilox_lpi=150,
+        anilox_bcm=1.0,
+        velocidad_m_min=80.0,
+        ancho_util_m=0.04,
+        coef_material=float(material_coef),
+    )
+    thresholds = get_flexo_thresholds("film", params.anilox_lpi)
+    coverage_letters = {"C": 81.0, "M": 81.0, "Y": 80.1, "K": 7.0}
+    esperado = calcular_transmision_tinta(params, coverage_letters, thresholds)
+    diag_override = {
+        "ancho_util_m": params.ancho_util_m,
+        "coef_material": params.coef_material,
+        "tinta_ml_min": esperado.ml_min_global,
+        "tinta_por_canal_ml_min": esperado.ml_min_por_canal,
+    }
+    app = _setup_revision_app(
+        tmp_path,
+        monkeypatch,
+        use_flag=True,
+        tac_v2=249.1,
+        tac_legacy=None,
+        diag_json_override=diag_override,
+        cobertura_override=cobertura_override,
+    )
+    pdf_path = tmp_path / "archivo.pdf"
+    _make_pdf(pdf_path)
+
+    data = {
+        "material": "Film",
+        "anilox_lpi": str(params.anilox_lpi),
+        "anilox_bcm": str(params.anilox_bcm),
+        "paso_cilindro": "400",
+        "velocidad_impresion": str(params.velocidad_m_min),
+    }
+    response, templates = _post_revision(app, pdf_path, data)
+    assert response.status_code == 200
+    _, context = templates[-1]
+    dj = context["diagnostico_json"]
+    assert pytest.approx(dj["tinta_ml_min"], rel=1e-6) == pytest.approx(esperado.ml_min_global, rel=1e-6)
+    params_ctx = InkParams(
+        anilox_lpi=int(dj["anilox_lpi"]),
+        anilox_bcm=float(dj["anilox_bcm"]),
+        velocidad_m_min=float(dj["velocidad_impresion"]),
+        ancho_util_m=float(dj["ancho_util_m"]),
+        coef_material=float(dj["coef_material"]),
+    )
+    resultado = calcular_transmision_tinta(params_ctx, dj["cobertura_por_canal"], thresholds)
+    assert pytest.approx(resultado.ml_min_global, rel=1e-6) == pytest.approx(
+        dj["tinta_ml_min"], rel=1e-6
+    )
+    for canal, valor in dj["tinta_por_canal_ml_min"].items():
+        assert pytest.approx(resultado.ml_min_por_canal[canal], rel=1e-6) == pytest.approx(
+            valor, rel=1e-6
+        )
+
+
+def test_no_recalculo_en_diagnostico_y_reporte(tmp_path, monkeypatch):
+    monkeypatch.setenv("OPENAI_API_KEY", "test-key")
+    diag_override = {
+        "ancho_util_m": 0.05,
+        "coef_material": 0.5,
+        "tinta_ml_min": 4.2,
+        "tinta_por_canal_ml_min": {"C": 1.4, "M": 1.4, "Y": 1.3, "K": 0.1},
+    }
+    app = _setup_revision_app(
+        tmp_path,
+        monkeypatch,
+        use_flag=True,
+        tac_v2=250.0,
+        tac_legacy=None,
+        diag_json_override=diag_override,
+    )
+    pdf_path = tmp_path / "archivo.pdf"
+    _make_pdf(pdf_path)
+    data = {
+        "material": "Papel",
+        "anilox_lpi": "130",
+        "anilox_bcm": "1.0",
+        "paso_cilindro": "500",
+        "velocidad_impresion": "70",
+    }
+    response, templates = _post_revision(app, pdf_path, data)
+    assert response.status_code == 200
+    _, context = templates[-1]
+    analisis = context["analisis"]
+    assert analisis["diagnostico_json"]["tinta_ml_min"] == context["diagnostico_json"]["tinta_ml_min"]
+    assert analisis["diagnostico_json"]["cobertura_por_canal"] == context["diagnostico_json"][
+        "cobertura_por_canal"
+    ]
+
+
+def test_unidades_ml_min_consistentes(tmp_path, monkeypatch):
+    monkeypatch.setenv("OPENAI_API_KEY", "test-key")
+    app = _setup_revision_app(
+        tmp_path,
+        monkeypatch,
+        use_flag=True,
+        tac_v2=249.1,
+        tac_legacy=None,
+        diag_json_override={"tinta_ml_min": 5.5, "tinta_por_canal_ml_min": {"C": 1.5, "M": 1.5, "Y": 1.5, "K": 1.0}},
+    )
+    pdf_path = tmp_path / "archivo.pdf"
+    _make_pdf(pdf_path)
+    data = {
+        "material": "Cartón",
+        "anilox_lpi": "140",
+        "anilox_bcm": "1.1",
+        "paso_cilindro": "450",
+        "velocidad_impresion": "75",
+    }
+    response, _ = _post_revision(app, pdf_path, data)
+    assert response.status_code == 200
+    html = response.data.decode("utf-8")
+    assert "ml/s" not in html
 def test_simulador_prefiere_json_y_decimales(monkeypatch):
     thresholds = FlexoThresholds(
         min_text_pt=4.0,
