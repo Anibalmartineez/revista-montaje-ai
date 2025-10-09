@@ -38,6 +38,7 @@ from utils import (
     normalizar_material,
     convertir_pts_a_mm,
 )
+from tinta_utils import normalizar_coberturas
 from simulacion import (
     generar_preview_interactivo,
     generar_preview_virtual,
@@ -1381,9 +1382,9 @@ def revision():
         advertencias_stats = indicadores_advertencias(advertencias_iconos)
         advertencias_resumen_txt = resumen_advertencias(advertencias_iconos)
 
-        cobertura_dict = analisis_detallado.get("cobertura_por_canal")
-        cobertura_dict = cobertura_dict if isinstance(cobertura_dict, dict) else {}
-        channel_names = {"C": "Cyan", "M": "Magenta", "Y": "Amarillo", "K": "Negro"}
+        channel_names = {"C": "Cian", "M": "Magenta", "Y": "Amarillo", "K": "Negro"}
+
+        diagnostico_json = dict(analisis_detallado.get("diagnostico_json") or {})
 
         def _as_number(valor):
             if valor is None:
@@ -1396,45 +1397,59 @@ def revision():
                 return None
             return numero
 
-        cobertura_letras: Dict[str, float] = {}
-        cobertura_por_canal: Dict[str, float] = {}
-        for letra, nombre in channel_names.items():
-            valor = _as_number(cobertura_dict.get(nombre))
-            if valor is None:
-                continue
-            valor_redondeado = round(valor, 2)
-            cobertura_letras[letra] = valor_redondeado
-            cobertura_por_canal[nombre] = valor_redondeado
-
+        raw_cobertura = diagnostico_json.get("cobertura_por_canal")
+        if not raw_cobertura:
+            raw_cobertura = analisis_detallado.get("cobertura_por_canal")
+        cobertura_letras = (
+            normalizar_coberturas(raw_cobertura)
+            if isinstance(raw_cobertura, dict)
+            else {}
+        )
+        cobertura_letras = {
+            letra: round(valor, 2)
+            for letra, valor in cobertura_letras.items()
+            if letra in channel_names
+        }
         if cobertura_letras:
-            for letra, nombre in channel_names.items():
-                if letra not in cobertura_letras:
-                    cobertura_letras[letra] = 0.0
-                    cobertura_por_canal[nombre] = 0.0
+            for letra in channel_names:
+                cobertura_letras.setdefault(letra, 0.0)
             cobertura_sum = round(sum(cobertura_letras.values()), 2)
         else:
             cobertura_sum = None
+        cobertura_por_canal = {
+            channel_names[letra]: cobertura_letras.get(letra, 0.0)
+            for letra in channel_names
+        }
 
-        tac_total_v2_val = _as_number(analisis_detallado.get("tac_total_v2"))
+        tac_total_v2_val = _as_number(diagnostico_json.get("tac_total_v2"))
+        if tac_total_v2_val is None:
+            tac_total_v2_val = _as_number(analisis_detallado.get("tac_total_v2"))
         if tac_total_v2_val is not None:
             tac_total_v2_val = round(tac_total_v2_val, 2)
-        tac_total_legacy_val = _as_number(analisis_detallado.get("tac_total"))
-        if tac_total_legacy_val is not None:
-            tac_total_legacy_val = round(tac_total_legacy_val, 2)
-        tac_total_val = tac_total_legacy_val
+
+        tac_total_val = _as_number(diagnostico_json.get("tac_total"))
+        if tac_total_val is None:
+            tac_total_val = _as_number(analisis_detallado.get("tac_total"))
         if tac_total_val is None:
             tac_total_val = tac_total_v2_val
         if tac_total_val is None and cobertura_sum is not None:
             tac_total_val = cobertura_sum
 
-        tac_p95_val = _as_number(analisis_detallado.get("tac_p95"))
+        tac_p95_val = _as_number(diagnostico_json.get("tac_p95"))
+        if tac_p95_val is None:
+            tac_p95_val = _as_number(analisis_detallado.get("tac_p95"))
         if tac_p95_val is not None:
             tac_p95_val = round(tac_p95_val, 2)
-        tac_max_val = _as_number(analisis_detallado.get("tac_max"))
+
+        tac_max_val = _as_number(diagnostico_json.get("tac_max"))
+        if tac_max_val is None:
+            tac_max_val = _as_number(analisis_detallado.get("tac_max"))
         if tac_max_val is not None:
             tac_max_val = round(tac_max_val, 2)
 
-        cobertura_total_val = _as_number(analisis_detallado.get("cobertura_total"))
+        cobertura_total_val = _as_number(diagnostico_json.get("cobertura_total"))
+        if cobertura_total_val is None:
+            cobertura_total_val = _as_number(analisis_detallado.get("cobertura_total"))
         if cobertura_total_val is not None:
             cobertura_total_val = round(cobertura_total_val, 2)
 
@@ -1442,59 +1457,58 @@ def revision():
         shutil.copy(save_path, final_pdf_path)
         pdf_rel = os.path.relpath(final_pdf_path, current_app.static_folder)
 
-        diagnostico_json = {
-            "archivo": secure_filename(file.filename),
-            "pdf_path": pdf_rel,
-            "cobertura": cobertura_letras if cobertura_letras else None,
-            "cobertura_por_canal": cobertura_por_canal if cobertura_por_canal else None,
-            "cobertura_total": cobertura_total_val,
-            "cobertura_estimada": tac_total_val,
-            "tac_total": tac_total_val,
-            "cobertura_base_sum": tac_total_val,
-            "anilox_lpi": anilox_lpi,
-            "anilox_bcm": anilox_bcm,
-            "paso": paso_mm,
-            "paso_cilindro": paso_mm,
-            "paso_del_cilindro": paso_mm,
-            "material": material_norm,
-            "coef_material": material_coef,
-            "velocidad_impresion": velocidad,
-            "ancho_mm": round(ancho_mm, 2) if ancho_mm else 0.0,
-            "alto_mm": round(alto_mm, 2) if alto_mm else 0.0,
-            "ancho_util_m": round(ancho_mm / 1000.0, 4) if ancho_mm else 0.0,
-            "advertencias_resumen": advertencias_resumen_txt,
-            "indicadores_advertencias": advertencias_stats,
-            "advertencias_total": advertencias_stats.get("total", 0),
-            "tiene_tramas_debiles": advertencias_stats.get("hay_tramas_debiles", False),
-            "tiene_overprint": advertencias_stats.get("hay_overprint", False),
-            "tiene_texto_pequeno": advertencias_stats.get("hay_texto_pequeno", False),
-            "conteo_overprint": advertencias_stats.get("conteo_overprint", 0),
-            "conteo_tramas": advertencias_stats.get("conteo_tramas", 0),
-        }
+        diagnostico_json.update(
+            {
+                "archivo": secure_filename(file.filename),
+                "pdf_path": pdf_rel,
+                "anilox_lpi": anilox_lpi,
+                "anilox_bcm": anilox_bcm,
+                "paso": paso_mm,
+                "paso_cilindro": paso_mm,
+                "paso_del_cilindro": paso_mm,
+                "material": material_norm,
+                "coef_material": material_coef,
+                "velocidad_impresion": velocidad,
+                "ancho_mm": round(ancho_mm, 2) if ancho_mm else 0.0,
+                "alto_mm": round(alto_mm, 2) if alto_mm else 0.0,
+                "ancho_util_m": diagnostico_json.get("ancho_util_m")
+                or (round(ancho_mm / 1000.0, 4) if ancho_mm else 0.0),
+                "advertencias_resumen": advertencias_resumen_txt,
+                "indicadores_advertencias": advertencias_stats,
+                "advertencias_total": advertencias_stats.get("total", 0),
+                "tiene_tramas_debiles": advertencias_stats.get("hay_tramas_debiles", False),
+                "tiene_overprint": advertencias_stats.get("hay_overprint", False),
+                "tiene_texto_pequeno": advertencias_stats.get("hay_texto_pequeno", False),
+                "conteo_overprint": advertencias_stats.get("conteo_overprint", 0),
+                "conteo_tramas": advertencias_stats.get("conteo_tramas", 0),
+            }
+        )
+        diagnostico_json["cobertura_por_canal"] = (
+            cobertura_letras if cobertura_letras else None
+        )
+        diagnostico_json["cobertura"] = cobertura_letras if cobertura_letras else None
+        diagnostico_json["cobertura_total"] = cobertura_total_val
         diagnostico_json["tac_total_v2"] = tac_total_v2_val
         diagnostico_json["tac_p95"] = tac_p95_val
         diagnostico_json["tac_max"] = tac_max_val
-        diagnostico_json["cobertura_por_canal"] = (
-            cobertura_por_canal if cobertura_por_canal else None
+        diagnostico_json["tac_total"] = tac_total_val
+        diagnostico_json["cobertura_estimada"] = tac_total_val
+        diagnostico_json["cobertura_base_sum"] = tac_total_val
+        diagnostico_json.setdefault("tinta_ml_min", diagnostico_json.get("tinta_ml_min"))
+        diagnostico_json.setdefault(
+            "tinta_por_canal_ml_min", diagnostico_json.get("tinta_por_canal_ml_min")
         )
-        diagnostico_json.setdefault("tac_total", tac_total_val)
-        diagnostico_json.setdefault("cobertura_estimada", tac_total_val)
-        diagnostico_json.setdefault("cobertura_base_sum", tac_total_val)
         diagnostico_json.setdefault("lpi", diagnostico_json.get("anilox_lpi"))
         diagnostico_json.setdefault("bcm", diagnostico_json.get("anilox_bcm"))
         diagnostico_json.setdefault(
             "paso",
-            diagnostico_json.get("paso_del_cilindro") or diagnostico_json.get("paso_cilindro"),
+            diagnostico_json.get("paso_del_cilindro")
+            or diagnostico_json.get("paso_cilindro"),
         )
-        diagnostico_json.setdefault("velocidad", diagnostico_json.get("velocidad_impresion"))
-        for clave in (
-            "tac_total_v2",
-            "tac_total",
-            "cobertura_estimada",
-            "cobertura_base_sum",
-            "cobertura_por_canal",
-        ):
-            diagnostico_json.setdefault(clave, diagnostico_json.get(clave))
+        diagnostico_json.setdefault(
+            "velocidad", diagnostico_json.get("velocidad_impresion")
+        )
+
         diagnostico_json = inyectar_parametros_simulacion(
             diagnostico_json, parametros_maquina
         )
@@ -1591,7 +1605,7 @@ def revision():
         # para la simulación.  Si no existiera, el frontend mostrará un patrón
         # de puntos como fallback.
         sim_base_img=imagen_iconos_rel,
-        USE_PIPELINE_V2=current_app.config.get("USE_PIPELINE_V2", False),
+        USE_PIPELINE_V2=current_app.config.get("USE_PIPELINE_V2", True),
     )
 
 
@@ -1666,7 +1680,7 @@ def resultado_flexo():
         **datos,
         revision_id=revision_id,
         sim_base_img=datos.get("diag_img_web"),
-        USE_PIPELINE_V2=current_app.config.get("USE_PIPELINE_V2", False),
+        USE_PIPELINE_V2=current_app.config.get("USE_PIPELINE_V2", True),
     )
 
 

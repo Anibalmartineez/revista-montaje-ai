@@ -323,16 +323,37 @@ document.addEventListener('DOMContentLoaded', () => {
     const widthM = getEffectiveWidth();
     const tacTotal = coverageState.sum;
 
-    const transmissionData = calculateInkTransmission({
+    const coefUsado =
+      materialCoefBase ?? resolveMaterialCoefficient(materialNombre, materialCoefPreset);
+    const transmissionData = simulateInkTransfer(diagnostico, {
       bcm: bcmVal,
-      lpi: lpiVal,
-      tacPorColor: coverageState.scaled,
       velocidad: velVal,
       ancho: widthM,
-      material: materialNombre,
-      presetCoef: materialCoefBase,
+      coberturaPorCanal: coverageState.scaled,
+      coefMaterial: coefUsado,
     });
-    const transmision = transmissionData.global;
+    const transmisionBase = asNumber(diagnostico.tinta_ml_min);
+    const transmisionSim = transmissionData.global;
+    const transmision =
+      transmisionSim !== null && transmisionSim !== undefined
+        ? transmisionSim
+        : transmisionBase;
+
+    const perColorFallback =
+      diagnostico.tinta_por_canal_ml_min &&
+      typeof diagnostico.tinta_por_canal_ml_min === 'object'
+        ? diagnostico.tinta_por_canal_ml_min
+        : null;
+    const porColor = { C: 0, M: 0, Y: 0, K: 0 };
+    ['C', 'M', 'Y', 'K'].forEach((canal) => {
+      const simVal = transmissionData.porColor?.[canal];
+      if (simVal !== undefined && simVal !== null && Number.isFinite(simVal)) {
+        porColor[canal] = simVal;
+      } else if (perColorFallback && perColorFallback[canal] !== undefined) {
+        const fallbackVal = asNumber(perColorFallback[canal]);
+        porColor[canal] = fallbackVal !== null ? Math.round(fallbackVal * 100) / 100 : 0;
+      }
+    });
 
     const tacInfo = getTacLimit(materialNombre);
     const tacLimit = tacInfo ? tacInfo.limit : null;
@@ -340,19 +361,15 @@ document.addEventListener('DOMContentLoaded', () => {
 
     if (metricsEls.ml) {
       metricsEls.ml.textContent =
-        transmision !== null ? `${transmision.toFixed(2)} ml/min` : 'Sin datos suficientes';
+        transmision !== null && transmision !== undefined
+          ? `${transmision.toFixed(2)} ml/min`
+          : 'Sin datos suficientes';
     }
     if (metricsEls.mlDetalle) {
       const partes = [
         bcmVal !== null ? `BCM ${bcmVal.toFixed(2)}` : null,
-        transmissionData.coefMaterial !== null && transmissionData.coefMaterial !== undefined
-          ? `coef ${transmissionData.coefMaterial.toFixed(2)}`
-          : null,
-        transmissionData.eficiencia !== null && transmissionData.eficiencia !== undefined
-          ? `eficiencia ${transmissionData.eficiencia.toFixed(2)}`
-          : null,
-        transmissionData.factorLpi !== null && transmissionData.factorLpi !== undefined
-          ? `factor LPI ${transmissionData.factorLpi.toFixed(2)}`
+        coefUsado !== null && coefUsado !== undefined
+          ? `coef ${formatNumber(coefUsado, 2)}`
           : null,
         widthM ? `ancho ${widthM.toFixed(2)} m` : null,
         velVal !== null ? `velocidad ${velVal.toFixed(0)} m/min` : null,
@@ -361,7 +378,7 @@ document.addEventListener('DOMContentLoaded', () => {
       metricsEls.mlDetalle.textContent = partes.join(' · ');
     }
 
-    updateInkTransmissionList(transmissionData.porColor);
+    updateInkTransmissionList(porColor);
 
     if (metricsEls.tac) {
       metricsEls.tac.textContent = `${tacTotal.toFixed(1)} %`;
@@ -404,10 +421,8 @@ document.addEventListener('DOMContentLoaded', () => {
         lpi: lpiVal,
         velocidad: velVal || 0,
         width: widthM,
-        perColor: transmissionData.porColor,
-        factorLpi: transmissionData.factorLpi,
-        coefMaterial: transmissionData.coefMaterial,
-        eficiencia: transmissionData.eficiencia,
+        perColor: porColor,
+        coefMaterial: coefUsado,
       },
       coverageState,
       advertenciasStats,
@@ -623,55 +638,62 @@ document.addEventListener('DOMContentLoaded', () => {
 
   function calculateInkTransmission({
     bcm,
-    lpi,
-    tacPorColor,
+    coberturaPorCanal,
     velocidad,
     ancho,
-    material,
-    presetCoef,
+    coefMaterial,
   }) {
-    const resultado = {
-      global: null,
-      porColor: {},
-      coefMaterial: null,
-      eficiencia: null,
-      factorLpi: null,
-    };
+    const bcmVal = Math.max(0, asNumber(bcm) ?? 0);
+    const velocidadVal = Math.max(0, asNumber(velocidad) ?? 0);
+    const anchoVal = Math.max(0, asNumber(ancho) ?? 0);
+    const coefVal = Math.max(0, asNumber(coefMaterial) ?? 0);
 
-    const bcmVal = asNumber(bcm);
-    const lpiVal = asNumber(lpi);
-    if (bcmVal === null || bcmVal <= 0 || lpiVal === null || lpiVal <= 0) {
-      return resultado;
-    }
+    const porColor = { C: 0, M: 0, Y: 0, K: 0 };
+    let total = 0;
 
-    const coefMaterial = resolveMaterialCoefficient(material, presetCoef);
-    resultado.coefMaterial = coefMaterial;
-    const eficiencia = calculateEfficiency(velocidad, ancho);
-    resultado.eficiencia = eficiencia;
-    const factorLpi = calculateLpiFactor(lpiVal);
-    resultado.factorLpi = factorLpi;
-
-    const base = bcmVal * coefMaterial * eficiencia / factorLpi;
-    if (!Number.isFinite(base)) {
-      return resultado;
-    }
-
-    const porColor = {};
-    let global = 0;
     ['C', 'M', 'Y', 'K'].forEach((canal) => {
-      let cobertura = null;
-      if (tacPorColor && Object.prototype.hasOwnProperty.call(tacPorColor, canal)) {
-        cobertura = asNumber(tacPorColor[canal]);
-      }
-      const coberturaPct = cobertura !== null ? Math.max(0, cobertura) : 0;
-      const valor = base * (coberturaPct / 100);
-      porColor[canal] = Number.isFinite(valor) ? valor : 0;
-      global += porColor[canal];
+      const coberturaPct = Math.max(
+        0,
+        Math.min(100, asNumber(coberturaPorCanal?.[canal]) ?? 0),
+      );
+      const volumen =
+        bcmVal * (coberturaPct / 100) * velocidadVal * anchoVal * coefVal;
+      const redondeado = Math.round(volumen * 100) / 100;
+      porColor[canal] = Number.isFinite(redondeado) ? redondeado : 0;
+      total += porColor[canal];
     });
 
-    resultado.porColor = porColor;
-    resultado.global = Number.isFinite(global) ? global : null;
-    return resultado;
+    total = Math.round(total * 100) / 100;
+    return {
+      global: Number.isFinite(total) ? total : null,
+      porColor,
+      coefMaterial: coefVal,
+    };
+  }
+
+  function simulateInkTransfer(dj, sliders = {}) {
+    const cobertura = sliders.coberturaPorCanal || sliders.coverage || {};
+    const anchoMm = asNumber(dj.ancho_mm);
+    const anchoDiagnostico = asNumber(dj.ancho_util_m);
+    const ancho =
+      sliders.ancho !== undefined
+        ? sliders.ancho
+        : anchoDiagnostico !== null
+        ? anchoDiagnostico
+        : anchoMm !== null
+        ? anchoMm / 1000
+        : 0;
+
+    const velocidadBase =
+      dj.velocidad_impresion ?? dj.velocidad ?? dj.velocidad_estimada ?? null;
+
+    return calculateInkTransmission({
+      bcm: sliders.bcm ?? dj.anilox_bcm ?? dj.bcm,
+      coberturaPorCanal: cobertura,
+      velocidad: sliders.velocidad ?? velocidadBase,
+      ancho,
+      coefMaterial: sliders.coefMaterial ?? dj.coef_material,
+    });
   }
 
   function resolveMaterialCoefficient(material, preset) {
@@ -704,49 +726,29 @@ document.addEventListener('DOMContentLoaded', () => {
       .replace(/\s+/g, '_');
   }
 
-  function calculateEfficiency(velocidad, ancho) {
-    const vel = asNumber(velocidad);
-    const anchoVal = asNumber(ancho);
-    const velBase = vel !== null ? Math.max(vel, 30) : 150;
-    const anchoBase = anchoVal !== null && anchoVal > 0 ? anchoVal : 0.35;
-    const velFactor = velBase / 150;
-    const anchoFactor = anchoBase / 0.35;
-    const eficiencia = velFactor * 0.7 + anchoFactor * 0.3;
-    return Math.max(0.5, Math.min(2.5, eficiencia));
-  }
-
-  function calculateLpiFactor(lpi) {
-    const lpiVal = asNumber(lpi);
-    if (lpiVal === null || lpiVal <= 0) return 1;
-    const factor = lpiVal / 120;
-    return Math.max(0.6, Math.min(2.5, factor));
-  }
-
   function parseCoverageBase(diag, useV2) {
-    const CHANNEL_NAMES = { C: 'Cyan', M: 'Magenta', Y: 'Amarillo', K: 'Negro' };
     const base = { C: 0, M: 0, Y: 0, K: 0 };
     let sum = 0;
     let hasRealData = false;
 
-    const letras =
-      diag && typeof diag.cobertura === 'object' && diag.cobertura !== null ? diag.cobertura : null;
-    const nombres =
+    const cobertura =
       diag && typeof diag.cobertura_por_canal === 'object' && diag.cobertura_por_canal !== null
         ? diag.cobertura_por_canal
+        : diag && typeof diag.cobertura === 'object' && diag.cobertura !== null
+        ? diag.cobertura
         : null;
 
-    ['C', 'M', 'Y', 'K'].forEach((canal) => {
-      const letraVal = letras ? asNumber(letras[canal]) : null;
-      const nombreVal = nombres ? asNumber(nombres[CHANNEL_NAMES[canal]]) : null;
-      const valor = letraVal !== null ? letraVal : nombreVal;
-      if (valor !== null) {
-        base[canal] = valor;
-        sum += valor;
-        hasRealData = true;
-      } else {
-        base[canal] = 0;
-      }
-    });
+    if (cobertura) {
+      ['C', 'M', 'Y', 'K'].forEach((canal) => {
+        const valor = asNumber(cobertura[canal]);
+        if (valor !== null) {
+          const clamped = Math.max(0, Math.min(100, valor));
+          base[canal] = clamped;
+          sum += clamped;
+          hasRealData = true;
+        }
+      });
+    }
 
     let fallback = leerTacFromDj(diag, useV2);
     fallback = fallback !== null ? asNumber(fallback) : null;
@@ -801,7 +803,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const scaled = {};
     ['C', 'M', 'Y', 'K'].forEach((canal) => {
       const valor = (baseValues[canal] || 0) * factor;
-      scaled[canal] = Math.max(0, Math.min(120, valor));
+      scaled[canal] = Math.max(0, Math.min(100, valor));
     });
     const sum = ['C', 'M', 'Y', 'K'].reduce((acc, canal) => acc + scaled[canal], 0);
 

@@ -211,6 +211,8 @@ graph LR
 | `cobertura_estimada` | float/None | Alias legado (rellenado desde TAC) | No | Compatibilidad (deprecado) |
 | `tac_total` | float/None | Alias legado (shadow mode completa si falta) | No | Compatibilidad (deprecado) |
 | `cobertura_base_sum` | float/None | Alias legado para TAC | No | Compatibilidad con JS previo (deprecado) |
+| `tinta_ml_min` | float/None | `tinta_utils.calcular_transmision_tinta` | No | Flujo global de tinta (ml/min) en pipeline v2 |
+| `tinta_por_canal_ml_min` | dict/None | `tinta_utils.calcular_transmision_tinta` | No | Flujo por canal (ml/min) alineado con simulador |
 | `anilox_lpi` (`lpi`) | int | Formulario → `inyectar_parametros_simulacion` | Sí | Lineatura |
 | `anilox_bcm` (`bcm`) | float | Formulario | Sí | Volumen |
 | `paso`, `paso_cilindro`, `paso_del_cilindro` | float | Formulario | Sí | Paso de cilindro |
@@ -223,6 +225,8 @@ graph LR
 | `indicadores_advertencias` | dict | `indicadores_advertencias` | Sí | Totales por tipo |
 | `advertencias_total`, `conteo_tramas`, `conteo_overprint` | int | Derivados de indicadores | Sí | Stats resumidos |
 | `tiene_tramas_debiles`, `tiene_overprint`, `tiene_texto_pequeno` | bool | Indicadores | Sí | Flags |
+
+**Nota:** el backend (`montaje_flexo.py` → `routes.py`) genera un único `diagnostico_json` consumido directamente por la plantilla y `static/js/flexo_simulation.js`; no hay cálculos duplicados cuando `USE_PIPELINE_V2=True`.
 
 ### Contexto adicional al template
 

@@ -1,3 +1,6 @@
+{% set USE_PIPELINE_V2 = (USE_PIPELINE_V2 if USE_PIPELINE_V2 is defined else true) %}
+{% set diagnostico_json = diagnostico_json if diagnostico_json is defined else {} %}
+{% set diag = diagnostico_json %}
 <!DOCTYPE html>
 <html lang="es">
 <head>
@@ -544,8 +547,7 @@
   {% set paso_display = '%g' % paso_val %}
   {% set vel_display = '%g' % vel_val %}
   {% set diag_stats = indicadores_advertencias or diag.get('indicadores_advertencias') or {} %}
-  {% set diag_cob_letras = diag.get('cobertura') or {} %}
-  {% set diag_cob_nombres = diag.get('cobertura_por_canal') or {} %}
+  {% set diag_cob = diag.get('cobertura_por_canal') or diag.get('cobertura') or {} %}
   {% set tac_diag = diag.get('tac_total_v2') if USE_PIPELINE_V2 and diag.get('tac_total_v2') is not none else (diag.get('tac_total') if diag.get('tac_total') is not none else diag.get('cobertura_estimada')) %}
   {% set ancho_mm_val = diag.get('ancho_mm') %}
   {% set ancho_m_val = diag.get('ancho_util_m') if diag.get('ancho_util_m') is not none else ((ancho_mm_val or 0) / 1000 if ancho_mm_val else none) %}
@@ -573,7 +575,7 @@
         {% set nombres_cmyk = {'C': 'Cian', 'M': 'Magenta', 'Y': 'Amarillo', 'K': 'Negro'} %}
         <ul class="datos-cobertura">
           {% for canal in ['C', 'M', 'Y', 'K'] %}
-            {% set valor = diag_cob_letras.get(canal) if diag_cob_letras else diag_cob_nombres.get(nombres_cmyk[canal]) %}
+            {% set valor = diag_cob.get(canal) %}
             <li><strong>{{ nombres_cmyk[canal] }}:</strong> {{ valor|default(0, true)|round(2) }} %</li>
           {% endfor %}
         </ul>

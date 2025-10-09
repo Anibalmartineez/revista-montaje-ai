@@ -22,10 +22,12 @@ from utils import (
     normalizar_material,
 )
 
-from diagnostico_flexo import filtrar_objetos_sistema
+from diagnostico_flexo import coeficiente_material, filtrar_objetos_sistema
 from advertencias_disenio import analizar_advertencias_disenio
 from cobertura_utils import calcular_metricas_cobertura
 from reporte_tecnico import generar_reporte_tecnico, resumen_cobertura_tac
+from flexo_config import get_flexo_thresholds
+from tinta_utils import InkParams, calcular_transmision_tinta, normalizar_coberturas
 
 # Inicializa el cliente de OpenAI solo si hay API key disponible, evitando
 # errores durante la importación en entornos de test.
@@ -589,7 +591,9 @@ def revisar_diseño_flexo(
     pagina = doc[0]
     contenido = pagina.get_text("dict")
     material_norm = normalizar_material(material)
+    material_coef_val = coeficiente_material(material, default=1.0) or 1.0
     ancho_mm, alto_mm = obtener_info_basica(pagina)
+    ancho_util_m = round((ancho_mm or 0.0) / 1000.0, 4) if ancho_mm else 0.0
 
     diseno_info = [
         f"<li><span class='icono design'>📐</span> Tamaño del diseño: <b>{ancho_mm} x {alto_mm} mm</b></li>",
@@ -615,17 +619,19 @@ def revisar_diseño_flexo(
             cobertura_manual = None
     riesgos_info: List[str] = []
 
+    thresholds = get_flexo_thresholds(material_norm, anilox_lpi)
     metricas_cobertura: Dict[str, Any] | None = None
     cobertura_total: float | None = None
     tac_total: float | None = None
-    metricas_shadow = SimpleNamespace(
+    cobertura_promedio: Dict[str, float] = {}
+    cobertura_por_canal_letras: Dict[str, float] = {}
+    metrics = SimpleNamespace(
         tac_total=None,
         tac_p95=None,
         tac_max=None,
         cobertura_por_canal=None,
+        cobertura_total=None,
     )
-    cobertura_promedio: Dict[str, float] = {}
-    tiene_cobertura_por_canal = False
     try:
         metricas_cobertura = calcular_metricas_cobertura(path_pdf, dpi=300)
         for clave in ("tac_p95", "tac_max"):
@@ -638,7 +644,7 @@ def revisar_diseño_flexo(
                 continue
             if not math.isfinite(numero):
                 continue
-            setattr(metricas_shadow, clave, round(numero, 2))
+            setattr(metrics, clave, round(numero, 2))
         cobertura_promedio_raw = metricas_cobertura.get("cobertura_promedio")
         if isinstance(cobertura_promedio_raw, dict):
             for canal, valor in cobertura_promedio_raw.items():
@@ -650,9 +656,9 @@ def revisar_diseño_flexo(
                     continue
                 porcentaje = round(porcentaje, 2)
                 cobertura_promedio[canal] = porcentaje
-            tiene_cobertura_por_canal = bool(cobertura_promedio)
-            if tiene_cobertura_por_canal:
-                metricas_shadow.cobertura_por_canal = dict(cobertura_promedio)
+            if cobertura_promedio:
+                cobertura_por_canal_letras = normalizar_coberturas(cobertura_promedio)
+                metrics.cobertura_por_canal = dict(cobertura_por_canal_letras)
 
         cobertura_total_val = metricas_cobertura.get("cobertura_total")
         if cobertura_total_val is not None:
@@ -665,6 +671,7 @@ def revisar_diseño_flexo(
 
         if cobertura_total is not None:
             cobertura_total_redondeada = round(cobertura_total, 2)
+            metrics.cobertura_total = cobertura_total_redondeada
             cobertura_info.append(
                 "<li><span class='icono ink'>🖨️</span> Cobertura total estimada del diseño: "
                 f"<b>{cobertura_total_redondeada}%</b></li>"
@@ -678,11 +685,11 @@ def revisar_diseño_flexo(
                     "<li><span class='icono warning'>⚠️</span> Cobertura muy baja. Posible subcarga o diseño incompleto.</li>"
                 )
 
-        if tiene_cobertura_por_canal:
+        if cobertura_promedio:
             tac_total_calculado = sum(cobertura_promedio.values())
             if math.isfinite(tac_total_calculado):
                 tac_total = round(float(tac_total_calculado), 2)
-                metricas_shadow.tac_total = tac_total
+                metrics.tac_total = tac_total
                 metricas_cobertura["tac_total"] = tac_total
                 cobertura_info.append(
                     "<li><span class='icono ink'>🖨️</span> TAC promedio detectado (suma CMYK): "
@@ -696,14 +703,14 @@ def revisar_diseño_flexo(
         riesgos_info.append(
             f"<li><span class='icono warning'>⚠️</span> No se pudo estimar la cobertura de tinta: {e}</li>"
         )
-    if metricas_shadow.tac_total is None and tac_total is not None:
+    if metrics.tac_total is None and tac_total is not None:
         try:
             tac_total_float = float(tac_total)
         except (TypeError, ValueError):
             tac_total_float = None
         else:
             if math.isfinite(tac_total_float):
-                metricas_shadow.tac_total = round(tac_total_float, 2)
+                metrics.tac_total = round(tac_total_float, 2)
     if metricas_cobertura is None and cobertura_manual is not None:
         cobertura_info.append(
             "<li><span class='icono ink'>🖨️</span> Cobertura ingresada para simulación: "
@@ -831,22 +838,24 @@ def revisar_diseño_flexo(
 
     imagen_tinta = ""
     tinta_data = None
-    if anilox_bcm is not None and velocidad_impresion is not None:
+    ink_transfer = None
+    if (
+        anilox_bcm is not None
+        and velocidad_impresion is not None
+        and metrics.cobertura_por_canal
+    ):
         try:
-            cobertura_simulada = tac_total if tac_total is not None else cobertura_manual
-            if cobertura_simulada is None:
-                cobertura_simulada = 0.0
-            else:
-                cobertura_simulada = float(cobertura_simulada)
-            if not math.isfinite(cobertura_simulada):
-                cobertura_simulada = 0.0
-            cobertura_simulada = max(0.0, min(400.0, cobertura_simulada))
-            factores = {"film": 0.7, "papel": 1.0, "etiqueta adhesiva": 0.85}
-            factor_material = factores.get(material_norm, 1.0)
-            # La suma de coberturas por canal puede alcanzar 400%
-            cobertura_frac = cobertura_simulada / 400.0
-            tinta_ml = anilox_bcm * cobertura_frac * velocidad_impresion * factor_material
-            tinta_ml = round(tinta_ml, 2)
+            params_tinta = InkParams(
+                anilox_lpi=int(float(anilox_lpi) if anilox_lpi is not None else 0),
+                anilox_bcm=float(anilox_bcm),
+                velocidad_m_min=float(velocidad_impresion),
+                ancho_util_m=float(ancho_util_m),
+                coef_material=float(material_coef_val),
+            )
+            ink_transfer = calcular_transmision_tinta(
+                params_tinta, metrics.cobertura_por_canal, thresholds
+            )
+            tinta_ml = ink_transfer.ml_min_global
             umbral_bajo = 50
             umbral_alto = 200
             if tinta_ml < umbral_bajo:
@@ -869,6 +878,7 @@ def revisar_diseño_flexo(
                 "barra_pct": porcentaje_barra,
                 "advertencia": advertencia_tinta,
                 "imagen": imagen_tinta,
+                "tinta_por_canal_ml_min": ink_transfer.ml_min_por_canal,
             }
         except Exception as e:
             tinta_data = {"error": str(e)}
@@ -887,19 +897,43 @@ def revisar_diseño_flexo(
         datos_reporte["tinta"] = tinta_data
 
     resumen = generar_reporte_tecnico(datos_reporte)
+    diagnostico_json = {
+        "tac_total_v2": metrics.tac_total,
+        "tac_p95": metrics.tac_p95,
+        "tac_max": metrics.tac_max,
+        "cobertura_por_canal": metrics.cobertura_por_canal,
+        "cobertura_total": metrics.cobertura_total,
+        "tinta_ml_min": ink_transfer.ml_min_global if ink_transfer else None,
+        "tinta_por_canal_ml_min": ink_transfer.ml_min_por_canal if ink_transfer else None,
+        "ancho_util_m": ancho_util_m,
+        "ancho_mm": ancho_mm,
+        "coef_material": material_coef_val,
+        "anilox_lpi": anilox_lpi,
+        "anilox_bcm": float(anilox_bcm) if anilox_bcm is not None else None,
+        "velocidad_impresion": float(velocidad_impresion)
+        if velocidad_impresion is not None
+        else None,
+        "material": material_norm,
+    }
+    if metrics.cobertura_por_canal:
+        diagnostico_json.setdefault("cobertura", dict(metrics.cobertura_por_canal))
+    if metrics.tac_total is not None:
+        diagnostico_json.setdefault("tac_total", metrics.tac_total)
+        diagnostico_json.setdefault("cobertura_estimada", metrics.tac_total)
+        diagnostico_json.setdefault("cobertura_base_sum", metrics.tac_total)
+
     analisis_detallado = {
         "tramas_debiles": tramas_mensajes,
-        "cobertura_por_canal": metricas_shadow.cobertura_por_canal
-        if metricas_shadow.cobertura_por_canal
-        else None,
+        "cobertura_por_canal": metrics.cobertura_por_canal,
         "textos_pequenos": textos_adv,
         "resolucion_minima": resolucion_minima or 0,
         "trama_minima": 5,
-        "cobertura_total": round(cobertura_total, 2) if cobertura_total is not None else None,
-        "tac_total": metricas_shadow.tac_total,
-        "tac_total_v2": metricas_shadow.tac_total,
-        "tac_p95": metricas_shadow.tac_p95,
-        "tac_max": metricas_shadow.tac_max,
+        "cobertura_total": metrics.cobertura_total,
+        "tac_total": metrics.tac_total,
+        "tac_total_v2": metrics.tac_total,
+        "tac_p95": metrics.tac_p95,
+        "tac_max": metrics.tac_max,
+        "diagnostico_json": diagnostico_json,
     }
     diagnostico_texto = generar_diagnostico_texto(resumen)
     return resumen, imagen_tinta, diagnostico_texto, analisis_detallado, advertencias_overlay
