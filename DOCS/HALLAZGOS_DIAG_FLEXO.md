@@ -13,6 +13,8 @@
 
 _Actualización 2025-10-09:_ la duplicación de fórmulas TAC/tinta en backend/plantilla/JS quedó resuelta. `montaje_flexo.py` consolida `diagnostico_json` con métricas únicas y `resultado_flexo.html` + `flexo_simulation.js` consumen exclusivamente ese JSON (ver `tinta_utils.calcular_transmision_tinta`).
 
+_Actualización 2025-11-XX:_ el semáforo de tinta ahora compara contra el ideal por material y el TAC efectivo usa la suma CMYK; frontend y backend comparten `ink_risk`/`tac_total_v2` como única fuente.
+
 ## Detalles y reproducción
 
 ### 1. Alta – Umbral de resolución hardcodeado

@@ -213,6 +213,8 @@ graph LR
 | `cobertura_base_sum` | float/None | Alias legado para TAC | No | Compatibilidad con JS previo (deprecado) |
 | `tinta_ml_min` | float/None | `tinta_utils.calcular_transmision_tinta` | No | Flujo global de tinta (ml/min) en pipeline v2 |
 | `tinta_por_canal_ml_min` | dict/None | `tinta_utils.calcular_transmision_tinta` | No | Flujo por canal (ml/min) alineado con simulador |
+| `tinta_ideal_ml_min` | float/None | `get_ink_ideal_mlmin` | No | Ideal esperado según material (ml/min) |
+| `ink_risk` | dict | `clasificar_riesgo_por_ideal` | Sí | Semáforo relativo `{level, label, reasons[]}` |
 | `anilox_lpi` (`lpi`) | int | Formulario → `inyectar_parametros_simulacion` | Sí | Lineatura |
 | `anilox_bcm` (`bcm`) | float | Formulario | Sí | Volumen |
 | `paso`, `paso_cilindro`, `paso_del_cilindro` | float | Formulario | Sí | Paso de cilindro |

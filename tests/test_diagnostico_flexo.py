@@ -103,9 +103,10 @@ def _setup_revision_app(
         velocidad_impresion,
         cobertura_estimada,
     ):
+        tac_total_v2 = tac_v2 if tac_v2 is not None else round(sum(cobertura_letras.values()), 2)
         diag_json = {
-            "tac_total_v2": tac_v2,
-            "tac_total": tac_legacy if tac_legacy is not None else tac_v2,
+            "tac_total_v2": tac_total_v2,
+            "tac_total": tac_legacy if tac_legacy is not None else tac_total_v2,
             "cobertura_por_canal": cobertura_letras,
         }
         if diag_json_override:
@@ -119,7 +120,7 @@ def _setup_revision_app(
             "trama_minima": 5,
             "cobertura_total": 83.2,
             "tac_total": tac_legacy,
-            "tac_total_v2": tac_v2,
+            "tac_total_v2": tac_total_v2,
             "tac_p95": 310.0,
             "tac_max": 335.7,
             "diagnostico_json": diag_json,
@@ -387,7 +388,7 @@ def test_verificar_textos_pequenos_respeta_umbral():
 
 def test_pipeline_v2_flag_off_compat_aliases(tmp_path, monkeypatch):
     monkeypatch.setenv("OPENAI_API_KEY", "test-key")
-    app = _setup_revision_app(tmp_path, monkeypatch, use_flag=False, tac_v2=301.2, tac_legacy=None)
+    app = _setup_revision_app(tmp_path, monkeypatch, use_flag=False, tac_v2=None, tac_legacy=None)
     pdf_path = tmp_path / "archivo.pdf"
     _make_pdf(pdf_path)
 
@@ -415,10 +416,14 @@ def test_pipeline_v2_flag_off_compat_aliases(tmp_path, monkeypatch):
     assert context["USE_PIPELINE_V2"] is False
 
     diagnostico_json = context["diagnostico_json"]
-    assert pytest.approx(diagnostico_json["tac_total_v2"], rel=1e-6) == 301.2
-    assert pytest.approx(diagnostico_json["tac_total"], rel=1e-6) == 301.2
-    assert pytest.approx(diagnostico_json["cobertura_estimada"], rel=1e-6) == 301.2
-    assert pytest.approx(diagnostico_json["cobertura_base_sum"], rel=1e-6) == 301.2
+    suma_cmyk = round(
+        sum(diagnostico_json["cobertura_por_canal"].values()) if diagnostico_json["cobertura_por_canal"] else 0,
+        2,
+    )
+    assert pytest.approx(diagnostico_json["tac_total_v2"], rel=1e-6) == suma_cmyk
+    assert pytest.approx(diagnostico_json["tac_total"], rel=1e-6) == suma_cmyk
+    assert pytest.approx(diagnostico_json["cobertura_estimada"], rel=1e-6) == suma_cmyk
+    assert pytest.approx(diagnostico_json["cobertura_base_sum"], rel=1e-6) == suma_cmyk
     assert diagnostico_json["lpi"] == 150
     assert pytest.approx(diagnostico_json["bcm"], rel=1e-6) == 2.5
     assert pytest.approx(diagnostico_json["paso"], rel=1e-6) == 400.0
@@ -427,7 +432,7 @@ def test_pipeline_v2_flag_off_compat_aliases(tmp_path, monkeypatch):
 
 def test_pipeline_v2_flag_on_prefiere_v2(tmp_path, monkeypatch):
     monkeypatch.setenv("OPENAI_API_KEY", "test-key")
-    app = _setup_revision_app(tmp_path, monkeypatch, use_flag=True, tac_v2=312.3, tac_legacy=205.7)
+    app = _setup_revision_app(tmp_path, monkeypatch, use_flag=True, tac_v2=None, tac_legacy=205.7)
     pdf_path = tmp_path / "archivo.pdf"
     _make_pdf(pdf_path)
 
@@ -451,10 +456,14 @@ def test_pipeline_v2_flag_on_prefiere_v2(tmp_path, monkeypatch):
     assert response.status_code == 200
     html = response.get_data(as_text=True)
     assert "window.USE_PIPELINE_V2 = true" in html
-    assert "<span id=\"tac-total\">312.3" in html
     template, context = templates[-1]
     diagnostico_json = context["diagnostico_json"]
-    assert pytest.approx(diagnostico_json["tac_total_v2"], rel=1e-6) == 312.3
+    suma_cmyk = round(
+        sum(diagnostico_json["cobertura_por_canal"].values()) if diagnostico_json["cobertura_por_canal"] else 0,
+        2,
+    )
+    assert f"<span id=\"tac-total\">{round(suma_cmyk, 2)}" in html
+    assert pytest.approx(diagnostico_json["tac_total_v2"], rel=1e-6) == suma_cmyk
     assert pytest.approx(diagnostico_json["tac_total"], rel=1e-6) == 205.7
 
 
@@ -509,6 +518,49 @@ def test_pipeline_json_only_sin_duplicados(tmp_path, monkeypatch):
     html = response.data.decode("utf-8")
     assert "324.93 ml/min" not in html
     assert '"tinta_ml_min": 3.82' in html
+
+
+def test_riesgo_relativo_por_ideal(tmp_path, monkeypatch):
+    monkeypatch.setenv("OPENAI_API_KEY", "test-key")
+    cobertura_override = {"Cian": 55.0, "Magenta": 48.0, "Amarillo": 42.0, "Negro": 35.0}
+    tinta_por_canal = {"C": 30.1, "M": 29.4, "Y": 28.6, "K": 29.1}
+    diag_override = {
+        "tinta_ml_min": 117.2,
+        "tinta_por_canal_ml_min": tinta_por_canal,
+        "tinta_ideal_ml_min": 120.0,
+        "ink_risk": {
+            "level": 0,
+            "label": "Verde",
+            "reasons": ["Dentro de ±10% del ideal (117.20 vs 120 ml/min)."],
+        },
+    }
+    app = _setup_revision_app(
+        tmp_path,
+        monkeypatch,
+        use_flag=True,
+        tac_v2=None,
+        tac_legacy=None,
+        diag_json_override=diag_override,
+        cobertura_override=cobertura_override,
+    )
+    pdf_path = tmp_path / "archivo.pdf"
+    _make_pdf(pdf_path)
+
+    data = {
+        "material": "Film",
+        "anilox_lpi": "140",
+        "anilox_bcm": "2.2",
+        "paso_cilindro": "450",
+        "velocidad_impresion": "120",
+    }
+    response, templates = _post_revision(app, pdf_path, data)
+
+    assert response.status_code == 200
+    template, context = templates[-1]
+    dj = context["diagnostico_json"]
+    assert dj["ink_risk"]["level"] == 0
+    html = response.get_data(as_text=True)
+    assert "Riesgo global Rojo" not in html
 
 
 def test_simulador_igual_a_backend_en_valores_iniciales(tmp_path, monkeypatch):

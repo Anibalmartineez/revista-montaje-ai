@@ -10,7 +10,44 @@ __all__ = [
     "InkTransfer",
     "calcular_transmision_tinta",
     "normalizar_coberturas",
+    "get_ink_ideal_mlmin",
+    "clasificar_riesgo_por_ideal",
 ]
+
+
+INK_IDEAL_POR_MATERIAL = {
+    "film": 120.0,
+    "papel": 180.0,
+    "carton": 200.0,
+    "etiqueta adhesiva": 150.0,
+    "default": 150.0,
+}
+
+
+def get_ink_ideal_mlmin(material: str | None) -> float:
+    m = (material or "").strip().lower()
+    return INK_IDEAL_POR_MATERIAL.get(m, INK_IDEAL_POR_MATERIAL["default"])
+
+
+def clasificar_riesgo_por_ideal(ml_min: float | None, ideal: float | None):
+    """
+    Devuelve (nivel, etiqueta, razones[]) comparando ml/min con el ideal.
+
+    Verde (0): <=110%
+    Amarillo (1): 110–130%
+    Rojo (2): >130%
+    """
+
+    if not ml_min or not ideal or ideal <= 0:
+        return 1, "Amarillo", ["Sin ideal definido: usar criterio del operador."]
+    ratio = ml_min / ideal
+    if ratio <= 1.10:
+        return 0, "Verde", [
+            f"Dentro de ±10% del ideal ({ml_min:.2f} vs {ideal:.0f} ml/min)."
+        ]
+    if ratio <= 1.30:
+        return 1, "Amarillo", [f"+{(ratio - 1) * 100:.0f}% sobre ideal."]
+    return 2, "Rojo", [f"Sobre carga +{(ratio - 1) * 100:.0f}% sobre ideal."]
 
 
 @dataclass(frozen=True)
