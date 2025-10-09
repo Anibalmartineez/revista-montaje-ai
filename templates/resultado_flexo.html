@@ -333,6 +333,10 @@
 <body>
   {% set diag_img_static = url_for('static', filename=diag_img_web) if diag_img_web else '' %}
   {% set sim_canvas_base = diag_img_static or (url_for('static', filename=sim_base_img) if sim_base_img else '') %}
+  <script>
+    window.USE_PIPELINE_V2 = {{ USE_PIPELINE_V2 | tojson }};
+    window.diagnosticoJson = {{ diagnostico_json | tojson }};
+  </script>
   <div id="contenedor-imagen" style="position: relative;">
     <img src="{{ url_for('static', filename=imagen_path_web) }}" id="imagen-diagnostico" class="imagen-analizada" />
     <div id="overlay-markers"></div>
@@ -542,7 +546,7 @@
   {% set diag_stats = indicadores_advertencias or diag.get('indicadores_advertencias') or {} %}
   {% set diag_cob_letras = diag.get('cobertura') or {} %}
   {% set diag_cob_nombres = diag.get('cobertura_por_canal') or {} %}
-  {% set tac_diag = diag.get('tac_total') if diag.get('tac_total') is not none else diag.get('cobertura_estimada') %}
+  {% set tac_diag = diag.get('tac_total_v2') if USE_PIPELINE_V2 and diag.get('tac_total_v2') is not none else (diag.get('tac_total') if diag.get('tac_total') is not none else diag.get('cobertura_estimada')) %}
   {% set ancho_mm_val = diag.get('ancho_mm') %}
   {% set ancho_m_val = diag.get('ancho_util_m') if diag.get('ancho_util_m') is not none else ((ancho_mm_val or 0) / 1000 if ancho_mm_val else none) %}
   {% set advertencias_txt = advertencias_resumen or diag.get('advertencias_resumen') %}
@@ -564,7 +568,7 @@
         {% endif %}
       </div>
       <div class="datos-col">
-        <p><strong>TAC promedio detectado:</strong> {{ tac_diag|default(0, true)|round(2) }} %</p>
+        <p><strong>TAC promedio detectado:</strong> <span id="tac-total">{{ tac_diag|default(0, true)|round(2) }}</span> %</p>
         <p><strong>Cobertura CMYK:</strong></p>
         {% set nombres_cmyk = {'C': 'Cian', 'M': 'Magenta', 'Y': 'Amarillo', 'K': 'Negro'} %}
         <ul class="datos-cobertura">
@@ -686,9 +690,35 @@
   </div>
   {% set coef_material_context = material_coeficiente if material_coeficiente is defined and material_coeficiente is not none else diag.get('coef_material') %}
   <script>
+    (function () {
+      const useV2 = Boolean(window.USE_PIPELINE_V2);
+      const dj = window.diagnosticoJson || {};
+      const tac =
+        (useV2 &&
+          (dj.tac_total_v2 ??
+            dj.tac_total ??
+            dj.cobertura_estimada ??
+            dj.cobertura_base_sum)) ||
+        (dj.tac_total ?? dj.cobertura_estimada ?? dj.cobertura_base_sum ?? null);
+      const tacNumber = typeof tac === 'number' ? tac : Number(tac);
+      if (!Number.isFinite(tacNumber)) {
+        return;
+      }
+      const tacValue = tacNumber.toFixed(1);
+      const badge = document.getElementById('tac-total');
+      if (badge) {
+        badge.textContent = tacValue;
+      }
+      const metricTac = document.getElementById('metric-tac');
+      if (metricTac) {
+        metricTac.textContent = `${tacValue} %`;
+      }
+    })();
+  </script>
+  <script>
     window.diag_img_web = {{ diag_img_static|tojson }};
     window.revisionId = {{ (revision_id or '')|tojson }};
-    window.diagnosticoJson = {{ diag|tojson }};
+    window.diagnosticoJson = window.diagnosticoJson || {{ diag|tojson }};
     window.analisisDetallado = {{ (analisis or {})|tojson }};
     window.indicadoresAdvertencias = {{ (indicadores_advertencias or diag_stats or {})|tojson }};
     window.advertenciasResumen = {{ (advertencias_txt or '')|tojson }};

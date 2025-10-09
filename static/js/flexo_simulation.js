@@ -44,6 +44,7 @@ document.addEventListener('DOMContentLoaded', () => {
   };
 
   const diagnostico = window.diagnosticoJson || {};
+  const usePipelineV2 = Boolean(window.USE_PIPELINE_V2);
   const analisis = window.analisisDetallado || {};
   const advertenciasLista = Array.isArray(window.advertencias) ? window.advertencias : [];
   const advertenciasStats = buildAdvertenciaStats(
@@ -57,7 +58,7 @@ document.addEventListener('DOMContentLoaded', () => {
   const materialCoefBase =
     materialCoefDiagnostico ?? materialCoefPreset ?? asNumber(materialCoefficients.default);
 
-  const coverageBase = parseCoverageBase(diagnostico);
+  const coverageBase = parseCoverageBase(diagnostico, usePipelineV2);
   const materialNombre = (diagnostico.material || '').toString();
   const baseImgUrl = normalizeUrl(
     canvas.dataset.baseImg ||
@@ -279,7 +280,6 @@ document.addEventListener('DOMContentLoaded', () => {
       [inputs.bcm, ['anilox_bcm', 'bcm']],
       [inputs.paso, ['paso_del_cilindro', 'paso_cilindro', 'paso']],
       [inputs.vel, ['velocidad_impresion', 'velocidad']],
-      [inputs.cob, ['tac_total', 'cobertura_estimada', 'cobertura_base_sum']],
     ];
 
     mapping.forEach(([input, keys]) => {
@@ -293,6 +293,13 @@ document.addEventListener('DOMContentLoaded', () => {
         input.value = valor;
       }
     });
+
+    if (inputs.cob) {
+      const tacInicial = leerTacFromDj(diagnostico, usePipelineV2);
+      if (tacInicial !== null) {
+        inputs.cob.value = String(clampToInputRange(tacInicial, inputs.cob));
+      }
+    }
 
     updateLabels();
   }
@@ -715,7 +722,7 @@ document.addEventListener('DOMContentLoaded', () => {
     return Math.max(0.6, Math.min(2.5, factor));
   }
 
-  function parseCoverageBase(diag) {
+  function parseCoverageBase(diag, useV2) {
     const CHANNEL_NAMES = { C: 'Cyan', M: 'Magenta', Y: 'Amarillo', K: 'Negro' };
     const base = { C: 0, M: 0, Y: 0, K: 0 };
     let sum = 0;
@@ -741,10 +748,8 @@ document.addEventListener('DOMContentLoaded', () => {
       }
     });
 
-    let fallback =
-      asNumber(diag.tac_total) ??
-      asNumber(diag.cobertura_estimada) ??
-      asNumber(diag.cobertura_base_sum);
+    let fallback = leerTacFromDj(diag, useV2);
+    fallback = fallback !== null ? asNumber(fallback) : null;
     if (fallback === null && diag && typeof diag.cobertura !== 'object') {
       fallback = asNumber(diag.cobertura);
     }
@@ -775,6 +780,17 @@ document.addEventListener('DOMContentLoaded', () => {
         baseValues[canal] = per;
       });
       baseSum = sliderVal;
+    }
+
+    if (baseSum <= 0 && !coverageBase.hasRealData) {
+      const fallbackTac = coverageBase.fallback;
+      if (fallbackTac !== null) {
+        const per = fallbackTac / 4;
+        ['C', 'M', 'Y', 'K'].forEach((canal) => {
+          baseValues[canal] = per;
+        });
+        baseSum = fallbackTac;
+      }
     }
 
     let factor = 1;
@@ -986,6 +1002,21 @@ document.addEventListener('DOMContentLoaded', () => {
         const val = diagnostico[key];
         if (val !== null && val !== undefined) return val;
       }
+    }
+    return null;
+  }
+
+  function leerTacFromDj(dj, useV2) {
+    if (!dj || typeof dj !== 'object') return null;
+    if (useV2 && dj.tac_total_v2 !== null && dj.tac_total_v2 !== undefined) {
+      const valV2 = asNumber(dj.tac_total_v2);
+      if (valV2 !== null) return valV2;
+    }
+    const legacyKeys = ['tac_total', 'cobertura_estimada', 'cobertura_base_sum'];
+    for (const key of legacyKeys) {
+      if (dj[key] === null || dj[key] === undefined) continue;
+      const val = asNumber(dj[key]);
+      if (val !== null) return val;
     }
     return null;
   }

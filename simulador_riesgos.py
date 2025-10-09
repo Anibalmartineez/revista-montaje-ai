@@ -6,6 +6,7 @@ El módulo no realiza llamadas externas ni usa IA, pero se deja un parámetro
 from __future__ import annotations
 
 import json
+import math
 import re
 from typing import Any, Dict, List
 
@@ -22,6 +23,34 @@ def _a_texto(diagnostico: Any) -> str:
         return json.dumps(diagnostico, ensure_ascii=False).lower()
     except Exception:
         return str(diagnostico).lower()
+
+
+def _leer_tac(diagnostico: Any) -> float | None:
+    if isinstance(diagnostico, dict):
+        for clave in (
+            "tac_total_v2",
+            "tac_total",
+            "cobertura_estimada",
+            "cobertura_base_sum",
+        ):
+            valor = diagnostico.get(clave)
+            if valor is None:
+                continue
+            try:
+                numero = float(valor)
+            except (TypeError, ValueError):
+                continue
+            if not math.isfinite(numero):
+                continue
+            return numero
+    texto = str(diagnostico).lower()
+    coincidencia = re.search(r"tac[^0-9]*(\d+(?:[\.,]\d+)?)", texto)
+    if not coincidencia:
+        return None
+    try:
+        return float(coincidencia.group(1).replace(",", "."))
+    except ValueError:
+        return None
 
 
 def _format_number(value: float, decimals: int = 2) -> str:
@@ -52,6 +81,7 @@ def simular_riesgos(
         HTML con una tabla que resume los riesgos detectados.
     """
 
+    tac_val = _leer_tac(diagnostico)
     texto = _a_texto(diagnostico)
     thresholds = get_flexo_thresholds(material=material, anilox_lpi=anilox_lpi)
     resultados: List[Dict[str, str]] = []
@@ -137,9 +167,9 @@ def simular_riesgos(
             "Revisar configuraciones de sobreimpresión",
         )
 
-    m_tac = re.search(r"tac[^0-9]*(\d+)", texto)
-    if m_tac:
-        tac_val = int(m_tac.group(1))
+    if tac_val is None:
+        tac_val = _leer_tac(texto)
+    if tac_val is not None:
         if tac_val > thresholds.tac_critical:
             agregar(
                 f"TAC > {thresholds.tac_critical}%",

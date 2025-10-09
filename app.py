@@ -8,6 +8,12 @@ app = Flask(__name__)
 app.config.from_object("config")
 app.config.setdefault("MAX_CONTENT_LENGTH", 32 * 1024 * 1024)
 app.secret_key = os.environ.get("SECRET_KEY", "dev-secret-key")
+app.config["USE_PIPELINE_V2"] = os.getenv("USE_PIPELINE_V2", "false").lower() in (
+    "1",
+    "true",
+    "yes",
+    "y",
+)
 os.makedirs(os.path.join(app.static_folder, "previews"), exist_ok=True)
 os.makedirs(os.path.join(app.static_folder, "outputs"), exist_ok=True)
 

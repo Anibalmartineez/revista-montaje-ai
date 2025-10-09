@@ -1415,11 +1415,24 @@ def revision():
         else:
             cobertura_sum = None
 
-        tac_total_val = _as_number(analisis_detallado.get("tac_total"))
-        if tac_total_val is not None:
-            tac_total_val = round(tac_total_val, 2)
-        elif cobertura_sum is not None:
+        tac_total_v2_val = _as_number(analisis_detallado.get("tac_total_v2"))
+        if tac_total_v2_val is not None:
+            tac_total_v2_val = round(tac_total_v2_val, 2)
+        tac_total_legacy_val = _as_number(analisis_detallado.get("tac_total"))
+        if tac_total_legacy_val is not None:
+            tac_total_legacy_val = round(tac_total_legacy_val, 2)
+        tac_total_val = tac_total_legacy_val
+        if tac_total_val is None:
+            tac_total_val = tac_total_v2_val
+        if tac_total_val is None and cobertura_sum is not None:
             tac_total_val = cobertura_sum
+
+        tac_p95_val = _as_number(analisis_detallado.get("tac_p95"))
+        if tac_p95_val is not None:
+            tac_p95_val = round(tac_p95_val, 2)
+        tac_max_val = _as_number(analisis_detallado.get("tac_max"))
+        if tac_max_val is not None:
+            tac_max_val = round(tac_max_val, 2)
 
         cobertura_total_val = _as_number(analisis_detallado.get("cobertura_total"))
         if cobertura_total_val is not None:
@@ -1458,9 +1471,41 @@ def revision():
             "conteo_overprint": advertencias_stats.get("conteo_overprint", 0),
             "conteo_tramas": advertencias_stats.get("conteo_tramas", 0),
         }
+        diagnostico_json["tac_total_v2"] = tac_total_v2_val
+        diagnostico_json["tac_p95"] = tac_p95_val
+        diagnostico_json["tac_max"] = tac_max_val
+        diagnostico_json["cobertura_por_canal"] = (
+            cobertura_por_canal if cobertura_por_canal else None
+        )
+        diagnostico_json.setdefault("tac_total", tac_total_val)
+        diagnostico_json.setdefault("cobertura_estimada", tac_total_val)
+        diagnostico_json.setdefault("cobertura_base_sum", tac_total_val)
+        diagnostico_json.setdefault("lpi", diagnostico_json.get("anilox_lpi"))
+        diagnostico_json.setdefault("bcm", diagnostico_json.get("anilox_bcm"))
+        diagnostico_json.setdefault(
+            "paso",
+            diagnostico_json.get("paso_del_cilindro") or diagnostico_json.get("paso_cilindro"),
+        )
+        diagnostico_json.setdefault("velocidad", diagnostico_json.get("velocidad_impresion"))
+        for clave in (
+            "tac_total_v2",
+            "tac_total",
+            "cobertura_estimada",
+            "cobertura_base_sum",
+            "cobertura_por_canal",
+        ):
+            diagnostico_json.setdefault(clave, diagnostico_json.get(clave))
         diagnostico_json = inyectar_parametros_simulacion(
             diagnostico_json, parametros_maquina
         )
+        for clave in (
+            "tac_total_v2",
+            "tac_total",
+            "cobertura_estimada",
+            "cobertura_base_sum",
+            "cobertura_por_canal",
+        ):
+            diagnostico_json.setdefault(clave, diagnostico_json.get(clave))
 
         diagnostico_data = {
             "pdf_path": final_pdf_path,
@@ -1482,6 +1527,9 @@ def revision():
             "cobertura_por_canal": cobertura_por_canal if cobertura_por_canal else None,
             "cobertura_total": cobertura_total_val,
             "tac_total": tac_total_val,
+            "tac_total_v2": tac_total_v2_val,
+            "tac_p95": tac_p95_val,
+            "tac_max": tac_max_val,
             "ancho_mm": ancho_mm,
             "alto_mm": alto_mm,
             "coef_material": material_coef,
@@ -1505,6 +1553,9 @@ def revision():
             "indicadores_advertencias": advertencias_stats,
             "sim_img_web": sim_rel,
             "diag_base_web": diag_rel,
+            "tac_total_v2": tac_total_v2_val,
+            "tac_p95": tac_p95_val,
+            "tac_max": tac_max_val,
             # Persistir la ruta web de la imagen del diagnóstico con advertencias.
             # Se usará como base de la simulación avanzada y permite que, al
             # recargar la página de resultados, el canvas dibuje de inmediato la
@@ -1540,6 +1591,7 @@ def revision():
         # para la simulación.  Si no existiera, el frontend mostrará un patrón
         # de puntos como fallback.
         sim_base_img=imagen_iconos_rel,
+        USE_PIPELINE_V2=current_app.config.get("USE_PIPELINE_V2", False),
     )
 
 
@@ -1573,6 +1625,22 @@ def resultado_flexo():
     if not isinstance(diag_json, dict):
         diag_json = {}
         datos["diagnostico_json"] = diag_json
+    else:
+        diag_json.setdefault("lpi", diag_json.get("anilox_lpi"))
+        diag_json.setdefault("bcm", diag_json.get("anilox_bcm"))
+        diag_json.setdefault(
+            "paso",
+            diag_json.get("paso_del_cilindro") or diag_json.get("paso_cilindro"),
+        )
+        diag_json.setdefault("velocidad", diag_json.get("velocidad_impresion"))
+        for clave in (
+            "tac_total_v2",
+            "tac_total",
+            "cobertura_estimada",
+            "cobertura_base_sum",
+            "cobertura_por_canal",
+        ):
+            diag_json.setdefault(clave, diag_json.get(clave))
 
     material_coeffs = obtener_coeficientes_material()
     if "material_coefficients" not in datos:
@@ -1598,6 +1666,7 @@ def resultado_flexo():
         **datos,
         revision_id=revision_id,
         sim_base_img=datos.get("diag_img_web"),
+        USE_PIPELINE_V2=current_app.config.get("USE_PIPELINE_V2", False),
     )
 
 

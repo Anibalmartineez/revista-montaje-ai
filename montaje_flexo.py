@@ -13,6 +13,7 @@ from io import BytesIO
 import base64
 from html import unescape
 from typing import Any, Dict, List
+from types import SimpleNamespace
 
 from utils import (
     convertir_pts_a_mm,
@@ -617,10 +618,27 @@ def revisar_diseño_flexo(
     metricas_cobertura: Dict[str, Any] | None = None
     cobertura_total: float | None = None
     tac_total: float | None = None
+    metricas_shadow = SimpleNamespace(
+        tac_total=None,
+        tac_p95=None,
+        tac_max=None,
+        cobertura_por_canal=None,
+    )
     cobertura_promedio: Dict[str, float] = {}
     tiene_cobertura_por_canal = False
     try:
         metricas_cobertura = calcular_metricas_cobertura(path_pdf, dpi=300)
+        for clave in ("tac_p95", "tac_max"):
+            valor = metricas_cobertura.get(clave)
+            if valor is None:
+                continue
+            try:
+                numero = float(valor)
+            except (TypeError, ValueError):
+                continue
+            if not math.isfinite(numero):
+                continue
+            setattr(metricas_shadow, clave, round(numero, 2))
         cobertura_promedio_raw = metricas_cobertura.get("cobertura_promedio")
         if isinstance(cobertura_promedio_raw, dict):
             for canal, valor in cobertura_promedio_raw.items():
@@ -630,8 +648,11 @@ def revisar_diseño_flexo(
                     continue
                 if not math.isfinite(porcentaje):
                     continue
+                porcentaje = round(porcentaje, 2)
                 cobertura_promedio[canal] = porcentaje
             tiene_cobertura_por_canal = bool(cobertura_promedio)
+            if tiene_cobertura_por_canal:
+                metricas_shadow.cobertura_por_canal = dict(cobertura_promedio)
 
         cobertura_total_val = metricas_cobertura.get("cobertura_total")
         if cobertura_total_val is not None:
@@ -660,7 +681,8 @@ def revisar_diseño_flexo(
         if tiene_cobertura_por_canal:
             tac_total_calculado = sum(cobertura_promedio.values())
             if math.isfinite(tac_total_calculado):
-                tac_total = float(tac_total_calculado)
+                tac_total = round(float(tac_total_calculado), 2)
+                metricas_shadow.tac_total = tac_total
                 metricas_cobertura["tac_total"] = tac_total
                 cobertura_info.append(
                     "<li><span class='icono ink'>🖨️</span> TAC promedio detectado (suma CMYK): "
@@ -674,6 +696,14 @@ def revisar_diseño_flexo(
         riesgos_info.append(
             f"<li><span class='icono warning'>⚠️</span> No se pudo estimar la cobertura de tinta: {e}</li>"
         )
+    if metricas_shadow.tac_total is None and tac_total is not None:
+        try:
+            tac_total_float = float(tac_total)
+        except (TypeError, ValueError):
+            tac_total_float = None
+        else:
+            if math.isfinite(tac_total_float):
+                metricas_shadow.tac_total = round(tac_total_float, 2)
     if metricas_cobertura is None and cobertura_manual is not None:
         cobertura_info.append(
             "<li><span class='icono ink'>🖨️</span> Cobertura ingresada para simulación: "
@@ -859,12 +889,17 @@ def revisar_diseño_flexo(
     resumen = generar_reporte_tecnico(datos_reporte)
     analisis_detallado = {
         "tramas_debiles": tramas_mensajes,
-        "cobertura_por_canal": cobertura_promedio if cobertura_promedio else None,
+        "cobertura_por_canal": metricas_shadow.cobertura_por_canal
+        if metricas_shadow.cobertura_por_canal
+        else None,
         "textos_pequenos": textos_adv,
         "resolucion_minima": resolucion_minima or 0,
         "trama_minima": 5,
         "cobertura_total": round(cobertura_total, 2) if cobertura_total is not None else None,
-        "tac_total": round(tac_total, 2) if tac_total is not None else None,
+        "tac_total": metricas_shadow.tac_total,
+        "tac_total_v2": metricas_shadow.tac_total,
+        "tac_p95": metricas_shadow.tac_p95,
+        "tac_max": metricas_shadow.tac_max,
     }
     diagnostico_texto = generar_diagnostico_texto(resumen)
     return resumen, imagen_tinta, diagnostico_texto, analisis_detallado, advertencias_overlay
