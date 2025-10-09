@@ -30,6 +30,7 @@ document.addEventListener('DOMContentLoaded', () => {
   const metricsEls = {
     ml: document.getElementById('metric-ml'),
     mlDetalle: document.getElementById('metric-ml-detalle'),
+    mlIdeal: document.getElementById('metric-ml-ideal'),
     mlColors: document.getElementById('metric-ml-colors'),
     tac: document.getElementById('metric-tac'),
     tacDetalle: document.getElementById('metric-tac-limite'),
@@ -102,6 +103,7 @@ document.addEventListener('DOMContentLoaded', () => {
   let displayWidth = 0;
   let displayHeight = 0;
   let lastDownloadUrl = null;
+  let userModifiedAnyControl = false;
   const patternCache = {
     key: null,
     canvas: null,
@@ -129,6 +131,7 @@ document.addEventListener('DOMContentLoaded', () => {
   Object.values(inputs).forEach((el) => {
     if (!el) return;
     const handleInput = () => {
+      userModifiedAnyControl = true;
       if (el === inputs.cob) {
         el.dataset.userModified = '1';
       }
@@ -338,6 +341,7 @@ document.addEventListener('DOMContentLoaded', () => {
       transmisionSim !== null && transmisionSim !== undefined
         ? transmisionSim
         : transmisionBase;
+    const ideal = getInkIdeal(diagnostico);
 
     const perColorFallback =
       diagnostico.tinta_por_canal_ml_min &&
@@ -374,8 +378,17 @@ document.addEventListener('DOMContentLoaded', () => {
         widthM ? `ancho ${widthM.toFixed(2)} m` : null,
         velVal !== null ? `velocidad ${velVal.toFixed(0)} m/min` : null,
         `TAC ${tacTotal.toFixed(1)}%`,
+        Number.isFinite(ideal) ? `ideal ${ideal.toFixed(0)} ml/min` : null,
       ].filter(Boolean);
       metricsEls.mlDetalle.textContent = partes.join(' · ');
+    }
+
+    if (metricsEls.mlIdeal) {
+      if (Number.isFinite(ideal)) {
+        metricsEls.mlIdeal.textContent = `Ideal: ${ideal.toFixed(0)} ml/min`;
+      } else {
+        metricsEls.mlIdeal.textContent = 'Ideal: --';
+      }
     }
 
     updateInkTransmissionList(porColor);
@@ -412,21 +425,46 @@ document.addEventListener('DOMContentLoaded', () => {
 
     updateCoverageList(coverageState);
 
-    const risk = evaluateRisks(
-      {
-        ml: transmision,
-        tac: tacTotal,
-        tacLimit,
-        materialLabel: tacLabel,
-        lpi: lpiVal,
-        velocidad: velVal || 0,
-        width: widthM,
-        perColor: porColor,
-        coefMaterial: coefUsado,
-      },
-      coverageState,
-      advertenciasStats,
-    );
+    const ratio = transmision && ideal ? transmision / ideal : null;
+    let riskLevel = 1;
+    let riskLabel = 'Amarillo';
+    let reasons = [];
+    if (ratio !== null && Number.isFinite(ratio)) {
+      if (ratio <= 1.1) {
+        riskLevel = 0;
+        riskLabel = 'Verde';
+        reasons.push(
+          `Dentro de ±10% del ideal (${transmision.toFixed(2)} vs ${ideal.toFixed(0)} ml/min).`,
+        );
+      } else if (ratio <= 1.3) {
+        riskLevel = 1;
+        riskLabel = 'Amarillo';
+        reasons.push(`+${((ratio - 1) * 100).toFixed(0)}% sobre ideal.`);
+      } else {
+        riskLevel = 2;
+        riskLabel = 'Rojo';
+        reasons.push(`Sobre carga +${((ratio - 1) * 100).toFixed(0)}% sobre ideal.`);
+      }
+    } else {
+      reasons.push('Sin datos suficientes para evaluar la transmisión de tinta.');
+    }
+
+    let risk = { level: riskLevel, label: riskLabel, reasons };
+    const backendRisk = diagnostico.ink_risk;
+    const puedeUsarBackend =
+      !userModifiedAnyControl && backendRisk && typeof backendRisk === 'object';
+    if (puedeUsarBackend) {
+      const backendLevel = Number.isFinite(Number(backendRisk.level))
+        ? Number(backendRisk.level)
+        : 1;
+      const backendLabel =
+        backendRisk.label || (backendLevel === 0 ? 'Verde' : backendLevel === 2 ? 'Rojo' : 'Amarillo');
+      const backendReasons = Array.isArray(backendRisk.reasons)
+        ? backendRisk.reasons.slice()
+        : [];
+      risk = { level: backendLevel, label: backendLabel, reasons: backendReasons };
+    }
+
     updateRiskUI(risk);
 
     return risk;
@@ -436,14 +474,16 @@ document.addEventListener('DOMContentLoaded', () => {
     if (!metricsEls.riesgoBadge || !metricsEls.riesgoValor) return;
     const clases = ['riesgo-verde', 'riesgo-amarillo', 'riesgo-rojo'];
     clases.forEach((cls) => metricsEls.riesgoBadge.classList.remove(cls));
-    const nivel = Math.max(0, Math.min(2, risk.level || 0));
+    const nivel = Math.max(0, Math.min(2, Number(risk.level ?? 0)));
     metricsEls.riesgoBadge.classList.add(clases[nivel]);
     const etiquetas = ['Verde', 'Amarillo', 'Rojo'];
-    metricsEls.riesgoValor.textContent = etiquetas[nivel];
+    const label = risk.label || etiquetas[nivel];
+    metricsEls.riesgoValor.textContent = label;
 
     if (metricsEls.riesgoDetalle) {
       metricsEls.riesgoDetalle.innerHTML = '';
-      risk.reasons.forEach((texto) => {
+      const razones = Array.isArray(risk.reasons) ? risk.reasons : [];
+      razones.forEach((texto) => {
         const li = document.createElement('li');
         li.textContent = texto;
         metricsEls.riesgoDetalle.appendChild(li);
@@ -726,6 +766,16 @@ document.addEventListener('DOMContentLoaded', () => {
       .replace(/\s+/g, '_');
   }
 
+  function getInkIdeal(dj) {
+    const directo = asNumber(dj && dj.tinta_ideal_ml_min);
+    if (directo !== null) return directo;
+    const matRaw = dj && dj.material ? dj.material.toString().toLowerCase() : '';
+    const map = { film: 120, papel: 180, carton: 200, 'etiqueta adhesiva': 150, default: 150 };
+    if (Object.prototype.hasOwnProperty.call(map, matRaw)) return map[matRaw];
+    const normalized = normalizeMaterialKey(matRaw).replace(/_/g, ' ');
+    return Object.prototype.hasOwnProperty.call(map, normalized) ? map[normalized] : map.default;
+  }
+
   function parseCoverageBase(diag, useV2) {
     const base = { C: 0, M: 0, Y: 0, K: 0 };
     let sum = 0;
@@ -843,110 +893,6 @@ document.addEventListener('DOMContentLoaded', () => {
     return { limit: 300, label: normalizado };
   }
 
-  function evaluateRisks(metrics, coverageState, stats) {
-    const razones = [];
-    let nivel = 0;
-
-    if (metrics.ml === null) {
-      razones.push('No se pudo calcular la transmisión de tinta. Revisá BCM, material y velocidad para evitar subcarga.');
-      nivel = Math.max(nivel, 1);
-    } else {
-      if (metrics.ml < 4) {
-        razones.push(
-          `Transmisión global baja (${metrics.ml.toFixed(2)} ml/min): riesgo de subcarga y falta de densidad.`,
-        );
-        nivel = Math.max(nivel, metrics.ml < 2.5 ? 2 : 1);
-      } else if (metrics.ml > 15) {
-        razones.push(
-          `Transmisión global alta (${metrics.ml.toFixed(2)} ml/min): riesgo de sobrecarga y ganancia de punto.`,
-        );
-        nivel = Math.max(nivel, metrics.ml > 18 ? 2 : 1);
-      }
-    }
-
-    const porColor = metrics.perColor || {};
-    const nombres = { C: 'Cian', M: 'Magenta', Y: 'Amarillo', K: 'Negro' };
-    let colorSevero = false;
-    const colorWarnings = [];
-    ['C', 'M', 'Y', 'K'].forEach((canal) => {
-      const valor = porColor[canal];
-      if (valor === undefined || valor === null) return;
-      const coberturaCanal = coverageState.scaled ? coverageState.scaled[canal] || 0 : 0;
-      const minEsperado =
-        coberturaCanal >= 65
-          ? 1.8
-          : coberturaCanal >= 40
-          ? 1.3
-          : coberturaCanal >= 20
-          ? 0.9
-          : coberturaCanal >= 10
-          ? 0.6
-          : 0;
-      if (minEsperado > 0 && valor < minEsperado) {
-        if (valor < minEsperado * 0.75) colorSevero = true;
-        colorWarnings.push(
-          `${nombres[canal]} (${valor.toFixed(2)} ml/min) insuficiente para ${coberturaCanal.toFixed(0)}% de cobertura`,
-        );
-      }
-    });
-    if (colorWarnings.length) {
-      razones.push(`Subcarga puntual: ${colorWarnings.join(' · ')}`);
-      nivel = Math.max(nivel, colorSevero ? 2 : 1);
-    }
-
-    const tacLimit = metrics.tacLimit;
-    const tac = metrics.tac ?? coverageState.sum;
-    if (tacLimit) {
-      if (tac > tacLimit + 15) {
-        razones.push(`Exceso de TAC: ${tac.toFixed(1)}% supera el límite ${tacLimit}% para ${metrics.materialLabel}.`);
-        nivel = Math.max(nivel, 2);
-      } else if (tac > tacLimit) {
-        razones.push(
-          `TAC ${tac.toFixed(1)}% ligeramente por encima del límite ${tacLimit}% (${metrics.materialLabel}).`,
-        );
-        nivel = Math.max(nivel, 1);
-      } else if (tac > tacLimit - 10) {
-        razones.push(`TAC ${tac.toFixed(1)}% cercano al límite recomendado (${tacLimit}%).`);
-      }
-    } else if (tac > 340) {
-      razones.push(`TAC ${tac.toFixed(1)}% elevado: vigilar secado y ganancia de punto.`);
-      nivel = Math.max(nivel, tac > 360 ? 2 : 1);
-    }
-
-    if (stats.hay_tramas_debiles) {
-      if (metrics.lpi > 180) {
-        razones.push('Tramas débiles con LPI alto: ajustar presiones o lineatura para preservar altas luces.');
-        nivel = Math.max(nivel, 2);
-      } else if (metrics.lpi > 150) {
-        razones.push('Tramas débiles detectadas: mantener LPI ≤150 para conservar el detalle en altas luces.');
-        nivel = Math.max(nivel, 1);
-      } else {
-        razones.push('El diagnóstico detectó tramas débiles: controlar presión y limpieza del anilox.');
-      }
-    }
-
-    if (stats.hay_overprint) {
-      const count = stats.conteo_overprint || 0;
-      razones.push(
-        count > 1
-          ? `${count} objetos en sobreimpresión: validar intención de impresión para evitar mezclas indeseadas.`
-          : 'Se detectó sobreimpresión: confirmar intención para evitar mezclas inesperadas.',
-      );
-      nivel = Math.max(nivel, count > 5 ? 2 : 1);
-    }
-
-    if (stats.hay_texto_pequeno && metrics.velocidad > 260) {
-      razones.push('Textos pequeños detectados: reducir velocidad para evitar pérdida de detalle.');
-      nivel = Math.max(nivel, 1);
-    }
-
-    if (!razones.length) {
-      razones.push('Parámetros dentro de los rangos recomendados según el diagnóstico.');
-    }
-
-    return { level: nivel, reasons: razones };
-  }
-
   function buildAdvertenciaStats(baseStats, advertencias) {
     const stats = {
       por_tipo: {},
@@ -1010,7 +956,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
   function leerTacFromDj(dj, useV2) {
     if (!dj || typeof dj !== 'object') return null;
-    if (useV2 && dj.tac_total_v2 !== null && dj.tac_total_v2 !== undefined) {
+    if (dj.tac_total_v2 !== null && dj.tac_total_v2 !== undefined) {
       const valV2 = asNumber(dj.tac_total_v2);
       if (valV2 !== null) return valV2;
     }

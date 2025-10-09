@@ -624,15 +624,23 @@
         </label>
       </div>
       <div class="sim-metrics">
-        <div id="riesgo-global" class="riesgo-badge riesgo-verde">
+        {% set ink_risk = diag.get('ink_risk') or {} %}
+        {% set risk_level_raw = ink_risk.get('level', 1)|int %}
+        {% set risk_level = 0 if risk_level_raw == 0 else 2 if risk_level_raw == 2 else 1 %}
+        {% set risk_classes = ['riesgo-verde', 'riesgo-amarillo', 'riesgo-rojo'] %}
+        {% set risk_label = ink_risk.get('label') or ['Verde', 'Amarillo', 'Rojo'][risk_level] %}
+        <div id="riesgo-global" class="riesgo-badge {{ risk_classes[risk_level] }}">
           <span class="riesgo-etiqueta">Riesgo global</span>
-          <strong id="riesgo-valor">Verde</strong>
+          <strong id="riesgo-valor">{{ risk_label }}</strong>
         </div>
         <ul class="metricas-principales">
           <li>
             <span class="titulo">Transmisión de tinta estimada</span>
             <span id="metric-ml" class="valor">--</span>
             <small id="metric-ml-detalle" class="detalle"></small>
+            <small id="metric-ml-ideal" class="detalle">
+              Ideal: {{ diagnostico_json.get('tinta_ideal_ml_min')|default(150, true)|round(0) }} ml/min
+            </small>
             <small class="detalle">Distribución por canal:</small>
             <ul id="metric-ml-colors" class="coverage-list coverage-ink"></ul>
           </li>
@@ -656,7 +664,11 @@
         </div>
       </div>
     </div>
-    <ul id="riesgo-detalle" class="riesgo-detalle"></ul>
+    <ul id="riesgo-detalle" class="riesgo-detalle">
+      {% for reason in ink_risk.get('reasons', []) %}
+        <li>{{ reason }}</li>
+      {% endfor %}
+    </ul>
     <div id="sim-container">
       <div class="sim-stage">
         {% set diag_base_static = url_for('static', filename=diag_base_web) if diag_base_web else '' %}

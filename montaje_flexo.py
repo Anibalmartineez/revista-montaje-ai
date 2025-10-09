@@ -27,7 +27,13 @@ from advertencias_disenio import analizar_advertencias_disenio
 from cobertura_utils import calcular_metricas_cobertura
 from reporte_tecnico import generar_reporte_tecnico, resumen_cobertura_tac
 from flexo_config import get_flexo_thresholds
-from tinta_utils import InkParams, calcular_transmision_tinta, normalizar_coberturas
+from tinta_utils import (
+    InkParams,
+    calcular_transmision_tinta,
+    normalizar_coberturas,
+    get_ink_ideal_mlmin,
+    clasificar_riesgo_por_ideal,
+)
 
 # Inicializa el cliente de OpenAI solo si hay API key disponible, evitando
 # errores durante la importación en entornos de test.
@@ -658,7 +664,8 @@ def revisar_diseño_flexo(
                 cobertura_promedio[canal] = porcentaje
             if cobertura_promedio:
                 cobertura_por_canal_letras = normalizar_coberturas(cobertura_promedio)
-                metrics.cobertura_por_canal = dict(cobertura_por_canal_letras)
+                if cobertura_por_canal_letras:
+                    metrics.cobertura_por_canal = dict(cobertura_por_canal_letras)
 
         cobertura_total_val = metricas_cobertura.get("cobertura_total")
         if cobertura_total_val is not None:
@@ -685,8 +692,8 @@ def revisar_diseño_flexo(
                     "<li><span class='icono warning'>⚠️</span> Cobertura muy baja. Posible subcarga o diseño incompleto.</li>"
                 )
 
-        if cobertura_promedio:
-            tac_total_calculado = sum(cobertura_promedio.values())
+        if cobertura_por_canal_letras:
+            tac_total_calculado = sum(cobertura_por_canal_letras.values())
             if math.isfinite(tac_total_calculado):
                 tac_total = round(float(tac_total_calculado), 2)
                 metrics.tac_total = tac_total
@@ -761,11 +768,13 @@ def revisar_diseño_flexo(
         "Trama muy débil" in a and "warn" in a for a in tramas_mensajes
     )
 
-    if metricas_cobertura and cobertura_promedio:
-        for canal, porcentaje in cobertura_promedio.items():
-            nombre = canal if canal != "Cyan" else "Cian"
+    if metrics.cobertura_por_canal:
+        nombres_canal = {"C": "Cian", "M": "Magenta", "Y": "Amarillo", "K": "Negro"}
+        for canal, porcentaje in metrics.cobertura_por_canal.items():
+            nombre = nombres_canal.get(canal, canal)
             cobertura_info.append(
-                f"<li><span class='icono ink'>🖨️</span> Porcentaje estimado de cobertura de <b>{nombre}</b>: <b>{porcentaje:.2f}%</b></li>"
+                "<li><span class='icono ink'>🖨️</span> Porcentaje estimado de cobertura de "
+                f"<b>{nombre}</b>: <b>{porcentaje:.2f}%</b></li>"
             )
 
     # Detección de tintas planas (Pantone/Spot)
@@ -821,8 +830,8 @@ def revisar_diseño_flexo(
             diagnostico_material.append(
                 "<li><span class='icono ok'>✔️</span> No se detectaron elementos sensibles a la ganancia de punto en papel.</li>"
             )
-    elif material_norm == "etiqueta adhesiva" and metricas_cobertura:
-        total_cobertura = tac_total if tac_total is not None else sum(cobertura_promedio.values()) if cobertura_promedio else 0
+    elif material_norm == "etiqueta adhesiva" and metrics.cobertura_por_canal:
+        total_cobertura = sum(metrics.cobertura_por_canal.values())
         if total_cobertura > 240:
             diagnostico_material.append(
                 f"<li><span class='icono warn'>⚠️</span> Cobertura total alta (<b>{round(total_cobertura,2)}%</b>). Puede ocasionar problemas de secado en etiquetas adhesivas.</li>"
@@ -839,6 +848,10 @@ def revisar_diseño_flexo(
     imagen_tinta = ""
     tinta_data = None
     ink_transfer = None
+    tinta_ideal = get_ink_ideal_mlmin(material_norm)
+    nivel: int | None = None
+    etiqueta = ""
+    razones: List[str] = []
     if (
         anilox_bcm is not None
         and velocidad_impresion is not None
@@ -856,22 +869,10 @@ def revisar_diseño_flexo(
                 params_tinta, metrics.cobertura_por_canal, thresholds
             )
             tinta_ml = ink_transfer.ml_min_global
-            umbral_bajo = 50
-            umbral_alto = 200
-            if tinta_ml < umbral_bajo:
-                advertencia_tinta = (
-                    "Riesgo de subcarga de tinta, posible pérdida de densidad o colores pálidos."
-                )
-            elif tinta_ml > umbral_alto:
-                advertencia_tinta = (
-                    "Riesgo de sobrecarga de tinta, puede generar ganancia de punto o tiempos de secado muy elevados."
-                )
-            else:
-                advertencia_tinta = "Transmisión de tinta estimada en rango seguro."
-
-            porcentaje_barra = min(tinta_ml / umbral_alto * 100, 100)
-            valores_ideales = {"film": 120, "papel": 180, "etiqueta adhesiva": 150}
-            tinta_ideal = valores_ideales.get(material_norm, 150)
+            nivel, etiqueta, razones = clasificar_riesgo_por_ideal(tinta_ml, tinta_ideal)
+            ratio_pct = (tinta_ml / tinta_ideal * 100) if tinta_ideal > 0 else 0
+            porcentaje_barra = max(0.0, min(round(ratio_pct, 2), 100.0))
+            advertencia_tinta = razones[0] if razones else "Sin observaciones."
             imagen_tinta = generar_grafico_tinta(tinta_ml, tinta_ideal, material)
             tinta_data = {
                 "tinta_ml": tinta_ml,
@@ -879,9 +880,20 @@ def revisar_diseño_flexo(
                 "advertencia": advertencia_tinta,
                 "imagen": imagen_tinta,
                 "tinta_por_canal_ml_min": ink_transfer.ml_min_por_canal,
+                "tinta_ideal_ml_min": tinta_ideal,
+                "ink_risk": {
+                    "level": nivel,
+                    "label": etiqueta,
+                    "reasons": razones,
+                },
             }
         except Exception as e:
             tinta_data = {"error": str(e)}
+    if nivel is None:
+        nivel, etiqueta, razones = clasificar_riesgo_por_ideal(
+            ink_transfer.ml_min_global if ink_transfer else None,
+            tinta_ideal,
+        )
 
     datos_reporte = {
         "diseno_info": diseno_info,
@@ -905,6 +917,8 @@ def revisar_diseño_flexo(
         "cobertura_total": metrics.cobertura_total,
         "tinta_ml_min": ink_transfer.ml_min_global if ink_transfer else None,
         "tinta_por_canal_ml_min": ink_transfer.ml_min_por_canal if ink_transfer else None,
+        "tinta_ideal_ml_min": tinta_ideal if ink_transfer else None,
+        "ink_risk": {"level": nivel, "label": etiqueta, "reasons": razones},
         "ancho_util_m": ancho_util_m,
         "ancho_mm": ancho_mm,
         "coef_material": material_coef_val,
