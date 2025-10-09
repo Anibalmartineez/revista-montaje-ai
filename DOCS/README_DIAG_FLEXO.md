@@ -31,6 +31,8 @@
   * `detectar_trama_debil_negro(img_cmyk, umbral)` analiza el canal K y crea advertencias sin `bbox` cuando hay tramas < umbral.
   * `consolidar_advertencias(*listas)` elimina duplicados por `(tipo|mensaje, bbox)`.
   * `resumen_advertencias`, `indicadores_advertencias`, `nivel_riesgo_global`, `semaforo_riesgo` sintetizan advertencias para UI y simulador.
+  * `tac_desde_cobertura(cobertura)` reutiliza `tinta_utils.normalizar_coberturas` para sumar CMYK (idéntico a `tac_total_v2`).
+  * `evaluar_riesgo_tinta(material, ml_min)` y `obtener_thresholds_flexo(material, anilox_lpi)` delegan en `tinta_utils.clasificar_riesgo_por_ideal` y `flexo_config.get_flexo_thresholds` respectivamente; no existen tablas ni umbrales locales.
 * **Dependencias:** PyMuPDF (`fitz`), PIL, NumPy y Flask (`current_app`).
 * **Dónde se usan:** `routes.py` (para generar previews y JSON persistido), `montaje_flexo.py` (filtro de objetos del sistema) y `tests/test_resultado_flexo_template.py` (mensaje por defecto de advertencias).
 
@@ -228,7 +230,7 @@ graph LR
 | `advertencias_total`, `conteo_tramas`, `conteo_overprint` | int | Derivados de indicadores | Sí | Stats resumidos |
 | `tiene_tramas_debiles`, `tiene_overprint`, `tiene_texto_pequeno` | bool | Indicadores | Sí | Flags |
 
-**Nota:** el backend (`montaje_flexo.py` → `routes.py`) genera un único `diagnostico_json` consumido directamente por la plantilla y `static/js/flexo_simulation.js`; no hay cálculos duplicados cuando `USE_PIPELINE_V2=True`.
+**Nota:** el backend (`montaje_flexo.py` → `routes.py`) genera un único `diagnostico_json` consumido directamente por la plantilla y `static/js/flexo_simulation.js`; no hay cálculos duplicados cuando `USE_PIPELINE_V2=True`. Las utilidades nuevas (`tac_desde_cobertura`, `evaluar_riesgo_tinta`, `obtener_thresholds_flexo`) solo encapsulan las fuentes canónicas (`tinta_utils` / `flexo_config`) y no sobreescriben `tac_total_v2`, `tinta_ml_min` ni `ink_risk`.
 
 ### Contexto adicional al template
 
