@@ -204,11 +204,13 @@ graph LR
 | `archivo` | str | Nombre PDF (`secure_filename`) | Sí | Archivo procesado |
 | `pdf_path` | str | Ruta relativa en `/static/uploads` | Sí | Para descargas |
 | `cobertura` | dict/None | Letras generadas (`cobertura_letras`) | No | Cobertura por canal en texto |
-| `cobertura_por_canal` | dict/None | `calcular_metricas_cobertura` | No | % por canal |
+| `cobertura_por_canal` | dict/None | `calcular_metricas_cobertura` (shadow) | No | % por canal, normalizado (preferido en v2) |
 | `cobertura_total` | float/None | Métrica TAC | No | Cobertura total |
-| `cobertura_estimada` | float/None | Igual que `tac_total` (alias) | No | Compatibilidad |
-| `tac_total` | float/None | TAC total calculado | No | Base simulador |
-| `cobertura_base_sum` | float/None | Alias legado para TAC | No | Compatibilidad con JS previo |
+| `tac_total_v2` | float/None | Suma CMYK (`calcular_metricas_cobertura`) | No | TAC preferido cuando `USE_PIPELINE_V2` está activo |
+| `tac_p95`, `tac_max` | float/None | Percentiles TAC | No | Percentil 95 y máximo del TAC |
+| `cobertura_estimada` | float/None | Alias legado (rellenado desde TAC) | No | Compatibilidad (deprecado) |
+| `tac_total` | float/None | Alias legado (shadow mode completa si falta) | No | Compatibilidad (deprecado) |
+| `cobertura_base_sum` | float/None | Alias legado para TAC | No | Compatibilidad con JS previo (deprecado) |
 | `anilox_lpi` (`lpi`) | int | Formulario → `inyectar_parametros_simulacion` | Sí | Lineatura |
 | `anilox_bcm` (`bcm`) | float | Formulario | Sí | Volumen |
 | `paso`, `paso_cilindro`, `paso_del_cilindro` | float | Formulario | Sí | Paso de cilindro |
@@ -231,6 +233,7 @@ graph LR
 * `material_coeficiente`: coeficiente final usado.
 * `sim_img_web`, `diag_base_web`, `diag_img_web`: rutas en `/static/previews`.
 * `indicadores_advertencias`, `advertencias_resumen`: se envían duplicados para fallback.
+* `USE_PIPELINE_V2`: flag booleano que habilita shadow mode de métricas TAC en el front.
 
 ---
 
@@ -288,6 +291,7 @@ Variables relevantes:
 
 - [ ] ¿Los umbrales modificados se declararon en `flexo_config.py` y no están hardcodeados en otros módulos?
 - [ ] ¿Los nuevos campos JSON fueron añadidos tanto en `routes.py` como en `templates/resultado_flexo.html` y `static/js/flexo_simulation.js`?
+- [ ] ¿`USE_PIPELINE_V2` está documentado y probado en off/on y la UI tolera `tac_total_v2=None`?
 - [ ] ¿Se actualizaron/crearon tests en `tests/test_diagnostico_flexo.py` para nuevos límites?
 - [ ] ¿`tools/audit_flexo.py` sigue pasando sin hallazgos críticos inesperados?
 - [ ] ¿Los overlays renderizados coinciden con los `bbox` esperados (ver prueba `test_preview_bbox_scaling_exact`)?

@@ -47,6 +47,7 @@
   * Falsos positivos: cualquier texto con “tac 1000” en otro contexto dispara riesgo alto.
 * **Reproducir:** `simular_riesgos("TAC 279.5%")` → devuelve “Sin riesgos” cuando debería advertir según configuración 280.
 * **Propuesta:** consumir directamente `diagnostico_json['tac_total']` cuando se provee, y ampliar regex a `\d+(?:[\.,]\d+)?`.
+* **Mitigación:** se implementó `USE_PIPELINE_V2` con lectura prioritaria de `tac_total_v2`/JSON y `_leer_tac` acepta decimales; la regex queda como fallback textual.
 
 ### 5. Baja – Claves JSON huérfanas / alias redundantes
 * **Descripción:** el backend carga múltiples alias (`paso`, `paso_cilindro`, `paso_del_cilindro`, `cobertura_estimada`, `cobertura_base_sum`, `advertencias_total`) pero el template solo usa un subconjunto.【F:routes.py†L1432-L1463】【F:templates/resultado_flexo.html†L529-L576】

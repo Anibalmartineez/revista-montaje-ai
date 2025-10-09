@@ -7,8 +7,12 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from advertencias_disenio import verificar_lineas_finas_v2, verificar_textos_pequenos
+from contextlib import contextmanager
+from pathlib import Path
+
 import fitz
-from flask import Flask
+import pytest
+from flask import Flask, template_rendered
 
 from cobertura_utils import calcular_metricas_cobertura
 from diagnostico_flexo import (
@@ -27,6 +31,114 @@ from advertencias_disenio import (
     verificar_textos_pequenos,
 )
 from simulador_riesgos import simular_riesgos
+
+
+@contextmanager
+def capture_templates(app):
+    recorded = []
+
+    def record(sender, template, context, **extra):
+        recorded.append((template, context))
+
+    template_rendered.connect(record, app)
+    try:
+        yield recorded
+    finally:
+        template_rendered.disconnect(record, app)
+
+
+def _make_pdf(path: Path) -> None:
+    doc = fitz.open()
+    page = doc.new_page()
+    page.draw_rect(page.rect, fill=(1, 1, 1))
+    doc.save(path)
+    doc.close()
+
+
+def _setup_revision_app(tmp_path, monkeypatch, use_flag, tac_v2, tac_legacy):
+    import routes
+
+    static_dir = tmp_path / "static"
+    uploads_dir = static_dir / "uploads"
+    simul_dir = static_dir / "simulaciones"
+    iconos_path = uploads_dir / "iconos.png"
+    overlay_path = tmp_path / "overlay.png"
+    base_img = tmp_path / "base.png"
+
+    uploads_dir.mkdir(parents=True, exist_ok=True)
+    simul_dir.mkdir(parents=True, exist_ok=True)
+    iconos_path.write_bytes(b"iconos")
+    overlay_path.write_bytes(b"overlay")
+    base_img.write_bytes(b"base")
+
+    cobertura_por_canal = {
+        "Cian": 70.1,
+        "Magenta": 65.2,
+        "Amarillo": 55.3,
+        "Negro": 45.4,
+    }
+
+    def fake_revisar(
+        path_pdf,
+        anilox_lpi,
+        paso_mm,
+        material_norm,
+        anilox_bcm,
+        velocidad_impresion,
+        cobertura_estimada,
+    ):
+        analisis = {
+            "tramas_debiles": [],
+            "cobertura_por_canal": cobertura_por_canal,
+            "textos_pequenos": [],
+            "resolucion_minima": 0,
+            "trama_minima": 5,
+            "cobertura_total": 83.2,
+            "tac_total": tac_legacy,
+            "tac_total_v2": tac_v2,
+            "tac_p95": 310.0,
+            "tac_max": 335.7,
+        }
+        return ("<div>Resumen</div>", None, "Diagnóstico", analisis, [])
+
+    def fake_analizar(path_pdf, advertencias):
+        return {"overlay_path": str(overlay_path), "advertencias": [], "dpi": 150}
+
+    def fake_preview(path_pdf, advertencias, dpi=150):
+        base_rel = "uploads/base.png"
+        base_rel_path = static_dir / base_rel
+        base_rel_path.parent.mkdir(parents=True, exist_ok=True)
+        base_rel_path.write_bytes(b"base-preview")
+        return (str(base_img), base_rel, "uploads/iconos.png", [])
+
+    def fake_simulacion(base_path, advertencias, lpi, output_path):
+        Path(output_path).parent.mkdir(parents=True, exist_ok=True)
+        Path(output_path).write_bytes(b"sim")
+
+    def fake_riesgos(resumen):
+        return "<div class='riesgo'></div>"
+
+    monkeypatch.setattr(routes, "revisar_diseño_flexo", fake_revisar)
+    monkeypatch.setattr(routes, "analizar_riesgos_pdf", fake_analizar)
+    monkeypatch.setattr(routes, "generar_preview_diagnostico", fake_preview)
+    monkeypatch.setattr(routes, "generar_simulacion_avanzada", fake_simulacion)
+    monkeypatch.setattr(routes, "simular_riesgos", fake_riesgos)
+
+    template_dir = Path(__file__).resolve().parents[1] / "templates"
+    app = Flask(__name__, static_folder=str(static_dir), template_folder=str(template_dir))
+    app.config.update(
+        TESTING=True,
+        SECRET_KEY="test",
+        USE_PIPELINE_V2=use_flag,
+        MAX_CONTENT_LENGTH=10 * 1024 * 1024,
+    )
+    app.register_blueprint(routes.routes_bp)
+    app.add_url_rule(
+        "/revision",
+        endpoint="revision",
+        view_func=app.view_functions["routes.revision"],
+    )
+    return app
 
 
 def test_calcular_metricas_cobertura(tmp_path):
@@ -224,6 +336,101 @@ def test_verificar_textos_pequenos_respeta_umbral():
     )
     assert any("No se encontraron textos" in a for a in advertencias_seguras)
     assert overlay_seguro == []
+
+
+def test_pipeline_v2_flag_off_compat_aliases(tmp_path, monkeypatch):
+    monkeypatch.setenv("OPENAI_API_KEY", "test-key")
+    app = _setup_revision_app(tmp_path, monkeypatch, use_flag=False, tac_v2=301.2, tac_legacy=None)
+    pdf_path = tmp_path / "archivo.pdf"
+    _make_pdf(pdf_path)
+
+    client = app.test_client()
+    data = {
+        "material": "Papel",
+        "anilox_lpi": "150",
+        "anilox_bcm": "2.5",
+        "paso_cilindro": "400",
+        "velocidad_impresion": "180",
+    }
+
+    with capture_templates(app) as templates:
+        with open(pdf_path, "rb") as fh:
+            response = client.post(
+                "/revision",
+                data={**data, "archivo_revision": (fh, "archivo.pdf")},
+                content_type="multipart/form-data",
+            )
+
+    assert response.status_code == 200
+    assert templates, "Se esperaba que se renderice una plantilla"
+    template, context = templates[-1]
+    assert template.name == "resultado_flexo.html"
+    assert context["USE_PIPELINE_V2"] is False
+
+    diagnostico_json = context["diagnostico_json"]
+    assert pytest.approx(diagnostico_json["tac_total_v2"], rel=1e-6) == 301.2
+    assert pytest.approx(diagnostico_json["tac_total"], rel=1e-6) == 301.2
+    assert pytest.approx(diagnostico_json["cobertura_estimada"], rel=1e-6) == 301.2
+    assert pytest.approx(diagnostico_json["cobertura_base_sum"], rel=1e-6) == 301.2
+    assert diagnostico_json["lpi"] == 150
+    assert pytest.approx(diagnostico_json["bcm"], rel=1e-6) == 2.5
+    assert pytest.approx(diagnostico_json["paso"], rel=1e-6) == 400.0
+    assert pytest.approx(diagnostico_json["velocidad"], rel=1e-6) == 180.0
+
+
+def test_pipeline_v2_flag_on_prefiere_v2(tmp_path, monkeypatch):
+    monkeypatch.setenv("OPENAI_API_KEY", "test-key")
+    app = _setup_revision_app(tmp_path, monkeypatch, use_flag=True, tac_v2=312.3, tac_legacy=205.7)
+    pdf_path = tmp_path / "archivo.pdf"
+    _make_pdf(pdf_path)
+
+    client = app.test_client()
+    data = {
+        "material": "Film",
+        "anilox_lpi": "160",
+        "anilox_bcm": "3.1",
+        "paso_cilindro": "500",
+        "velocidad_impresion": "190",
+    }
+
+    with capture_templates(app) as templates:
+        with open(pdf_path, "rb") as fh:
+            response = client.post(
+                "/revision",
+                data={**data, "archivo_revision": (fh, "archivo.pdf")},
+                content_type="multipart/form-data",
+            )
+
+    assert response.status_code == 200
+    html = response.get_data(as_text=True)
+    assert "window.USE_PIPELINE_V2 = true" in html
+    assert "<span id=\"tac-total\">312.3" in html
+    template, context = templates[-1]
+    diagnostico_json = context["diagnostico_json"]
+    assert pytest.approx(diagnostico_json["tac_total_v2"], rel=1e-6) == 312.3
+    assert pytest.approx(diagnostico_json["tac_total"], rel=1e-6) == 205.7
+
+
+def test_simulador_prefiere_json_y_decimales(monkeypatch):
+    thresholds = FlexoThresholds(
+        min_text_pt=4.0,
+        min_stroke_mm=0.2,
+        min_resolution_dpi=300,
+        tac_warning=279,
+        tac_critical=300,
+        edge_distance_mm=1.5,
+        min_bleed_mm=3.0,
+    )
+
+    monkeypatch.setattr(
+        "simulador_riesgos.get_flexo_thresholds", lambda material=None, anilox_lpi=None: thresholds
+    )
+
+    html_dict = simular_riesgos({"tac_total_v2": 279.5})
+    assert "TAC 279% - 300%" in html_dict
+
+    html_texto = simular_riesgos("TAC 279,5%")
+    assert "TAC 279% - 300%" in html_texto
 
 
 def test_verificar_textos_pequenos_limites():
