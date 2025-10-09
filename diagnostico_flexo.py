@@ -4,12 +4,19 @@ import os
 import unicodedata
 from collections import Counter
 from functools import lru_cache
+from typing import Any, Dict, List, Mapping
 
 import fitz
 import numpy as np
-from typing import List, Dict, Any
 from flask import current_app
 from PIL import Image, ImageDraw
+
+from flexo_config import FlexoThresholds, get_flexo_thresholds
+from tinta_utils import (
+    clasificar_riesgo_por_ideal,
+    get_ink_ideal_mlmin,
+    normalizar_coberturas,
+)
 
 
 # Descripciones genéricas para cada tipo de advertencia admitido.  Se
@@ -90,6 +97,35 @@ def coeficiente_material(material: str, *, default: float | None = None) -> floa
         return default
 
     return coeficientes.get("default")
+
+
+def tac_desde_cobertura(cobertura: Mapping[str, Any] | None) -> float:
+    """Calcula el TAC como la suma normalizada de los canales CMYK.
+
+    La suma se basa en ``tinta_utils.normalizar_coberturas`` para reutilizar la
+    lógica de recorte 0–100% por canal que emplea el pipeline v2.  El resultado
+    se redondea a dos decimales, igual que ``tac_total_v2``.
+    """
+
+    valores = normalizar_coberturas(cobertura)
+    total = sum(valores.get(canal, 0.0) for canal in ("C", "M", "Y", "K"))
+    return round(total, 2)
+
+
+def evaluar_riesgo_tinta(material: str | None, ml_min: float | None) -> Dict[str, Any]:
+    """Clasifica el riesgo de tinta reutilizando las utilidades centrales."""
+
+    ideal = get_ink_ideal_mlmin(material)
+    nivel, etiqueta, razones = clasificar_riesgo_por_ideal(ml_min, ideal)
+    return {"level": nivel, "label": etiqueta, "reasons": list(razones)}
+
+
+def obtener_thresholds_flexo(
+    material: str | None = None, anilox_lpi: float | None = None
+) -> FlexoThresholds:
+    """Proxy directo a ``flexo_config.get_flexo_thresholds`` sin valores propios."""
+
+    return get_flexo_thresholds(material=material, anilox_lpi=anilox_lpi)
 
 
 def inyectar_parametros_simulacion(

@@ -3,6 +3,7 @@
 import fitz
 import sys
 from pathlib import Path
+from typing import Any, Dict
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
@@ -16,15 +17,24 @@ from flask import Flask, template_rendered
 
 from cobertura_utils import calcular_metricas_cobertura
 from diagnostico_flexo import (
+    coeficiente_material,
+    evaluar_riesgo_tinta,
     generar_preview_diagnostico,
     indicadores_advertencias,
+    obtener_coeficientes_material,
+    obtener_thresholds_flexo,
     resumen_advertencias,
     semaforo_riesgo,
-    coeficiente_material,
-    obtener_coeficientes_material,
+    tac_desde_cobertura,
 )
 from flexo_config import FlexoThresholds, get_flexo_thresholds
-from tinta_utils import InkParams, calcular_transmision_tinta
+from tinta_utils import (
+    InkParams,
+    calcular_transmision_tinta,
+    clasificar_riesgo_por_ideal,
+    get_ink_ideal_mlmin,
+    normalizar_coberturas,
+)
 from montaje_flexo import detectar_tramas_débiles
 from advertencias_disenio import (
     revisar_sangrado,
@@ -333,6 +343,52 @@ def test_coeficiente_material_usa_json():
 
     override = coeficiente_material("material sin registrar", default=0.71)
     assert override == 0.71
+
+
+def test_diag_no_duplica_tac():
+    """La suma de coberturas sigue la misma fórmula que ``tac_total_v2``."""
+
+    cobertura = {"C": 110.4, "Magenta": 70.5, "y": 12.6, "negro": -5.0, "spot": 40}
+    normalizada = normalizar_coberturas(cobertura)
+    esperado = round(sum(normalizada.values()), 2)
+    assert tac_desde_cobertura(cobertura) == esperado
+
+
+def test_diag_riesgo_por_ideal():
+    """El semáforo reutiliza ``clasificar_riesgo_por_ideal`` sin reglas propias."""
+
+    material = "Film"
+    ideal = get_ink_ideal_mlmin(material)
+
+    verde = evaluar_riesgo_tinta(material, ideal * 1.05)
+    esperado_verde = clasificar_riesgo_por_ideal(ideal * 1.05, ideal)
+    assert verde["level"] == esperado_verde[0]
+    assert verde["label"] == esperado_verde[1]
+    assert verde["reasons"] == list(esperado_verde[2])
+
+    rojo = evaluar_riesgo_tinta(material, ideal * 1.35)
+    esperado_rojo = clasificar_riesgo_por_ideal(ideal * 1.35, ideal)
+    assert rojo["level"] == esperado_rojo[0]
+    assert rojo["label"] == esperado_rojo[1]
+    assert rojo["reasons"] == list(esperado_rojo[2])
+
+
+def test_diag_thresholds_config(monkeypatch):
+    """Los thresholds siempre provienen de ``get_flexo_thresholds``."""
+
+    esperado = FlexoThresholds(min_text_pt=3.5, min_resolution_dpi=480, tac_warning=255, tac_critical=290)
+    capturado: Dict[str, Any] = {}
+
+    def fake_thresholds(material=None, anilox_lpi=None):
+        capturado["material"] = material
+        capturado["anilox_lpi"] = anilox_lpi
+        return esperado
+
+    monkeypatch.setattr("diagnostico_flexo.get_flexo_thresholds", fake_thresholds)
+
+    resultado = obtener_thresholds_flexo(material="papel", anilox_lpi=620)
+    assert resultado is esperado
+    assert capturado == {"material": "papel", "anilox_lpi": 620}
 
 
 def test_verificar_textos_pequenos_respeta_umbral():
