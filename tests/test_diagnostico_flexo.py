@@ -7,16 +7,25 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from advertencias_disenio import verificar_lineas_finas_v2, verificar_textos_pequenos
+import fitz
+from flask import Flask
+
 from cobertura_utils import calcular_metricas_cobertura
 from diagnostico_flexo import (
+    generar_preview_diagnostico,
+    indicadores_advertencias,
     resumen_advertencias,
     semaforo_riesgo,
     coeficiente_material,
     obtener_coeficientes_material,
-    indicadores_advertencias,
 )
-from flexo_config import get_flexo_thresholds
+from flexo_config import FlexoThresholds, get_flexo_thresholds
 from montaje_flexo import detectar_tramas_débiles
+from advertencias_disenio import (
+    revisar_sangrado,
+    verificar_lineas_finas_v2,
+    verificar_textos_pequenos,
+)
 from simulador_riesgos import simular_riesgos
 
 
@@ -215,6 +224,134 @@ def test_verificar_textos_pequenos_respeta_umbral():
     )
     assert any("No se encontraron textos" in a for a in advertencias_seguras)
     assert overlay_seguro == []
+
+
+def test_verificar_textos_pequenos_limites():
+    thresholds = FlexoThresholds(min_text_pt=4.0)
+    contenido = {
+        "blocks": [
+            {
+                "lines": [
+                    {
+                        "spans": [
+                            {"size": 3.9, "font": "Test", "text": "A", "bbox": [0, 0, 10, 10]},
+                            {"size": 4.0, "font": "Test", "text": "B", "bbox": [0, 10, 10, 20]},
+                            {"size": 4.1, "font": "Test", "text": "C", "bbox": [0, 20, 10, 30]},
+                        ]
+                    }
+                ]
+            }
+        ]
+    }
+    advertencias, overlay = verificar_textos_pequenos(contenido, thresholds)
+    assert any("3.9" in a for a in advertencias)
+    assert any(o["bbox"][1] == 0 for o in overlay)
+    assert not any("4.0" in a for a in advertencias if "No se encontraron" in a)
+    assert all(o["bbox"][1] != 20 for o in overlay)
+
+
+def test_verificar_lineas_finas_limites():
+    class FakePage:
+        def __init__(self, drawings):
+            self._drawings = drawings
+
+        def get_drawings(self):
+            return self._drawings
+
+    thresholds = FlexoThresholds(min_stroke_mm=0.25)
+    pt_per_mm = 72 / 25.4
+    riesgo_page = FakePage(
+        [
+            {"width": thresholds.min_stroke_mm * pt_per_mm * 0.96, "bbox": [0, 0, 10, 10]},
+            {"width": thresholds.min_stroke_mm * pt_per_mm, "bbox": [10, 0, 20, 10]},
+            {"width": thresholds.min_stroke_mm * pt_per_mm * 1.04, "bbox": [20, 0, 30, 10]},
+        ]
+    )
+    advertencias, overlay = verificar_lineas_finas_v2(riesgo_page, "", thresholds)
+    assert any("trazos" in a.lower() for a in advertencias)
+    assert any(o["bbox"][0] == 0 for o in overlay)
+    assert all(o["bbox"][0] != 20 for o in overlay)
+
+
+def test_simulador_riesgos_tac_limites():
+    assert "TAC" not in simular_riesgos("Reporte TAC 279%")
+    html_med = simular_riesgos("Reporte TAC 300%")
+    assert "TAC 280%" in html_med
+    html_alto = simular_riesgos("Reporte TAC 321%")
+    assert "TAC >" in html_alto
+
+
+def test_preview_bbox_scaling_exact(tmp_path):
+    doc = fitz.open()
+    page = doc.new_page(width=144, height=144)
+    page.insert_textbox(fitz.Rect(10, 10, 40, 40), "Test")
+    pdf_path = tmp_path / "bbox.pdf"
+    doc.save(pdf_path)
+    doc.close()
+
+    advertencias = [
+        {"tipo": "texto_pequeno", "bbox": [10, 10, 30, 30], "descripcion": ""}
+    ]
+
+    app = Flask(__name__)
+    app.static_folder = str(tmp_path)
+    with app.app_context():
+        _, _, _, iconos = generar_preview_diagnostico(str(pdf_path), advertencias, dpi=144)
+
+    bbox_px = iconos[0]["bbox"]
+    assert abs(bbox_px[0] - 20) <= 1
+    assert abs(bbox_px[1] - 20) <= 1
+    assert abs(bbox_px[2] - 60) <= 1
+    assert abs(bbox_px[3] - 60) <= 1
+
+
+def test_revisar_sangrado_detecta_borde(tmp_path):
+    doc = fitz.open()
+    page = doc.new_page(width=200, height=200)
+    page.insert_textbox(fitz.Rect(1, 1, 50, 30), "Edge")
+    thresholds = FlexoThresholds(min_bleed_mm=3.0)
+    adv, overlay = revisar_sangrado(page, thresholds=thresholds)
+    assert any("cercanos al borde" in a for a in adv)
+    assert overlay
+
+    page2 = doc.new_page(width=200, height=200)
+    page2.insert_textbox(fitz.Rect(50, 50, 120, 120), "Safe")
+    adv_ok, overlay_ok = revisar_sangrado(page2, thresholds=thresholds)
+    assert any("Margen de seguridad" in a for a in adv_ok)
+    assert overlay_ok == []
+    doc.close()
+
+
+def test_config_mock_afecta_todas_las_rutas(monkeypatch):
+    custom = FlexoThresholds(min_text_pt=5.0, min_stroke_mm=0.4, min_bleed_mm=4.0)
+
+    monkeypatch.setattr(
+        "advertencias_disenio.get_flexo_thresholds",
+        lambda material=None: custom,
+    )
+    monkeypatch.setattr(
+        "simulador_riesgos.get_flexo_thresholds",
+        lambda material=None, anilox_lpi=None: custom,
+    )
+
+    contenido = {
+        "blocks": [
+            {
+                "lines": [
+                    {
+                        "spans": [
+                            {"size": 4.8, "font": "Test", "text": "pequeño", "bbox": [0, 0, 10, 10]}
+                        ]
+                    }
+                ]
+            }
+        ]
+    }
+    advertencias, _ = verificar_textos_pequenos(contenido)
+    assert any("4.8" in a for a in advertencias)
+
+    html = simular_riesgos("Texto pequeño 4.8 pt")
+    assert "Textos < 5" in html
 
 
 def test_verificar_lineas_finas_respeta_mm():

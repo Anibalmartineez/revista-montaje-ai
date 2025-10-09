@@ -1,6 +1,8 @@
 from flask import Flask, render_template
 from pathlib import Path
 
+from flask import Flask, render_template
+
 
 def test_default_warning_message_in_template():
     base_path = Path(__file__).resolve().parents[1]
