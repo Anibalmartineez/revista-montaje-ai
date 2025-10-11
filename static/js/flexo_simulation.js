@@ -425,25 +425,39 @@ document.addEventListener('DOMContentLoaded', () => {
 
     updateCoverageList(coverageState);
 
-    const ratio = transmision && ideal ? transmision / ideal : null;
+    const transmisionVal =
+      transmision !== null && transmision !== undefined && Number.isFinite(transmision)
+        ? transmision
+        : null;
+    const idealVal = Number.isFinite(ideal) && ideal > 0 ? ideal : null;
+    const ratio = transmisionVal !== null && idealVal !== null ? transmisionVal / idealVal : null;
+    const deltaPct = ratio !== null ? (ratio - 1) * 100 : null;
     let riskLevel = 1;
     let riskLabel = 'Amarillo';
     let reasons = [];
     if (ratio !== null && Number.isFinite(ratio)) {
-      if (ratio <= 1.1) {
+      if (ratio >= 0.9 && ratio <= 1.1) {
         riskLevel = 0;
         riskLabel = 'Verde';
         reasons.push(
-          `Dentro de ±10% del ideal (${transmision.toFixed(2)} vs ${ideal.toFixed(0)} ml/min).`,
+          `Dentro de ±10% del ideal (${transmisionVal.toFixed(2)} vs ${idealVal.toFixed(0)} ml/min).`,
         );
-      } else if (ratio <= 1.3) {
+      } else if (ratio >= 0.75 && ratio < 0.9) {
         riskLevel = 1;
         riskLabel = 'Amarillo';
-        reasons.push(`+${((ratio - 1) * 100).toFixed(0)}% sobre ideal.`);
+        reasons.push(`Subcarga ${Math.abs(deltaPct).toFixed(0)}% bajo el ideal.`);
+      } else if (ratio > 1.1 && ratio <= 1.3) {
+        riskLevel = 1;
+        riskLabel = 'Amarillo';
+        reasons.push(`Sobre carga +${deltaPct.toFixed(0)}% sobre el ideal.`);
+      } else if (ratio < 0.75) {
+        riskLevel = 2;
+        riskLabel = 'Rojo';
+        reasons.push(`Subcarga ${Math.abs(deltaPct).toFixed(0)}% bajo el ideal.`);
       } else {
         riskLevel = 2;
         riskLabel = 'Rojo';
-        reasons.push(`Sobre carga +${((ratio - 1) * 100).toFixed(0)}% sobre ideal.`);
+        reasons.push(`Sobre carga +${deltaPct.toFixed(0)}% sobre el ideal.`);
       }
     } else {
       reasons.push('Sin datos suficientes para evaluar la transmisión de tinta.');

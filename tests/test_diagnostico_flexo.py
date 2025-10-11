@@ -373,6 +373,25 @@ def test_diag_riesgo_por_ideal():
     assert rojo["reasons"] == list(esperado_rojo[2])
 
 
+def test_clasificar_riesgo_por_ideal_simetrico():
+    ideal = 120.0
+
+    nivel_rojo, etiqueta_rojo, razones_rojo = clasificar_riesgo_por_ideal(ideal * 0.57, ideal)
+    assert nivel_rojo == 2
+    assert etiqueta_rojo == "Rojo"
+    assert razones_rojo == ["Subcarga 43% bajo el ideal."]
+
+    nivel_verde, etiqueta_verde, razones_verde = clasificar_riesgo_por_ideal(ideal * 0.95, ideal)
+    assert nivel_verde == 0
+    assert etiqueta_verde == "Verde"
+    assert razones_verde == ["Dentro de ±10% del ideal (114.00 vs 120 ml/min)."]
+
+    nivel_amarillo, etiqueta_amarillo, razones_amarillo = clasificar_riesgo_por_ideal(ideal * 1.2, ideal)
+    assert nivel_amarillo == 1
+    assert etiqueta_amarillo == "Amarillo"
+    assert razones_amarillo == ["Sobre carga +20% sobre el ideal."]
+
+
 def test_diag_thresholds_config(monkeypatch):
     """Los thresholds siempre provienen de ``get_flexo_thresholds``."""
 
