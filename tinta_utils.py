@@ -30,24 +30,24 @@ def get_ink_ideal_mlmin(material: str | None) -> float:
 
 
 def clasificar_riesgo_por_ideal(ml_min: float | None, ideal: float | None):
-    """
-    Devuelve (nivel, etiqueta, razones[]) comparando ml/min con el ideal.
-
-    Verde (0): <=110%
-    Amarillo (1): 110–130%
-    Rojo (2): >130%
-    """
-
     if not ml_min or not ideal or ideal <= 0:
         return 1, "Amarillo", ["Sin ideal definido: usar criterio del operador."]
     ratio = ml_min / ideal
-    if ratio <= 1.10:
+    delta_pct = (ratio - 1.0) * 100.0
+    # Verde: dentro de ±10%
+    if 0.90 <= ratio <= 1.10:
         return 0, "Verde", [
             f"Dentro de ±10% del ideal ({ml_min:.2f} vs {ideal:.0f} ml/min)."
         ]
-    if ratio <= 1.30:
-        return 1, "Amarillo", [f"+{(ratio - 1) * 100:.0f}% sobre ideal."]
-    return 2, "Rojo", [f"Sobre carga +{(ratio - 1) * 100:.0f}% sobre ideal."]
+    # Amarillo: 10–30% por debajo o por encima
+    if 0.75 <= ratio < 0.90:
+        return 1, "Amarillo", [f"Subcarga {abs(delta_pct):.0f}% bajo el ideal."]
+    if 1.10 < ratio <= 1.30:
+        return 1, "Amarillo", [f"Sobre carga +{delta_pct:.0f}% sobre el ideal."]
+    # Rojo: >30% de desvío
+    if ratio < 0.75:
+        return 2, "Rojo", [f"Subcarga {abs(delta_pct):.0f}% bajo el ideal."]
+    return 2, "Rojo", [f"Sobre carga +{delta_pct:.0f}% sobre el ideal."]
 
 
 @dataclass(frozen=True)
