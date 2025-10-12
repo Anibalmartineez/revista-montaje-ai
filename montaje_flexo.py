@@ -917,7 +917,7 @@ def revisar_diseño_flexo(
         "cobertura_total": metrics.cobertura_total,
         "tinta_ml_min": ink_transfer.ml_min_global if ink_transfer else None,
         "tinta_por_canal_ml_min": ink_transfer.ml_min_por_canal if ink_transfer else None,
-        "tinta_ideal_ml_min": tinta_ideal if ink_transfer else None,
+        "tinta_ideal_ml_min": tinta_ideal,
         "ink_risk": {"level": nivel, "label": etiqueta, "reasons": razones},
         "ancho_util_m": ancho_util_m,
         "ancho_mm": ancho_mm,
@@ -928,6 +928,13 @@ def revisar_diseño_flexo(
         if velocidad_impresion is not None
         else None,
         "material": material_norm,
+    }
+    diagnostico_json["sim_base"] = {
+        "bcm": float(anilox_bcm) if anilox_bcm is not None else None,
+        "vel": float(velocidad_impresion) if velocidad_impresion is not None else None,
+        "ancho_m": float(ancho_util_m) if ancho_util_m is not None else None,
+        "coef": float(material_coef_val) if material_coef_val is not None else None,
+        "tac": float(metrics.tac_total) if metrics.tac_total is not None else None,
     }
     if metrics.cobertura_por_canal:
         diagnostico_json.setdefault("cobertura", dict(metrics.cobertura_por_canal))

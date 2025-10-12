@@ -1,6 +1,9 @@
 """Tests para utilidades de diagnostico flexográfico."""
 
 import fitz
+import json
+import re
+import subprocess
 import sys
 from pathlib import Path
 from typing import Any, Dict
@@ -64,6 +67,48 @@ def _make_pdf(path: Path) -> None:
     page.draw_rect(page.rect, fill=(1, 1, 1))
     doc.save(path)
     doc.close()
+
+
+def _extract_js_function(name: str) -> str:
+    js_path = Path(__file__).resolve().parents[1] / "static" / "js" / "flexo_simulation.js"
+    content = js_path.read_text(encoding="utf-8")
+    signature = f"function {name}"
+    start = content.find(signature)
+    assert start != -1, f"No se encontró {name} en flexo_simulation.js"
+    brace_start = content.find("{", start)
+    assert brace_start != -1, f"No se encontró el cuerpo de {name}"
+    depth = 0
+    end = brace_start
+    while end < len(content):
+        char = content[end]
+        if char == "{":
+            depth += 1
+        elif char == "}":
+            depth -= 1
+            if depth == 0:
+                end += 1
+                break
+        end += 1
+    return content[start:end]
+
+
+def _run_js(function_source: str, invocation: str) -> str:
+    script = (
+        f"{function_source}\n"
+        f"const __result__ = {invocation};\n"
+        "if (__result__ === null || __result__ === undefined) {\n"
+        "  console.log('null');\n"
+        "} else {\n"
+        "  console.log(JSON.stringify(__result__));\n"
+        "}\n"
+    )
+    completed = subprocess.run(
+        ["node", "-e", script],
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+    return completed.stdout.strip()
 
 
 def _setup_revision_app(
@@ -607,6 +652,65 @@ def test_pipeline_json_only_sin_duplicados(tmp_path, monkeypatch):
     html = response.data.decode("utf-8")
     assert "324.93 ml/min" not in html
     assert '"tinta_ml_min": 3.82' in html
+
+
+def test_ui_no_override_backend_value(tmp_path, monkeypatch):
+    monkeypatch.setenv("OPENAI_API_KEY", "test-key")
+    diag_override = {
+        "tinta_ml_min": 98.76,
+        "tinta_ideal_ml_min": 110.0,
+        "sim_base": {"bcm": 3.1, "vel": 180.0, "ancho_m": 0.48, "coef": 0.82, "tac": 230.0},
+    }
+    cobertura_override = {"Cian": 60.0, "Magenta": 52.0, "Amarillo": 44.0, "Negro": 36.0}
+    app = _setup_revision_app(
+        tmp_path,
+        monkeypatch,
+        use_flag=True,
+        tac_v2=230.0,
+        tac_legacy=None,
+        diag_json_override=diag_override,
+        cobertura_override=cobertura_override,
+    )
+    pdf_path = tmp_path / "archivo.pdf"
+    _make_pdf(pdf_path)
+
+    data = {
+        "material": "Film",
+        "anilox_lpi": "150",
+        "anilox_bcm": "3.1",
+        "paso_cilindro": "400",
+        "velocidad_impresion": "180",
+    }
+    response, _ = _post_revision(app, pdf_path, data)
+
+    assert response.status_code == 200
+    html = response.get_data(as_text=True)
+    match = re.search(r'id="metric-ml-diagnostico"[^>]*>([^<]+)</span>', html)
+    assert match, "No se encontró la tarjeta de diagnóstico"
+    assert match.group(1).strip() == "98.76 ml/min"
+
+
+def test_ratio_model_matches_backend_when_same_factors():
+    func_src = _extract_js_function("simulateByRatios")
+    base = 185.4
+    factors = {"bcm": 2.8, "vel": 150, "ancho": 0.52, "coef": 0.81, "tac": 240}
+    output = _run_js(func_src, f"simulateByRatios({base}, {json.dumps(factors)}, {json.dumps(factors)})")
+    assert output != "null"
+    assert pytest.approx(float(output), rel=1e-9) == pytest.approx(base, rel=1e-9)
+
+
+def test_ratio_model_tracks_factor_changes():
+    func_src = _extract_js_function("simulateByRatios")
+    base = 120.0
+    base_factors = {"bcm": 3.0, "vel": 150, "ancho": 0.5, "coef": 0.8, "tac": 210}
+    sim_factors = {**base_factors, "bcm": 3.6, "vel": 180}
+    expected = base * (sim_factors["bcm"] / base_factors["bcm"]) * (sim_factors["vel"] / base_factors["vel"])
+    output = _run_js(
+        func_src,
+        f"simulateByRatios({base}, {json.dumps(base_factors)}, {json.dumps(sim_factors)})",
+    )
+    assert output != "null"
+    assert pytest.approx(float(output), rel=1e-9) == pytest.approx(expected, rel=1e-9)
 
 
 def test_riesgo_relativo_por_ideal(tmp_path, monkeypatch):
