@@ -596,6 +596,10 @@
     <p class="sim-desc">Ajustá los parámetros de máquina para predecir transmisión de tinta y riesgos reales detectados en el PDF.</p>
     <div class="sim-grid">
       <div class="sim-controls">
+        <label class="sim-toggle">
+          <input type="checkbox" id="sim-toggle">
+          <span>Activar simulación</span>
+        </label>
         <label>
           <span>Lineatura del anilox (LPI)</span>
           <input type="range" id="lpi" name="lpi" min="80" max="600" value="{{ lpi_display }}">
@@ -629,20 +633,80 @@
         {% set risk_level = 0 if risk_level_raw == 0 else 2 if risk_level_raw == 2 else 1 %}
         {% set risk_classes = ['riesgo-verde', 'riesgo-amarillo', 'riesgo-rojo'] %}
         {% set risk_label = ink_risk.get('label') or ['Verde', 'Amarillo', 'Rojo'][risk_level] %}
-        <div id="riesgo-global" class="riesgo-badge {{ risk_classes[risk_level] }}">
-          <span class="riesgo-etiqueta">Riesgo global</span>
-          <strong id="riesgo-valor">{{ risk_label }}</strong>
-        </div>
+        {% set diag_tinta = diagnostico_json.get('tinta_ml_min') %}
+        {% set diag_ideal = diagnostico_json.get('tinta_ideal_ml_min') %}
+        {% set diag_sim_base = diagnostico_json.get('sim_base') or {} %}
+        {% set diag_bcm = diag_sim_base.get('bcm') %}
+        {% set diag_vel = diag_sim_base.get('vel') %}
+        {% set diag_ancho = diag_sim_base.get('ancho_m') %}
+        {% set diag_coef = diag_sim_base.get('coef') %}
+        {% set diag_tac_base = diag_sim_base.get('tac') %}
+        {% set nombres_cmyk_ml = {'C': 'Cian', 'M': 'Magenta', 'Y': 'Amarillo', 'K': 'Negro'} %}
+        {% set tinta_por_canal = diagnostico_json.get('tinta_por_canal_ml_min') or {} %}
         <ul class="metricas-principales">
-          <li>
-            <span class="titulo">Transmisión de tinta estimada</span>
-            <span id="metric-ml" class="valor">--</span>
-            <small id="metric-ml-detalle" class="detalle"></small>
-            <small id="metric-ml-ideal" class="detalle">
-              Ideal: {{ diagnostico_json.get('tinta_ideal_ml_min')|default(150, true)|round(0) }} ml/min
+          <li id="card-diagnostico" class="metric-card">
+            <div class="metric-card-header">
+              <span class="titulo">Diagnóstico (backend)</span>
+              <span class="badge badge-origen">Diagnóstico</span>
+            </div>
+            <span id="metric-ml-diagnostico" class="valor">
+              {% if diag_tinta is not none %}
+                {{ '%0.2f' % diag_tinta }} ml/min
+              {% else %}
+                --
+              {% endif %}
+            </span>
+            {% set det = namespace(items=[]) %}
+            {% if diag_bcm is not none %}{% set _ = det.items.append('BCM %0.2f' % diag_bcm) %}{% endif %}
+            {% if diag_coef is not none %}{% set _ = det.items.append('coef %0.2f' % diag_coef) %}{% endif %}
+            {% if diag_ancho is not none %}{% set _ = det.items.append('ancho %0.2f m' % diag_ancho) %}{% endif %}
+            {% if diag_vel is not none %}{% set _ = det.items.append('velocidad %0.0f m/min' % diag_vel) %}{% endif %}
+            {% if diag_tac_base is not none %}{% set _ = det.items.append('TAC %0.1f%%' % diag_tac_base) %}{% endif %}
+            <small id="metric-ml-detalle-diagnostico" class="detalle">{{ det.items|join(' · ') }}</small>
+            <small id="metric-ml-ideal-diagnostico" class="detalle">
+              Ideal:
+              {% if diag_ideal is not none %}
+                {{ '%0.0f' % diag_ideal }} ml/min
+              {% else %}
+                --
+              {% endif %}
             </small>
             <small class="detalle">Distribución por canal:</small>
-            <ul id="metric-ml-colors" class="coverage-list coverage-ink"></ul>
+            <ul id="metric-ml-colors-diagnostico" class="coverage-list coverage-ink">
+              {% for canal in ['C', 'M', 'Y', 'K'] %}
+                {% set valor = tinta_por_canal.get(canal) %}
+                <li>
+                  <strong>{{ nombres_cmyk_ml[canal] }}:</strong>
+                  {% if valor is not none %}
+                    {{ '%0.2f' % valor }} ml/min
+                  {% else %}
+                    --
+                  {% endif %}
+                </li>
+              {% endfor %}
+            </ul>
+          </li>
+          <li id="card-simulacion" class="metric-card">
+            <div class="metric-card-header">
+              <span class="titulo">Simulación (sliders)</span>
+              <span class="badge badge-origen">Simulado</span>
+            </div>
+            <span id="metric-ml-simulado" class="valor">--</span>
+            <small id="metric-ml-detalle-simulado" class="detalle">Activá la simulación para ver un cálculo.</small>
+            <small id="metric-ml-ideal-simulado" class="detalle">
+              Ideal:
+              {% if diag_ideal is not none %}
+                {{ '%0.0f' % diag_ideal }} ml/min
+              {% else %}
+                --
+              {% endif %}
+            </small>
+            <small class="detalle">Distribución por canal:</small>
+            <ul id="metric-ml-colors-simulado" class="coverage-list coverage-ink"></ul>
+            <div id="riesgo-global" class="riesgo-badge {{ risk_classes[risk_level] }}">
+              <span class="riesgo-etiqueta" id="riesgo-etiqueta">Riesgo global · Diagnóstico</span>
+              <strong id="riesgo-valor">{{ risk_label }}</strong>
+            </div>
           </li>
           <li>
             <span class="titulo">TAC del archivo</span>
@@ -658,6 +722,7 @@
             <span id="metric-overprint" class="valor">--</span>
           </li>
         </ul>
+        <p class="sim-note">La simulación no persiste cambios y no altera el diagnóstico.</p>
         <div class="cobertura-cmyk">
           <h4>Cobertura CMYK detectada</h4>
           <ul id="metric-coverage" class="coverage-list"></ul>
