@@ -40,12 +40,12 @@ def clasificar_riesgo_por_ideal(ml_min: float | None, ideal: float | None):
             f"Dentro de ±10% del ideal ({ml_min:.2f} vs {ideal:.0f} ml/min)."
         ]
     # Amarillo: 10–30% por debajo o por encima
-    if 0.75 <= ratio < 0.90:
+    if 0.70 <= ratio < 0.90:
         return 1, "Amarillo", [f"Subcarga {abs(delta_pct):.0f}% bajo el ideal."]
     if 1.10 < ratio <= 1.30:
         return 1, "Amarillo", [f"Sobre carga +{delta_pct:.0f}% sobre el ideal."]
     # Rojo: >30% de desvío
-    if ratio < 0.75:
+    if ratio < 0.70:
         return 2, "Rojo", [f"Subcarga {abs(delta_pct):.0f}% bajo el ideal."]
     return 2, "Rojo", [f"Sobre carga +{delta_pct:.0f}% sobre el ideal."]
 

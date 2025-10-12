@@ -381,6 +381,20 @@ def test_clasificar_riesgo_por_ideal_simetrico():
     assert etiqueta_rojo == "Rojo"
     assert razones_rojo == ["Subcarga 43% bajo el ideal."]
 
+    nivel_amarillo_bajo, etiqueta_amarillo_bajo, razones_amarillo_bajo = clasificar_riesgo_por_ideal(
+        ideal * 0.70, ideal
+    )
+    assert nivel_amarillo_bajo == 1
+    assert etiqueta_amarillo_bajo == "Amarillo"
+    assert razones_amarillo_bajo == ["Subcarga 30% bajo el ideal."]
+
+    nivel_rojo_borde, etiqueta_rojo_borde, razones_rojo_borde = clasificar_riesgo_por_ideal(
+        ideal * 0.69, ideal
+    )
+    assert nivel_rojo_borde == 2
+    assert etiqueta_rojo_borde == "Rojo"
+    assert razones_rojo_borde == ["Subcarga 31% bajo el ideal."]
+
     nivel_verde, etiqueta_verde, razones_verde = clasificar_riesgo_por_ideal(ideal * 0.95, ideal)
     assert nivel_verde == 0
     assert etiqueta_verde == "Verde"
