@@ -442,7 +442,7 @@ document.addEventListener('DOMContentLoaded', () => {
         reasons.push(
           `Dentro de ±10% del ideal (${transmisionVal.toFixed(2)} vs ${idealVal.toFixed(0)} ml/min).`,
         );
-      } else if (ratio >= 0.75 && ratio < 0.9) {
+      } else if (ratio >= 0.7 && ratio < 0.9) {
         riskLevel = 1;
         riskLabel = 'Amarillo';
         reasons.push(`Subcarga ${Math.abs(deltaPct).toFixed(0)}% bajo el ideal.`);
@@ -450,7 +450,7 @@ document.addEventListener('DOMContentLoaded', () => {
         riskLevel = 1;
         riskLabel = 'Amarillo';
         reasons.push(`Sobre carga +${deltaPct.toFixed(0)}% sobre el ideal.`);
-      } else if (ratio < 0.75) {
+      } else if (ratio < 0.7) {
         riskLevel = 2;
         riskLabel = 'Rojo';
         reasons.push(`Subcarga ${Math.abs(deltaPct).toFixed(0)}% bajo el ideal.`);

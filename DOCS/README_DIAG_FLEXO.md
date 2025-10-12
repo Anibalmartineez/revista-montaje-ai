@@ -141,6 +141,7 @@
 | TAC advertencia | 280 | % | `simulador_riesgos` (rango medio), `montaje_flexo` (mensajes de cobertura), reportes | Tabla de riesgos, `revisar_diseño_flexo` |
 | TAC crítico | 320 | % | `simulador_riesgos` (riesgo alto) | Tabla de riesgos |
 | Trama débil negro | 5 | % (valor relativo, configurable en llamada) | `diagnostico_flexo.detectar_trama_debil_negro`, `montaje_flexo.detectar_tramas_débiles` | Indicadores y advertencias |
+| Semáforo tinta | Verde 0.90–1.10 · Amarillo 0.70–0.90 / 1.10–1.30 · Rojo <0.70 / >1.30 | ratio (ml/min ÷ ideal) | `tinta_utils.clasificar_riesgo_por_ideal`, `static/js/flexo_simulation.js` | `evaluar_riesgo_tinta`, simulador JS |
 
 Los overrides por material/anilox se cargan al llamar `get_flexo_thresholds(material, anilox_lpi)` desde `advertencias_disenio` y `simulador_riesgos`.
 
