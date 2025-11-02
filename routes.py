@@ -396,7 +396,7 @@ def _parse_montaje_offset_form(req):
 
     current_app.config["LAST_UPLOADS"] = [path for path, _ in diseños]
 
-    modo_ia = req.form.get("modo_ia") in {"on", "true", "1"}
+    modo_ia = "modo_ia" in req.form
     estrategia = req.form.get("estrategia", "flujo")
     if modo_ia:
         estrategia = "auto"
