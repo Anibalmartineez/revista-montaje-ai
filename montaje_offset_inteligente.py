@@ -5,7 +5,7 @@ import sys
 import builtins
 import tempfile
 from dataclasses import dataclass
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, Optional, Tuple, Any
 
 import fitz  # PyMuPDF
 from PIL import Image, ImageOps
