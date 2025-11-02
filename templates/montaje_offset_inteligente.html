@@ -3,6 +3,11 @@
 <head>
   <meta charset="utf-8">
   <title>Montaje Offset Inteligente</title>
+  <style>
+    .modo-ia-activo .ia-hide {
+      display: none !important;
+    }
+  </style>
 </head>
 <body>
   <h1>Montaje Offset Inteligente</h1>
@@ -92,23 +97,26 @@
     </fieldset>
 
     <label><input type="checkbox" name="centrar" checked> Centrar montaje en pliego</label><br>
-    <label>Estrategia de montaje:</label>
-    <select name="estrategia">
-      <option value="flujo">Flujo (auto)</option>
-      <option value="grid">Grid (filas/columnas o celda fija)</option>
-      <option value="maxrects">MaxRects (anidado eficiente)</option>
-    </select>
+    <label><input type="checkbox" name="modo_ia" id="modo_ia"> Modo IA (recomendado)</label><br>
+    <div class="ia-hide">
+      <label>Estrategia de montaje:</label>
+      <select name="estrategia">
+        <option value="flujo">Flujo (auto)</option>
+        <option value="grid">Grid (filas/columnas o celda fija)</option>
+        <option value="maxrects">MaxRects (anidado eficiente)</option>
+      </select>
+    </div>
 
     <!-- Controles comunes: mantener márgenes, separaciones, etc. -->
 
     <!-- Grupo Flujo -->
-    <div id="grupo-flujo">
+    <div id="grupo-flujo" class="ia-hide">
       <label><input type="checkbox" name="alinear_filas" checked title="Alinea por la altura mayor de cada fila"> Alinear por filas</label>
       <label><input type="checkbox" name="preferir_horizontal" title="Si hay rotación, prioriza ancho>alto"> Preferir orientación horizontal</label>
     </div>
 
     <!-- Grupo Grid -->
-    <div id="grupo-grid" style="display:none;">
+    <div id="grupo-grid" style="display:none;" class="ia-hide">
       <div>
         <label>Filas (opcional): <input type="number" name="filas" min="0" step="1" value="0"></label>
         <label>Columnas (opcional): <input type="number" name="columnas" min="0" step="1" value="0"></label>
@@ -122,7 +130,7 @@
     </div>
 
     <!-- Grupo MaxRects -->
-    <div id="grupo-maxrects" style="display:none;">
+    <div id="grupo-maxrects" style="display:none;" class="ia-hide">
       <small>Consejo: activar “Ordenar por tamaño” para mejor aprovechamiento.</small><br>
       <label><input type="checkbox" name="ordenar_tamano" checked title="Coloca primero piezas grandes para reducir huecos"> Ordenar por tamaño</label>
     </div>
@@ -196,6 +204,7 @@
         this.value === 'personalizado' ? 'block' : 'none';
     });
 
+    const frm = document.getElementById('frm-inteligente');
     const selE = document.querySelector('select[name="estrategia"]');
     const gFlujo = document.getElementById('grupo-flujo');
     const gGrid = document.getElementById('grupo-grid');
@@ -205,6 +214,7 @@
     const filas = document.querySelector('input[name="filas"]');
     const columnas = document.querySelector('input[name="columnas"]');
     const radiosSangrado = document.querySelectorAll('input[name="modo_sangrado"]');
+    const chkIa = document.getElementById('modo_ia');
 
     function actualizarSangradoInputs() {
       const modo = document.querySelector('input[name="modo_sangrado"]:checked').value;
@@ -215,11 +225,19 @@
     actualizarSangradoInputs();
 
     function setGroupState(group, active) {
+      if (!group) return;
       group.style.display = active ? 'block' : 'none';
       group.querySelectorAll('input').forEach(inp => inp.disabled = !active);
     }
 
     function toggleByStrategy() {
+      if (!selE) return;
+      if (chkIa && chkIa.checked) {
+        setGroupState(gFlujo, false);
+        setGroupState(gGrid, false);
+        setGroupState(gMR, false);
+        return;
+      }
       const v = selE.value;
       setGroupState(gFlujo, v === 'flujo');
       setGroupState(gGrid, v === 'grid');
@@ -233,11 +251,39 @@
       columnas.disabled = usarCelda;
     }
 
-    selE.addEventListener('change', toggleByStrategy);
-    celdaAncho.addEventListener('input', toggleGridInputs);
-    celdaAlto.addEventListener('input', toggleGridInputs);
+    function applyIaMode() {
+      if (!chkIa) return;
+      const active = chkIa.checked;
+      if (frm) {
+        frm.classList.toggle('modo-ia-activo', active);
+      }
+      if (selE) {
+        selE.disabled = active;
+      }
+      document
+        .querySelectorAll('.ia-hide input, .ia-hide select, .ia-hide textarea')
+        .forEach(inp => {
+          if (active) {
+            inp.dataset.iaPrevDisabled = inp.disabled ? '1' : '0';
+            inp.disabled = true;
+          } else if (Object.prototype.hasOwnProperty.call(inp.dataset, 'iaPrevDisabled')) {
+            inp.disabled = inp.dataset.iaPrevDisabled === '1';
+            delete inp.dataset.iaPrevDisabled;
+          }
+        });
+      toggleByStrategy();
+      if (!active) {
+        toggleGridInputs();
+      }
+    }
+
+    selE?.addEventListener('change', toggleByStrategy);
+    celdaAncho?.addEventListener('input', toggleGridInputs);
+    celdaAlto?.addEventListener('input', toggleGridInputs);
+    chkIa?.addEventListener('change', applyIaMode);
     toggleByStrategy();
     toggleGridInputs();
+    applyIaMode();
 
     (function(){
       const frm = document.getElementById('frm-inteligente');

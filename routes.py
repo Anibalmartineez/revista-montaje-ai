@@ -396,8 +396,11 @@ def _parse_montaje_offset_form(req):
 
     current_app.config["LAST_UPLOADS"] = [path for path, _ in diseños]
 
+    modo_ia = req.form.get("modo_ia") in {"on", "true", "1"}
     estrategia = req.form.get("estrategia", "flujo")
-    if req.form.get("forzar_grilla"):
+    if modo_ia:
+        estrategia = "auto"
+    elif req.form.get("forzar_grilla"):
         estrategia = "grid"
 
     ordenar_tamano = bool(req.form.get("ordenar_tamano"))
@@ -430,7 +433,15 @@ def _parse_montaje_offset_form(req):
         sangrado_mm = float(req.form.get("sangrado_replace", 0) or 0)
         usar_trimbox = True
 
-    if estrategia == "flujo":
+    if modo_ia:
+        ordenar_tamano = False
+        alinear_filas = False
+        preferir_horizontal = False
+        filas = 0
+        columnas = 0
+        celda_ancho = 0.0
+        celda_alto = 0.0
+    elif estrategia == "flujo":
         ordenar_tamano = False if "ordenar_tamano" not in req.form else ordenar_tamano
         alinear_filas = True if "alinear_filas" not in req.form else alinear_filas
     elif estrategia == "grid":
@@ -465,6 +476,7 @@ def _parse_montaje_offset_form(req):
         "cutmarks_por_forma": cutmarks_por_forma,
         "sangrado": sangrado_mm,
         "usar_trimbox": usar_trimbox,
+        "modo_ia": modo_ia,
     }
 
     return diseños, ancho_pliego, alto_pliego, params
