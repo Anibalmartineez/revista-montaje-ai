@@ -7,7 +7,7 @@ import uuid
 import tempfile
 import shutil
 import json
-from typing import Dict
+from typing import Dict, List, Tuple
 from threading import Lock
 from PIL import Image, ImageDraw
 from reportlab.pdfgen import canvas
@@ -52,7 +52,11 @@ from montaje_flexo import (
 )
 from preview_tecnico import generar_preview_tecnico, analizar_riesgos_pdf
 from montaje_offset import montar_pliego_offset
-from montaje_offset_inteligente import montar_pliego_offset_inteligente
+from montaje_offset_inteligente import (
+    Diseno,
+    MontajeConfig,
+    realizar_montaje_inteligente,
+)
 from montaje_offset_personalizado import montar_pliego_offset_personalizado
 from imposicion_offset_auto import imponer_pliego_offset_auto
 from diagnostico_flexo import (
@@ -105,8 +109,53 @@ def _tmp_static(*parts):
     return p
 
 
+def _build_diseno_objs(disenos: List[Tuple[str, int]]) -> List[Diseno]:
+    return [Diseno(ruta=path, cantidad=copias) for path, copias in disenos]
+
+
+def _montaje_config_from_params(
+    tamano_pliego: Tuple[float, float],
+    params: Dict,
+    **overrides,
+) -> MontajeConfig:
+    base_kwargs = {
+        "tamano_pliego": tamano_pliego,
+        "separacion": params.get("separacion"),
+        "margen_izquierdo": params.get("margen_izq", 10.0),
+        "margen_derecho": params.get("margen_der", 10.0),
+        "margen_superior": params.get("margen_sup", 10.0),
+        "margen_inferior": params.get("margen_inf", 10.0),
+        "espaciado_horizontal": params.get("espaciado_horizontal", 0.0),
+        "espaciado_vertical": params.get("espaciado_vertical", 0.0),
+        "sangrado": params.get("sangrado"),
+        "permitir_rotacion": params.get("permitir_rotacion", False),
+        "ordenar_tamano": params.get("ordenar_tamano", False),
+        "centrar": params.get("centrar", True),
+        "alinear_filas": params.get("alinear_filas", False),
+        "forzar_grilla": params.get("estrategia") == "grid",
+        "filas_grilla": params.get("filas"),
+        "columnas_grilla": params.get("columnas"),
+        "ancho_grilla_mm": params.get("celda_ancho"),
+        "alto_grilla_mm": params.get("celda_alto"),
+        "pref_orientacion_horizontal": params.get("preferir_horizontal", False),
+        "debug_grilla": params.get("debug_grilla", False),
+        "pinza_mm": params.get("pinza_mm", 0.0),
+        "lateral_mm": params.get("lateral_mm", 0.0),
+        "marcas_registro": params.get("marcas_registro", False),
+        "marcas_corte": params.get("marcas_corte", False),
+        "cutmarks_por_forma": params.get("cutmarks_por_forma", False),
+        "usar_trimbox": params.get("usar_trimbox", False),
+        "estrategia": params.get("estrategia", "flujo"),
+        "agregar_marcas": bool(
+            params.get("marcas_registro") or params.get("marcas_corte")
+        ),
+    }
+    base_kwargs.update(overrides)
+    return MontajeConfig(**base_kwargs)
+
+
 def _unpack_preview_result(res, preview_path, ancho_pliego, alto_pliego):
-    """Adapta retornos posibles de ``montar_pliego_offset_inteligente``.
+    """Adapta retornos posibles de ``realizar_montaje_inteligente``.
 
     Acepta un ``dict`` con claves ``preview_path``, ``resumen_html``,
     ``positions`` y ``sheet_mm``; una tupla ``(bytes, str)`` donde se espera
@@ -441,6 +490,9 @@ def montaje_offset_inteligente_view():
         except Exception as e:
             return str(e), 400
 
+        diseno_objs = _build_diseno_objs(diseños)
+        tamano_pliego = (ancho_pliego, alto_pliego)
+
         if accion == "preview":
             previews_dir = os.path.join(current_app.static_folder, "previews")
             os.makedirs(previews_dir, exist_ok=True)
@@ -449,39 +501,15 @@ def montaje_offset_inteligente_view():
                 previews_dir, f"offset_inteligente_{job_id}.png"
             )
             # NUEVO: generamos preview real y pedimos posiciones/sheet
-            res = montar_pliego_offset_inteligente(
-                diseños,
-                ancho_pliego,
-                alto_pliego,
-                separacion=params["separacion"],
-                sangrado=params["sangrado"],
-                usar_trimbox=params["usar_trimbox"],
-                ordenar_tamano=params["ordenar_tamano"],
-                alinear_filas=params["alinear_filas"],
-                preferir_horizontal=params["preferir_horizontal"],
-                centrar=params["centrar"],
-                debug_grilla=params["debug_grilla"],
-                espaciado_horizontal=params["espaciado_horizontal"],
-                espaciado_vertical=params["espaciado_vertical"],
-                margen_izq=params["margen_izq"],
-                margen_der=params["margen_der"],
-                margen_sup=params["margen_sup"],
-                margen_inf=params["margen_inf"],
-                estrategia=params["estrategia"],
-                filas=params["filas"],
-                columnas=params["columnas"],
-                celda_ancho=params["celda_ancho"],
-                celda_alto=params["celda_alto"],
-                pinza_mm=params["pinza_mm"],
-                lateral_mm=params["lateral_mm"],
-                marcas_registro=params["marcas_registro"],
-                marcas_corte=params["marcas_corte"],
-                cutmarks_por_forma=params["cutmarks_por_forma"],
-                preview_path=preview_path,          # << genera archivo real
-                devolver_posiciones=True,           # << pedimos positions + sheet
-                preview_only=False,
-                **opciones_extra,
+            config = _montaje_config_from_params(
+                tamano_pliego,
+                params,
+                es_pdf_final=False,
+                preview_path=preview_path,
+                devolver_posiciones=True,
+                export_area_util=opciones_extra.get("export_area_util", False),
             )
+            res = realizar_montaje_inteligente(diseno_objs, config)
 
             ppath_abs, resumen_html, positions, sheet_mm = _unpack_preview_result(
                 res, preview_path, ancho_pliego, alto_pliego
@@ -507,37 +535,14 @@ def montaje_offset_inteligente_view():
             )
 
         output_path = os.path.join("output", "pliego_offset_inteligente.pdf")
-        montar_pliego_offset_inteligente(
-            diseños,
-            ancho_pliego,
-            alto_pliego,
-            separacion=params["separacion"],
-            sangrado=params["sangrado"],
-            usar_trimbox=params["usar_trimbox"],
-            ordenar_tamano=params["ordenar_tamano"],
-            alinear_filas=params["alinear_filas"],
-            preferir_horizontal=params["preferir_horizontal"],
-            centrar=params["centrar"],
-            debug_grilla=params["debug_grilla"],
-            espaciado_horizontal=params["espaciado_horizontal"],
-            espaciado_vertical=params["espaciado_vertical"],
-            margen_izq=params["margen_izq"],
-            margen_der=params["margen_der"],
-            margen_sup=params["margen_sup"],
-            margen_inf=params["margen_inf"],
-            estrategia=params["estrategia"],
-            filas=params["filas"],
-            columnas=params["columnas"],
-            celda_ancho=params["celda_ancho"],
-            celda_alto=params["celda_alto"],
-            pinza_mm=params["pinza_mm"],
-            lateral_mm=params["lateral_mm"],
-            marcas_registro=params["marcas_registro"],
-            marcas_corte=params["marcas_corte"],
-            cutmarks_por_forma=params["cutmarks_por_forma"],
+        config = _montaje_config_from_params(
+            tamano_pliego,
+            params,
+            es_pdf_final=True,
             output_path=output_path,
-            **opciones_extra,
+            export_area_util=opciones_extra.get("export_area_util", False),
         )
+        realizar_montaje_inteligente(diseno_objs, config)
         return send_file(output_path, as_attachment=True)
 
     # === MODO PRO ===
@@ -620,37 +625,14 @@ def montaje_offset_preview():
             diseños, ancho_pliego, alto_pliego, params = _parse_montaje_offset_form(request)
             export_area_util = request.form.get("export_area_util") == "on"
             opciones_extra = {"export_area_util": export_area_util}
-            png_bytes, resumen_html = montar_pliego_offset_inteligente(
-                diseños,
-                ancho_pliego,
-                alto_pliego,
-                separacion=params["separacion"],
-                sangrado=params["sangrado"],
-                usar_trimbox=params["usar_trimbox"],
-                ordenar_tamano=params["ordenar_tamano"],
-                alinear_filas=params["alinear_filas"],
-                preferir_horizontal=params["preferir_horizontal"],
-                centrar=params["centrar"],
-                debug_grilla=params["debug_grilla"],
-                espaciado_horizontal=params["espaciado_horizontal"],
-                espaciado_vertical=params["espaciado_vertical"],
-                margen_izq=params["margen_izq"],
-                margen_der=params["margen_der"],
-                margen_sup=params["margen_sup"],
-                margen_inf=params["margen_inf"],
-                estrategia=params["estrategia"],
-                filas=params["filas"],
-                columnas=params["columnas"],
-                celda_ancho=params["celda_ancho"],
-                celda_alto=params["celda_alto"],
-                pinza_mm=params["pinza_mm"],
-                lateral_mm=params["lateral_mm"],
-                marcas_registro=params["marcas_registro"],
-                marcas_corte=params["marcas_corte"],
-                cutmarks_por_forma=params["cutmarks_por_forma"],
-                preview_only=True,
-                **opciones_extra,
+            diseno_objs = _build_diseno_objs(diseños)
+            config = _montaje_config_from_params(
+                (ancho_pliego, alto_pliego),
+                params,
+                es_pdf_final=False,
+                export_area_util=opciones_extra.get("export_area_util", False),
             )
+            png_bytes, resumen_html = realizar_montaje_inteligente(diseno_objs, config)
         b64 = base64.b64encode(png_bytes).decode("ascii")
         return jsonify(
             {
@@ -674,6 +656,7 @@ def api_manual_preview():
         return _json_error("No hay posiciones válidas para aplicar.")
 
     diseños = [(ruta, 1) for ruta in _resolve_uploads()]
+    diseno_objs = _build_diseno_objs(diseños)
     name_to_idx = {os.path.basename(r): i for i, (r, _) in enumerate(diseños)}
     path_to_idx = {r: i for i, (r, _) in enumerate(diseños)}
 
@@ -753,15 +736,16 @@ def api_manual_preview():
         )
 
     try:
-        res = montar_pliego_offset_inteligente(
-            diseños,
-            w_mm,
-            h_mm,
-            posiciones_manual=positions,
+        config = _montaje_config_from_params(
+            (w_mm, h_mm),
+            {},
             sangrado=sangrado,
-            preview_only=True,
+            es_pdf_final=False,
+            modo_manual=True,
+            posiciones_manual=positions,
             preview_path=preview_path,
         )
+        res = realizar_montaje_inteligente(diseno_objs, config)
         rel = os.path.relpath(preview_path, current_app.static_folder).replace("\\", "/")
         url = url_for("static", filename=rel)
         if isinstance(res, dict):
@@ -797,6 +781,7 @@ def api_manual_impose():
         return _json_error("No hay posiciones válidas para aplicar.")
 
     diseños = [(ruta, 1) for ruta in _resolve_uploads()]
+    diseno_objs = _build_diseno_objs(diseños)
     name_to_idx = {os.path.basename(r): i for i, (r, _) in enumerate(diseños)}
     path_to_idx = {r: i for i, (r, _) in enumerate(diseños)}
 
@@ -872,15 +857,16 @@ def api_manual_impose():
         )
 
     try:
-        montar_pliego_offset_inteligente(
-            diseños,
-            w_mm,
-            h_mm,
-            posiciones_manual=positions,
+        config = _montaje_config_from_params(
+            (w_mm, h_mm),
+            {},
             sangrado=sangrado,
-            preview_only=False,
-            output_pdf_path=pdf_path,
+            es_pdf_final=True,
+            modo_manual=True,
+            posiciones_manual=positions,
+            output_path=pdf_path,
         )
+        realizar_montaje_inteligente(diseno_objs, config)
         if not os.path.exists(pdf_path):
             return _json_error("El motor no generó el PDF.", 500)
         rel = os.path.relpath(pdf_path, current_app.static_folder).replace("\\", "/")

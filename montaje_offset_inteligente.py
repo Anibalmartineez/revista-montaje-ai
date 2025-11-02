@@ -4,7 +4,8 @@ import os
 import sys
 import builtins
 import tempfile
-from typing import Dict, List, Tuple
+from dataclasses import dataclass
+from typing import Dict, List, Optional, Tuple
 
 import fitz  # PyMuPDF
 from PIL import Image, ImageOps
@@ -22,6 +23,52 @@ builtins.montaje_offset_inteligente = sys.modules[__name__]
 
 # DPI reducido para previews (configurable vía env)
 PREVIEW_DPI = int(os.getenv("PREVIEW_DPI", "144"))  # 120–150 DPI recomendado
+
+
+@dataclass
+class Diseno:
+    ruta: str
+    cantidad: int = 1
+
+
+@dataclass
+class MontajeConfig:
+    tamano_pliego: Tuple[float, float]
+    separacion: float | Tuple[float, float] = 4.0
+    margen_izquierdo: float = 10.0
+    margen_derecho: float = 10.0
+    margen_superior: float = 10.0
+    margen_inferior: float = 10.0
+    espaciado_horizontal: float = 0.0
+    espaciado_vertical: float = 0.0
+    sangrado: Optional[float] = 3.0
+    permitir_rotacion: bool = False
+    ordenar_tamano: bool = False
+    centrar: bool = True
+    alinear_filas: bool = False
+    forzar_grilla: bool = False
+    filas_grilla: Optional[int] = None
+    columnas_grilla: Optional[int] = None
+    ancho_grilla_mm: Optional[float] = None
+    alto_grilla_mm: Optional[float] = None
+    pref_orientacion_horizontal: bool = False
+    modo_manual: bool = False
+    agregar_marcas: bool = False
+    es_pdf_final: bool = True
+    estrategia: str = "flujo"
+    usar_trimbox: bool = False
+    debug_grilla: bool = False
+    pinza_mm: float = 0.0
+    lateral_mm: float = 0.0
+    marcas_registro: bool = False
+    marcas_corte: bool = False
+    cutmarks_por_forma: bool = False
+    export_area_util: bool = False
+    preview_path: Optional[str] = None
+    output_path: str = "output/pliego_offset_inteligente.pdf"
+    posiciones_manual: Optional[List[dict]] = None
+    devolver_posiciones: bool = False
+    resumen_path: Optional[str] = None
 
 
 def mm_to_px(mm: float, dpi: int) -> int:
@@ -567,6 +614,89 @@ class MaxRects:
             and a.x + a.w <= b.x + b.w
             and a.y + a.h <= b.y + b.h
         )
+
+
+def realizar_montaje_inteligente(
+    diseno_list: List[Diseno],
+    config: MontajeConfig,
+):
+    """Ejecuta el montaje inteligente usando ``MontajeConfig``.
+
+    Expande la lista de diseños según su ``cantidad`` y delega en
+    :func:`montar_pliego_offset_inteligente` para mantener la lógica
+    existente.
+    """
+
+    if not diseno_list:
+        raise ValueError("La lista de diseños no puede estar vacía")
+
+    disenos: List[Tuple[str, int]] = []
+    for d in diseno_list:
+        if not d:
+            continue
+        copias = int(d.cantidad)
+        if copias <= 0:
+            continue
+        disenos.append((d.ruta, copias))
+    if not disenos:
+        raise ValueError("Se requieren al menos una copia de algún diseño")
+
+    ancho_pliego, alto_pliego = config.tamano_pliego
+    sangrado = config.sangrado if config.sangrado is not None else 0.0
+    separacion = config.separacion if config.separacion is not None else 4.0
+
+    estrategia = config.estrategia
+    if config.modo_manual or config.posiciones_manual:
+        estrategia = "manual"
+    elif config.forzar_grilla:
+        estrategia = "grid"
+
+    filas = config.filas_grilla if config.filas_grilla is not None else 0
+    columnas = config.columnas_grilla if config.columnas_grilla is not None else 0
+    celda_ancho = config.ancho_grilla_mm if config.ancho_grilla_mm is not None else 0.0
+    celda_alto = config.alto_grilla_mm if config.alto_grilla_mm is not None else 0.0
+
+    marcas_registro = config.marcas_registro or config.agregar_marcas
+    marcas_corte = config.marcas_corte or config.agregar_marcas
+
+    return montar_pliego_offset_inteligente(
+        disenos,
+        float(ancho_pliego),
+        float(alto_pliego),
+        separacion=separacion,
+        sangrado=sangrado,
+        usar_trimbox=config.usar_trimbox,
+        ordenar_tamano=config.ordenar_tamano,
+        permitir_rotacion=config.permitir_rotacion,
+        alinear_filas=config.alinear_filas,
+        preferir_horizontal=config.pref_orientacion_horizontal,
+        centrar=config.centrar,
+        debug_grilla=config.debug_grilla,
+        espaciado_horizontal=config.espaciado_horizontal,
+        espaciado_vertical=config.espaciado_vertical,
+        margen_izq=config.margen_izquierdo,
+        margen_der=config.margen_derecho,
+        margen_sup=config.margen_superior,
+        margen_inf=config.margen_inferior,
+        estrategia=estrategia,
+        filas=filas,
+        columnas=columnas,
+        celda_ancho=celda_ancho,
+        celda_alto=celda_alto,
+        pinza_mm=config.pinza_mm,
+        lateral_mm=config.lateral_mm,
+        marcas_registro=marcas_registro,
+        marcas_corte=marcas_corte,
+        cutmarks_por_forma=config.cutmarks_por_forma,
+        export_area_util=config.export_area_util,
+        preview_only=not config.es_pdf_final,
+        output_path=config.output_path,
+        preview_path=config.preview_path,
+        posiciones_manual=config.posiciones_manual,
+        devolver_posiciones=config.devolver_posiciones,
+        resumen_path=config.resumen_path,
+    )
+
 
 def montar_pliego_offset_inteligente(
     diseños: List[Tuple[str, int]],
