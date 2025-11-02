@@ -4,8 +4,14 @@
   <meta charset="utf-8">
   <title>Montaje Offset Inteligente</title>
   <style>
-    .modo-ia-activo .ia-hide {
-      display: none !important;
+    /* Solo oculta bloques avanzados cuando el formulario está en modo IA */
+    #montaje-offset-form.ia-on .ia-advanced {
+      display: none;
+    }
+
+    #montaje-offset-form.ia-on .ia-advanced *:disabled {
+      opacity: .6;
+      pointer-events: none;
     }
   </style>
 </head>
@@ -16,7 +22,7 @@
     <button type="button" id="btn-modo-pro" class="btn">Modo super personalizado</button>
   </div>
   <div id="form-std">
-  <form id="frm-inteligente" method="POST" enctype="multipart/form-data">
+  <form id="montaje-offset-form" method="POST" enctype="multipart/form-data">
     <input type="hidden" name="accion" id="accion" value="generar">
     <label>Subir de 1 a 5 archivos PDF:</label>
     <input type="file" name="archivos[]" accept=".pdf" multiple required>
@@ -97,26 +103,29 @@
     </fieldset>
 
     <label><input type="checkbox" name="centrar" checked> Centrar montaje en pliego</label><br>
-    <label><input type="checkbox" name="modo_ia" id="modo_ia"> Modo IA (recomendado)</label><br>
-    <div class="ia-hide">
-      <label>Estrategia de montaje:</label>
-      <select name="estrategia">
+    <div style="margin-top:8px;">
+      <input type="checkbox" id="modo_ia" name="modo_ia" value="1">
+      <label for="modo_ia">Modo IA (recomendado)</label>
+    </div>
+    <section class="ia-advanced" style="margin-top:8px;">
+      <label for="estrategia">Estrategia de montaje:</label>
+      <select id="estrategia" name="estrategia">
         <option value="flujo">Flujo (auto)</option>
         <option value="grid">Grid (filas/columnas o celda fija)</option>
         <option value="maxrects">MaxRects (anidado eficiente)</option>
       </select>
-    </div>
+    </section>
 
     <!-- Controles comunes: mantener márgenes, separaciones, etc. -->
 
     <!-- Grupo Flujo -->
-    <div id="grupo-flujo" class="ia-hide">
+    <div id="grupo-flujo" class="ia-advanced">
       <label><input type="checkbox" name="alinear_filas" checked title="Alinea por la altura mayor de cada fila"> Alinear por filas</label>
       <label><input type="checkbox" name="preferir_horizontal" title="Si hay rotación, prioriza ancho>alto"> Preferir orientación horizontal</label>
     </div>
 
     <!-- Grupo Grid -->
-    <div id="grupo-grid" style="display:none;" class="ia-hide">
+    <div id="grupo-grid" style="display:none;" class="ia-advanced">
       <div>
         <label>Filas (opcional): <input type="number" name="filas" min="0" step="1" value="0"></label>
         <label>Columnas (opcional): <input type="number" name="columnas" min="0" step="1" value="0"></label>
@@ -130,7 +139,7 @@
     </div>
 
     <!-- Grupo MaxRects -->
-    <div id="grupo-maxrects" style="display:none;" class="ia-hide">
+    <div id="grupo-maxrects" style="display:none;" class="ia-advanced">
       <small>Consejo: activar “Ordenar por tamaño” para mejor aprovechamiento.</small><br>
       <label><input type="checkbox" name="ordenar_tamano" checked title="Coloca primero piezas grandes para reducir huecos"> Ordenar por tamaño</label>
     </div>
@@ -204,7 +213,7 @@
         this.value === 'personalizado' ? 'block' : 'none';
     });
 
-    const frm = document.getElementById('frm-inteligente');
+    const formStd = document.getElementById('montaje-offset-form');
     const selE = document.querySelector('select[name="estrategia"]');
     const gFlujo = document.getElementById('grupo-flujo');
     const gGrid = document.getElementById('grupo-grid');
@@ -214,7 +223,6 @@
     const filas = document.querySelector('input[name="filas"]');
     const columnas = document.querySelector('input[name="columnas"]');
     const radiosSangrado = document.querySelectorAll('input[name="modo_sangrado"]');
-    const chkIa = document.getElementById('modo_ia');
 
     function actualizarSangradoInputs() {
       const modo = document.querySelector('input[name="modo_sangrado"]:checked').value;
@@ -227,12 +235,12 @@
     function setGroupState(group, active) {
       if (!group) return;
       group.style.display = active ? 'block' : 'none';
-      group.querySelectorAll('input').forEach(inp => inp.disabled = !active);
+      group.querySelectorAll('input, select, textarea, button').forEach(inp => inp.disabled = !active);
     }
 
     function toggleByStrategy() {
       if (!selE) return;
-      if (chkIa && chkIa.checked) {
+      if (formStd?.classList.contains('ia-on')) {
         setGroupState(gFlujo, false);
         setGroupState(gGrid, false);
         setGroupState(gMR, false);
@@ -246,47 +254,23 @@
     }
 
     function toggleGridInputs() {
-      const usarCelda = parseFloat(celdaAncho.value) > 0 || parseFloat(celdaAlto.value) > 0;
+      if (!filas || !columnas) return;
+      const usarCelda = (parseFloat(celdaAncho?.value || '0') > 0) || (parseFloat(celdaAlto?.value || '0') > 0);
       filas.disabled = usarCelda;
       columnas.disabled = usarCelda;
-    }
-
-    function applyIaMode() {
-      if (!chkIa) return;
-      const active = chkIa.checked;
-      if (frm) {
-        frm.classList.toggle('modo-ia-activo', active);
-      }
-      if (selE) {
-        selE.disabled = active;
-      }
-      document
-        .querySelectorAll('.ia-hide input, .ia-hide select, .ia-hide textarea')
-        .forEach(inp => {
-          if (active) {
-            inp.dataset.iaPrevDisabled = inp.disabled ? '1' : '0';
-            inp.disabled = true;
-          } else if (Object.prototype.hasOwnProperty.call(inp.dataset, 'iaPrevDisabled')) {
-            inp.disabled = inp.dataset.iaPrevDisabled === '1';
-            delete inp.dataset.iaPrevDisabled;
-          }
-        });
-      toggleByStrategy();
-      if (!active) {
-        toggleGridInputs();
-      }
     }
 
     selE?.addEventListener('change', toggleByStrategy);
     celdaAncho?.addEventListener('input', toggleGridInputs);
     celdaAlto?.addEventListener('input', toggleGridInputs);
-    chkIa?.addEventListener('change', applyIaMode);
     toggleByStrategy();
     toggleGridInputs();
-    applyIaMode();
+
+    window.toggleByStrategy = toggleByStrategy;
+    window.toggleGridInputs = toggleGridInputs;
 
     (function(){
-      const frm = document.getElementById('frm-inteligente');
+      const frm = document.getElementById('montaje-offset-form');
       const accion = document.getElementById('accion');
       const btnPrev = document.getElementById('btn-preview');
       const btnGen  = document.getElementById('btn-generar');
@@ -407,6 +391,43 @@
       document.getElementById('pro-pliego-personalizado').style.display = this.value === 'personalizado' ? 'block' : 'none';
     });
   })();
+  </script>
+  <script>
+  document.addEventListener('DOMContentLoaded', () => {
+    const form = document.querySelector('#montaje-offset-form');
+    const iaToggle = document.querySelector('#modo_ia');
+
+    const setIA = (on) => {
+      if (!form) return;
+      form.classList.toggle('ia-on', !!on);
+
+      const advInputs = form.querySelectorAll('.ia-advanced input, .ia-advanced select, .ia-advanced textarea, .ia-advanced button');
+      advInputs.forEach(el => { el.disabled = !!on; });
+
+      if (typeof window.toggleByStrategy === 'function') {
+        window.toggleByStrategy();
+      }
+      if (!on && typeof window.toggleGridInputs === 'function') {
+        window.toggleGridInputs();
+      }
+    };
+
+    setIA(iaToggle?.checked ?? false);
+
+    iaToggle?.addEventListener('change', (e) => setIA(e.target.checked));
+
+    try {
+      const params = new URLSearchParams(window.location.search);
+      if (params.get('debug_ia') === '1') {
+        console.warn('[IA DEBUG] iaToggle:', iaToggle?.checked, 'form has ia-on?', form?.classList.contains('ia-on'));
+        document.querySelectorAll('.ia-advanced').forEach((sec, i) => {
+          sec.style.outline = '1px dashed #999';
+          sec.dataset.debug = 'ia-advanced-' + (i+1);
+          console.warn('[IA DEBUG] ia-advanced section', i+1, sec);
+        });
+      }
+    } catch(e) {}
+  });
   </script>
   {% if preview_url %}
   <script>
