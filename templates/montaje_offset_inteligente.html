@@ -180,6 +180,20 @@
     </div>
   </form>
 
+  {% if resultado and resultado.pdf_url %}
+  <hr>
+  <div class="resultado-final" style="margin-top:1rem;">
+    <h3>PDF generado</h3>
+    <a class="btn btn-success" href="{{ resultado.pdf_url }}" target="_blank" rel="noopener">Descargar PDF</a>
+  </div>
+  {% endif %}
+
+  {% if layout_json_exists and modo_ia and ENABLE_POST_EDITOR %}
+    <div class="post-editor" style="margin-top:1rem;">
+      <a class="btn btn-primary" href="{{ url_for('routes.editor', id=job_id) }}">Editar montaje IA</a>
+    </div>
+  {% endif %}
+
   {% if preview_url %}
   <hr>
   <h3>Vista previa</h3>
