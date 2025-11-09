@@ -1,0 +1,127 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <title>Editor post-imposición IA</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      margin: 1.5rem;
+      background: #f7f7f7;
+    }
+    h1 {
+      margin-bottom: 1rem;
+    }
+    .editor-wrapper {
+      display: flex;
+      gap: 1.5rem;
+      flex-wrap: wrap;
+    }
+    #editor-canvas {
+      position: relative;
+      background: #fff;
+      border: 1px solid #ccc;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.08);
+      min-width: 320px;
+      min-height: 240px;
+      overflow: auto;
+    }
+    #editor-canvas .sheet {
+      position: relative;
+      background: repeating-linear-gradient(0deg, rgba(0,0,0,0.04) 0, rgba(0,0,0,0.04) 1px, transparent 1px, transparent 20px),
+                  repeating-linear-gradient(90deg, rgba(0,0,0,0.04) 0, rgba(0,0,0,0.04) 1px, transparent 1px, transparent 20px);
+      background-size: 20px 20px;
+      border: 1px solid #999;
+      transform-origin: top left;
+    }
+    .piece {
+      position: absolute;
+      border: 2px solid rgba(33, 150, 243, 0.7);
+      background: rgba(33, 150, 243, 0.2);
+      color: #0d47a1;
+      font-size: 12px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: grab;
+      user-select: none;
+      transition: box-shadow 0.2s ease;
+    }
+    .piece.dragging {
+      opacity: 0.7;
+      cursor: grabbing;
+      box-shadow: 0 8px 16px rgba(0,0,0,0.2);
+    }
+    .piece.selected {
+      border-color: rgba(76, 175, 80, 0.8);
+      background: rgba(76, 175, 80, 0.25);
+    }
+    .piece.overlap {
+      border-color: rgba(244, 67, 54, 0.9);
+      background: rgba(244, 67, 54, 0.2);
+    }
+    .editor-controls {
+      min-width: 240px;
+      flex: 1;
+    }
+    .editor-controls fieldset {
+      border: 1px solid #ccc;
+      padding: 1rem;
+      background: #fff;
+      margin-bottom: 1rem;
+    }
+    .editor-controls button,
+    .editor-controls select {
+      margin-top: 0.5rem;
+      width: 100%;
+      padding: 0.6rem 0.8rem;
+      font-size: 1rem;
+    }
+    #editor-status {
+      margin-top: 1rem;
+      min-height: 1.5rem;
+      font-weight: 600;
+    }
+    .links {
+      margin-top: 1rem;
+      display: flex;
+      flex-direction: column;
+      gap: 0.5rem;
+    }
+    .links a {
+      color: #0d47a1;
+    }
+  </style>
+</head>
+<body>
+  <h1>Editor post-imposición IA</h1>
+  <div class="editor-wrapper">
+    <div id="editor-canvas"></div>
+    <div class="editor-controls">
+      <fieldset>
+        <legend>Acciones</legend>
+        <label for="asset-select">Reemplazar pieza por:</label>
+        <select id="asset-select"></select>
+        <button type="button" id="replace-btn">Reemplazar pieza seleccionada</button>
+        <button type="button" id="swap-btn">Intercambiar piezas seleccionadas</button>
+        <button type="button" id="save-btn">Guardar cambios</button>
+      </fieldset>
+      <fieldset>
+        <legend>Información</legend>
+        <div>Job: <strong>{{ job_id }}</strong></div>
+        <div id="grid-info"></div>
+        <div id="sheet-info"></div>
+      </fieldset>
+      <div class="links">
+        <a id="pdf-link" href="#" target="_blank" rel="noopener">Abrir PDF editado</a>
+        <a id="preview-link" href="#" target="_blank" rel="noopener">Abrir preview editada</a>
+      </div>
+      <div id="editor-status"></div>
+    </div>
+  </div>
+  <script>
+    window.__POST_EDITOR_JOB_ID__ = "{{ job_id }}";
+  </script>
+  <script src="{{ url_for('static', filename='js/editor_post_imposicion.js') }}"></script>
+</body>
+</html>

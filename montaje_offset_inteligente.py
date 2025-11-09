@@ -1265,4 +1265,33 @@ def montar_pliego_offset_inteligente(
         with open(resumen_path, "w", encoding="utf-8") as f:
             f.write(resumen_html)
 
+    if devolver_posiciones:
+        positions_norm = []
+        for p in posiciones:
+            idx = p.get("file_idx")
+            if idx is None:
+                ruta = p.get("archivo", "")
+                guess = _idx_from_basename_safe(os.path.basename(ruta))
+                if guess is None:
+                    raise ValueError("No se pudo resolver file_idx desde basename")
+                idx = int(guess)
+            else:
+                idx = int(idx)
+            assert 0 <= idx < len(diseños), f"file_idx fuera de rango al render: {idx}"
+            positions_norm.append(
+                {
+                    "file_idx": idx,
+                    "x_mm": float(p["x"]),
+                    "y_mm": float(p["y"]),
+                    "w_mm": float(p["ancho"]),
+                    "h_mm": float(p["alto"]),
+                    "rot_deg": int(p.get("rot_deg", 0)) % 360,
+                }
+            )
+        return {
+            "output_path": output_path,
+            "positions": positions_norm,
+            "sheet_mm": {"w": float(ancho_pliego), "h": float(alto_pliego)},
+        }
+
     return output_path

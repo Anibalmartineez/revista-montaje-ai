@@ -7,6 +7,8 @@ import uuid
 import tempfile
 import shutil
 import json
+from collections import Counter
+from datetime import datetime
 from typing import Dict, List, Tuple
 from threading import Lock
 from PIL import Image, ImageDraw
@@ -25,6 +27,7 @@ from flask import (
     current_app,
     session,
     flash,
+    abort,
 )
 from werkzeug.utils import secure_filename
 from werkzeug.exceptions import RequestEntityTooLarge
@@ -56,6 +59,7 @@ from montaje_offset_inteligente import (
     Diseno,
     MontajeConfig,
     realizar_montaje_inteligente,
+    generar_preview_pliego,
 )
 from montaje_offset_personalizado import montar_pliego_offset_personalizado
 from imposicion_offset_auto import imponer_pliego_offset_auto
@@ -107,6 +111,75 @@ def _tmp_static(*parts):
     p = os.path.join(current_app.static_folder, *parts)
     os.makedirs(os.path.dirname(p), exist_ok=True)
     return p
+
+
+POST_EDITOR_DIR = "ia_jobs"
+LAYOUT_FILENAME = "layout.json"
+META_FILENAME = "meta.json"
+ASSETS_DIRNAME = "assets"
+ORIGINAL_PDF_NAME = "pliego.pdf"
+EDITED_PDF_NAME = "pliego_edit.pdf"
+EDITED_PREVIEW_NAME = "preview_edit.png"
+
+
+def _safe_job_id(job_id: str | None) -> str | None:
+    if not job_id:
+        return None
+    token = job_id.strip()
+    if not token or not token.isalnum():
+        return None
+    return token
+
+
+def _jobs_root() -> str:
+    root = os.path.join(current_app.static_folder, POST_EDITOR_DIR)
+    os.makedirs(root, exist_ok=True)
+    return root
+
+
+def _job_dir(job_id: str | None) -> str | None:
+    token = _safe_job_id(job_id)
+    if not token:
+        return None
+    path = os.path.join(_jobs_root(), token)
+    return path
+
+
+def _job_relpath(job_id: str, *parts: str) -> str:
+    return os.path.join(POST_EDITOR_DIR, job_id, *parts).replace("\\", "/")
+
+
+def _layout_path(job_dir: str) -> str:
+    return os.path.join(job_dir, LAYOUT_FILENAME)
+
+
+def _meta_path(job_dir: str) -> str:
+    return os.path.join(job_dir, META_FILENAME)
+
+
+def _load_json(path: str) -> Dict:
+    with open(path, "r", encoding="utf-8") as fh:
+        return json.load(fh)
+
+
+def _save_json(path: str, payload: Dict) -> None:
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    with open(path, "w", encoding="utf-8") as fh:
+        json.dump(payload, fh, ensure_ascii=False, indent=2)
+
+
+def _load_job_meta(job_dir: str) -> Dict | None:
+    path = _meta_path(job_dir)
+    if not os.path.exists(path):
+        return None
+    try:
+        return _load_json(path)
+    except Exception:
+        return None
+
+
+def _post_editor_enabled() -> bool:
+    return bool(current_app.config.get("ENABLE_POST_EDITOR", False))
 
 
 def _build_diseno_objs(disenos: List[Tuple[str, int]]) -> List[Diseno]:
@@ -494,6 +567,11 @@ def montaje_offset_inteligente_view():
             resultado=None,
             preview_url=None,
             resumen_html=None,
+            modo_ia=False,
+            layout_json_exists=False,
+            job_id=None,
+            pdf_url=None,
+            ENABLE_POST_EDITOR=current_app.config.get("ENABLE_POST_EDITOR", False),
         )
 
     accion = request.form.get("accion") or "generar"
@@ -553,20 +631,196 @@ def montaje_offset_inteligente_view():
                 sheet_mm=sheet_mm,
                 sangrado_mm=params["sangrado"],
                 files_list=files_list,
+                modo_ia=params.get("modo_ia", False),
+                layout_json_exists=False,
+                job_id=None,
+                pdf_url=None,
+                ENABLE_POST_EDITOR=current_app.config.get("ENABLE_POST_EDITOR", False),
             )
 
+        modo_ia = bool(params.get("modo_ia"))
         output_path = os.path.join("output", "pliego_offset_inteligente.pdf")
         config = _montaje_config_from_params(
             tamano_pliego,
             params,
             es_pdf_final=True,
             output_path=output_path,
+            devolver_posiciones=modo_ia,
             export_area_util=opciones_extra.get("export_area_util", False),
             export_compat=opciones_extra.get("export_compat"),
         )
         result_path = realizar_montaje_inteligente(diseno_objs, config)
         final_path = result_path if isinstance(result_path, str) else output_path
-        return send_file(final_path, as_attachment=True)
+
+        if not modo_ia:
+            return send_file(final_path, as_attachment=True)
+
+        result_dict = result_path if isinstance(result_path, dict) else None
+        if not result_dict:
+            # Intentamos obtener posiciones en una segunda pasada si el backend no las devolvió
+            config_pos = _montaje_config_from_params(
+                tamano_pliego,
+                params,
+                es_pdf_final=False,
+                devolver_posiciones=True,
+                export_area_util=opciones_extra.get("export_area_util", False),
+                export_compat=opciones_extra.get("export_compat"),
+            )
+            try:
+                preview_res = realizar_montaje_inteligente(diseno_objs, config_pos)
+                if isinstance(preview_res, dict):
+                    result_dict = {
+                        "positions": preview_res.get("positions"),
+                        "sheet_mm": preview_res.get("sheet_mm"),
+                    }
+            except Exception:
+                result_dict = None
+
+        if not result_dict or not result_dict.get("positions"):
+            return send_file(final_path, as_attachment=True)
+
+        positions = result_dict.get("positions", [])
+        sheet_info = result_dict.get("sheet_mm") or {}
+        sheet_w = float(sheet_info.get("w", tamano_pliego[0]))
+        sheet_h = float(sheet_info.get("h", tamano_pliego[1]))
+
+        job_id = uuid.uuid4().hex[:12]
+        job_dir = _job_dir(job_id)
+        if not job_dir:
+            return send_file(final_path, as_attachment=True)
+        os.makedirs(job_dir, exist_ok=True)
+        assets_dir = os.path.join(job_dir, ASSETS_DIRNAME)
+        os.makedirs(assets_dir, exist_ok=True)
+
+        design_records = []
+        for idx, diseno in enumerate(diseno_objs):
+            src_abs = diseno.ruta
+            basename = os.path.basename(src_abs)
+            safe_name = f"{idx:02d}_{basename}"
+            dest_abs = os.path.join(assets_dir, safe_name)
+            try:
+                shutil.copy2(src_abs, dest_abs)
+            except Exception:
+                shutil.copy(src_abs, dest_abs)
+            rel_path = os.path.relpath(dest_abs, job_dir).replace("\\", "/")
+            design_records.append(
+                {
+                    "index": idx,
+                    "cantidad": diseno.cantidad,
+                    "src": rel_path,
+                    "abs_src": dest_abs,
+                    "original_src": src_abs,
+                }
+            )
+
+        final_pdf_basename = ORIGINAL_PDF_NAME
+        final_pdf_path = os.path.join(job_dir, final_pdf_basename)
+        try:
+            shutil.copy2(final_path, final_pdf_path)
+        except Exception:
+            shutil.copy(final_path, final_pdf_path)
+
+        margins = {
+            "top": float(config.margen_superior),
+            "bottom": float(config.margen_inferior),
+            "left": float(config.margen_izquierdo),
+            "right": float(config.margen_derecho),
+        }
+        grid_data = {
+            "enabled": bool(config.forzar_grilla),
+            "rows": config.filas_grilla,
+            "cols": config.columnas_grilla,
+            "cell_w": config.ancho_grilla_mm,
+            "cell_h": config.alto_grilla_mm,
+        }
+        bleed_mm = float(config.sangrado or 0.0)
+
+        items = []
+        for i, pos in enumerate(positions):
+            idx = int(pos.get("file_idx", 0))
+            if idx < 0 or idx >= len(design_records):
+                continue
+            record = design_records[idx]
+            items.append(
+                {
+                    "id": f"item{i}",
+                    "src": record["src"],
+                    "page": 0,
+                    "x_mm": float(pos.get("x_mm", 0.0)),
+                    "y_mm": float(pos.get("y_mm", 0.0)),
+                    "w_mm": float(pos.get("w_mm", 0.0)),
+                    "h_mm": float(pos.get("h_mm", 0.0)),
+                    "rotation": int(pos.get("rot_deg", 0)) % 360,
+                    "flip_x": False,
+                    "flip_y": False,
+                    "file_idx": idx,
+                }
+            )
+
+        layout_payload = {
+            "version": 1,
+            "job_id": job_id,
+            "sheet": {
+                "w_mm": sheet_w,
+                "h_mm": sheet_h,
+                "pinza_mm": float(config.pinza_mm or 0.0),
+                "margins_mm": margins,
+            },
+            "grid_mm": grid_data,
+            "bleed_mm": bleed_mm,
+            "items": items,
+            "assets": [
+                {
+                    "id": f"asset{rec['index']}",
+                    "src": rec["src"],
+                    "original_src": rec["original_src"],
+                    "cantidad": rec["cantidad"],
+                    "file_idx": rec["index"],
+                }
+                for rec in design_records
+            ],
+            "pdf_filename": final_pdf_basename,
+            "preview_filename": EDITED_PREVIEW_NAME,
+        }
+
+        layout_path = _layout_path(job_dir)
+        _save_json(layout_path, layout_payload)
+
+        meta_payload = {
+            "job_id": job_id,
+            "created_at": datetime.utcnow().isoformat() + "Z",
+            "sheet": layout_payload["sheet"],
+            "grid_mm": grid_data,
+            "bleed_mm": bleed_mm,
+            "designs": [
+                {
+                    "index": rec["index"],
+                    "cantidad": rec["cantidad"],
+                    "src": rec["src"],
+                    "abs_src": rec["abs_src"],
+                    "original_src": rec["original_src"],
+                }
+                for rec in design_records
+            ],
+            "params": params,
+            "options": opciones_extra,
+            "pdf_filename": final_pdf_basename,
+            "preview_filename": EDITED_PREVIEW_NAME,
+        }
+        _save_json(_meta_path(job_dir), meta_payload)
+
+        pdf_rel = _job_relpath(job_id, final_pdf_basename)
+        return render_template(
+            "montaje_offset_inteligente.html",
+            resultado={"pdf_url": url_for("static", filename=pdf_rel)},
+            preview_url=None,
+            resumen_html=None,
+            modo_ia=True,
+            layout_json_exists=True,
+            job_id=job_id,
+            pdf_url=url_for("static", filename=pdf_rel),
+            ENABLE_POST_EDITOR=current_app.config.get("ENABLE_POST_EDITOR", False),
+        )
 
     # === MODO PRO ===
     files = request.files.getlist("pro_files")
@@ -1955,6 +2209,281 @@ def exportar_simulacion(revision_id):
         mimetype="image/png",
         as_attachment=True,
         download_name=filename,
+    )
+
+
+@routes_bp.route("/layout/<job_id>.json")
+def obtener_layout_job(job_id: str):
+    if not _post_editor_enabled():
+        abort(404)
+    job_dir = _job_dir(job_id)
+    if not job_dir or not os.path.isdir(job_dir):
+        abort(404)
+    layout_path = _layout_path(job_dir)
+    if not os.path.exists(layout_path):
+        abort(404)
+    try:
+        data = _load_json(layout_path)
+    except Exception:
+        abort(404)
+    return jsonify(data)
+
+
+@routes_bp.route("/editor")
+def editor():
+    if not _post_editor_enabled():
+        abort(404)
+    job_id = request.args.get("id")
+    job_dir = _job_dir(job_id)
+    if not job_id or not job_dir or not os.path.isdir(job_dir):
+        abort(404)
+    if not os.path.exists(_layout_path(job_dir)):
+        abort(404)
+    return render_template(
+        "editor_post_imposicion.html",
+        job_id=job_id,
+        ENABLE_POST_EDITOR=True,
+    )
+
+
+def _sanitize_layout_items(job_id: str, job_dir: str, meta: Dict, items: List[Dict]):
+    sheet_info = meta.get("sheet") or {}
+    margins = sheet_info.get("margins_mm", {})
+    pinza_mm = float(sheet_info.get("pinza_mm", 0.0))
+    sheet_w = float(sheet_info.get("w_mm", 0.0))
+    sheet_h = float(sheet_info.get("h_mm", 0.0))
+    if sheet_w <= 0 or sheet_h <= 0:
+        raise ValueError("Dimensiones de pliego inválidas en metadatos")
+
+    left_margin = float(margins.get("left", 0.0))
+    right_margin = float(margins.get("right", 0.0))
+    top_margin = float(margins.get("top", 0.0))
+    bottom_margin = float(margins.get("bottom", 0.0)) + pinza_mm
+
+    designs_meta = meta.get("designs", [])
+    design_by_src = {d.get("src"): d for d in designs_meta}
+    if not design_by_src:
+        raise ValueError("Metadatos del trabajo incompletos")
+
+    sanitized = []
+    posiciones_manual = []
+    counts = Counter()
+
+    for raw in items:
+        if not isinstance(raw, dict):
+            raise ValueError("Cada item debe ser un objeto")
+        src_rel = raw.get("src")
+        if not isinstance(src_rel, str):
+            raise ValueError("Cada item necesita un 'src'")
+        record = design_by_src.get(src_rel)
+        if not record:
+            raise ValueError(f"Recurso no permitido: {src_rel}")
+        abs_src = os.path.normpath(os.path.join(job_dir, record.get("src", "")))
+        try:
+            common = os.path.commonpath([abs_src, os.path.normpath(job_dir)])
+        except ValueError:
+            common = ""
+        if common != os.path.normpath(job_dir):
+            raise ValueError("Ruta de recurso fuera del directorio del trabajo")
+        if not os.path.exists(abs_src):
+            raise ValueError(f"El recurso no existe en el servidor: {src_rel}")
+
+        try:
+            x_mm = float(raw.get("x_mm"))
+            y_mm = float(raw.get("y_mm"))
+            w_mm = float(raw.get("w_mm"))
+            h_mm = float(raw.get("h_mm"))
+        except Exception as exc:
+            raise ValueError("Coordenadas inválidas en layout") from exc
+
+        if w_mm <= 0 or h_mm <= 0:
+            raise ValueError("El ancho/alto debe ser mayor que cero")
+
+        rotation = int(raw.get("rotation", 0)) % 360
+        if rotation not in (0, 90, 180, 270):
+            raise ValueError("La rotación debe ser 0, 90, 180 o 270")
+
+        eps = 1e-6
+        if x_mm < left_margin - eps or y_mm < bottom_margin - eps:
+            raise ValueError("Una pieza está fuera de los márgenes permitidos")
+        if x_mm + w_mm > sheet_w - right_margin + eps:
+            raise ValueError("Una pieza excede el ancho disponible")
+        if y_mm + h_mm > sheet_h - top_margin + eps:
+            raise ValueError("Una pieza excede el alto disponible")
+
+        sanitized.append(
+            {
+                "id": raw.get("id") or f"item{len(sanitized)}",
+                "src": src_rel,
+                "page": int(raw.get("page", 0)),
+                "x_mm": x_mm,
+                "y_mm": y_mm,
+                "w_mm": w_mm,
+                "h_mm": h_mm,
+                "rotation": rotation,
+                "flip_x": bool(raw.get("flip_x", False)),
+                "flip_y": bool(raw.get("flip_y", False)),
+                "file_idx": int(record.get("index", 0)),
+            }
+        )
+        posiciones_manual.append(
+            {
+                "file_idx": int(record.get("index", 0)),
+                "x_mm": x_mm,
+                "y_mm": y_mm,
+                "w_mm": w_mm,
+                "h_mm": h_mm,
+                "rot_deg": rotation,
+            }
+        )
+        counts[int(record.get("index", 0))] += 1
+
+    expected = {int(d.get("index", 0)): int(d.get("cantidad", 0)) for d in designs_meta}
+    for idx, total in expected.items():
+        if counts.get(idx, 0) != total:
+            raise ValueError(
+                f"La cantidad de piezas para el diseño {idx} no coincide con el montaje original"
+            )
+
+    for i, a in enumerate(sanitized):
+        ax1, ay1 = a["x_mm"], a["y_mm"]
+        ax2, ay2 = ax1 + a["w_mm"], ay1 + a["h_mm"]
+        for b in sanitized[i + 1 :]:
+            bx1, by1 = b["x_mm"], b["y_mm"]
+            bx2, by2 = bx1 + b["w_mm"], by1 + b["h_mm"]
+            if ax1 >= bx2 - eps or bx1 >= ax2 - eps:
+                continue
+            if ay1 >= by2 - eps or by1 >= ay2 - eps:
+                continue
+            raise ValueError("Hay piezas solapadas en el layout propuesto")
+
+    return sanitized, posiciones_manual
+
+
+@routes_bp.route("/layout/<job_id>/apply", methods=["POST"])
+def aplicar_layout_job(job_id: str):
+    if not _post_editor_enabled():
+        abort(404)
+    job_dir = _job_dir(job_id)
+    if not job_dir or not os.path.isdir(job_dir):
+        return _json_error("Trabajo no encontrado", 404)
+    meta = _load_job_meta(job_dir)
+    if not meta:
+        return _json_error("Metadatos del trabajo no disponibles", 404)
+
+    payload = request.get_json(silent=True) or {}
+    items = payload.get("items")
+    if not isinstance(items, list) or not items:
+        return _json_error("'items' debe ser una lista con elementos")
+
+    try:
+        sanitized_items, posiciones_manual = _sanitize_layout_items(job_id, job_dir, meta, items)
+    except ValueError as exc:
+        return _json_error(str(exc))
+
+    options = meta.get("options", {})
+    params = meta.get("params", {})
+    sheet_info = meta.get("sheet") or {}
+    sheet_w = float(sheet_info.get("w_mm", 0))
+    sheet_h = float(sheet_info.get("h_mm", 0))
+    if sheet_w <= 0 or sheet_h <= 0:
+        return _json_error("Metadatos del pliego inválidos")
+
+    designs_meta = meta.get("designs", [])
+    if not designs_meta:
+        return _json_error("Diseños originales no disponibles")
+
+    designs_tuples: List[Tuple[str, int]] = []
+    for d in designs_meta:
+        abs_src = d.get("abs_src")
+        qty = int(d.get("cantidad", 0))
+        if not abs_src or not os.path.exists(abs_src):
+            return _json_error("Alguno de los archivos del trabajo ya no está disponible")
+        designs_tuples.append((abs_src, qty))
+
+    diseno_objs = _build_diseno_objs(designs_tuples)
+
+    pdf_path = os.path.join(job_dir, EDITED_PDF_NAME)
+    preview_path = os.path.join(job_dir, EDITED_PREVIEW_NAME)
+
+    config = _montaje_config_from_params(
+        (sheet_w, sheet_h),
+        params,
+        es_pdf_final=True,
+        output_path=pdf_path,
+        posiciones_manual=posiciones_manual,
+        modo_manual=True,
+        export_area_util=options.get("export_area_util", False),
+        export_compat=options.get("export_compat"),
+    )
+
+    try:
+        result_pdf = realizar_montaje_inteligente(diseno_objs, config)
+    except Exception as exc:
+        current_app.logger.exception("Fallo al regenerar montaje IA editado")
+        return _json_error(f"No se pudo generar el PDF editado: {str(exc)}")
+
+    final_pdf_path = result_pdf if isinstance(result_pdf, str) else pdf_path
+
+    try:
+        generar_preview_pliego(
+            disenos=designs_tuples,
+            positions=[
+                {
+                    "file_idx": item["file_idx"],
+                    "x_mm": item["x_mm"],
+                    "y_mm": item["y_mm"],
+                    "w_mm": item["w_mm"],
+                    "h_mm": item["h_mm"],
+                    "rot_deg": item["rotation"],
+                }
+                for item in sanitized_items
+            ],
+            hoja_ancho_mm=sheet_w,
+            hoja_alto_mm=sheet_h,
+            preview_path=preview_path,
+        )
+    except Exception as exc:
+        current_app.logger.warning("No se pudo regenerar preview editado: %s", exc)
+
+    layout_payload = {
+        "version": int(payload.get("version", 1)),
+        "job_id": job_id,
+        "sheet": sheet_info,
+        "grid_mm": meta.get("grid_mm"),
+        "bleed_mm": meta.get("bleed_mm"),
+        "items": sanitized_items,
+        "assets": [
+            {
+                "id": f"asset{d.get('index')}",
+                "src": d.get("src"),
+                "original_src": d.get("original_src"),
+                "cantidad": d.get("cantidad"),
+                "file_idx": d.get("index"),
+            }
+            for d in designs_meta
+        ],
+        "pdf_filename": meta.get("edited_pdf_filename") or meta.get("pdf_filename") or EDITED_PDF_NAME,
+        "preview_filename": EDITED_PREVIEW_NAME,
+    }
+    _save_json(_layout_path(job_dir), layout_payload)
+
+    meta["updated_at"] = datetime.utcnow().isoformat() + "Z"
+    meta["edited_pdf_filename"] = EDITED_PDF_NAME
+    meta["preview_filename"] = EDITED_PREVIEW_NAME
+    _save_json(_meta_path(job_dir), meta)
+
+    pdf_rel = _job_relpath(job_id, EDITED_PDF_NAME)
+    preview_rel = _job_relpath(job_id, EDITED_PREVIEW_NAME)
+
+    return jsonify(
+        {
+            "ok": True,
+            "pliego": pdf_rel,
+            "preview": preview_rel,
+            "pdf_url": url_for("static", filename=pdf_rel),
+            "preview_url": url_for("static", filename=preview_rel),
+        }
     )
 
 
