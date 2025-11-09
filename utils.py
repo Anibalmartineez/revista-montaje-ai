@@ -14,13 +14,16 @@ def corregir_sangrado(input_path, output_path):
 
     def replicar_bordes(img, margen_px):
         arr = np.array(img)
-        top = np.tile(arr[0:1, :, :], (margen_px, 1, 1))
-        bottom = np.tile(arr[-1:, :, :], (margen_px, 1, 1))
-        extended_vertical = np.vstack([top, arr, bottom])
-        left = np.tile(extended_vertical[:, 0:1, :], (1, margen_px, 1))
-        right = np.tile(extended_vertical[:, -1:, :], (1, margen_px, 1))
-        extended_full = np.hstack([left, extended_vertical, right])
-        return Image.fromarray(extended_full)
+        pad_width = (
+            (margen_px, margen_px),
+            (margen_px, margen_px),
+            (0, 0),
+        )
+        try:
+            padded = np.pad(arr, pad_width, mode="reflect")
+        except ValueError:
+            padded = np.pad(arr, pad_width, mode="symmetric")
+        return Image.fromarray(padded)
 
     doc = fitz.open(input_path)
     nuevo_doc = fitz.open()

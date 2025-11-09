@@ -4,7 +4,8 @@ from typing import Dict, List, Tuple
 from datetime import datetime
 
 import fitz  # PyMuPDF
-from PIL import Image, ImageOps
+import numpy as np
+from PIL import Image
 from reportlab.pdfgen import canvas
 from reportlab.lib.utils import ImageReader
 
@@ -28,25 +29,20 @@ def _pdf_a_imagen_con_sangrado(path: str, sangrado_mm: float) -> ImageReader:
     img = Image.frombytes("RGB", [pix.width, pix.height], pix.samples)
 
     sangrado_px = int((sangrado_mm / 25.4) * 300)
-    img_con_sangrado = ImageOps.expand(img, border=sangrado_px)
-
-    w, h = img.width, img.height
-    left = img.crop((0, 0, 1, h)).resize((sangrado_px, h))
-    img_con_sangrado.paste(left, (0, sangrado_px))
-    right = img.crop((w - 1, 0, w, h)).resize((sangrado_px, h))
-    img_con_sangrado.paste(right, (sangrado_px + w, sangrado_px))
-    top = img.crop((0, 0, w, 1)).resize((w, sangrado_px))
-    img_con_sangrado.paste(top, (sangrado_px, 0))
-    bottom = img.crop((0, h - 1, w, h)).resize((w, sangrado_px))
-    img_con_sangrado.paste(bottom, (sangrado_px, sangrado_px + h))
-    tl = img.crop((0, 0, 1, 1)).resize((sangrado_px, sangrado_px))
-    img_con_sangrado.paste(tl, (0, 0))
-    tr = img.crop((w - 1, 0, w, 1)).resize((sangrado_px, sangrado_px))
-    img_con_sangrado.paste(tr, (sangrado_px + w, 0))
-    bl = img.crop((0, h - 1, 1, h)).resize((sangrado_px, sangrado_px))
-    img_con_sangrado.paste(bl, (0, sangrado_px + h))
-    br = img.crop((w - 1, h - 1, w, h)).resize((sangrado_px, sangrado_px))
-    img_con_sangrado.paste(br, (sangrado_px + w, sangrado_px + h))
+    if sangrado_px <= 0:
+        img_con_sangrado = img
+    else:
+        arr = np.array(img)
+        pad_width = (
+            (sangrado_px, sangrado_px),
+            (sangrado_px, sangrado_px),
+            (0, 0),
+        )
+        try:
+            padded = np.pad(arr, pad_width, mode="reflect")
+        except ValueError:
+            padded = np.pad(arr, pad_width, mode="symmetric")
+        img_con_sangrado = Image.fromarray(padded)
 
     img_byte_arr = io.BytesIO()
     img_con_sangrado.save(img_byte_arr, format="PNG")

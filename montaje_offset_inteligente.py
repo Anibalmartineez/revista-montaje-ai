@@ -282,11 +282,15 @@ def _pdf_a_imagen_con_sangrado(
         img_con_sangrado = img
     else:
         arr = np.array(img)
-        padded = np.pad(
-            arr,
-            ((sangrado_px, sangrado_px), (sangrado_px, sangrado_px), (0, 0)),
-            mode="edge",
+        pad_width = (
+            (sangrado_px, sangrado_px),
+            (sangrado_px, sangrado_px),
+            (0, 0),
         )
+        try:
+            padded = np.pad(arr, pad_width, mode="reflect")
+        except ValueError:
+            padded = np.pad(arr, pad_width, mode="symmetric")
         img_con_sangrado = Image.fromarray(padded)
 
     doc.close()
@@ -1162,7 +1166,7 @@ def montar_pliego_offset_inteligente(
         archivo = diseños[idx][0]
         if archivo not in image_cache:
             image_cache[archivo] = _pdf_a_imagen_con_sangrado(
-                archivo, sangrado, usar_trimbox=usar_trimbox
+                archivo, sangrado, usar_trimbox=(sangrado > 0 or usar_trimbox)
             )
         img = image_cache[archivo]
         w_pt = mm_to_pt(pos["ancho"] + 2 * sangrado)
