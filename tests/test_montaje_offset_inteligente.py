@@ -18,6 +18,7 @@ from montaje_offset_inteligente import (
     calcular_posiciones,
     montar_pliego_offset_inteligente,
 )
+from pdf_compat import to_adobe_compatible, to_pdfx1a
 
 
 def test_obtener_dimensiones_pdf():
@@ -287,3 +288,29 @@ def test_manual_positions_preview_and_pdf(tmp_path):
         centrar=False,
     )
     assert out.exists()
+
+
+def _crear_pdf_en(tmp_path, nombre: str = "base.pdf") -> str:
+    ruta = tmp_path / nombre
+    c = canvas.Canvas(str(ruta), pagesize=(100 * mm, 100 * mm))
+    c.drawString(20, 20, "compat test")
+    c.save()
+    return str(ruta)
+
+
+def test_export_adobe_compatible(tmp_path):
+    base_pdf = _crear_pdf_en(tmp_path, "compat_base.pdf")
+    out_path = to_adobe_compatible(base_pdf)
+    assert out_path is not None
+    assert out_path.endswith("_ADOBE.pdf")
+    assert os.path.exists(out_path)
+    assert os.path.getsize(out_path) > 0
+
+
+def test_export_pdfx1a(tmp_path):
+    base_pdf = _crear_pdf_en(tmp_path, "compat_base2.pdf")
+    out_path = to_pdfx1a(base_pdf)
+    assert out_path is not None
+    assert out_path.endswith("_PDFX1a.pdf")
+    assert os.path.exists(out_path)
+    assert os.path.getsize(out_path) > 0

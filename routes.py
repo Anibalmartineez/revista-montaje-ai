@@ -149,6 +149,7 @@ def _montaje_config_from_params(
         "agregar_marcas": bool(
             params.get("marcas_registro") or params.get("marcas_corte")
         ),
+        "export_compat": params.get("export_compat"),
     }
     base_kwargs.update(overrides)
     return MontajeConfig(**base_kwargs)
@@ -423,6 +424,8 @@ def _parse_montaje_offset_form(req):
     cutmarks_por_forma = bool(req.form.get("cutmarks_por_forma"))
     debug_grilla = bool(req.form.get("debug_grilla"))
 
+    export_compat = req.form.get("export_compat")
+
     # Opciones de sangrado
     modo_sangrado = req.form.get("modo_sangrado", "original")
     sangrado_mm = 0.0
@@ -477,6 +480,7 @@ def _parse_montaje_offset_form(req):
         "sangrado": sangrado_mm,
         "usar_trimbox": usar_trimbox,
         "modo_ia": modo_ia,
+        "export_compat": export_compat or None,
     }
 
     return diseños, ancho_pliego, alto_pliego, params
@@ -498,7 +502,11 @@ def montaje_offset_inteligente_view():
         try:
             diseños, ancho_pliego, alto_pliego, params = _parse_montaje_offset_form(request)
             export_area_util = request.form.get("export_area_util") == "on"
-            opciones_extra = {"export_area_util": export_area_util}
+            export_compat = request.form.get("export_compat")
+            opciones_extra = {
+                "export_area_util": export_area_util,
+                "export_compat": (export_compat or None),
+            }
         except Exception as e:
             return str(e), 400
 
@@ -520,6 +528,7 @@ def montaje_offset_inteligente_view():
                 preview_path=preview_path,
                 devolver_posiciones=True,
                 export_area_util=opciones_extra.get("export_area_util", False),
+                export_compat=opciones_extra.get("export_compat"),
             )
             res = realizar_montaje_inteligente(diseno_objs, config)
 
@@ -553,9 +562,11 @@ def montaje_offset_inteligente_view():
             es_pdf_final=True,
             output_path=output_path,
             export_area_util=opciones_extra.get("export_area_util", False),
+            export_compat=opciones_extra.get("export_compat"),
         )
-        realizar_montaje_inteligente(diseno_objs, config)
-        return send_file(output_path, as_attachment=True)
+        result_path = realizar_montaje_inteligente(diseno_objs, config)
+        final_path = result_path if isinstance(result_path, str) else output_path
+        return send_file(final_path, as_attachment=True)
 
     # === MODO PRO ===
     files = request.files.getlist("pro_files")
@@ -659,7 +670,8 @@ def montaje_offset_preview():
         return jsonify({"ok": False, "error": str(e)}), 500
 @routes_bp.route("/api/manual/preview", methods=["POST"])
 def api_manual_preview():
-    positions = request.json.get("positions", [])
+    payload = request.get_json(silent=True) or {}
+    positions = payload.get("positions", [])
     if not isinstance(positions, list):
         return _json_error("'positions' debe ser una lista.")
 
@@ -747,6 +759,8 @@ def api_manual_preview():
             float(pos.get("h_mm", 0)),
         )
 
+    export_compat = payload.get("export_compat")
+
     try:
         config = _montaje_config_from_params(
             (w_mm, h_mm),
@@ -756,6 +770,7 @@ def api_manual_preview():
             modo_manual=True,
             posiciones_manual=positions,
             preview_path=preview_path,
+            export_compat=export_compat,
         )
         res = realizar_montaje_inteligente(diseno_objs, config)
         rel = os.path.relpath(preview_path, current_app.static_folder).replace("\\", "/")
@@ -784,7 +799,8 @@ def api_manual_preview():
 
 @routes_bp.route("/api/manual/impose", methods=["POST"])
 def api_manual_impose():
-    positions = request.json.get("positions", [])
+    payload = request.get_json(silent=True) or {}
+    positions = payload.get("positions", [])
     if not isinstance(positions, list):
         return _json_error("'positions' debe ser una lista.")
 
@@ -868,6 +884,8 @@ def api_manual_impose():
             float(pos.get("h_mm", 0)),
         )
 
+    export_compat = payload.get("export_compat")
+
     try:
         config = _montaje_config_from_params(
             (w_mm, h_mm),
@@ -877,11 +895,13 @@ def api_manual_impose():
             modo_manual=True,
             posiciones_manual=positions,
             output_path=pdf_path,
+            export_compat=export_compat,
         )
-        realizar_montaje_inteligente(diseno_objs, config)
-        if not os.path.exists(pdf_path):
+        result_path = realizar_montaje_inteligente(diseno_objs, config)
+        final_pdf = result_path if isinstance(result_path, str) else pdf_path
+        if not os.path.exists(final_pdf):
             return _json_error("El motor no generó el PDF.", 500)
-        rel = os.path.relpath(pdf_path, current_app.static_folder).replace("\\", "/")
+        rel = os.path.relpath(final_pdf, current_app.static_folder).replace("\\", "/")
         pdf_url = url_for("static", filename=rel)
         return jsonify(
             pdf_url=pdf_url,

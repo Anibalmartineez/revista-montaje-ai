@@ -22,6 +22,7 @@
   const fitPage   = document.getElementById('fit_page');
 
   const manualJson = document.getElementById('manual_json');
+  const exportCompatSelect = document.querySelector('#montaje-offset-form select[name="export_compat"]');
 
   if (!overlay || !img || !stage || !viewport) return;
 
@@ -631,7 +632,10 @@
       const res = await fetch('/api/manual/preview', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ positions })
+        body: JSON.stringify({
+          positions,
+          export_compat: exportCompatSelect?.value || ''
+        })
       });
       const json = await res.json();
       if (!res.ok || json.error) {
@@ -677,7 +681,10 @@
       const res = await fetch('/api/manual/impose', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ positions })
+        body: JSON.stringify({
+          positions,
+          export_compat: exportCompatSelect?.value || ''
+        })
       });
       const json = await res.json();
       if (!res.ok || json.error) {
