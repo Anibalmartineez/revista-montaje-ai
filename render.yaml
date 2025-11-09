@@ -3,7 +3,10 @@ services:
     name: revista-montaje-ai
     env: python
     plan: free
-    buildCommand: "pip install -r requirements.txt"
+    buildCommand: |
+      apt-get update && \
+      apt-get install -y qpdf ghostscript && \
+      pip install -r requirements.txt
     startCommand: gunicorn app:app --bind 0.0.0.0:$PORT --workers=1 --threads=1 --timeout=120
     envVars:
       - key: WEB_CONCURRENCY
