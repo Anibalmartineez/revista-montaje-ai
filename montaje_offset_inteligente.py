@@ -14,6 +14,8 @@ from reportlab.lib.utils import ImageReader
 from PyPDF2 import PdfReader, PdfWriter
 from PyPDF2.generic import RectangleObject
 
+from pdf_compat import apply_pdf_compat
+
 MM_TO_PT = 72.0 / 25.4  # milímetros a puntos
 EPS_MM = 0.2
 
@@ -69,6 +71,7 @@ class MontajeConfig:
     posiciones_manual: Optional[List[dict]] = None
     devolver_posiciones: bool = False
     resumen_path: Optional[str] = None
+    export_compat: Optional[str] = None  # None | "pdfx1a" | "adobe_compatible"
 
 
 def mm_to_px(mm: float, dpi: int) -> int:
@@ -725,6 +728,7 @@ def montar_pliego_offset_inteligente(
     preview_path = kwargs.get("preview_path", preview_path)
     output_path = kwargs.get("output_pdf_path", output_path)
     posiciones_manual = kwargs.get("posiciones_override", posiciones_manual)
+    export_compat = kwargs.get("export_compat")
     if posiciones_manual is not None:
         estrategia = "manual"
 
@@ -1253,6 +1257,14 @@ def montar_pliego_offset_inteligente(
 
     if export_area_util and used_bbox[0] is not None:
         recortar_pdf_a_bbox(output_path, output_path, [used_bbox])
+
+    if export_compat:
+        try:
+            new_path = apply_pdf_compat(output_path, export_compat)
+            if new_path:
+                output_path = new_path
+        except Exception as e:
+            print("[WARN] PDF compat post-process failed:", e)
 
     # Resumen HTML opcional
     if resumen_path:

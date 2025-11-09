@@ -81,6 +81,18 @@
     </label>
     <br>
     <small>Incluye formas, sangrado y marcas activadas. No escala, solo recorta.</small>
+    <div class="form-group">
+      <label for="export_compat">Compatibilidad PDF (opcional)</label>
+      <select id="export_compat" name="export_compat">
+        <option value="">Ninguna (estándar)</option>
+        <option value="pdfx1a">PDF/X-1a (CTP/Indesign)</option>
+        <option value="adobe_compatible">Compatibilidad Adobe (Illustrator)</option>
+      </select>
+      <small class="help">
+        PDF/X-1a: CMYK y transparencias aplanadas (ideal para CTP/Indesign al “Colocar”).<br>
+        Compatibilidad Adobe: PDF 1.4 sin object streams; abre mejor en Illustrator.
+      </small>
+    </div>
     <br>
     <label>Margen izquierdo (mm):</label>
     <input type="number" name="margen_izq" value="10" step="0.01">
@@ -333,6 +345,18 @@
 
       <label><input type="checkbox" name="pro_cutmarks"> Añadir marcas de corte por forma</label><br>
       <label><input type="checkbox" name="pro_export_area_util" checked> Exportar solo el área útil montada</label>
+      <div class="form-group">
+        <label for="pro_export_compat">Compatibilidad PDF (opcional)</label>
+        <select id="pro_export_compat" name="export_compat">
+          <option value="">Ninguna (estándar)</option>
+          <option value="pdfx1a">PDF/X-1a (CTP/Indesign)</option>
+          <option value="adobe_compatible">Compatibilidad Adobe (Illustrator)</option>
+        </select>
+        <small class="help">
+          PDF/X-1a: CMYK y transparencias aplanadas (ideal para CTP/Indesign al “Colocar”).<br>
+          Compatibilidad Adobe: PDF 1.4 sin object streams; abre mejor en Illustrator.
+        </small>
+      </div>
 
       <hr>
       <div id="pro-archivos-config"></div>

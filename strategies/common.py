@@ -52,6 +52,7 @@ def build_call_args(config: MontajeConfig) -> Tuple[float, float, Dict[str, Any]
         "posiciones_manual": config.posiciones_manual,
         "devolver_posiciones": config.devolver_posiciones,
         "resumen_path": config.resumen_path,
+        "export_compat": config.export_compat,
     }
 
     return float(ancho_pliego), float(alto_pliego), kwargs
