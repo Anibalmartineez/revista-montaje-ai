@@ -10,8 +10,17 @@
   const API_BASE = `/layout/${jobId}`;
   const STATIC_BASE = `/static/${POST_EDITOR_DIR}/${jobId}/`;
   const GRID_DEFAULT = 5;
+  const MIN_ZOOM = 0.1;
+  const MAX_ZOOM = 4;
+  const SNAP_TOLERANCE_MM = 2;
 
   const canvas = document.getElementById('editor-canvas');
+  const sheetViewport = document.getElementById('sheet-viewport');
+  const zoomContainer = document.getElementById('sheet-zoom-container');
+  const panContainer = document.getElementById('sheet-pan-container');
+  const guidesLayer = document.getElementById('guides-layer');
+  const marqueeEl = document.getElementById('selection-marquee');
+  const tooltipEl = document.getElementById('piece-tooltip');
   const statusEl = document.getElementById('editor-status');
   const assetSelect = document.getElementById('asset-select');
   const replaceBtn = document.getElementById('replace-btn');
@@ -21,26 +30,68 @@
   const previewLink = document.getElementById('preview-link');
   const gridInfo = document.getElementById('grid-info');
   const sheetInfo = document.getElementById('sheet-info');
+  const zoomInBtn = document.getElementById('zoom-in');
+  const zoomOutBtn = document.getElementById('zoom-out');
+  const zoomResetBtn = document.getElementById('zoom-reset');
+  const notificationArea = document.getElementById('notification-area');
+  const statusSheetSize = document.getElementById('status-sheet-size');
+  const statusPieceCount = document.getElementById('status-piece-count');
+  const statusBreakdown = document.getElementById('status-breakdown');
+  const statusOccupancy = document.getElementById('status-occupancy');
+  const statusWarnings = document.getElementById('status-warnings');
+  const propertiesPanel = {
+    x: document.getElementById('prop-x'),
+    y: document.getElementById('prop-y'),
+    w: document.getElementById('prop-w'),
+    h: document.getElementById('prop-h'),
+    rot: document.getElementById('prop-rot'),
+    locked: document.getElementById('prop-locked'),
+  };
+  const alignButtons = Array.from(document.querySelectorAll('.align-btn'));
+  const rulerTop = document.getElementById('ruler-top');
+  const rulerLeft = document.getElementById('ruler-left');
 
   let layoutData = null;
   let pieces = [];
-  let scale = 2;
+  let baseScale = 1.5; // px per mm before zoom
+  let zoomScale = 1; // zoom factor for view (zoom/pan comment)
+  let pan = { x: 0, y: 0 }; // translate in px
   let sheetEl = null;
   let dragState = null;
+  let panState = null;
+  let marqueeState = null;
+  let pinchState = null;
+  let spacePressed = false;
   const selectedIds = new Set();
+  const horizontalGuides = [];
+  const verticalGuides = [];
 
   function setStatus(message, type = 'info') {
     if (!statusEl) return;
     statusEl.textContent = message || '';
-    statusEl.style.color = type === 'error' ? '#c62828' : type === 'success' ? '#2e7d32' : '#333';
+    statusEl.style.color =
+      type === 'error' ? '#c62828' : type === 'success' ? '#2e7d32' : '#333';
+  }
+
+  function showToast(message, type = 'info') {
+    if (!notificationArea) return;
+    const el = document.createElement('div');
+    el.className = `toast ${type}`;
+    el.textContent = message;
+    notificationArea.appendChild(el);
+    setTimeout(() => {
+      el.style.opacity = '0';
+      el.style.transition = 'opacity 0.5s ease';
+      setTimeout(() => el.remove(), 600);
+    }, 2500);
   }
 
   function mmToPx(mm) {
-    return mm * scale;
+    return mm * baseScale * zoomScale;
   }
 
   function pxToMm(px) {
-    return px / scale;
+    return px / (baseScale * zoomScale);
   }
 
   function snapValue(value, step) {
@@ -69,6 +120,8 @@
   function clearSelection() {
     selectedIds.clear();
     pieces.forEach((p) => p.element.classList.remove('selected'));
+    tooltipEl.style.display = 'none';
+    syncPropertiesPanel(null);
   }
 
   function toggleSelection(id, additive) {
@@ -83,6 +136,14 @@
     pieces.forEach((p) => {
       p.element.classList.toggle('selected', selectedIds.has(p.id));
     });
+    updateTooltip();
+    syncPropertiesPanel(getPrimarySelection());
+  }
+
+  function getPrimarySelection() {
+    if (selectedIds.size === 0) return null;
+    const firstId = Array.from(selectedIds)[0];
+    return pieces.find((p) => p.id === firstId) || null;
   }
 
   function markOverlaps() {
@@ -97,10 +158,7 @@
         const bx2 = b.x_mm + b.w_mm;
         const by2 = b.y_mm + b.h_mm;
         const separated =
-          a.x_mm >= bx2 - eps ||
-          b.x_mm >= ax2 - eps ||
-          a.y_mm >= by2 - eps ||
-          b.y_mm >= ay2 - eps;
+          a.x_mm >= bx2 - eps || b.x_mm >= ax2 - eps || a.y_mm >= by2 - eps || b.y_mm >= ay2 - eps;
         if (!separated) {
           a.element.classList.add('overlap');
           b.element.classList.add('overlap');
@@ -109,38 +167,123 @@
     }
   }
 
+  // Comment: sistema de zoom/pan aplicado a contenedor transformado
+  function applyViewportTransform() {
+    if (!zoomContainer) return;
+    zoomContainer.style.transform = `translate(${pan.x}px, ${pan.y}px) scale(${zoomScale})`;
+    guidesLayer.style.transform = zoomContainer.style.transform;
+    renderGuides();
+  }
+
   function updatePiecePosition(piece) {
-    if (!piece || !piece.element) {
+    if (!piece || !piece.element || !sheetEl) {
       return;
     }
-    piece.element.style.left = `${mmToPx(piece.x_mm)}px`;
-    piece.element.style.bottom = `${mmToPx(piece.y_mm)}px`;
-    piece.element.style.width = `${mmToPx(piece.w_mm)}px`;
-    piece.element.style.height = `${mmToPx(piece.h_mm)}px`;
+    piece.element.style.left = `${piece.x_mm * baseScale}px`;
+    piece.element.style.bottom = `${piece.y_mm * baseScale}px`;
+    piece.element.style.width = `${piece.w_mm * baseScale}px`;
+    piece.element.style.height = `${piece.h_mm * baseScale}px`;
+    const transforms = [];
+    transforms.push(`rotate(${piece.rotation || 0}deg)`);
+    if (piece.flip_x) transforms.push('scaleX(-1)');
+    if (piece.flip_y) transforms.push('scaleY(-1)');
+    piece.element.style.transform = transforms.join(' ');
+    piece.element.classList.toggle('locked', Boolean(piece.locked));
     piece.element.dataset.xMm = piece.x_mm;
     piece.element.dataset.yMm = piece.y_mm;
   }
 
+  function updateTooltip() {
+    if (!tooltipEl || selectedIds.size === 0) {
+      tooltipEl.style.display = 'none';
+      return;
+    }
+    const piece = getPrimarySelection();
+    if (!piece || !piece.element) return;
+    const rect = piece.element.getBoundingClientRect();
+    tooltipEl.style.display = 'block';
+    tooltipEl.style.left = `${rect.left + rect.width / 2}px`;
+    tooltipEl.style.top = `${rect.top - 6}px`;
+    const srcLabel = piece.src ? piece.src.split(/[\\/]/).pop() : '—';
+    tooltipEl.innerHTML = `
+      <div><strong>ID:</strong> ${piece.id}</div>
+      <div><strong>Tamaño:</strong> ${piece.w_mm.toFixed(1)} × ${piece.h_mm.toFixed(1)} mm</div>
+      <div><strong>Posición:</strong> X ${piece.x_mm.toFixed(1)} / Y ${piece.y_mm.toFixed(1)} mm</div>
+      <div><strong>Rotación:</strong> ${Number(piece.rotation || 0).toFixed(1)}°</div>
+      <div><strong>Origen:</strong> ${srcLabel}</div>
+    `;
+  }
+
+  // Comment: panel de propiedades sincronizado con selección
+  function syncPropertiesPanel(piece) {
+    if (!propertiesPanel.x) return;
+    const inputs = propertiesPanel;
+    if (!piece) {
+      inputs.x.value = inputs.y.value = inputs.w.value = inputs.h.value = inputs.rot.value = '';
+      inputs.locked.checked = false;
+      return;
+    }
+    inputs.x.value = piece.x_mm.toFixed(2);
+    inputs.y.value = piece.y_mm.toFixed(2);
+    inputs.w.value = piece.w_mm.toFixed(2);
+    inputs.h.value = piece.h_mm.toFixed(2);
+    inputs.rot.value = Number(piece.rotation || 0).toFixed(1);
+    inputs.locked.checked = Boolean(piece.locked);
+  }
+
+  function applyPropertiesFromPanel() {
+    const piece = getPrimarySelection();
+    if (!piece) return;
+    const readNumber = (input, min = -Infinity) => {
+      const val = parseFloat(input.value);
+      if (!Number.isFinite(val)) return null;
+      return Math.max(val, min);
+    };
+    const x = readNumber(propertiesPanel.x, 0);
+    const y = readNumber(propertiesPanel.y, 0);
+    const w = readNumber(propertiesPanel.w, 0.1);
+    const h = readNumber(propertiesPanel.h, 0.1);
+    const r = readNumber(propertiesPanel.rot, -360);
+    if (x === null || y === null || w === null || h === null || r === null) {
+      showToast('Valores inválidos en propiedades.', 'error');
+      return;
+    }
+    const sheet = layoutData.sheet;
+    piece.x_mm = clamp(x, 0, sheet.w_mm - w);
+    piece.y_mm = clamp(y, 0, sheet.h_mm - h);
+    piece.w_mm = w;
+    piece.h_mm = h;
+    piece.rotation = r;
+    piece.locked = Boolean(propertiesPanel.locked.checked);
+    updatePiecePosition(piece);
+    markOverlaps();
+    updateTooltip();
+    updateStatusBar();
+  }
+
+  // Comment: lógica de multi-selección y arrastre conjunto
   function createPieceElement(piece) {
     const el = document.createElement('div');
     el.className = 'piece';
-    el.dataset.id = piece.id;
     el.textContent = piece.label || piece.id;
-    piece.element = el;
     updatePiecePosition(piece);
 
     el.addEventListener('pointerdown', (evt) => {
+      if (!sheetEl) return;
+      if (evt.button === 1 || (evt.button === 0 && evt.metaKey)) {
+        return; // dejar al pan
+      }
       evt.preventDefault();
-      evt.stopPropagation();
-      const additive = evt.shiftKey || evt.metaKey || evt.ctrlKey;
+      const additive = evt.shiftKey;
       toggleSelection(piece.id, additive);
+      const selectionIds = selectedIds.size ? Array.from(selectedIds) : [piece.id];
+      const selectedPieces = pieces.filter((p) => selectionIds.includes(p.id));
       dragState = {
-        id: piece.id,
         pointerId: evt.pointerId,
         startX: evt.clientX,
         startY: evt.clientY,
-        originX: piece.x_mm,
-        originY: piece.y_mm,
+        selection: selectedPieces,
+        origins: selectedPieces.map((p) => ({ id: p.id, x: p.x_mm, y: p.y_mm })),
       };
       el.setPointerCapture(evt.pointerId);
       el.classList.add('dragging');
@@ -148,38 +291,36 @@
     });
 
     el.addEventListener('pointermove', (evt) => {
-      if (!dragState || dragState.id !== piece.id) {
-        return;
-      }
+      if (!dragState || dragState.pointerId !== evt.pointerId) return;
       evt.preventDefault();
-      const dx = pxToMm(evt.clientX - dragState.startX);
-      const dy = pxToMm(evt.clientY - dragState.startY);
+      const dxMm = pxToMm(evt.clientX - dragState.startX);
+      const dyMm = pxToMm(evt.clientY - dragState.startY);
+      const gridStep = computeGridStep(layoutData.grid_mm);
       const sheet = layoutData.sheet;
-      const maxX = sheet.w_mm - piece.w_mm;
-      const maxY = sheet.h_mm - piece.h_mm;
-      let newX = clamp(dragState.originX + dx, 0, maxX);
-      let newY = clamp(dragState.originY + dy, 0, maxY);
-      piece.x_mm = newX;
-      piece.y_mm = newY;
-      updatePiecePosition(piece);
+      const bounds = { w: sheet.w_mm, h: sheet.h_mm };
+      dragState.selection.forEach((p, idx) => {
+        const origin = dragState.origins[idx];
+        let newX = origin.x + dxMm;
+        let newY = origin.y + dyMm;
+        newX = snapValue(newX, gridStep);
+        newY = snapValue(newY, gridStep);
+        const snapOffsets = computeSnapOffsets(p, newX, newY, bounds);
+        newX += snapOffsets.x;
+        newY += snapOffsets.y;
+        newX = clamp(newX, 0, bounds.w - p.w_mm);
+        newY = clamp(newY, 0, bounds.h - p.h_mm);
+        p.x_mm = newX;
+        p.y_mm = newY;
+        updatePiecePosition(p);
+      });
       markOverlaps();
+      updateTooltip();
     });
 
     function finalizeDrag(evt) {
-      if (!dragState || dragState.id !== piece.id) {
-        return;
-      }
+      if (!dragState || dragState.pointerId !== evt.pointerId) return;
       evt.preventDefault();
-      const gridStep = computeGridStep(layoutData.grid_mm);
-      piece.x_mm = snapValue(piece.x_mm, gridStep);
-      piece.y_mm = snapValue(piece.y_mm, gridStep);
-      const sheet = layoutData.sheet;
-      const maxX = sheet.w_mm - piece.w_mm;
-      const maxY = sheet.h_mm - piece.h_mm;
-      piece.x_mm = clamp(piece.x_mm, 0, maxX);
-      piece.y_mm = clamp(piece.y_mm, 0, maxY);
-      updatePiecePosition(piece);
-      markOverlaps();
+      dragState.selection.forEach((p) => updatePiecePosition(p));
       dragState = null;
       el.classList.remove('dragging');
       setStatus('');
@@ -188,6 +329,7 @@
       } catch (captureErr) {
         /* ignore */
       }
+      updateStatusBar();
     }
 
     el.addEventListener('pointerup', finalizeDrag);
@@ -199,6 +341,36 @@
     });
 
     return el;
+  }
+
+  function computeSnapOffsets(piece, newX, newY, bounds) {
+    // Comment: sistema de snapping con cuadrícula, bordes y márgenes
+    const offsets = { x: 0, y: 0 };
+    const tolerance = SNAP_TOLERANCE_MM;
+    pieces.forEach((other) => {
+      if (other.id === piece.id || selectedIds.has(other.id)) return;
+      const edgesPiece = [newX, newX + piece.w_mm];
+      const edgesOther = [other.x_mm, other.x_mm + other.w_mm];
+      edgesPiece.forEach((edge) => {
+        edgesOther.forEach((edgeOther) => {
+          const diff = edgeOther - edge;
+          if (Math.abs(diff) <= tolerance) offsets.x = diff;
+        });
+      });
+      const vPiece = [newY, newY + piece.h_mm];
+      const vOther = [other.y_mm, other.y_mm + other.h_mm];
+      vPiece.forEach((edge) => {
+        vOther.forEach((edgeOther) => {
+          const diff = edgeOther - edge;
+          if (Math.abs(diff) <= tolerance) offsets.y = diff;
+        });
+      });
+    });
+    if (newX < 0 + tolerance) offsets.x = -newX;
+    if (newY < 0 + tolerance) offsets.y = -newY;
+    if (newX + piece.w_mm > bounds.w - tolerance) offsets.x = bounds.w - piece.w_mm - newX;
+    if (newY + piece.h_mm > bounds.h - tolerance) offsets.y = bounds.h - piece.h_mm - newY;
+    return offsets;
   }
 
   function buildAssetsSelect(assets) {
@@ -225,7 +397,7 @@
       layoutData.preview_filename = 'preview_edit.png';
     }
     pieces = [];
-    canvas.innerHTML = '';
+    panContainer.innerHTML = '';
 
     const sheet = data.sheet || { w_mm: 0, h_mm: 0 };
     sheet.w_mm = Number(sheet.w_mm) || 0;
@@ -235,22 +407,27 @@
       return;
     }
 
-    const maxWidthPx = 900;
-    scale = Math.min(2, maxWidthPx / sheet.w_mm);
-    if (scale <= 0) scale = 1.5;
+    const maxWidthPx = canvas.clientWidth ? canvas.clientWidth * 0.8 : 900;
+    baseScale = Math.min(2, maxWidthPx / sheet.w_mm);
+    if (baseScale <= 0) baseScale = 1.5;
+    zoomScale = 1;
+    pan = { x: 40, y: 40 };
 
     sheetEl = document.createElement('div');
     sheetEl.className = 'sheet';
-    sheetEl.style.width = `${mmToPx(sheet.w_mm)}px`;
-    sheetEl.style.height = `${mmToPx(sheet.h_mm)}px`;
+    sheetEl.style.width = `${sheet.w_mm * baseScale}px`;
+    sheetEl.style.height = `${sheet.h_mm * baseScale}px`;
     sheetEl.addEventListener('pointerdown', (evt) => {
-      if (evt.target === sheetEl) {
+      if (evt.target === sheetEl && !evt.shiftKey) {
         clearSelection();
         setStatus('');
       }
+      if (evt.target === sheetEl && evt.button === 0 && evt.shiftKey) {
+        startMarquee(evt);
+      }
     });
 
-    canvas.appendChild(sheetEl);
+    panContainer.appendChild(sheetEl);
 
     const items = Array.isArray(data.items) ? data.items : [];
     items.forEach((item, index) => {
@@ -265,6 +442,7 @@
         rotation: Number(item.rotation || 0),
         flip_x: Boolean(item.flip_x),
         flip_y: Boolean(item.flip_y),
+        locked: Boolean(item.locked),
         page: Number(item.page || 0),
         label: item.label || `${index + 1}`,
       };
@@ -277,6 +455,9 @@
     updateLinks();
     updateInfo();
     markOverlaps();
+    drawRulers();
+    updateStatusBar();
+    applyViewportTransform();
   }
 
   function updateInfo() {
@@ -325,6 +506,7 @@
     piece.file_idx = fileIdx;
     piece.element.textContent = option.textContent || piece.element.textContent;
     setStatus('Pieza reemplazada. Recordá guardar los cambios.', 'success');
+    updateTooltip();
   }
 
   function swapSelected() {
@@ -344,6 +526,8 @@
     updatePiecePosition(pieceA);
     updatePiecePosition(pieceB);
     markOverlaps();
+    updateTooltip();
+    updateStatusBar();
     setStatus('Posiciones intercambiadas. Recordá guardar los cambios.', 'success');
   }
 
@@ -359,6 +543,7 @@
       rotation: Number(piece.rotation || 0),
       flip_x: Boolean(piece.flip_x),
       flip_y: Boolean(piece.flip_y),
+      locked: Boolean(piece.locked),
     }));
   }
 
@@ -388,16 +573,415 @@
         previewLink.href = data.preview_url;
       }
       setStatus('Montaje guardado correctamente.', 'success');
+      showToast('✅ Layout IA guardado y PDF editado regenerado.', 'success');
     } catch (err) {
       console.error('[post-editor] save error', err);
       setStatus(err.message || 'Error al guardar el layout', 'error');
+      showToast(`Error al guardar: ${err.message || 'desconocido'}`, 'error');
     }
+  }
+
+  function handleZoom(delta, centerPx) {
+    const oldScale = zoomScale;
+    zoomScale = clamp(zoomScale * delta, MIN_ZOOM, MAX_ZOOM);
+    const ratio = zoomScale / oldScale;
+    if (centerPx && sheetViewport) {
+      const rect = sheetViewport.getBoundingClientRect();
+      const cx = centerPx.x - rect.left;
+      const cy = centerPx.y - rect.top;
+      pan.x = cx - ratio * (cx - pan.x);
+      pan.y = cy - ratio * (cy - pan.y);
+    }
+    applyViewportTransform();
+    drawRulers();
+  }
+
+  function zoomToFit() {
+    if (!layoutData?.sheet || !canvas) return;
+    const sheet = layoutData.sheet;
+    const rect = canvas.getBoundingClientRect();
+    const scaleX = (rect.width - 100) / (sheet.w_mm * baseScale);
+    const scaleY = (rect.height - 100) / (sheet.h_mm * baseScale);
+    zoomScale = clamp(Math.min(scaleX, scaleY), MIN_ZOOM, MAX_ZOOM);
+    pan = { x: 50, y: 50 };
+    applyViewportTransform();
+    drawRulers();
+  }
+
+  function initZoomPanControls() {
+    if (!canvas) return;
+    canvas.addEventListener('wheel', (evt) => {
+      evt.preventDefault();
+      const delta = evt.deltaY < 0 ? 1.1 : 0.9;
+      handleZoom(delta, { x: evt.clientX, y: evt.clientY });
+    }, { passive: false });
+
+    canvas.addEventListener('pointerdown', (evt) => {
+      const isPanButton = evt.button === 1 || evt.button === 2 || spacePressed; // support middle click y barra espaciadora
+      if (evt.button === 0 && evt.ctrlKey) return; // avoid conflict
+      if (isPanButton || evt.buttons === 4 || evt.code === 'Space') {
+        evt.preventDefault();
+        panState = { pointerId: evt.pointerId, startX: evt.clientX, startY: evt.clientY, origin: { ...pan } };
+        canvas.setPointerCapture(evt.pointerId);
+      }
+    });
+
+    canvas.addEventListener('pointermove', (evt) => {
+      if (!panState || panState.pointerId !== evt.pointerId) return;
+      pan.x = panState.origin.x + (evt.clientX - panState.startX);
+      pan.y = panState.origin.y + (evt.clientY - panState.startY);
+      applyViewportTransform();
+    });
+
+    canvas.addEventListener('pointerup', (evt) => {
+      if (panState && panState.pointerId === evt.pointerId) {
+        panState = null;
+      }
+    });
+    canvas.addEventListener('pointercancel', () => {
+      panState = null;
+    });
+
+    canvas.addEventListener('keydown', (evt) => {
+      if (evt.ctrlKey && (evt.key === '+' || evt.key === '=')) {
+        handleZoom(1.1, { x: evt.clientX || canvas.clientWidth / 2, y: evt.clientY || canvas.clientHeight / 2 });
+        evt.preventDefault();
+      } else if (evt.ctrlKey && evt.key === '-') {
+        handleZoom(0.9, { x: evt.clientX || canvas.clientWidth / 2, y: evt.clientY || canvas.clientHeight / 2 });
+        evt.preventDefault();
+      } else if (evt.ctrlKey && evt.key === '0') {
+        zoomToFit();
+        evt.preventDefault();
+      }
+    });
+
+    canvas.addEventListener('touchstart', (evt) => {
+      if (evt.touches.length === 2) {
+        pinchState = {
+          startDist: calcTouchDistance(evt.touches),
+          startZoom: zoomScale,
+        };
+      }
+    }, { passive: true });
+
+    canvas.addEventListener('touchmove', (evt) => {
+      if (pinchState && evt.touches.length === 2) {
+        evt.preventDefault();
+        const dist = calcTouchDistance(evt.touches);
+        const delta = dist / pinchState.startDist;
+        handleZoom(pinchState.startZoom * delta / zoomScale, {
+          x: (evt.touches[0].clientX + evt.touches[1].clientX) / 2,
+          y: (evt.touches[0].clientY + evt.touches[1].clientY) / 2,
+        });
+      } else if (evt.touches.length === 2) {
+        const dx = evt.touches[0].clientX - evt.touches[1].clientX;
+        const dy = evt.touches[0].clientY - evt.touches[1].clientY;
+        pan.x += dx * 0.01;
+        pan.y += dy * 0.01;
+        applyViewportTransform();
+      }
+    }, { passive: false });
+
+    canvas.addEventListener('touchend', () => {
+      pinchState = null;
+    });
+
+    window.addEventListener('keydown', (evt) => {
+      if (evt.code === 'Space') spacePressed = true;
+    });
+    window.addEventListener('keyup', (evt) => {
+      if (evt.code === 'Space') spacePressed = false;
+    });
+  }
+
+  function calcTouchDistance(touches) {
+    const dx = touches[0].clientX - touches[1].clientX;
+    const dy = touches[0].clientY - touches[1].clientY;
+    return Math.sqrt(dx * dx + dy * dy);
+  }
+
+  function startMarquee(evt) {
+    const rect = sheetViewport.getBoundingClientRect();
+    marqueeState = {
+      startX: evt.clientX - rect.left,
+      startY: evt.clientY - rect.top,
+    };
+    marqueeEl.hidden = false;
+    marqueeEl.style.left = `${marqueeState.startX}px`;
+    marqueeEl.style.top = `${marqueeState.startY}px`;
+    marqueeEl.style.width = '0px';
+    marqueeEl.style.height = '0px';
+    const move = (e) => {
+      const curX = e.clientX - rect.left;
+      const curY = e.clientY - rect.top;
+      const x = Math.min(marqueeState.startX, curX);
+      const y = Math.min(marqueeState.startY, curY);
+      const w = Math.abs(curX - marqueeState.startX);
+      const h = Math.abs(curY - marqueeState.startY);
+      marqueeEl.style.left = `${x}px`;
+      marqueeEl.style.top = `${y}px`;
+      marqueeEl.style.width = `${w}px`;
+      marqueeEl.style.height = `${h}px`;
+    };
+    const up = (e) => {
+      document.removeEventListener('pointermove', move);
+      document.removeEventListener('pointerup', up);
+      marqueeEl.hidden = true;
+      const curX = e.clientX - rect.left;
+      const curY = e.clientY - rect.top;
+      const x1 = Math.min(marqueeState.startX, curX);
+      const y1 = Math.min(marqueeState.startY, curY);
+      const x2 = Math.max(marqueeState.startX, curX);
+      const y2 = Math.max(marqueeState.startY, curY);
+      const mm1 = screenToSheetMm(x1 + rect.left, y1 + rect.top);
+      const mm2 = screenToSheetMm(x2 + rect.left, y2 + rect.top);
+      clearSelection();
+      pieces.forEach((p) => {
+        const inside =
+          p.x_mm >= mm1.x &&
+          p.y_mm >= mm1.y &&
+          p.x_mm + p.w_mm <= mm2.x &&
+          p.y_mm + p.h_mm <= mm2.y;
+        if (inside) selectedIds.add(p.id);
+      });
+      pieces.forEach((p) => p.element.classList.toggle('selected', selectedIds.has(p.id)));
+      syncPropertiesPanel(getPrimarySelection());
+      updateTooltip();
+      marqueeState = null;
+    };
+    document.addEventListener('pointermove', move);
+    document.addEventListener('pointerup', up);
+  }
+
+  function screenToSheetMm(clientX, clientY) {
+    const rect = sheetViewport.getBoundingClientRect();
+    const localX = (clientX - rect.left - pan.x) / zoomScale;
+    const localY = (rect.bottom - clientY + pan.y) / zoomScale;
+    return {
+      x: localX / baseScale,
+      y: localY / baseScale,
+    };
+  }
+
+  function applyAlignment(type) {
+    if (selectedIds.size < 1) return;
+    const selectedPieces = pieces.filter((p) => selectedIds.has(p.id));
+    const sheet = layoutData.sheet;
+    const xs = selectedPieces.map((p) => p.x_mm);
+    const ys = selectedPieces.map((p) => p.y_mm);
+    const ws = selectedPieces.map((p) => p.w_mm);
+    const hs = selectedPieces.map((p) => p.h_mm);
+    if (type === 'left') {
+      const minX = Math.min(...xs);
+      selectedPieces.forEach((p) => (p.x_mm = minX));
+    } else if (type === 'right') {
+      const maxRight = Math.max(...selectedPieces.map((p, i) => xs[i] + ws[i]));
+      selectedPieces.forEach((p, i) => (p.x_mm = maxRight - ws[i]));
+    } else if (type === 'center-vertical') {
+      const center = (Math.min(...xs) + Math.max(...selectedPieces.map((p, i) => xs[i] + ws[i]))) / 2;
+      selectedPieces.forEach((p, i) => (p.x_mm = center - ws[i] / 2));
+    } else if (type === 'top') {
+      const maxTop = Math.max(...selectedPieces.map((p, i) => ys[i] + hs[i]));
+      selectedPieces.forEach((p, i) => (p.y_mm = maxTop - hs[i]));
+    } else if (type === 'bottom') {
+      const minY = Math.min(...ys);
+      selectedPieces.forEach((p) => (p.y_mm = minY));
+    } else if (type === 'center-horizontal') {
+      const center = (Math.min(...ys) + Math.max(...selectedPieces.map((p, i) => ys[i] + hs[i]))) / 2;
+      selectedPieces.forEach((p, i) => (p.y_mm = center - hs[i] / 2));
+    } else if (type === 'center-sheet') {
+      const bbox = selectedPieces.reduce(
+        (acc, p) => {
+          return {
+            minX: Math.min(acc.minX, p.x_mm),
+            maxX: Math.max(acc.maxX, p.x_mm + p.w_mm),
+            minY: Math.min(acc.minY, p.y_mm),
+            maxY: Math.max(acc.maxY, p.y_mm + p.h_mm),
+          };
+        },
+        { minX: Infinity, maxX: -Infinity, minY: Infinity, maxY: -Infinity }
+      );
+      const selW = bbox.maxX - bbox.minX;
+      const selH = bbox.maxY - bbox.minY;
+      const offsetX = sheet.w_mm / 2 - selW / 2 - bbox.minX;
+      const offsetY = sheet.h_mm / 2 - selH / 2 - bbox.minY;
+      selectedPieces.forEach((p) => {
+        p.x_mm += offsetX;
+        p.y_mm += offsetY;
+      });
+    } else if (type === 'dist-h' && selectedPieces.length > 2) {
+      const sorted = [...selectedPieces].sort((a, b) => a.x_mm - b.x_mm);
+      const totalWidth = sorted.reduce((acc, p) => acc + p.w_mm, 0);
+      const space = (sorted[sorted.length - 1].x_mm - sorted[0].x_mm - totalWidth) / (sorted.length - 1);
+      let cursor = sorted[0].x_mm + sorted[0].w_mm + space;
+      for (let i = 1; i < sorted.length - 1; i++) {
+        sorted[i].x_mm = cursor;
+        cursor += sorted[i].w_mm + space;
+      }
+    } else if (type === 'dist-v' && selectedPieces.length > 2) {
+      const sorted = [...selectedPieces].sort((a, b) => a.y_mm - b.y_mm);
+      const totalHeight = sorted.reduce((acc, p) => acc + p.h_mm, 0);
+      const space = (sorted[sorted.length - 1].y_mm - sorted[0].y_mm - totalHeight) / (sorted.length - 1);
+      let cursor = sorted[0].y_mm + sorted[0].h_mm + space;
+      for (let i = 1; i < sorted.length - 1; i++) {
+        sorted[i].y_mm = cursor;
+        cursor += sorted[i].h_mm + space;
+      }
+    }
+    selectedPieces.forEach(updatePiecePosition);
+    markOverlaps();
+    updateTooltip();
+    updateStatusBar();
+  }
+
+  // Comment: barra de estado inferior con métricas rápidas
+  function updateStatusBar() {
+    if (!layoutData || !layoutData.sheet) return;
+    const sheetArea = layoutData.sheet.w_mm * layoutData.sheet.h_mm;
+    const pieceArea = pieces.reduce((acc, p) => acc + p.w_mm * p.h_mm, 0);
+    const occupancy = sheetArea ? (pieceArea / sheetArea) * 100 : 0;
+    if (statusSheetSize)
+      statusSheetSize.textContent = `Pliego: ${layoutData.sheet.w_mm.toFixed(0)} × ${layoutData.sheet.h_mm.toFixed(0)} mm`;
+    if (statusPieceCount) statusPieceCount.textContent = `Piezas: ${pieces.length}`;
+    const bySrc = pieces.reduce((acc, p) => {
+      const key = (p.src || 'desconocido').split(/[\\/]/).pop();
+      acc[key] = (acc[key] || 0) + 1;
+      return acc;
+    }, {});
+    if (statusBreakdown) statusBreakdown.textContent = `Por archivo: ${Object.entries(bySrc)
+      .map(([k, v]) => `${k} (${v})`)
+      .join(', ')}`;
+    if (statusOccupancy) statusOccupancy.textContent = `Ocupación estimada: ${occupancy.toFixed(1)}%`;
+    const warnings = [];
+    const sheet = layoutData.sheet;
+    const outOfBounds = pieces.filter((p) => p.x_mm < 0 || p.y_mm < 0 || p.x_mm + p.w_mm > sheet.w_mm || p.y_mm + p.h_mm > sheet.h_mm);
+    if (outOfBounds.length) warnings.push(`${outOfBounds.length} piezas parcialmente fuera del pliego`);
+    if (warnings.length === 0) warnings.push('Todas las piezas dentro del pliego');
+    if (statusWarnings) statusWarnings.textContent = warnings.join(' · ');
+  }
+
+  function drawRulers() {
+    if (!layoutData?.sheet || !rulerTop || !rulerLeft) return;
+    const stepMm = 10;
+    const sheet = layoutData.sheet;
+    rulerTop.innerHTML = '';
+    rulerLeft.innerHTML = '';
+    const totalXPx = sheet.w_mm * baseScale;
+    for (let mm = 0; mm <= sheet.w_mm; mm += stepMm) {
+      const tick = document.createElement('div');
+      tick.className = 'tick';
+      const pos = (mm / sheet.w_mm) * totalXPx;
+      tick.style.left = `${pos}px`;
+      tick.style.height = mm % 50 === 0 ? '12px' : '7px';
+      rulerTop.appendChild(tick);
+      if (mm % 50 === 0) {
+        const label = document.createElement('div');
+        label.className = 'tick-label';
+        label.style.left = `${pos + 2}px`;
+        label.style.bottom = '0';
+        label.textContent = mm;
+        rulerTop.appendChild(label);
+      }
+    }
+    const totalYPx = sheet.h_mm * baseScale;
+    for (let mm = 0; mm <= sheet.h_mm; mm += stepMm) {
+      const tick = document.createElement('div');
+      tick.className = 'tick';
+      const pos = (mm / sheet.h_mm) * totalYPx;
+      tick.style.bottom = `${pos}px`;
+      tick.style.width = mm % 50 === 0 ? '12px' : '7px';
+      rulerLeft.appendChild(tick);
+      if (mm % 50 === 0) {
+        const label = document.createElement('div');
+        label.className = 'tick-label';
+        label.style.right = '0';
+        label.style.bottom = `${pos - 6}px`;
+        label.textContent = mm;
+        rulerLeft.appendChild(label);
+      }
+    }
+  }
+
+  function renderGuides() {
+    if (!guidesLayer) return;
+    guidesLayer.innerHTML = '';
+    horizontalGuides.forEach((mm) => {
+      const line = document.createElement('div');
+      line.className = 'guide-line horizontal';
+      line.style.bottom = `${mm * baseScale}px`;
+      guidesLayer.appendChild(line);
+    });
+    verticalGuides.forEach((mm) => {
+      const line = document.createElement('div');
+      line.className = 'guide-line vertical';
+      line.style.left = `${mm * baseScale}px`;
+      guidesLayer.appendChild(line);
+    });
+  }
+
+  function initGuides() {
+    const createGuide = (orientation, posPx) => {
+      const mm = posPx / baseScale;
+      if (orientation === 'horizontal') {
+        horizontalGuides.push(mm);
+      } else {
+        verticalGuides.push(mm);
+      }
+      renderGuides();
+    };
+
+    rulerTop?.addEventListener('pointerdown', (evt) => {
+      const pos = evt.offsetX;
+      createGuide('vertical', pos);
+    });
+
+    rulerLeft?.addEventListener('pointerdown', (evt) => {
+      const pos = rulerLeft.clientHeight - evt.offsetY;
+      createGuide('horizontal', pos);
+    });
+
+    guidesLayer?.addEventListener('dblclick', (evt) => {
+      const rect = guidesLayer.getBoundingClientRect();
+      const localX = evt.clientX - rect.left;
+      const localY = rect.bottom - evt.clientY;
+      const xMm = localX / baseScale;
+      const yMm = localY / baseScale;
+      const idxV = verticalGuides.findIndex((v) => Math.abs(v - xMm) < 2);
+      const idxH = horizontalGuides.findIndex((v) => Math.abs(v - yMm) < 2);
+      if (idxV >= 0) verticalGuides.splice(idxV, 1);
+      if (idxH >= 0) horizontalGuides.splice(idxH, 1);
+      renderGuides();
+    });
+  }
+
+  function initPropertiesPanel() {
+    const inputs = Object.values(propertiesPanel).filter(Boolean);
+    inputs.forEach((input) => {
+      input.addEventListener('change', applyPropertiesFromPanel);
+      input.addEventListener('blur', applyPropertiesFromPanel);
+      input.addEventListener('keyup', (evt) => {
+        if (evt.key === 'Enter') applyPropertiesFromPanel();
+      });
+    });
+  }
+
+  function initAlignmentButtons() {
+    alignButtons.forEach((btn) => {
+      btn.addEventListener('click', () => applyAlignment(btn.dataset.align));
+    });
   }
 
   function initEvents() {
     if (replaceBtn) replaceBtn.addEventListener('click', replaceSelected);
     if (swapBtn) swapBtn.addEventListener('click', swapSelected);
     if (saveBtn) saveBtn.addEventListener('click', saveLayout);
+    if (zoomInBtn) zoomInBtn.addEventListener('click', () => handleZoom(1.1));
+    if (zoomOutBtn) zoomOutBtn.addEventListener('click', () => handleZoom(0.9));
+    if (zoomResetBtn) zoomResetBtn.addEventListener('click', zoomToFit);
+    initZoomPanControls();
+    initGuides();
+    initPropertiesPanel();
+    initAlignmentButtons();
   }
 
   async function loadLayout() {
@@ -415,6 +999,11 @@
       setStatus(err.message || 'Error al cargar layout', 'error');
     }
   }
+
+  window.addEventListener('resize', () => {
+    drawRulers();
+    updateTooltip();
+  });
 
   initEvents();
   if (initialLayout) {
