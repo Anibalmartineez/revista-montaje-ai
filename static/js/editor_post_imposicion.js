@@ -1,5 +1,6 @@
 (function () {
-  const jobId = window.__POST_EDITOR_JOB_ID__;
+  const jobId = window.jobIdIA || window.__POST_EDITOR_JOB_ID__;
+  const initialLayout = window.layoutIA || null;
   if (!jobId) {
     console.warn('[post-editor] jobId no disponible');
     return;
@@ -109,6 +110,9 @@
   }
 
   function updatePiecePosition(piece) {
+    if (!piece || !piece.element) {
+      return;
+    }
     piece.element.style.left = `${mmToPx(piece.x_mm)}px`;
     piece.element.style.bottom = `${mmToPx(piece.y_mm)}px`;
     piece.element.style.width = `${mmToPx(piece.w_mm)}px`;
@@ -122,6 +126,7 @@
     el.className = 'piece';
     el.dataset.id = piece.id;
     el.textContent = piece.label || piece.id;
+    piece.element = el;
     updatePiecePosition(piece);
 
     el.addEventListener('pointerdown', (evt) => {
@@ -412,5 +417,9 @@
   }
 
   initEvents();
-  loadLayout();
+  if (initialLayout) {
+    renderLayout(initialLayout);
+  } else {
+    loadLayout();
+  }
 })();

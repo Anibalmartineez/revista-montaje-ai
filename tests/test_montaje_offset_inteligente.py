@@ -1,4 +1,6 @@
 import io
+import json
+import shutil
 import tempfile
 from pathlib import Path
 
@@ -9,10 +11,12 @@ import sys
 sys.path.append(str(Path(__file__).resolve().parents[1]))
 
 import os
+import uuid
 os.environ.setdefault("OPENAI_API_KEY", "test")
 
 import pytest
 from app import app
+from routes import POST_EDITOR_DIR, LAYOUT_FILENAME
 from montaje_offset_inteligente import (
     obtener_dimensiones_pdf,
     calcular_posiciones,
@@ -104,6 +108,61 @@ def client():
     app.config["TESTING"] = True
     with app.test_client() as client:
         yield client
+
+
+def test_modo_ia_generates_layout_json(client, monkeypatch):
+    job_token = "testjob123456"
+
+    class _FakeUUID:
+        def __init__(self, value):
+            self.hex = value
+
+    monkeypatch.setattr(uuid, "uuid4", lambda: _FakeUUID(job_token))
+
+    job_dir = Path(app.static_folder) / POST_EDITOR_DIR / job_token[:12]
+    if job_dir.exists():
+        shutil.rmtree(job_dir)
+
+    pdf_bytes = io.BytesIO()
+    c = canvas.Canvas(pdf_bytes, pagesize=(80 * mm, 50 * mm))
+    c.drawString(5, 5, "pieza")
+    c.save()
+    pdf_bytes.seek(0)
+
+    data = {
+        "pliego": "personalizado",
+        "ancho_pliego_custom": "500",
+        "alto_pliego_custom": "700",
+        "espaciado_horizontal": "0",
+        "espaciado_vertical": "0",
+        "margen_izq": "10",
+        "margen_der": "10",
+        "margen_sup": "10",
+        "margen_inf": "10",
+        "separacion": "4",
+        "modo_ia": "1",
+    }
+    data["archivos[]"] = (pdf_bytes, "pieza.pdf")
+    data["repeticiones_0"] = "1"
+
+    resp = client.post(
+        "/montaje_offset_inteligente",
+        data=data,
+        content_type="multipart/form-data",
+    )
+
+    assert resp.status_code == 200
+
+    layout_path = (
+        Path(app.static_folder)
+        / POST_EDITOR_DIR
+        / job_token[:12]
+        / LAYOUT_FILENAME
+    )
+    assert layout_path.exists(), "El layout JSON no se generó en modo IA"
+    layout = json.loads(layout_path.read_text(encoding="utf-8"))
+    assert layout.get("items"), "El layout debe incluir piezas montadas"
+    assert layout.get("sheet", {}).get("w_mm")
 
 
 def test_montaje_offset_inteligente_con_parametros(client):

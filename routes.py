@@ -757,6 +757,14 @@ def montaje_offset_inteligente_view():
                 }
             )
 
+        # Guardamos un layout estructurado que describe el pliego y todas las piezas.
+        # 1. ``realizar_montaje_inteligente`` genera el PDF base y expone ``positions``
+        #    con coordenadas absolutas en mm.
+        # 2. Aquí serializamos esas posiciones junto a los recursos copiados en
+        #    ``static/ia_jobs/<job_id>/assets``.
+        # 3. ``/editor`` carga ``layout.json`` y lo inyecta en la plantilla del editor
+        #    para que el JavaScript pueda renderizar y editar las piezas sin volver a
+        #    consultar al motor de montaje.
         layout_payload = {
             "version": 1,
             "job_id": job_id,
@@ -2231,17 +2239,27 @@ def obtener_layout_job(job_id: str):
 
 @routes_bp.route("/editor")
 def editor():
+    """Renderiza el editor post-imposición con el layout precargado."""
     if not _post_editor_enabled():
         abort(404)
     job_id = request.args.get("id")
     job_dir = _job_dir(job_id)
     if not job_id or not job_dir or not os.path.isdir(job_dir):
         abort(404)
-    if not os.path.exists(_layout_path(job_dir)):
+
+    layout_path = _layout_path(job_dir)
+    if not os.path.exists(layout_path):
         abort(404)
+
+    try:
+        layout_payload = _load_json(layout_path)
+    except Exception:
+        abort(404)
+
     return render_template(
         "editor_post_imposicion.html",
         job_id=job_id,
+        layout=layout_payload,
         ENABLE_POST_EDITOR=True,
     )
 
