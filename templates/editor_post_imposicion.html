@@ -119,8 +119,13 @@
       <div id="editor-status"></div>
     </div>
   </div>
+  {% if layout %}
   <script>
-    window.__POST_EDITOR_JOB_ID__ = "{{ job_id }}";
+    window.layoutIA = {{ layout | tojson }};
+  </script>
+  {% endif %}
+  <script>
+    window.jobIdIA = "{{ job_id }}";
   </script>
   <script src="{{ url_for('static', filename='js/editor_post_imposicion.js') }}"></script>
 </body>
