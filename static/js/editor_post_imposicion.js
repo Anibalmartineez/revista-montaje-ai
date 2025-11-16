@@ -404,7 +404,7 @@
       const baseStep = computeGridStep(layoutData?.grid_mm);
       const step = evt.shiftKey ? baseStep * 2 : baseStep;
       const dx = key === 'ArrowLeft' ? -step : key === 'ArrowRight' ? step : 0;
-      const dy = key === 'ArrowDown' ? -step : key === 'ArrowUp' ? step : 0;
+      const dy = key === 'ArrowUp' ? -step : key === 'ArrowDown' ? step : 0;
       nudgeSelection(dx, dy);
       evt.preventDefault();
     }
