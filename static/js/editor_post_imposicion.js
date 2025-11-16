@@ -68,6 +68,8 @@
   const selectedIds = new Set();
   const horizontalGuides = [];
   const verticalGuides = [];
+  let pendingIaActions = null;
+  const iaNamedBBoxes = {};
   const undoStack = [];
   const redoStack = [];
 
@@ -106,6 +108,42 @@
 
   function clamp(value, min, max) {
     return Math.min(Math.max(value, min), max);
+  }
+
+  function appendChatBubble(role, text) {
+    const history = document.getElementById('ia-chat-history');
+    if (!history) return;
+
+    const div = document.createElement('div');
+    div.classList.add('chat-bubble');
+    if (role === 'user') {
+      div.classList.add('chat-bubble-user');
+    } else {
+      div.classList.add('chat-bubble-assistant');
+    }
+    div.textContent = text;
+    history.appendChild(div);
+    history.scrollTop = history.scrollHeight;
+  }
+
+  function setIaApplyButtonEnabled(enabled) {
+    const btn = document.getElementById('ia-chat-apply');
+    if (!btn) return;
+    btn.disabled = !enabled;
+  }
+
+  function toggleIaChatPanel(forceOpen) {
+    const panel = document.getElementById('ia-chat-panel');
+    if (!panel) return;
+
+    const isHidden = panel.classList.contains('hidden');
+    const shouldOpen = typeof forceOpen === 'boolean' ? forceOpen : isHidden;
+
+    if (shouldOpen) {
+      panel.classList.remove('hidden');
+    } else {
+      panel.classList.add('hidden');
+    }
   }
 
   function generatePieceId() {
@@ -241,6 +279,114 @@
         }
       }
     }
+  }
+
+  function selectPiecesByAssetName(substring) {
+    if (!substring) return;
+    const term = substring.toString().toLowerCase();
+    const assets = Array.isArray(layoutData?.assets) ? layoutData.assets : [];
+    const matchingFileIdx = new Set();
+    assets.forEach((asset) => {
+      const label = (asset.name || asset.original_src || asset.src || '').toString().toLowerCase();
+      if (label.includes(term)) {
+        if (asset.file_idx != null) matchingFileIdx.add(Number(asset.file_idx));
+        if (asset.id != null) matchingFileIdx.add(Number(asset.id));
+      }
+    });
+
+    clearSelection();
+
+    pieces.forEach((piece) => {
+      const srcLabel = (piece.src || '').toLowerCase();
+      const fileIdx = Number(piece.file_idx);
+      const match = srcLabel.includes(term) || matchingFileIdx.has(fileIdx);
+      if (match) {
+        selectedIds.add(piece.id);
+      }
+      piece.element.classList.toggle('selected', selectedIds.has(piece.id));
+    });
+
+    syncPropertiesPanel(getPrimarySelection());
+    updateTooltip();
+    updateStatusBar();
+  }
+
+  function selectPiecesByIds(ids) {
+    if (!Array.isArray(ids) || ids.length === 0) return;
+    const allowed = new Set(ids.map((id) => id.toString()));
+    clearSelection();
+    pieces.forEach((piece) => {
+      if (allowed.has(piece.id.toString())) {
+        selectedIds.add(piece.id);
+      }
+      piece.element.classList.toggle('selected', selectedIds.has(piece.id));
+    });
+    syncPropertiesPanel(getPrimarySelection());
+    updateTooltip();
+    updateStatusBar();
+  }
+
+  function computeSelectionBoundingBox() {
+    const selectedPieces = pieces.filter((p) => selectedIds.has(p.id));
+    if (!selectedPieces.length) return null;
+
+    const min_x = Math.min(...selectedPieces.map((p) => p.x_mm));
+    const min_y = Math.min(...selectedPieces.map((p) => p.y_mm));
+    const max_x = Math.max(...selectedPieces.map((p) => p.x_mm + p.w_mm));
+    const max_y = Math.max(...selectedPieces.map((p) => p.y_mm + p.h_mm));
+    return {
+      min_x,
+      min_y,
+      max_x,
+      max_y,
+      width: max_x - min_x,
+      height: max_y - min_y,
+    };
+  }
+
+  function arrangeSelectionAsRelativeGrid(action) {
+    const selectedPieces = pieces.filter((p) => selectedIds.has(p.id));
+    if (!selectedPieces.length) return;
+    const bboxRef = action?.relative_to ? iaNamedBBoxes[action.relative_to] : null;
+    if (!bboxRef) return;
+
+    const rows = Math.max(1, parseInt(action.rows, 10) || 1);
+    const gap = typeof action.gap_mm === 'number' ? action.gap_mm : 0;
+    const maxW = Math.max(...selectedPieces.map((p) => p.w_mm));
+    const maxH = Math.max(...selectedPieces.map((p) => p.h_mm));
+    if (!Number.isFinite(maxW) || !Number.isFinite(maxH)) return;
+
+    const cols = Math.ceil(selectedPieces.length / rows);
+    const gridWidth = cols * maxW + (cols - 1) * gap;
+    const gridHeight = rows * maxH + (rows - 1) * gap;
+
+    const sheet = layoutData?.sheet;
+    const position = action.position || 'above';
+    let originX = bboxRef.min_x + (bboxRef.width - gridWidth) / 2;
+    let originY = bboxRef.max_y + gap;
+
+    if (position === 'below') {
+      originY = bboxRef.min_y - gap - gridHeight;
+    } else if (position === 'left') {
+      originX = bboxRef.min_x - gap - gridWidth;
+      originY = bboxRef.min_y;
+    } else if (position === 'right') {
+      originX = bboxRef.max_x + gap;
+      originY = bboxRef.min_y;
+    }
+
+    if (sheet) {
+      originX = clamp(originX, 0, Math.max(0, sheet.w_mm - gridWidth));
+      originY = clamp(originY, 0, Math.max(0, sheet.h_mm - gridHeight));
+    }
+
+    selectedPieces.forEach((piece, idx) => {
+      const row = Math.floor(idx / cols);
+      const col = idx % cols;
+      piece.x_mm = originX + col * (maxW + gap);
+      piece.y_mm = originY + row * (maxH + gap);
+      updatePiecePosition(piece);
+    });
   }
 
   function getMaxCopiesForFile(fileIdx) {
@@ -1186,6 +1332,185 @@
     });
   }
 
+  async function sendChatMessage() {
+    const input = document.getElementById('ia-chat-input');
+    if (!input) return;
+    const text = input.value.trim();
+    if (!text) return;
+
+    appendChatBubble('user', text);
+    input.value = '';
+
+    const selectionIds = Array.from(selectedIds || []);
+    const layout_state = {
+      sheet: layoutData?.sheet || null,
+      assets: layoutData?.assets || [],
+      pieces: (pieces || []).map((p) => ({
+        id: p.id,
+        file_idx: p.file_idx,
+        x_mm: p.x_mm,
+        y_mm: p.y_mm,
+        w_mm: p.w_mm,
+        h_mm: p.h_mm,
+        rotation: p.rotation,
+        locked: !!p.locked,
+      })),
+      selection: selectionIds,
+      settings: {
+        grid_mm: layoutData?.grid_mm || null,
+        bleed_mm: layoutData?.bleed_mm || null,
+        min_gap_mm: layoutData?.min_gap_mm || null,
+      },
+    };
+
+    try {
+      const res = await fetch(`/editor_chat/${jobId}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          message: text,
+          layout_state,
+        }),
+      });
+
+      if (!res.ok) {
+        appendChatBubble('assistant', 'No se pudo contactar con la IA (error de red).');
+        setIaApplyButtonEnabled(false);
+        pendingIaActions = null;
+        return;
+      }
+
+      const data = await res.json();
+      const assistantText = data.assistant_message || 'Tengo una propuesta de cambios sobre el montaje.';
+      appendChatBubble('assistant', assistantText);
+
+      if (Array.isArray(data.actions)) {
+        pendingIaActions = data.actions;
+        setIaApplyButtonEnabled(pendingIaActions.length > 0);
+      } else {
+        pendingIaActions = null;
+        setIaApplyButtonEnabled(false);
+      }
+    } catch (err) {
+      console.error('Error en sendChatMessage:', err);
+      appendChatBubble('assistant', 'Ocurrió un error al comunicarse con la IA.');
+      pendingIaActions = null;
+      setIaApplyButtonEnabled(false);
+    }
+  }
+
+  function executeChatActions(actions) {
+    if (!Array.isArray(actions) || actions.length === 0) return;
+
+    let needHistoryPush = false;
+    for (const action of actions) {
+      if (!action || typeof action.type !== 'string') continue;
+
+      switch (action.type) {
+        case 'clear_selection':
+          clearSelection?.();
+          break;
+
+        case 'filter_by_asset':
+          if (action.asset_name_contains) {
+            selectPiecesByAssetName(action.asset_name_contains);
+          }
+          break;
+
+        case 'select_pieces':
+          if (Array.isArray(action.piece_ids)) {
+            selectPiecesByIds(action.piece_ids);
+          }
+          break;
+
+        case 'align':
+          if (action.target === 'selection' && action.mode) {
+            applyAlignment?.(action.mode);
+          }
+          break;
+
+        case 'distribute':
+          if (action.target === 'selection' && action.direction) {
+            const spacing = typeof action.spacing_mm === 'number' ? action.spacing_mm : null;
+            if (spacing !== null) {
+              const selectedPieces = pieces.filter((p) => selectedIds.has(p.id));
+              if (selectedPieces.length > 1) {
+                const sorted = [...selectedPieces].sort((a, b) =>
+                  action.direction === 'vertical' ? a.y_mm - b.y_mm : a.x_mm - b.x_mm
+                );
+                sorted.forEach((piece, idx) => {
+                  if (idx === 0) return;
+                  const prev = sorted[idx - 1];
+                  if (action.direction === 'vertical') {
+                    piece.y_mm = prev.y_mm + prev.h_mm + spacing;
+                  } else {
+                    piece.x_mm = prev.x_mm + prev.w_mm + spacing;
+                  }
+                  if (layoutData?.sheet) {
+                    piece.x_mm = clamp(piece.x_mm, 0, layoutData.sheet.w_mm - piece.w_mm);
+                    piece.y_mm = clamp(piece.y_mm, 0, layoutData.sheet.h_mm - piece.h_mm);
+                  }
+                  updatePiecePosition(piece);
+                });
+                needHistoryPush = true;
+              }
+            } else {
+              const mode = action.direction === 'vertical' ? 'dist-v' : 'dist-h';
+              applyAlignment?.(mode);
+            }
+          }
+          break;
+
+        case 'move':
+          if (action.target === 'selection') {
+            const dx = typeof action.dx_mm === 'number' ? action.dx_mm : 0;
+            const dy = typeof action.dy_mm === 'number' ? action.dy_mm : 0;
+            nudgeSelection?.(dx, dy);
+          }
+          break;
+
+        case 'duplicate':
+          if (action.target === 'selection') {
+            duplicateSelectedPieces?.();
+          }
+          break;
+
+        case 'compute_group_bbox':
+          if (action.target === 'selection' && action.save_as) {
+            const bbox = computeSelectionBoundingBox();
+            if (bbox) {
+              iaNamedBBoxes[action.save_as] = bbox;
+            }
+          }
+          break;
+
+        case 'arrange_grid_relative':
+          if (action.target === 'selection') {
+            arrangeSelectionAsRelativeGrid(action);
+            needHistoryPush = true;
+          }
+          break;
+
+        default:
+          console.warn('Acción IA desconocida:', action.type);
+          break;
+      }
+    }
+
+    if (typeof updateTooltip === 'function') {
+      updateTooltip();
+    }
+    if (typeof updateStatusBar === 'function') {
+      updateStatusBar();
+    }
+    if (needHistoryPush && typeof pushHistoryState === 'function') {
+      if (typeof markOverlaps === 'function') {
+        markOverlaps();
+      }
+      pushHistoryState();
+    }
+  }
+
   function initEvents() {
     if (replaceBtn) replaceBtn.addEventListener('click', replaceSelected);
     if (swapBtn) swapBtn.addEventListener('click', swapSelected);
@@ -1196,6 +1521,29 @@
     if (zoomInBtn) zoomInBtn.addEventListener('click', () => handleZoom(1.1));
     if (zoomOutBtn) zoomOutBtn.addEventListener('click', () => handleZoom(0.9));
     if (zoomResetBtn) zoomResetBtn.addEventListener('click', zoomToFit);
+    document.getElementById('ia-chat-toggle')?.addEventListener('click', () => {
+      toggleIaChatPanel();
+    });
+    document.getElementById('ia-chat-close')?.addEventListener('click', () => {
+      toggleIaChatPanel(false);
+    });
+    document.getElementById('ia-chat-send')?.addEventListener('click', sendChatMessage);
+    const inputEl = document.getElementById('ia-chat-input');
+    if (inputEl) {
+      inputEl.addEventListener('keydown', (evt) => {
+        if (evt.key === 'Enter' && !evt.shiftKey) {
+          evt.preventDefault();
+          sendChatMessage();
+        }
+      });
+    }
+    document.getElementById('ia-chat-apply')?.addEventListener('click', () => {
+      if (!pendingIaActions || pendingIaActions.length === 0) return;
+      executeChatActions(pendingIaActions);
+      pendingIaActions = null;
+      setIaApplyButtonEnabled(false);
+    });
+    setIaApplyButtonEnabled(false);
     initZoomPanControls();
     initGuides();
     initPropertiesPanel();

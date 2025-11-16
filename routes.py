@@ -11,6 +11,7 @@ from collections import Counter
 from datetime import datetime
 from typing import Dict, List, Tuple
 from threading import Lock
+from openai import OpenAI
 from PIL import Image, ImageDraw
 from reportlab.pdfgen import canvas
 from reportlab.lib.units import mm
@@ -93,6 +94,7 @@ chat_historial = []
 routes_bp = Blueprint("routes", __name__)
 
 heavy_lock = Lock()
+openai_client = OpenAI(api_key=os.environ.get("OPENAI_API_KEY"))
 
 def _json_error(msg, code=422):
     return jsonify(ok=False, error=msg), code
@@ -181,6 +183,142 @@ def _load_job_meta(job_dir: str) -> Dict | None:
 def _post_editor_enabled() -> bool:
     return bool(current_app.config.get("ENABLE_POST_EDITOR", False))
 
+
+def call_openai_for_editor_chat(user_message: str, layout_state: Dict, job_id: str) -> Dict:
+    system_prompt = """
+Sos un asistente de montaje offset/flexográfico dentro de un editor visual de imposición.
+
+SIEMPRE respondé en JSON con esta estructura EXACTA:
+{
+"assistant_message": "texto corto en español explicando qué harás",
+"actions": [ ... lista de acciones ... ]
+}
+
+No devuelvas texto suelto fuera de ese JSON.
+
+El backend te envía:
+
+El estado actual del layout (layout_state) con información de:
+
+Hoja (sheet)
+
+Assets (archivos PDF)
+
+Piezas (pieces) con posición y rotación en mm
+
+Selección actual
+
+Configuración relevante (sangrado, separación mínima, etc.)
+
+Podés proponer acciones sobre el montaje usando estos tipos:
+
+Limpiar selección:
+{ "type": "clear_selection" }
+
+Filtrar/seleccionar por nombre de archivo (asset):
+{ "type": "filter_by_asset", "asset_name_contains": "Parmalat" }
+
+Seleccionar por IDs de pieza:
+{ "type": "select_pieces", "piece_ids": ["piece_1", "piece_7"] }
+
+Alinear selección:
+{
+"type": "align",
+"target": "selection",
+"mode": "left|right|top|bottom|center-sheet|center-horizontal|center-vertical"
+}
+
+Distribuir selección:
+{
+"type": "distribute",
+"target": "selection",
+"direction": "horizontal|vertical",
+"spacing_mm": 2
+}
+
+Mover selección:
+{
+"type": "move",
+"target": "selection",
+"dx_mm": 2,
+"dy_mm": 0
+}
+
+Duplicar selección:
+{
+"type": "duplicate",
+"target": "selection"
+}
+
+Calcular bounding box del grupo seleccionado y guardarlo:
+{
+"type": "compute_group_bbox",
+"target": "selection",
+"save_as": "bbox_torrente"
+}
+
+Organizar la selección actual como grilla relativa a un bounding box guardado:
+{
+"type": "arrange_grid_relative",
+"target": "selection",
+"rows": 3,
+"gap_mm": 2,
+"relative_to": "bbox_torrente",
+"position": "above"
+}
+
+Ejemplos de instrucciones del usuario:
+
+"Seleccioná todas las formas de Parmalat."
+
+"Alineá todas las etiquetas de Parmalat a la derecha."
+
+"Distribuí estas piezas con 2mm de separación."
+
+"Poné todas las formas de Parmalat arriba de los archivos de Torrente, en 3 filas, separadas por 2mm."
+
+En ese último caso:
+
+Primero seleccionás las piezas de Torrente y calculás su bbox con compute_group_bbox guardado en, por ejemplo, "bbox_torrente".
+
+Después seleccionás las piezas de Parmalat y usás arrange_grid_relative con "relative_to": "bbox_torrente" y "position": "above".
+
+Reglas IMPORTANTES:
+
+Usá SOLO IDs de piezas y assets que existan en el layout_state enviado.
+
+NO cambies el tamaño de la hoja, NO borres piezas, NO cambies assets; sólo trabajá con selección, posición, distribución, alineación, duplicación y organización en grilla.
+
+Si la instrucción es ambigua o no estás seguro, devolvé "actions": [] y explicá el motivo en "assistant_message".
+"""
+
+    messages = [
+        {"role": "system", "content": system_prompt},
+        {"role": "user", "content": "Estado actual del layout (JSON):\n" + json.dumps(layout_state)},
+        {"role": "user", "content": user_message},
+    ]
+
+    try:
+        completion = openai_client.chat.completions.create(
+            model="gpt-4.1-mini",
+            response_format={"type": "json_object"},
+            messages=messages,
+        )
+        content = completion.choices[0].message.content
+        data = json.loads(content)
+    except Exception:
+        current_app.logger.exception("Fallo en editor_chat con OpenAI")
+        data = {
+            "assistant_message": "Ocurrió un problema al comunicarse con la IA. No se aplicaron cambios.",
+            "actions": [],
+        }
+
+    if "assistant_message" not in data:
+        data["assistant_message"] = "Tengo una propuesta de cambios sobre el montaje."
+    if "actions" not in data or not isinstance(data.get("actions"), list):
+        data["actions"] = []
+
+    return data
 
 def _build_diseno_objs(disenos: List[Tuple[str, int]]) -> List[Diseno]:
     return [Diseno(ruta=path, cantidad=copias) for path, copias in disenos]
@@ -2262,6 +2400,22 @@ def editor():
         layout=layout_payload,
         ENABLE_POST_EDITOR=True,
     )
+
+
+@routes_bp.route("/editor_chat/<job_id>", methods=["POST"])
+def editor_chat(job_id: str):
+    if not _post_editor_enabled():
+        abort(404)
+    job_dir = _job_dir(job_id)
+    if not job_dir or not os.path.isdir(job_dir):
+        return _json_error("Trabajo no encontrado", 404)
+
+    data = request.get_json(silent=True) or {}
+    user_message = data.get("message", "")
+    layout_state = data.get("layout_state", {})
+
+    response_obj = call_openai_for_editor_chat(user_message, layout_state, job_id)
+    return jsonify(response_obj)
 
 
 def _sanitize_layout_items(job_id: str, job_dir: str, meta: Dict, items: List[Dict]):

@@ -35,6 +35,7 @@
       </div>
       <div class="toolbar-group">
         <button id="save-btn" class="primary" type="button" aria-label="Guardar cambios">Guardar cambios</button>
+        <button id="ia-chat-toggle" type="button" aria-label="Mostrar/ocultar asistente IA">🤖 IA</button>
       </div>
     </div>
   </header>
@@ -57,6 +58,25 @@
         </div>
       </div>
       <div id="piece-tooltip" role="status" aria-live="polite"></div>
+
+      <!-- Panel de Asistente IA -->
+      <div id="ia-chat-panel" class="ia-chat hidden">
+        <div class="ia-chat-header">
+          <span>Asistente IA</span>
+          <button id="ia-chat-close" type="button" aria-label="Cerrar asistente IA">✕</button>
+        </div>
+
+        <div id="ia-chat-history" class="ia-chat-history"></div>
+
+        <div class="ia-chat-input-area">
+          <input id="ia-chat-input" type="text" placeholder="Escribe una instrucción sobre el montaje...">
+          <button id="ia-chat-send" type="button">Enviar</button>
+        </div>
+
+        <button id="ia-chat-apply" type="button" class="ia-chat-apply" disabled>
+          Aplicar cambios IA
+        </button>
+      </div>
     </section>
 
     <aside class="editor-sidebar" aria-label="Panel de propiedades">
