@@ -201,3 +201,38 @@ body {
   .editor-sidebar { order: 2; }
   .editor-stage { order: 1; min-height: 60vh; }
 }
+
+button:focus-visible,
+.toolbar button:focus-visible,
+.editor-sidebar button:focus-visible,
+.editor-sidebar select:focus-visible,
+.editor-sidebar input:focus-visible {
+  outline: 2px solid #3fa7ff;
+  outline-offset: 2px;
+}
+
+button,
+.toolbar button {
+  cursor: pointer;
+  transition: background-color 0.15s ease, transform 0.1s ease;
+}
+
+button:hover:not(:disabled),
+.toolbar button:hover:not(:disabled) {
+  transform: scale(1.03);
+  background-color: rgba(0, 0, 0, 0.05);
+}
+
+button:disabled,
+.toolbar button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+@media (max-width: 768px) {
+  .toolbar { flex-wrap: wrap; gap: 6px; }
+  .toolbar-group { flex-wrap: wrap; }
+  .editor-main { grid-template-columns: 1fr; }
+  .editor-sidebar { width: 100%; order: 2; }
+  .editor-stage { width: 100%; order: 1; }
+}
