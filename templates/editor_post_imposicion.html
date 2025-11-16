@@ -12,24 +12,29 @@
       <div class="job-label">Job: <strong>{{ job_id }}</strong></div>
     </div>
     <div class="toolbar" aria-label="Herramientas de vista y alineación">
-      <div class="toolbar-group">
-        <button id="zoom-out" type="button" title="Alejar (Ctrl -)">−</button>
-        <button id="zoom-reset" type="button" title="Ajustar pliego (Ctrl 0)">Ajustar</button>
-        <button id="zoom-in" type="button" title="Acercar (Ctrl +)">+</button>
+      <div class="toolbar-group" aria-label="Zoom" role="group">
+        <button id="zoom-out" type="button" title="Alejar (Ctrl -)" aria-label="Alejar vista">−</button>
+        <button id="zoom-reset" type="button" title="Ajustar pliego (Ctrl 0)" aria-label="Ajustar pliego">Ajustar</button>
+        <button id="zoom-in" type="button" title="Acercar (Ctrl +)" aria-label="Acercar vista">+</button>
+      </div>
+      <div class="toolbar-group" aria-label="Acciones rápidas" role="group">
+        <button id="undo-btn" type="button" title="Deshacer (Ctrl+Z)" aria-label="Deshacer">↶</button>
+        <button id="redo-btn" type="button" title="Rehacer (Ctrl+Y)" aria-label="Rehacer">↷</button>
+        <button id="duplicate-btn" type="button" title="Duplicar piezas seleccionadas (Ctrl+D)" aria-label="Duplicar piezas seleccionadas">⧉</button>
       </div>
       <div class="toolbar-group" aria-label="Alineación rápida">
-        <button class="align-btn" data-align="left" type="button" title="Alinear a la izquierda">⟸</button>
-        <button class="align-btn" data-align="center-vertical" type="button" title="Centrar verticalmente">⇤⇥</button>
-        <button class="align-btn" data-align="right" type="button" title="Alinear a la derecha">⟹</button>
-        <button class="align-btn" data-align="top" type="button" title="Alinear arriba">⟰</button>
-        <button class="align-btn" data-align="center-horizontal" type="button" title="Centrar horizontalmente">⇡⇣</button>
-        <button class="align-btn" data-align="bottom" type="button" title="Alinear abajo">⟱</button>
-        <button class="align-btn" data-align="dist-h" type="button" title="Distribuir horizontal">⋯</button>
-        <button class="align-btn" data-align="dist-v" type="button" title="Distribuir vertical">⋮</button>
-        <button class="align-btn" data-align="center-sheet" type="button" title="Centrar en hoja">◎</button>
+        <button class="align-btn" data-align="left" type="button" title="Alinear a la izquierda" aria-label="Alinear a la izquierda">⟸</button>
+        <button class="align-btn" data-align="center-vertical" type="button" title="Centrar verticalmente" aria-label="Centrar verticalmente">⇤⇥</button>
+        <button class="align-btn" data-align="right" type="button" title="Alinear a la derecha" aria-label="Alinear a la derecha">⟹</button>
+        <button class="align-btn" data-align="top" type="button" title="Alinear arriba" aria-label="Alinear arriba">⟰</button>
+        <button class="align-btn" data-align="center-horizontal" type="button" title="Centrar horizontalmente" aria-label="Centrar horizontalmente">⇡⇣</button>
+        <button class="align-btn" data-align="bottom" type="button" title="Alinear abajo" aria-label="Alinear abajo">⟱</button>
+        <button class="align-btn" data-align="dist-h" type="button" title="Distribuir horizontal" aria-label="Distribuir horizontal">⋯</button>
+        <button class="align-btn" data-align="dist-v" type="button" title="Distribuir vertical" aria-label="Distribuir vertical">⋮</button>
+        <button class="align-btn" data-align="center-sheet" type="button" title="Centrar en hoja" aria-label="Centrar en hoja">◎</button>
       </div>
       <div class="toolbar-group">
-        <button id="save-btn" class="primary" type="button">Guardar cambios</button>
+        <button id="save-btn" class="primary" type="button" aria-label="Guardar cambios">Guardar cambios</button>
       </div>
     </div>
   </header>

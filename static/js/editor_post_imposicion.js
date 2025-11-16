@@ -26,6 +26,9 @@
   const replaceBtn = document.getElementById('replace-btn');
   const swapBtn = document.getElementById('swap-btn');
   const saveBtn = document.getElementById('save-btn');
+  const duplicateBtn = document.getElementById('duplicate-btn');
+  const undoBtn = document.getElementById('undo-btn');
+  const redoBtn = document.getElementById('redo-btn');
   const pdfLink = document.getElementById('pdf-link');
   const previewLink = document.getElementById('preview-link');
   const gridInfo = document.getElementById('grid-info');
@@ -65,6 +68,8 @@
   const selectedIds = new Set();
   const horizontalGuides = [];
   const verticalGuides = [];
+  const undoStack = [];
+  const redoStack = [];
 
   function setStatus(message, type = 'info') {
     if (!statusEl) return;
@@ -101,6 +106,77 @@
 
   function clamp(value, min, max) {
     return Math.min(Math.max(value, min), max);
+  }
+
+  function generatePieceId() {
+    return `piece_${Date.now()}_${Math.random().toString(16).slice(2, 8)}`;
+  }
+
+  function captureStateSnapshot() {
+    return {
+      pieces: pieces.map((p) => ({ ...p, element: null })),
+      selectedIds: Array.from(selectedIds),
+      pan: { ...pan },
+      zoomScale,
+      horizontalGuides: [...horizontalGuides],
+      verticalGuides: [...verticalGuides],
+    };
+  }
+
+  function updateHistoryButtons() {
+    if (undoBtn) undoBtn.disabled = undoStack.length <= 1;
+    if (redoBtn) redoBtn.disabled = redoStack.length === 0;
+  }
+
+  function pushHistoryState() {
+    undoStack.push(captureStateSnapshot());
+    if (undoStack.length > 100) undoStack.shift();
+    redoStack.length = 0;
+    updateHistoryButtons();
+  }
+
+  function restoreState(snapshot) {
+    if (!snapshot || !sheetEl) return;
+    sheetEl.innerHTML = '';
+    pieces = snapshot.pieces.map((data) => {
+      const piece = { ...data };
+      piece.element = createPieceElement(piece);
+      sheetEl.appendChild(piece.element);
+      return piece;
+    });
+    selectedIds.clear();
+    (snapshot.selectedIds || []).forEach((id) => selectedIds.add(id));
+    pieces.forEach((p) => p.element.classList.toggle('selected', selectedIds.has(p.id)));
+    horizontalGuides.length = 0;
+    verticalGuides.length = 0;
+    horizontalGuides.push(...(snapshot.horizontalGuides || []));
+    verticalGuides.push(...(snapshot.verticalGuides || []));
+    zoomScale = snapshot.zoomScale || zoomScale;
+    pan = snapshot.pan ? { ...snapshot.pan } : pan;
+    applyViewportTransform();
+    renderGuides();
+    markOverlaps();
+    updateTooltip();
+    syncPropertiesPanel(getPrimarySelection());
+    updateStatusBar();
+    updateHistoryButtons();
+  }
+
+  function undo() {
+    if (undoStack.length <= 1) return;
+    const current = undoStack.pop();
+    redoStack.push(current);
+    const prev = undoStack[undoStack.length - 1];
+    restoreState(prev);
+    updateHistoryButtons();
+  }
+
+  function redo() {
+    if (redoStack.length === 0) return;
+    const snapshot = redoStack.pop();
+    undoStack.push(snapshot);
+    restoreState(snapshot);
+    updateHistoryButtons();
   }
 
   function computeGridStep(grid) {
@@ -165,6 +241,18 @@
         }
       }
     }
+  }
+
+  function getMaxCopiesForFile(fileIdx) {
+    if (!layoutData?.assets) return null;
+    const asset = layoutData.assets.find((a) => Number(a.file_idx) === Number(fileIdx));
+    if (!asset) return null;
+    const cantidad = Number(asset.cantidad);
+    return Number.isFinite(cantidad) ? cantidad : null;
+  }
+
+  function countPiecesForFile(fileIdx) {
+    return pieces.filter((p) => Number(p.file_idx) === Number(fileIdx)).length;
   }
 
   // Comment: sistema de zoom/pan aplicado a contenedor transformado
@@ -232,7 +320,8 @@
   }
 
   function applyPropertiesFromPanel() {
-    const piece = getPrimarySelection();
+    const selectedPieces = pieces.filter((p) => selectedIds.has(p.id));
+    const piece = selectedPieces[0];
     if (!piece) return;
     const readNumber = (input, min = -Infinity) => {
       const val = parseFloat(input.value);
@@ -249,16 +338,76 @@
       return;
     }
     const sheet = layoutData.sheet;
-    piece.x_mm = clamp(x, 0, sheet.w_mm - w);
-    piece.y_mm = clamp(y, 0, sheet.h_mm - h);
-    piece.w_mm = w;
-    piece.h_mm = h;
-    piece.rotation = r;
-    piece.locked = Boolean(propertiesPanel.locked.checked);
-    updatePiecePosition(piece);
+    selectedPieces.forEach((p) => {
+      p.x_mm = clamp(x, 0, sheet.w_mm - w);
+      p.y_mm = clamp(y, 0, sheet.h_mm - h);
+      p.w_mm = w;
+      p.h_mm = h;
+      p.rotation = r;
+      p.locked = Boolean(propertiesPanel.locked.checked);
+      updatePiecePosition(p);
+    });
     markOverlaps();
     updateTooltip();
     updateStatusBar();
+    pushHistoryState();
+  }
+
+  function nudgeSelection(dx, dy) {
+    if (!layoutData?.sheet || selectedIds.size === 0) return;
+    const sheet = layoutData.sheet;
+    const selectedPieces = pieces.filter((p) => selectedIds.has(p.id));
+    selectedPieces.forEach((p) => {
+      p.x_mm = clamp(p.x_mm + dx, 0, sheet.w_mm - p.w_mm);
+      p.y_mm = clamp(p.y_mm + dy, 0, sheet.h_mm - p.h_mm);
+      updatePiecePosition(p);
+    });
+    markOverlaps();
+    updateTooltip();
+    updateStatusBar();
+    pushHistoryState();
+  }
+
+  function handleKeyboardShortcuts(evt) {
+    const tag = (evt.target?.tagName || '').toLowerCase();
+    if (['input', 'textarea', 'select'].includes(tag)) return;
+
+    const key = evt.key;
+    const ctrlLike = evt.ctrlKey || evt.metaKey;
+
+    if (ctrlLike && key.toLowerCase() === 's') {
+      evt.preventDefault();
+      saveLayout();
+      return;
+    }
+    if (ctrlLike && key.toLowerCase() === 'd') {
+      evt.preventDefault();
+      duplicateSelectedPieces();
+      return;
+    }
+    if (ctrlLike && key.toLowerCase() === 'z') {
+      evt.preventDefault();
+      if (evt.shiftKey) {
+        redo();
+      } else {
+        undo();
+      }
+      return;
+    }
+    if (ctrlLike && key.toLowerCase() === 'y') {
+      evt.preventDefault();
+      redo();
+      return;
+    }
+
+    if (key.startsWith('Arrow') && selectedIds.size > 0) {
+      const baseStep = computeGridStep(layoutData?.grid_mm);
+      const step = evt.shiftKey ? baseStep * 2 : baseStep;
+      const dx = key === 'ArrowLeft' ? -step : key === 'ArrowRight' ? step : 0;
+      const dy = key === 'ArrowDown' ? -step : key === 'ArrowUp' ? step : 0;
+      nudgeSelection(dx, dy);
+      evt.preventDefault();
+    }
   }
 
   // Comment: lógica de multi-selección y arrastre conjunto
@@ -330,6 +479,7 @@
         /* ignore */
       }
       updateStatusBar();
+      pushHistoryState();
     }
 
     el.addEventListener('pointerup', finalizeDrag);
@@ -390,6 +540,9 @@
 
   function renderLayout(data) {
     layoutData = data;
+    undoStack.length = 0;
+    redoStack.length = 0;
+    updateHistoryButtons();
     if (!layoutData.pdf_filename) {
       layoutData.pdf_filename = 'pliego.pdf';
     }
@@ -458,6 +611,7 @@
     drawRulers();
     updateStatusBar();
     applyViewportTransform();
+    pushHistoryState();
   }
 
   function updateInfo() {
@@ -507,6 +661,8 @@
     piece.element.textContent = option.textContent || piece.element.textContent;
     setStatus('Pieza reemplazada. Recordá guardar los cambios.', 'success');
     updateTooltip();
+    pushHistoryState();
+    syncPropertiesPanel(piece);
   }
 
   function swapSelected() {
@@ -528,7 +684,65 @@
     markOverlaps();
     updateTooltip();
     updateStatusBar();
+    pushHistoryState();
+    syncPropertiesPanel(getPrimarySelection());
     setStatus('Posiciones intercambiadas. Recordá guardar los cambios.', 'success');
+  }
+
+  function duplicateSelectedPieces() {
+    if (!layoutData?.sheet) return;
+    const selectedPieces = pieces.filter((p) => selectedIds.has(p.id));
+    if (!selectedPieces.length) {
+      setStatus('Seleccioná al menos una pieza para duplicar.', 'error');
+      return;
+    }
+
+    const sheet = layoutData.sheet;
+    const created = [];
+    const skipped = [];
+
+    selectedPieces.forEach((p) => {
+      const maxCopies = getMaxCopiesForFile(p.file_idx);
+      const currentCopies = countPiecesForFile(p.file_idx);
+      if (maxCopies !== null && currentCopies >= maxCopies) {
+        skipped.push(p);
+        return;
+      }
+      const clone = {
+        ...p,
+        id: generatePieceId(),
+        x_mm: clamp(p.x_mm + 10, 0, sheet.w_mm - p.w_mm),
+        y_mm: clamp(p.y_mm + 10, 0, sheet.h_mm - p.h_mm),
+        element: null,
+      };
+      clone.element = createPieceElement(clone);
+      sheetEl.appendChild(clone.element);
+      pieces.push(clone);
+      created.push(clone);
+    });
+
+    if (created.length) {
+      selectedIds.clear();
+      created.forEach((c) => selectedIds.add(c.id));
+      pieces.forEach((piece) => piece.element.classList.toggle('selected', selectedIds.has(piece.id)));
+      syncPropertiesPanel(getPrimarySelection());
+      markOverlaps();
+      updateTooltip();
+      updateStatusBar();
+      pushHistoryState();
+    }
+
+    if (skipped.length) {
+      const names = skipped
+        .map((p) => (p.src || p.label || p.id).toString().split(/[\\/]/).pop())
+        .join(', ');
+      setStatus(
+        `${created.length ? 'Algunas piezas se duplicaron. ' : ''}No se pueden crear más copias de: ${names}. Límite alcanzado según el layout.`,
+        'error'
+      );
+    } else if (created.length) {
+      setStatus('Piezas duplicadas. Recordá guardar los cambios.', 'success');
+    }
   }
 
   function serializePieces() {
@@ -832,6 +1046,7 @@
     markOverlaps();
     updateTooltip();
     updateStatusBar();
+    pushHistoryState();
   }
 
   // Comment: barra de estado inferior con métricas rápidas
@@ -975,6 +1190,9 @@
     if (replaceBtn) replaceBtn.addEventListener('click', replaceSelected);
     if (swapBtn) swapBtn.addEventListener('click', swapSelected);
     if (saveBtn) saveBtn.addEventListener('click', saveLayout);
+    if (duplicateBtn) duplicateBtn.addEventListener('click', duplicateSelectedPieces);
+    if (undoBtn) undoBtn.addEventListener('click', undo);
+    if (redoBtn) redoBtn.addEventListener('click', redo);
     if (zoomInBtn) zoomInBtn.addEventListener('click', () => handleZoom(1.1));
     if (zoomOutBtn) zoomOutBtn.addEventListener('click', () => handleZoom(0.9));
     if (zoomResetBtn) zoomResetBtn.addEventListener('click', zoomToFit);
@@ -982,6 +1200,7 @@
     initGuides();
     initPropertiesPanel();
     initAlignmentButtons();
+    document.addEventListener('keydown', handleKeyboardShortcuts, { capture: true });
   }
 
   async function loadLayout() {
