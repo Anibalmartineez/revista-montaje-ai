@@ -196,12 +196,6 @@ body {
 .toast.error { background: #ef4444; }
 .toast.info { background: #2563eb; }
 
-@media (max-width: 1100px) {
-  .editor-main { grid-template-columns: 1fr; }
-  .editor-sidebar { order: 2; }
-  .editor-stage { order: 1; min-height: 60vh; }
-}
-
 button:focus-visible,
 .toolbar button:focus-visible,
 .editor-sidebar button:focus-visible,
@@ -234,5 +228,5 @@ button:disabled,
   .toolbar-group { flex-wrap: wrap; }
   .editor-main { grid-template-columns: 1fr; }
   .editor-sidebar { width: 100%; order: 2; }
-  .editor-stage { width: 100%; order: 1; }
+  .editor-stage { width: 100%; order: 1; min-height: 60vh; }
 }
