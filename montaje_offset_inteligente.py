@@ -750,7 +750,7 @@ def montar_pliego_offset_inteligente(
     grupos = []
     max_unit_w = 0.0
     max_unit_h = 0.0
-    for path, cantidad in diseños:
+    for file_idx, (path, cantidad) in enumerate(diseños):
         ancho, alto = obtener_dimensiones_pdf(path, usar_trimbox=usar_trimbox)
         rotado = False
         if permitir_rotacion:
@@ -768,6 +768,7 @@ def montar_pliego_offset_inteligente(
         grupos.append(
             {
                 "archivo": path,
+                "file_idx": file_idx,
                 "ancho": ancho,
                 "alto": alto,
                 "ancho_real": real_ancho,
@@ -788,7 +789,8 @@ def montar_pliego_offset_inteligente(
     def _idx_from_basename_safe(basename: str) -> int | None:
         base = basename.lower()
         for i, (ruta_pdf, *_) in enumerate(diseños):
-            if os.path.basename(ruta_pdf).lower() == base:
+            ruta_lower = ruta_pdf.lower()
+            if ruta_lower == base or os.path.basename(ruta_lower) == base:
                 return i
         return None
 
@@ -799,6 +801,7 @@ def montar_pliego_offset_inteligente(
                 lista.append(
                     {
                         "archivo": g["archivo"],
+                        "file_idx": g["file_idx"],
                         "ancho": g["ancho_real"],
                         "alto": g["alto_real"],
                         "rotado": g["rotado"],
@@ -881,6 +884,7 @@ def montar_pliego_offset_inteligente(
             posiciones.append(
                 {
                     "archivo": copia["archivo"],
+                    "file_idx": copia["file_idx"],
                     "x": x,
                     "y": y,
                     "ancho": copia["ancho"],
@@ -905,6 +909,7 @@ def montar_pliego_offset_inteligente(
             posiciones.append(
                 {
                     "archivo": copia["archivo"],
+                    "file_idx": copia["file_idx"],
                     "x": x,
                     "y": y,
                     "ancho": copia["ancho"],
@@ -951,6 +956,7 @@ def montar_pliego_offset_inteligente(
                     posiciones.append(
                         {
                             "archivo": g["archivo"],
+                            "file_idx": g["file_idx"],
                             "x": x,
                             "y": y + offset_y,
                             "ancho": g["ancho_real"],
