@@ -583,7 +583,7 @@ def descargar_reporte_offset():
 
 
 def _parse_montaje_offset_form(req):
-    archivos = req.files.getlist("archivos[]")
+    archivos = req.files.getlist("archivos[]") or req.files.getlist("archivos")
     if not archivos or len(archivos) > 5:
         raise ValueError("Debe subir entre 1 y 5 archivos PDF")
 
@@ -600,10 +600,16 @@ def _parse_montaje_offset_form(req):
 
     diseños = []
     for i, f in enumerate(archivos):
+        if not f or not getattr(f, "filename", None):
+            continue
         filename = secure_filename(f.filename)
         path = os.path.join(UPLOAD_FOLDER, filename)
         f.save(path)
-        repeticiones = int(req.form.get(f"repeticiones_{i}", 1))
+        try:
+            repeticiones_val = int(req.form.get(f"repeticiones_{i}", 1))
+        except Exception:
+            repeticiones_val = 1
+        repeticiones = max(1, repeticiones_val)
         diseños.append((path, repeticiones))
 
     current_app.config["LAST_UPLOADS"] = [path for path, _ in diseños]
@@ -851,6 +857,14 @@ def montaje_offset_inteligente_view():
                 }
             )
 
+        idx_by_path = {
+            os.path.abspath(rec["original_src"]): rec["index"] for rec in design_records
+        }
+        idx_by_name = {
+            os.path.basename(rec["original_src"]).lower(): rec["index"]
+            for rec in design_records
+        }
+
         final_pdf_basename = ORIGINAL_PDF_NAME
         final_pdf_path = os.path.join(job_dir, final_pdf_basename)
         try:
@@ -875,9 +889,24 @@ def montaje_offset_inteligente_view():
 
         items = []
         for i, pos in enumerate(positions):
-            idx = int(pos.get("file_idx", 0))
-            if idx < 0 or idx >= len(design_records):
+            raw_idx = pos.get("file_idx")
+            idx = None
+            try:
+                if raw_idx is not None:
+                    idx = int(raw_idx)
+            except Exception:
+                idx = None
+
+            if idx is None or idx < 0 or idx >= len(design_records):
+                archivo = pos.get("archivo") or pos.get("ruta_pdf")
+                if archivo:
+                    idx = idx_by_path.get(os.path.abspath(archivo))
+                    if idx is None:
+                        idx = idx_by_name.get(os.path.basename(archivo).lower())
+
+            if idx is None or idx < 0 or idx >= len(design_records):
                 continue
+
             record = design_records[idx]
             items.append(
                 {
