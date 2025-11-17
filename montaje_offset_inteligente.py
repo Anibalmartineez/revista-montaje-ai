@@ -1079,7 +1079,7 @@ def montar_pliego_offset_inteligente(
             for p in posiciones:
                 idx = p.get("file_idx")
                 if idx is None:
-                    ruta = p.get("archivo", "")
+                    ruta = p.get("archivo") or p.get("ruta_pdf", "")
                     guess = _idx_from_basename_safe(os.path.basename(ruta))
                     if guess is None:
                         raise ValueError("No se pudo resolver file_idx desde basename")
@@ -1112,7 +1112,7 @@ def montar_pliego_offset_inteligente(
         for p in posiciones:
             idx = p.get("file_idx")
             if idx is None:
-                ruta = p.get("archivo", "")
+                ruta = p.get("archivo") or p.get("ruta_pdf", "")
                 guess = _idx_from_basename_safe(os.path.basename(ruta))
                 if guess is None:
                     raise ValueError("No se pudo resolver file_idx desde basename")
@@ -1155,6 +1155,14 @@ def montar_pliego_offset_inteligente(
             except Exception:
                 pass
 
+        if devolver_posiciones:
+            return {
+                "preview_bytes": png_bytes,
+                "resumen_html": resumen_html,
+                "positions": posiciones_normalizadas,
+                "sheet_mm": {"w": float(ancho_pliego), "h": float(alto_pliego)},
+            }
+
         return png_bytes, resumen_html
 
     # Creación del PDF final
@@ -1168,7 +1176,7 @@ def montar_pliego_offset_inteligente(
     for pos in posiciones:
         idx = pos.get("file_idx")
         if idx is None:
-            ruta = pos.get("archivo", "")
+            ruta = pos.get("archivo") or pos.get("ruta_pdf", "")
             guess = _idx_from_basename_safe(os.path.basename(ruta))
             if guess is None:
                 raise ValueError("No se pudo resolver file_idx desde basename")
@@ -1283,7 +1291,7 @@ def montar_pliego_offset_inteligente(
         for p in posiciones:
             idx = p.get("file_idx")
             if idx is None:
-                ruta = p.get("archivo", "")
+                ruta = p.get("archivo") or p.get("ruta_pdf", "")
                 guess = _idx_from_basename_safe(os.path.basename(ruta))
                 if guess is None:
                     raise ValueError("No se pudo resolver file_idx desde basename")
