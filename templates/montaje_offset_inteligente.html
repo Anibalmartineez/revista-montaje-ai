@@ -25,25 +25,59 @@
   <form id="montaje-offset-form" method="POST" enctype="multipart/form-data">
     <input type="hidden" name="accion" id="accion" value="generar">
     <label>Subir de 1 a 5 archivos PDF:</label>
-    <input type="file" name="archivos[]" accept=".pdf" multiple required>
+    <div id="archivos-container">
+      <div class="archivo-row">
+        <input type="file" name="archivos[]" accept=".pdf" required>
+      </div>
+    </div>
+    <button type="button" id="add-archivo-btn">Agregar otro PDF</button>
     <div id="repeticiones-container"></div>
+    <small>Puedes agregar varios PDFs usando el botón “Agregar otro PDF”.</small>
     <script>
-      document
-        .querySelector('input[name="archivos[]"]')
-        .addEventListener('change', function (e) {
-          const container = document.getElementById('repeticiones-container');
-          container.innerHTML = '';
-          [...this.files].forEach((file, index) => {
-            const div = document.createElement('div');
-            div.innerHTML = `
+      const archivosContainer = document.getElementById('archivos-container');
+      const repeticionesContainer = document.getElementById('repeticiones-container');
+      const addArchivoBtn = document.getElementById('add-archivo-btn');
+
+      function agregarInputArchivo() {
+        const row = document.createElement('div');
+        row.className = 'archivo-row';
+        row.innerHTML = '<input type="file" name="archivos[]" accept=".pdf">';
+        archivosContainer.appendChild(row);
+      }
+
+      function renderRepeticiones() {
+        const inputs = archivosContainer.querySelectorAll('input[name="archivos[]"]');
+        const archivosSeleccionados = [];
+
+        inputs.forEach((input) => {
+          if (input.files && input.files[0]) {
+            archivosSeleccionados.push(input.files[0]);
+          }
+        });
+
+        repeticionesContainer.innerHTML = '';
+
+        archivosSeleccionados.forEach((file, index) => {
+          const div = document.createElement('div');
+          div.innerHTML = `
         <label>${file.name} - Cantidad de repeticiones:</label>
         <input type="number" name="repeticiones_${index}" min="1" value="1" required>
         <input type="hidden" name="nombre_archivo_${index}" value="${file.name}">
         <br><br>
       `;
-            container.appendChild(div);
-          });
+          repeticionesContainer.appendChild(div);
         });
+      }
+
+      archivosContainer.addEventListener('change', (event) => {
+        if (event.target && event.target.name === 'archivos[]') {
+          renderRepeticiones();
+        }
+      });
+
+      addArchivoBtn.addEventListener('click', () => {
+        agregarInputArchivo();
+      });
     </script>
     <br><br>
     <label>Seleccionar tamaño de pliego:</label>

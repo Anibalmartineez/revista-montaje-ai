@@ -584,8 +584,6 @@ def descargar_reporte_offset():
 
 def _parse_montaje_offset_form(req):
     archivos = req.files.getlist("archivos[]") or req.files.getlist("archivos")
-    if not archivos or len(archivos) > 5:
-        raise ValueError("Debe subir entre 1 y 5 archivos PDF")
 
     pliego = req.form.get("pliego", "700x1000")
     if pliego == "640x880":
@@ -602,15 +600,24 @@ def _parse_montaje_offset_form(req):
     for i, f in enumerate(archivos):
         if not f or not getattr(f, "filename", None):
             continue
+
         filename = secure_filename(f.filename)
+        if not filename:
+            continue
+
         path = os.path.join(UPLOAD_FOLDER, filename)
         f.save(path)
+
         try:
-            repeticiones_val = int(req.form.get(f"repeticiones_{i}", 1))
+            repeticiones_val = int(req.form.get(f"repeticiones_{i}", 1) or 1)
         except Exception:
             repeticiones_val = 1
-        repeticiones = max(1, repeticiones_val)
-        diseños.append((path, repeticiones))
+
+        if repeticiones_val >= 1:
+            diseños.append((path, repeticiones_val))
+
+    if not diseños or len(diseños) > 5:
+        raise ValueError("Debe subir entre 1 y 5 archivos PDF")
 
     current_app.config["LAST_UPLOADS"] = [path for path, _ in diseños]
 
