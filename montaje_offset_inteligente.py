@@ -1084,6 +1084,10 @@ def montar_pliego_offset_inteligente(
                 positions_norm.append(
                     {
                         "file_idx": idx,
+                        # conservar también la ruta original para que routes.py
+                        # pueda reconstruir el índice si es necesario
+                        "archivo": p.get("archivo"),
+                        "ruta_pdf": p.get("archivo"),
                         "x_mm": p["x"],
                         "y_mm": p["y"],
                         "w_mm": p["ancho"],
@@ -1115,6 +1119,9 @@ def montar_pliego_offset_inteligente(
             posiciones_normalizadas.append(
                 {
                     "file_idx": idx,
+                    # conservar la ruta original igual que en devolver_posiciones
+                    "archivo": p.get("archivo"),
+                    "ruta_pdf": p.get("archivo"),
                     "x_mm": p["x"],
                     "y_mm": p["y"],
                     "w_mm": w_mm,
@@ -1281,6 +1288,9 @@ def montar_pliego_offset_inteligente(
             positions_norm.append(
                 {
                     "file_idx": idx,
+                    # igual que en las otras ramas, conserva la ruta
+                    "archivo": p.get("archivo"),
+                    "ruta_pdf": p.get("archivo"),
                     "x_mm": float(p["x"]),
                     "y_mm": float(p["y"]),
                     "w_mm": float(p["ancho"]),
