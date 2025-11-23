@@ -2406,6 +2406,11 @@ def obtener_layout_job(job_id: str):
         abort(404)
     try:
         data = _load_json(layout_path)
+        # Aseguramos que el layout siempre tenga claves usadas por el editor IA
+        if "bleed_mm" not in data:
+            data["bleed_mm"] = 0
+        if "min_gap_mm" not in data:
+            data["min_gap_mm"] = 0
     except Exception:
         abort(404)
     return jsonify(data)
@@ -2429,6 +2434,12 @@ def editor():
         layout_payload = _load_json(layout_path)
     except Exception:
         abort(404)
+
+    # Igual que en el endpoint JSON, garantizamos las claves esperadas
+    if "bleed_mm" not in layout_payload:
+        layout_payload["bleed_mm"] = 0
+    if "min_gap_mm" not in layout_payload:
+        layout_payload["min_gap_mm"] = 0
 
     return render_template(
         "editor_post_imposicion.html",
