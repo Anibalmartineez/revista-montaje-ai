@@ -50,6 +50,19 @@
     rot: document.getElementById('prop-rot'),
     locked: document.getElementById('prop-locked'),
   };
+  const trimPanel = {
+    w: document.getElementById('prop-trim-w'),
+    h: document.getElementById('prop-trim-h'),
+    bleed: document.getElementById('prop-bleed'),
+  };
+  const trimToggle = document.getElementById('toggle-trim-box');
+  const bleedToggle = document.getElementById('toggle-bleed-box');
+  const gapInputs = {
+    h: document.getElementById('gap-h-mm'),
+    v: document.getElementById('gap-v-mm'),
+  };
+  const gapApplySelectionBtn = document.getElementById('gap-apply-selection');
+  const gapApplySheetBtn = document.getElementById('gap-apply-sheet');
   const alignButtons = Array.from(document.querySelectorAll('.align-btn'));
   const rulerTop = document.getElementById('ruler-top');
   const rulerLeft = document.getElementById('ruler-left');
@@ -65,6 +78,8 @@
   let marqueeState = null;
   let pinchState = null;
   let spacePressed = false;
+  let showTrimBox = true;
+  let showBleedBox = true;
   const selectedIds = new Set();
   const horizontalGuides = [];
   const verticalGuides = [];
@@ -108,6 +123,47 @@
 
   function clamp(value, min, max) {
     return Math.min(Math.max(value, min), max);
+  }
+
+  function getBleedMm() {
+    const bleed = layoutData?.bleed_mm;
+    const val = Number(bleed);
+    return Number.isFinite(val) && val > 0 ? val : 0;
+  }
+
+  function updatePieceOverlays(piece) {
+    if (!piece || !piece.element) return;
+    const bleedMm = getBleedMm();
+
+    let trimBox = piece.element.querySelector('.piece-trim-box');
+    let bleedBox = piece.element.querySelector('.piece-bleed-box');
+
+    if (!trimBox) {
+      trimBox = document.createElement('div');
+      trimBox.className = 'piece-trim-box';
+      piece.element.appendChild(trimBox);
+    }
+    if (!bleedBox) {
+      bleedBox = document.createElement('div');
+      bleedBox.className = 'piece-bleed-box';
+      piece.element.appendChild(bleedBox);
+    }
+
+    trimBox.style.display = showTrimBox && bleedMm > 0 ? 'block' : 'none';
+    bleedBox.style.display = showBleedBox ? 'block' : 'none';
+
+    if (bleedMm > 0) {
+      const insetPx = bleedMm * baseScale;
+      trimBox.style.left = `${insetPx}px`;
+      trimBox.style.right = `${insetPx}px`;
+      trimBox.style.top = `${insetPx}px`;
+      trimBox.style.bottom = `${insetPx}px`;
+    } else {
+      trimBox.style.left = '0';
+      trimBox.style.right = '0';
+      trimBox.style.top = '0';
+      trimBox.style.bottom = '0';
+    }
   }
 
   function appendChatBubble(role, text) {
@@ -344,6 +400,43 @@
     };
   }
 
+  function readGapInput(inputEl) {
+    if (!inputEl) return 0;
+    const val = parseFloat(inputEl.value);
+    return Number.isFinite(val) && val >= 0 ? val : 0;
+  }
+
+  function applyGapsToPieces(targetPieces, gapH, gapV) {
+    if (!layoutData?.sheet || !Array.isArray(targetPieces) || targetPieces.length <= 1) return;
+    const sheet = layoutData.sheet;
+
+    if (gapH > 0 && targetPieces.length > 1) {
+      const sortedH = [...targetPieces].sort((a, b) => a.x_mm - b.x_mm);
+      for (let i = 1; i < sortedH.length; i++) {
+        const prev = sortedH[i - 1];
+        const curr = sortedH[i];
+        curr.x_mm = prev.x_mm + prev.w_mm + gapH;
+        curr.x_mm = clamp(curr.x_mm, 0, sheet.w_mm - curr.w_mm);
+      }
+    }
+
+    if (gapV > 0 && targetPieces.length > 1) {
+      const sortedV = [...targetPieces].sort((a, b) => a.y_mm - b.y_mm);
+      for (let i = 1; i < sortedV.length; i++) {
+        const prev = sortedV[i - 1];
+        const curr = sortedV[i];
+        curr.y_mm = prev.y_mm + prev.h_mm + gapV;
+        curr.y_mm = clamp(curr.y_mm, 0, sheet.h_mm - curr.h_mm);
+      }
+    }
+
+    targetPieces.forEach(updatePiecePosition);
+    markOverlaps();
+    updateTooltip();
+    updateStatusBar();
+    pushHistoryState();
+  }
+
   function arrangeSelectionAsRelativeGrid(action) {
     const selectedPieces = pieces.filter((p) => selectedIds.has(p.id));
     if (!selectedPieces.length) return;
@@ -425,6 +518,45 @@
     piece.element.classList.toggle('locked', Boolean(piece.locked));
     piece.element.dataset.xMm = piece.x_mm;
     piece.element.dataset.yMm = piece.y_mm;
+    updatePieceOverlays(piece);
+  }
+
+  function computeDistancesForPiece(piece) {
+    if (!layoutData?.sheet || !piece) return null;
+    const sheet = layoutData.sheet;
+
+    const marginLeft = piece.x_mm;
+    const marginBottom = piece.y_mm;
+    const marginRight = sheet.w_mm - (piece.x_mm + piece.w_mm);
+    const marginTop = sheet.h_mm - (piece.y_mm + piece.h_mm);
+
+    let minGapH = Infinity;
+    let minGapV = Infinity;
+
+    pieces.forEach((other) => {
+      if (other.id === piece.id) return;
+      const dxRight = other.x_mm - (piece.x_mm + piece.w_mm);
+      const dxLeft = piece.x_mm - (other.x_mm + other.w_mm);
+      if (dxRight >= 0) minGapH = Math.min(minGapH, dxRight);
+      if (dxLeft >= 0) minGapH = Math.min(minGapH, dxLeft);
+
+      const dyTop = other.y_mm - (piece.y_mm + piece.h_mm);
+      const dyBottom = piece.y_mm - (other.y_mm + other.h_mm);
+      if (dyTop >= 0) minGapV = Math.min(minGapV, dyTop);
+      if (dyBottom >= 0) minGapV = Math.min(minGapV, dyBottom);
+    });
+
+    if (!Number.isFinite(minGapH)) minGapH = 0;
+    if (!Number.isFinite(minGapV)) minGapV = 0;
+
+    return {
+      gapH: minGapH,
+      gapV: minGapV,
+      marginLeft,
+      marginRight,
+      marginTop,
+      marginBottom,
+    };
   }
 
   function updateTooltip() {
@@ -446,6 +578,29 @@
       <div><strong>Rotación:</strong> ${Number(piece.rotation || 0).toFixed(1)}°</div>
       <div><strong>Origen:</strong> ${srcLabel}</div>
     `;
+
+    const distances = computeDistancesForPiece(piece);
+    if (distances) {
+      const minGap = layoutData?.min_gap_mm;
+      const gapHStr = distances.gapH.toFixed(1);
+      const gapVStr = distances.gapV.toFixed(1);
+      const marginLeftStr = distances.marginLeft.toFixed(1);
+      const marginTopStr = distances.marginTop.toFixed(1);
+
+      let gapClassH = '';
+      let gapClassV = '';
+      if (Number.isFinite(minGap) && minGap > 0) {
+        if (distances.gapH < minGap) gapClassH = ' style="color:#dc2626"';
+        if (distances.gapV < minGap) gapClassV = ' style="color:#dc2626"';
+      }
+
+      tooltipEl.innerHTML += `
+        <div${gapClassH}><strong>Gap H:</strong> ${gapHStr} mm</div>
+        <div${gapClassV}><strong>Gap V:</strong> ${gapVStr} mm</div>
+        <div><strong>Margen izq:</strong> ${marginLeftStr} mm</div>
+        <div><strong>Margen sup:</strong> ${marginTopStr} mm</div>
+      `;
+    }
   }
 
   // Comment: panel de propiedades sincronizado con selección
@@ -455,6 +610,9 @@
     if (!piece) {
       inputs.x.value = inputs.y.value = inputs.w.value = inputs.h.value = inputs.rot.value = '';
       inputs.locked.checked = false;
+      if (trimPanel.w) trimPanel.w.value = '';
+      if (trimPanel.h) trimPanel.h.value = '';
+      if (trimPanel.bleed) trimPanel.bleed.value = '';
       return;
     }
     inputs.x.value = piece.x_mm.toFixed(2);
@@ -463,6 +621,20 @@
     inputs.h.value = piece.h_mm.toFixed(2);
     inputs.rot.value = Number(piece.rotation || 0).toFixed(1);
     inputs.locked.checked = Boolean(piece.locked);
+
+    const bleedMm = getBleedMm();
+    const trimW = piece.w_mm - 2 * bleedMm;
+    const trimH = piece.h_mm - 2 * bleedMm;
+
+    if (trimPanel.w) {
+      trimPanel.w.value = trimW > 0 ? trimW.toFixed(2) : '';
+    }
+    if (trimPanel.h) {
+      trimPanel.h.value = trimH > 0 ? trimH.toFixed(2) : '';
+    }
+    if (trimPanel.bleed) {
+      trimPanel.bleed.value = bleedMm > 0 ? bleedMm.toFixed(2) : '';
+    }
   }
 
   function applyPropertiesFromPanel() {
@@ -1324,6 +1496,22 @@
         if (evt.key === 'Enter') applyPropertiesFromPanel();
       });
     });
+
+    if (trimToggle) {
+      showTrimBox = !!trimToggle.checked;
+      trimToggle.addEventListener('change', () => {
+        showTrimBox = !!trimToggle.checked;
+        pieces.forEach(updatePieceOverlays);
+      });
+    }
+
+    if (bleedToggle) {
+      showBleedBox = !!bleedToggle.checked;
+      bleedToggle.addEventListener('change', () => {
+        showBleedBox = !!bleedToggle.checked;
+        pieces.forEach(updatePieceOverlays);
+      });
+    }
   }
 
   function initAlignmentButtons() {
@@ -1543,6 +1731,30 @@
       pendingIaActions = null;
       setIaApplyButtonEnabled(false);
     });
+
+    if (gapApplySelectionBtn) {
+      gapApplySelectionBtn.addEventListener('click', () => {
+        const gapH = readGapInput(gapInputs.h);
+        const gapV = readGapInput(gapInputs.v);
+        const selectedPieces = pieces.filter((p) => selectedIds.has(p.id));
+        if (!selectedPieces.length) {
+          setStatus('Seleccioná al menos dos piezas para ajustar espacios.', 'error');
+          return;
+        }
+        applyGapsToPieces(selectedPieces, gapH, gapV);
+        setStatus('Espacios aplicados a la selección.', 'success');
+      });
+    }
+
+    if (gapApplySheetBtn) {
+      gapApplySheetBtn.addEventListener('click', () => {
+        const gapH = readGapInput(gapInputs.h);
+        const gapV = readGapInput(gapInputs.v);
+        if (!pieces.length) return;
+        applyGapsToPieces(pieces, gapH, gapV);
+        setStatus('Espacios aplicados a todo el pliego.', 'success');
+      });
+    }
     setIaApplyButtonEnabled(false);
     initZoomPanControls();
     initGuides();

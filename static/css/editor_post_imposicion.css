@@ -108,6 +108,22 @@ body {
   transition: box-shadow 0.2s ease, transform 0.1s ease;
 }
 
+.piece-trim-box,
+.piece-bleed-box {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  box-sizing: border-box;
+}
+
+.piece-trim-box {
+  border: 1px dashed rgba(0, 0, 0, 0.6);
+}
+
+.piece-bleed-box {
+  border: 1px solid rgba(0, 0, 0, 0.2);
+}
+
 .piece.dragging { opacity: 0.7; cursor: grabbing; box-shadow: 0 8px 16px rgba(0,0,0,0.2); }
 .piece.selected { border-color: rgba(76, 175, 80, 0.8); background: rgba(76, 175, 80, 0.25); }
 .piece.overlap { border-color: rgba(244, 67, 54, 0.9); background: rgba(244, 67, 54, 0.2); }

@@ -114,7 +114,42 @@
           <label for="prop-locked">Bloquear pieza</label>
           <input id="prop-locked" type="checkbox">
         </div>
+        <hr>
+        <div class="property-row">
+          <label>Medida final (trim)</label>
+          <input id="prop-trim-w" type="number" step="0.1" readonly>
+          <input id="prop-trim-h" type="number" step="0.1" readonly>
+        </div>
+        <div class="property-row">
+          <label>Sangrado (mm por lado)</label>
+          <input id="prop-bleed" type="number" step="0.1" readonly>
+        </div>
+        <div class="property-row checkbox-row">
+          <label for="toggle-trim-box">Ver caja de medida</label>
+          <input id="toggle-trim-box" type="checkbox" checked>
+        </div>
+        <div class="property-row checkbox-row">
+          <label for="toggle-bleed-box">Ver caja de sangrado</label>
+          <input id="toggle-bleed-box" type="checkbox" checked>
+        </div>
         <p class="panel-hint">Seleccioná una pieza para editarla. Los cambios se aplican al confirmar o salir del campo.</p>
+      </fieldset>
+
+      <fieldset>
+        <legend>Espacios entre piezas</legend>
+        <div class="property-row">
+          <label for="gap-h-mm">Separación horizontal (mm)</label>
+          <input id="gap-h-mm" type="number" step="0.1" value="0">
+        </div>
+        <div class="property-row">
+          <label for="gap-v-mm">Separación vertical (mm)</label>
+          <input id="gap-v-mm" type="number" step="0.1" value="0">
+        </div>
+        <button type="button" id="gap-apply-selection">Aplicar a selección</button>
+        <button type="button" id="gap-apply-sheet">Aplicar a todo el pliego</button>
+        <p class="panel-hint">
+          Seleccioná varias piezas y ajustá los espacios exactos entre ellas en mm.
+        </p>
       </fieldset>
 
       <fieldset>
