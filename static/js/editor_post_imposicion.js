@@ -149,20 +149,26 @@
       piece.element.appendChild(bleedBox);
     }
 
-    trimBox.style.display = showTrimBox && bleedMm > 0 ? 'block' : 'none';
-    bleedBox.style.display = showBleedBox ? 'block' : 'none';
+    // Caja de trim: coincide con la pieza (medida final).
+    trimBox.style.display = showTrimBox ? 'block' : 'none';
+    trimBox.style.left = '0';
+    trimBox.style.right = '0';
+    trimBox.style.top = '0';
+    trimBox.style.bottom = '0';
 
+    // Caja de sangrado: se extiende hacia afuera de la pieza.
+    bleedBox.style.display = showBleedBox && bleedMm > 0 ? 'block' : 'none';
     if (bleedMm > 0) {
       const insetPx = bleedMm * baseScale;
-      trimBox.style.left = `${insetPx}px`;
-      trimBox.style.right = `${insetPx}px`;
-      trimBox.style.top = `${insetPx}px`;
-      trimBox.style.bottom = `${insetPx}px`;
+      bleedBox.style.left = `${-insetPx}px`;
+      bleedBox.style.right = `${-insetPx}px`;
+      bleedBox.style.top = `${-insetPx}px`;
+      bleedBox.style.bottom = `${-insetPx}px`;
     } else {
-      trimBox.style.left = '0';
-      trimBox.style.right = '0';
-      trimBox.style.top = '0';
-      trimBox.style.bottom = '0';
+      bleedBox.style.left = '0';
+      bleedBox.style.right = '0';
+      bleedBox.style.top = '0';
+      bleedBox.style.bottom = '0';
     }
   }
 
@@ -568,8 +574,9 @@
     if (!piece || !piece.element) return;
     const rect = piece.element.getBoundingClientRect();
     tooltipEl.style.display = 'block';
+    // Posicionamos el tooltip debajo de la pieza para que no la tape.
     tooltipEl.style.left = `${rect.left + rect.width / 2}px`;
-    tooltipEl.style.top = `${rect.top - 6}px`;
+    tooltipEl.style.top = `${rect.bottom + 8}px`;
     const srcLabel = piece.src ? piece.src.split(/[\\/]/).pop() : '—';
     tooltipEl.innerHTML = `
       <div><strong>ID:</strong> ${piece.id}</div>
@@ -622,9 +629,11 @@
     inputs.rot.value = Number(piece.rotation || 0).toFixed(1);
     inputs.locked.checked = Boolean(piece.locked);
 
+    // Para este flujo: pieza.w_mm / h_mm representan la medida final (trim),
+    // y el sangrado es adicional, no se resta del tamaño final.
     const bleedMm = getBleedMm();
-    const trimW = piece.w_mm - 2 * bleedMm;
-    const trimH = piece.h_mm - 2 * bleedMm;
+    const trimW = piece.w_mm;
+    const trimH = piece.h_mm;
 
     if (trimPanel.w) {
       trimPanel.w.value = trimW > 0 ? trimW.toFixed(2) : '';
