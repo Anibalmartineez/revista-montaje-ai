@@ -125,7 +125,15 @@
     return Math.min(Math.max(value, min), max);
   }
 
-  function getBleedMm() {
+  function getBleedMm(piece) {
+    // Si la pieza tiene un override numérico de sangrado, lo usamos primero.
+    if (piece && typeof piece.bleed_override_mm === 'number') {
+      const valOverride = Number(piece.bleed_override_mm);
+      if (Number.isFinite(valOverride) && valOverride >= 0) {
+        return valOverride;
+      }
+    }
+    // Si no hay override, usamos el sangrado global del layout.
     const bleed = layoutData?.bleed_mm;
     const val = Number(bleed);
     return Number.isFinite(val) && val > 0 ? val : 0;
@@ -133,7 +141,7 @@
 
   function updatePieceOverlays(piece) {
     if (!piece || !piece.element) return;
-    const bleedMm = getBleedMm();
+    const bleedMm = getBleedMm(piece);
 
     let trimBox = piece.element.querySelector('.piece-trim-box');
     let bleedBox = piece.element.querySelector('.piece-bleed-box');
@@ -631,7 +639,7 @@
 
     // Para este flujo: pieza.w_mm / h_mm representan la medida final (trim),
     // y el sangrado es adicional, no se resta del tamaño final.
-    const bleedMm = getBleedMm();
+    const bleedEffective = getBleedMm(piece);
     const trimW = piece.w_mm;
     const trimH = piece.h_mm;
 
@@ -642,7 +650,16 @@
       trimPanel.h.value = trimH > 0 ? trimH.toFixed(2) : '';
     }
     if (trimPanel.bleed) {
-      trimPanel.bleed.value = bleedMm > 0 ? bleedMm.toFixed(2) : '';
+      // Si la pieza tiene override explícito, mostramos ese valor.
+      if (typeof piece.bleed_override_mm === 'number' && piece.bleed_override_mm >= 0) {
+        trimPanel.bleed.value = piece.bleed_override_mm.toFixed(2);
+      } else if (bleedEffective > 0) {
+        // Si no hay override pero sí sangrado global efectivo, mostramos ese valor.
+        trimPanel.bleed.value = bleedEffective.toFixed(2);
+      } else {
+        // Sin sangrado definido.
+        trimPanel.bleed.value = '';
+      }
     }
   }
 
@@ -655,11 +672,20 @@
       if (!Number.isFinite(val)) return null;
       return Math.max(val, min);
     };
+    const readOptionalNumber = (input, min = -Infinity) => {
+      if (!input) return null;
+      const raw = String(input.value || '').trim();
+      if (raw === '') return null; // vacío = sin override
+      const val = parseFloat(raw);
+      if (!Number.isFinite(val)) return null;
+      return Math.max(val, min);
+    };
     const x = readNumber(propertiesPanel.x, 0);
     const y = readNumber(propertiesPanel.y, 0);
     const w = readNumber(propertiesPanel.w, 0.1);
     const h = readNumber(propertiesPanel.h, 0.1);
     const r = readNumber(propertiesPanel.rot, -360);
+    const bleedOverride = readOptionalNumber(trimPanel.bleed, 0);
     if (x === null || y === null || w === null || h === null || r === null) {
       showToast('Valores inválidos en propiedades.', 'error');
       return;
@@ -671,6 +697,16 @@
       p.w_mm = w;
       p.h_mm = h;
       p.rotation = r;
+
+      if (bleedOverride === null) {
+        // Campo vacío o inválido: eliminamos override y se usará el sangrado global.
+        if ('bleed_override_mm' in p) {
+          delete p.bleed_override_mm;
+        }
+      } else {
+        p.bleed_override_mm = bleedOverride;
+      }
+
       p.locked = Boolean(propertiesPanel.locked.checked);
       updatePiecePosition(p);
     });

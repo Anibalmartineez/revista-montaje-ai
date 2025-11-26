@@ -122,8 +122,11 @@
         </div>
         <div class="property-row">
           <label>Sangrado (mm por lado)</label>
-          <input id="prop-bleed" type="number" step="0.1" readonly>
+          <input id="prop-bleed" type="number" step="0.1" placeholder="Vacío = sangrado global">
         </div>
+        <p class="panel-hint">
+          Podés fijar un sangrado específico para la pieza. Si dejás el campo vacío, se usa el sangrado global del montaje.
+        </p>
         <div class="property-row checkbox-row">
           <label for="toggle-trim-box">Ver caja de medida</label>
           <input id="toggle-trim-box" type="checkbox" checked>
