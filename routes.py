@@ -244,6 +244,22 @@ Mover selección:
 "dy_mm": 0
 }
 
+Muy importante sobre el eje vertical (coordenada y_mm):
+
+- El origen (0,0) está en la **esquina INFERIOR izquierda** del pliego.
+- Los valores de **y_mm aumentan cuando la pieza SUBE** en la hoja.
+- Los valores de **y_mm disminuyen cuando la pieza BAJA**.
+- Para mover hacia ARRIBA: usar dy_mm POSITIVO.
+- Para mover hacia ABAJO: usar dy_mm NEGATIVO.
+- NUNCA inviertas el signo por "intuición visual"; seguí estrictamente esta convención.
+
+Ejemplos correctos y obligatorios:
+- Subir una pieza 5 mm:
+  {"type":"move", "target":"selection", "dx_mm":0, "dy_mm":5}
+
+- Bajar todas las piezas 3 mm:
+  {"type":"move", "target":"all", "dx_mm":0, "dy_mm":-3}
+
 Duplicar selección:
 {
 "type": "duplicate",
