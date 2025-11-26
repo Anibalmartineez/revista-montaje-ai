@@ -818,12 +818,40 @@ def montar_pliego_offset_inteligente(
             idx = int(p["file_idx"])
             assert 0 <= idx < len(diseños), f"file_idx fuera de rango: {idx}"
             ruta = diseños[idx][0]
-            bleed_override = p.get("bleed_override_mm")
-            bleed_effective = (
-                float(bleed_override)
-                if bleed_override is not None and bleed_override != ""
-                else sangrado
-            )
+            # Resolver sangrado efectivo con esta prioridad:
+            # 1) p["bleed_mm"] (precalculado por _sanitize_layout_items)
+            # 2) p["bleed_override_mm"] (override directo del editor)
+            # 3) sangrado (global del montaje)
+            # 4) 0.0 mm como último recurso
+
+            raw_bleed_mm = p.get("bleed_mm")
+            raw_bleed_override = p.get("bleed_override_mm")
+
+            bleed_effective = None
+
+            # 1) usar bleed_mm si viene definido
+            try:
+                if raw_bleed_mm is not None and raw_bleed_mm != "":
+                    bleed_effective = float(raw_bleed_mm)
+            except Exception:
+                bleed_effective = None
+
+            # 2) si no hay bleed_mm válido, usar override
+            if bleed_effective is None:
+                try:
+                    if raw_bleed_override is not None and raw_bleed_override != "":
+                        bleed_effective = float(raw_bleed_override)
+                except Exception:
+                    bleed_effective = None
+
+            # 3) si tampoco hay override válido, usar sangrado global
+            if bleed_effective is None and sangrado is not None:
+                try:
+                    bleed_effective = float(sangrado)
+                except Exception:
+                    bleed_effective = None
+
+            # 4) último recurso
             if bleed_effective is None:
                 bleed_effective = 0.0
             posiciones.append(
