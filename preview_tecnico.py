@@ -10,11 +10,37 @@ from advertencias_disenio import analizar_advertencias_disenio
 from flexo_config import get_flexo_thresholds
 
 
+def _resolve_bleed_effective(
+    pieza: dict | None, layout: dict | None, fallback_mm: float
+) -> float:
+    layout_bleed = None
+    if isinstance(layout, dict):
+        try:
+            layout_bleed = float(layout.get("bleed_mm"))
+        except Exception:
+            layout_bleed = None
+
+    if isinstance(pieza, dict):
+        bleed_override = pieza.get("bleed_override_mm")
+        try:
+            if bleed_override is not None and bleed_override != "":
+                return float(bleed_override)
+        except Exception:
+            pass
+
+    if layout_bleed is not None:
+        return layout_bleed
+    return fallback_mm
+
+
 def analizar_riesgos_pdf(
     pdf_path: str,
     dpi: int = 200,
     advertencias: List[Dict[str, Any]] | None = None,
     material: str = "",
+    layout: dict | None = None,
+    pieza: dict | None = None,
+    bleed_mm: float | None = None,
 ) -> dict:
     """Genera una superposición de advertencias para un PDF."""
     doc = fitz.open(pdf_path)
@@ -32,7 +58,9 @@ def analizar_riesgos_pdf(
     draw = ImageDraw.Draw(overlay_img, "RGBA")
 
     thresholds = get_flexo_thresholds(material=material)
-    sangrado_mm = thresholds.min_bleed_mm
+    sangrado_mm = bleed_mm
+    if sangrado_mm is None:
+        sangrado_mm = _resolve_bleed_effective(pieza, layout, thresholds.min_bleed_mm)
     sangrado_pts = sangrado_mm * 72 / 25.4
     contenido_cerca_borde = any(adv.get("tipo") == "cerca_borde" for adv in advertencias)
 
