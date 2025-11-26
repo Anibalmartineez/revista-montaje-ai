@@ -2503,6 +2503,11 @@ def _sanitize_layout_items(job_id: str, job_dir: str, meta: Dict, items: List[Di
     sanitized = []
     posiciones_manual = []
     counts = Counter()
+    layout_bleed_raw = meta.get("bleed_mm", 0.0)
+    try:
+        layout_bleed_mm = float(layout_bleed_raw)
+    except Exception:
+        layout_bleed_mm = 0.0
 
     for raw in items:
         if not isinstance(raw, dict):
@@ -2538,6 +2543,16 @@ def _sanitize_layout_items(job_id: str, job_dir: str, meta: Dict, items: List[Di
         if rotation not in (0, 90, 180, 270):
             raise ValueError("La rotación debe ser 0, 90, 180 o 270")
 
+        bleed_override = raw.get("bleed_override_mm")
+        try:
+            bleed_effective = (
+                float(bleed_override)
+                if bleed_override is not None and bleed_override != ""
+                else layout_bleed_mm
+            )
+        except Exception:
+            raise ValueError("bleed_override_mm inválido en layout")
+
         eps = 1e-6
         if x_mm < left_margin - eps or y_mm < bottom_margin - eps:
             raise ValueError("Una pieza está fuera de los márgenes permitidos")
@@ -2559,6 +2574,8 @@ def _sanitize_layout_items(job_id: str, job_dir: str, meta: Dict, items: List[Di
                 "flip_x": bool(raw.get("flip_x", False)),
                 "flip_y": bool(raw.get("flip_y", False)),
                 "file_idx": int(record.get("index", 0)),
+                "bleed_override_mm": bleed_override,
+                "bleed_mm": bleed_effective,
             }
         )
         posiciones_manual.append(
@@ -2569,6 +2586,8 @@ def _sanitize_layout_items(job_id: str, job_dir: str, meta: Dict, items: List[Di
                 "w_mm": w_mm,
                 "h_mm": h_mm,
                 "rot_deg": rotation,
+                "bleed_override_mm": bleed_override,
+                "bleed_mm": bleed_effective,
             }
         )
         counts[int(record.get("index", 0))] += 1

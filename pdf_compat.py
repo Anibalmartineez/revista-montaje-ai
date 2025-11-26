@@ -6,6 +6,9 @@ from typing import Optional
 
 import fitz  # PyMuPDF
 
+# Módulo utilitario para normalizar PDFs generados; no altera parámetros de
+# sangrado ni geometría, solo compatibilidad y metadatos.
+
 
 def _rewrite_with_pymupdf(
     src: str,

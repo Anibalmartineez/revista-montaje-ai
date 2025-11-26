@@ -818,6 +818,14 @@ def montar_pliego_offset_inteligente(
             idx = int(p["file_idx"])
             assert 0 <= idx < len(diseños), f"file_idx fuera de rango: {idx}"
             ruta = diseños[idx][0]
+            bleed_override = p.get("bleed_override_mm")
+            bleed_effective = (
+                float(bleed_override)
+                if bleed_override is not None and bleed_override != ""
+                else sangrado
+            )
+            if bleed_effective is None:
+                bleed_effective = 0.0
             posiciones.append(
                 {
                     "archivo": ruta,        # informativo, no usar para enlazar
@@ -827,15 +835,16 @@ def montar_pliego_offset_inteligente(
                     "ancho": float(p["w_mm"]),  # TRIM
                     "alto": float(p["h_mm"]),  # TRIM
                     "rot_deg": int(p.get("rot_deg", p.get("rot", 0)) or 0) % 360,
+                    "bleed_mm": float(bleed_effective) if bleed_effective is not None else 0.0,
                 }
             )
 
         # opcionalmente centrar
         if centrar and posiciones:
             min_x = min(pp["x"] for pp in posiciones)
-            max_x = max(pp["x"] + pp["ancho"] + 2 * sangrado for pp in posiciones)
+            max_x = max(pp["x"] + pp["ancho"] + 2 * pp.get("bleed_mm", sangrado) for pp in posiciones)
             min_y = min(pp["y"] for pp in posiciones)
-            max_y = max(pp["y"] + pp["alto"] + 2 * sangrado for pp in posiciones)
+            max_y = max(pp["y"] + pp["alto"] + 2 * pp.get("bleed_mm", sangrado) for pp in posiciones)
             usado_w = max_x - min_x
             usado_h = max_y - min_y
             desplaz_x = (ancho_pliego - usado_w) / 2 - min_x
@@ -890,6 +899,7 @@ def montar_pliego_offset_inteligente(
                     "ancho": copia["ancho"],
                     "alto": copia["alto"],
                     "rotado": copia["rotado"],
+                    "bleed_mm": sangrado,
                 }
             )
     elif estrategia == "maxrects":
@@ -915,6 +925,7 @@ def montar_pliego_offset_inteligente(
                     "ancho": copia["ancho"],
                     "alto": copia["alto"],
                     "rotado": copia["rotado"],
+                    "bleed_mm": sangrado,
                 }
             )
     else:
@@ -1120,8 +1131,11 @@ def montar_pliego_offset_inteligente(
             else:
                 idx = int(idx)
             assert 0 <= idx < len(diseños), f"file_idx fuera de rango al render: {idx}"
-            w_mm = p["ancho"] + 2 * sangrado
-            h_mm = p["alto"] + 2 * sangrado
+            bleed_effective = p.get("bleed_mm", sangrado)
+            if bleed_effective is None:
+                bleed_effective = 0.0
+            w_mm = p["ancho"] + 2 * bleed_effective
+            h_mm = p["alto"] + 2 * bleed_effective
             posiciones_normalizadas.append(
                 {
                     "file_idx": idx,
@@ -1133,6 +1147,7 @@ def montar_pliego_offset_inteligente(
                     "w_mm": w_mm,
                     "h_mm": h_mm,
                     "rot_deg": int(p.get("rot_deg", 0)) % 360,
+                    "bleed_mm": bleed_effective,
                 }
             )
 
@@ -1171,7 +1186,7 @@ def montar_pliego_offset_inteligente(
     sheet_h_pt = mm_to_pt(alto_pliego)
     c = canvas.Canvas(output_path, pagesize=(sheet_w_pt, sheet_h_pt))
 
-    image_cache: Dict[str, Image.Image] = {}
+    image_cache: Dict[tuple[str, float], Image.Image] = {}
     bleed_cache: Dict[str, float] = {}
     for pos in posiciones:
         idx = pos.get("file_idx")
@@ -1185,13 +1200,19 @@ def montar_pliego_offset_inteligente(
             idx = int(idx)
         assert 0 <= idx < len(diseños), f"file_idx fuera de rango al render: {idx}"
         archivo = diseños[idx][0]
-        if archivo not in image_cache:
-            image_cache[archivo] = _pdf_a_imagen_con_sangrado(
-                archivo, sangrado, usar_trimbox=(sangrado > 0 or usar_trimbox)
+        bleed_effective = pos.get("bleed_mm", sangrado)
+        if bleed_effective is None:
+            bleed_effective = 0.0
+        cache_key = (archivo, float(bleed_effective))
+        if cache_key not in image_cache:
+            image_cache[cache_key] = _pdf_a_imagen_con_sangrado(
+                archivo,
+                bleed_effective,
+                usar_trimbox=(bleed_effective > 0 or usar_trimbox),
             )
-        img = image_cache[archivo]
-        w_pt = mm_to_pt(pos["ancho"] + 2 * sangrado)
-        h_pt = mm_to_pt(pos["alto"] + 2 * sangrado)
+        img = image_cache[cache_key]
+        w_pt = mm_to_pt(pos["ancho"] + 2 * bleed_effective)
+        h_pt = mm_to_pt(pos["alto"] + 2 * bleed_effective)
         x_pt = mm_to_pt(pos["x"])
         y_pt = mm_to_pt(pos["y"])
         rot = int(pos.get("rot_deg") or 0) % 360
@@ -1202,14 +1223,14 @@ def montar_pliego_offset_inteligente(
             img_to_draw = img
         c.drawImage(ImageReader(img_to_draw), x_pt, y_pt, width=w_pt, height=h_pt)
 
-        bleed_eff = sangrado
-        if sangrado <= 0:
+        bleed_eff = bleed_effective
+        if bleed_effective is None or bleed_effective <= 0:
             if archivo not in bleed_cache:
                 bleed_cache[archivo] = detectar_sangrado_pdf(archivo)
             bleed_eff = bleed_cache[archivo]
         x_trim_pt = x_pt + mm_to_pt(bleed_eff)
         y_trim_pt = y_pt + mm_to_pt(bleed_eff)
-        if sangrado > 0:
+        if bleed_effective > 0:
             w_trim_pt = mm_to_pt(pos["ancho"])
             h_trim_pt = mm_to_pt(pos["alto"])
         else:
