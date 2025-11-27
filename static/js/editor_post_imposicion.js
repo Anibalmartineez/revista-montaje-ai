@@ -1109,19 +1109,30 @@
   }
 
   function serializePieces() {
-    return pieces.map((piece) => ({
-      id: piece.id,
-      src: piece.src,
-      page: piece.page || 0,
-      x_mm: Number(piece.x_mm.toFixed(3)),
-      y_mm: Number(piece.y_mm.toFixed(3)),
-      w_mm: Number(piece.w_mm.toFixed(3)),
-      h_mm: Number(piece.h_mm.toFixed(3)),
-      rotation: Number(piece.rotation || 0),
-      flip_x: Boolean(piece.flip_x),
-      flip_y: Boolean(piece.flip_y),
-      locked: Boolean(piece.locked),
-    }));
+    return pieces.map((piece) => {
+      const item = {
+        id: piece.id,
+        src: piece.src,
+        page: piece.page || 0,
+        x_mm: Number(piece.x_mm.toFixed(3)),
+        y_mm: Number(piece.y_mm.toFixed(3)),
+        w_mm: Number(piece.w_mm.toFixed(3)),
+        h_mm: Number(piece.h_mm.toFixed(3)),
+        rotation: Number(piece.rotation || 0),
+        flip_x: Boolean(piece.flip_x),
+        flip_y: Boolean(piece.flip_y),
+        locked: Boolean(piece.locked),
+      };
+
+      // Si el usuario fijó un sangrado específico para la pieza,
+      // lo mandamos como bleed_override_mm. Campo vacío = sin override,
+      // el backend usará el sangrado global del montaje.
+      if (typeof piece.bleed_override_mm === 'number' && piece.bleed_override_mm >= 0) {
+        item.bleed_override_mm = piece.bleed_override_mm;
+      }
+
+      return item;
+    });
   }
 
   async function saveLayout() {
@@ -1567,11 +1578,9 @@
       });
     }
 
-    // Asegurar que cuando la pieza cambie, el campo bleed se refresque
-    // Esto ya existe en syncPropertiesPanel(), pero reforzamos la lógica
-    // para que nunca quede desactualizado.
+    // Asegurar que cuando la pieza cambie, el campo bleed se refresque.
     const oldSync = syncPropertiesPanel;
-    syncPropertiesPanel = function(piece) {
+    syncPropertiesPanel = function (piece) {
       oldSync(piece);
       if (piece && trimPanel.bleed) {
         trimPanel.bleed.value =
