@@ -1557,6 +1557,29 @@
         pieces.forEach(updatePieceOverlays);
       });
     }
+
+    // === NUEVO: listeners para el sangrado por pieza ===
+    if (trimPanel.bleed) {
+      trimPanel.bleed.addEventListener('change', applyPropertiesFromPanel);
+      trimPanel.bleed.addEventListener('blur', applyPropertiesFromPanel);
+      trimPanel.bleed.addEventListener('keyup', (evt) => {
+        if (evt.key === 'Enter') applyPropertiesFromPanel();
+      });
+    }
+
+    // Asegurar que cuando la pieza cambie, el campo bleed se refresque
+    // Esto ya existe en syncPropertiesPanel(), pero reforzamos la lógica
+    // para que nunca quede desactualizado.
+    const oldSync = syncPropertiesPanel;
+    syncPropertiesPanel = function(piece) {
+      oldSync(piece);
+      if (piece && trimPanel.bleed) {
+        trimPanel.bleed.value =
+          typeof piece.bleed_override_mm === 'number'
+            ? piece.bleed_override_mm.toFixed(2)
+            : '';
+      }
+    };
   }
 
   function initAlignmentButtons() {
