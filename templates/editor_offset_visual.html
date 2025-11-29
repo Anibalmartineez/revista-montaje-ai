@@ -1,0 +1,108 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <title>Editor visual IA - Montaje Offset</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/editor_offset_visual.css') }}">
+</head>
+<body>
+  <header class="editor-header">
+    <div>
+      <h1>Editor visual IA</h1>
+      <p class="subtitle">Nuevo editor de montaje offset inteligente</p>
+    </div>
+    <div class="header-actions">
+      <a class="btn" href="{{ url_for('routes.index') }}">Volver al inicio</a>
+    </div>
+  </header>
+
+  <main class="editor-layout">
+    <section class="sheet-wrapper">
+      <div class="sheet-toolbar">
+        <button id="btn-save" class="btn btn-primary">Guardar montaje</button>
+        <button id="btn-preview" class="btn btn-secondary">Generar preview</button>
+        <button id="btn-pdf" class="btn btn-secondary">Generar PDF final</button>
+        <button id="btn-auto" class="btn">Generar slots con IA</button>
+        <button id="btn-new-slot" class="btn">Añadir slot</button>
+        <button id="btn-dup-slot" class="btn">Duplicar selección</button>
+        <button id="btn-del-slot" class="btn">Borrar selección</button>
+      </div>
+      <div id="sheet-canvas" class="sheet-canvas">
+        <div id="sheet" class="sheet"></div>
+      </div>
+      <div class="preview-area">
+        <div>
+          <h3>Preview</h3>
+          <img id="preview-image" alt="Preview" class="preview-image" />
+        </div>
+        <div>
+          <h3>PDF generado</h3>
+          <div id="pdf-output" class="pdf-output"></div>
+        </div>
+      </div>
+    </section>
+
+    <aside class="side-panel">
+      <section class="panel-block">
+        <div class="panel-header">
+          <h2>Trabajos lógicos</h2>
+          <button id="btn-new-work" class="btn btn-small">Nuevo trabajo</button>
+        </div>
+        <div id="works-list" class="list"></div>
+        <div class="work-form" id="work-form">
+          <h3>Editar trabajo</h3>
+          <label>Nombre <input type="text" id="work-name"></label>
+          <div class="grid-2">
+            <label>Ancho (mm) <input type="number" id="work-w" step="0.1"></label>
+            <label>Alto (mm) <input type="number" id="work-h" step="0.1"></label>
+          </div>
+          <label>Copias deseadas <input type="number" id="work-copies" min="1" value="1"></label>
+          <label>Sangrado por defecto (mm) <input type="number" id="work-bleed" step="0.1" value="0"></label>
+          <label><input type="checkbox" id="work-has-bleed"> El PDF ya tiene sangrado</label>
+          <div class="form-actions">
+            <button id="btn-save-work" class="btn btn-primary">Guardar trabajo</button>
+            <button id="btn-delete-work" class="btn btn-danger">Eliminar trabajo</button>
+          </div>
+        </div>
+      </section>
+
+      <section class="panel-block">
+        <h2>Propiedades del slot</h2>
+        <div id="slot-none" class="muted">Selecciona un slot para editarlo.</div>
+        <div id="slot-form" class="slot-form hidden">
+          <label>X (mm) <input type="number" id="slot-x" step="0.1"></label>
+          <label>Y (mm) <input type="number" id="slot-y" step="0.1"></label>
+          <label>Ancho (mm) <input type="number" id="slot-w" step="0.1"></label>
+          <label>Alto (mm) <input type="number" id="slot-h" step="0.1"></label>
+          <label>Rotación (°) <input type="number" id="slot-rot" step="1" value="0"></label>
+          <label>Bleed (mm) <input type="number" id="slot-bleed" step="0.1" value="0"></label>
+          <label><input type="checkbox" id="slot-crop"> Marcas de corte</label>
+          <label><input type="checkbox" id="slot-locked"> Bloquear</label>
+          <label>Trabajo lógico
+            <select id="slot-work"></select>
+          </label>
+          <label>PDF asignado
+            <select id="slot-design"></select>
+          </label>
+          <button id="btn-apply-slot" class="btn btn-primary">Aplicar cambios</button>
+        </div>
+      </section>
+
+      <section class="panel-block">
+        <h2>Diseños (PDF)</h2>
+        <form id="upload-form">
+          <input type="file" id="design-files" name="files" accept="application/pdf" multiple>
+          <button type="submit" class="btn btn-secondary">Subir PDFs</button>
+        </form>
+        <ul id="designs-list" class="list"></ul>
+      </section>
+    </aside>
+  </main>
+
+  <script>
+    window.INITIAL_LAYOUT_JSON = {{ layout_json|tojson|safe }};
+    window.JOB_ID = {{ job_id|tojson|safe }};
+  </script>
+  <script src="{{ url_for('static', filename='js/editor_offset_visual.js') }}"></script>
+</body>
+</html>

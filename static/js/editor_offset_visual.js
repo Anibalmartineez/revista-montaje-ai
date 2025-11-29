@@ -1,0 +1,420 @@
+(function () {
+  const sheetEl = document.getElementById('sheet');
+  const sheetCanvas = document.getElementById('sheet-canvas');
+  const worksListEl = document.getElementById('works-list');
+  const designsListEl = document.getElementById('designs-list');
+  const previewImg = document.getElementById('preview-image');
+  const pdfOutput = document.getElementById('pdf-output');
+  const slotForm = document.getElementById('slot-form');
+  const slotNone = document.getElementById('slot-none');
+  const uploadForm = document.getElementById('upload-form');
+
+  const state = {
+    layout: {},
+    scale: 1,
+    selectedSlot: null,
+    selectedWork: null,
+  };
+
+  function parseInitialLayout() {
+    let layout = window.INITIAL_LAYOUT_JSON;
+    if (typeof layout === 'string') {
+      try {
+        layout = JSON.parse(layout);
+      } catch (err) {
+        layout = {};
+      }
+    }
+    state.layout = layout || {};
+    state.layout.works = state.layout.works || [];
+    state.layout.slots = state.layout.slots || [];
+    state.layout.designs = state.layout.designs || [];
+    if (!state.layout.sheet_mm) {
+      state.layout.sheet_mm = [640, 880];
+    }
+    if (!state.layout.margins_mm) {
+      state.layout.margins_mm = [10, 10, 10, 10];
+    }
+    if (state.layout.bleed_default_mm === undefined) {
+      state.layout.bleed_default_mm = 3;
+    }
+  }
+
+  function mmToPx(mm) {
+    return mm * state.scale;
+  }
+
+  function recalcScale() {
+    const sheet = state.layout.sheet_mm || [640, 880];
+    const maxW = sheetCanvas.clientWidth - 20;
+    const maxH = Math.max(sheetCanvas.clientHeight - 20, 400);
+    const scale = Math.min(maxW / sheet[0], maxH / sheet[1]);
+    state.scale = Math.max(scale, 0.2);
+  }
+
+  function clearChildren(el) {
+    while (el.firstChild) el.removeChild(el.firstChild);
+  }
+
+  function renderSheet() {
+    recalcScale();
+    const [sheetW, sheetH] = state.layout.sheet_mm;
+    sheetEl.style.width = `${mmToPx(sheetW)}px`;
+    sheetEl.style.height = `${mmToPx(sheetH)}px`;
+    clearChildren(sheetEl);
+
+    state.layout.slots.forEach((slot) => {
+      const slotEl = document.createElement('div');
+      slotEl.className = 'slot';
+      if (slot.locked) slotEl.classList.add('locked');
+      if (state.selectedSlot && state.selectedSlot.id === slot.id) {
+        slotEl.classList.add('selected');
+      }
+      slotEl.dataset.slotId = slot.id;
+      slotEl.style.left = `${mmToPx(slot.x_mm)}px`;
+      slotEl.style.bottom = `${mmToPx(slot.y_mm)}px`;
+      slotEl.style.width = `${mmToPx(slot.w_mm)}px`;
+      slotEl.style.height = `${mmToPx(slot.h_mm)}px`;
+      slotEl.style.transform = `rotate(${slot.rotation_deg || 0}deg)`;
+
+      const makeHandle = (cls) => {
+        const h = document.createElement('div');
+        h.className = `handle ${cls}`;
+        return h;
+      };
+      ['tl', 'tr', 'bl', 'br'].forEach((pos) => slotEl.appendChild(makeHandle(pos)));
+
+      slotEl.addEventListener('mousedown', (ev) => onSlotMouseDown(ev, slot));
+      slotEl.addEventListener('click', (ev) => {
+        ev.stopPropagation();
+        selectSlot(slot.id);
+      });
+      sheetEl.appendChild(slotEl);
+    });
+  }
+
+  function selectSlot(id) {
+    state.selectedSlot = state.layout.slots.find((s) => s.id === id) || null;
+    renderSheet();
+    renderSlotForm();
+  }
+
+  function renderSlotForm() {
+    if (!state.selectedSlot) {
+      slotForm.classList.add('hidden');
+      slotNone.classList.remove('hidden');
+      return;
+    }
+    slotForm.classList.remove('hidden');
+    slotNone.classList.add('hidden');
+    const slot = state.selectedSlot;
+    document.getElementById('slot-x').value = slot.x_mm ?? 0;
+    document.getElementById('slot-y').value = slot.y_mm ?? 0;
+    document.getElementById('slot-w').value = slot.w_mm ?? 0;
+    document.getElementById('slot-h').value = slot.h_mm ?? 0;
+    document.getElementById('slot-rot').value = slot.rotation_deg || 0;
+    document.getElementById('slot-bleed').value = slot.bleed_mm ?? 0;
+    document.getElementById('slot-crop').checked = !!slot.crop_marks;
+    document.getElementById('slot-locked').checked = !!slot.locked;
+
+    const workSelect = document.getElementById('slot-work');
+    clearChildren(workSelect);
+    state.layout.works.forEach((w) => {
+      const opt = document.createElement('option');
+      opt.value = w.id;
+      opt.textContent = `${w.name} (${w.final_size_mm?.join('x')} mm)`;
+      if (slot.logical_work_id === w.id) opt.selected = true;
+      workSelect.appendChild(opt);
+    });
+
+    const designSelect = document.getElementById('slot-design');
+    clearChildren(designSelect);
+    const noneOpt = document.createElement('option');
+    noneOpt.value = '';
+    noneOpt.textContent = 'Sin PDF';
+    designSelect.appendChild(noneOpt);
+    state.layout.designs.forEach((d) => {
+      const opt = document.createElement('option');
+      opt.value = d.ref;
+      opt.textContent = `${d.filename} (${d.ref})`;
+      if (slot.design_ref === d.ref) opt.selected = true;
+      designSelect.appendChild(opt);
+    });
+  }
+
+  function renderWorks() {
+    clearChildren(worksListEl);
+    state.layout.works.forEach((w) => {
+      const item = document.createElement('div');
+      item.className = 'item';
+      if (state.selectedWork && state.selectedWork.id === w.id) item.classList.add('active');
+      item.textContent = `${w.name} · ${w.final_size_mm?.join('x')} mm · copias ${w.desired_copies}`;
+      item.addEventListener('click', () => {
+        state.selectedWork = w;
+        fillWorkForm(w);
+        renderWorks();
+      });
+      worksListEl.appendChild(item);
+    });
+  }
+
+  function fillWorkForm(work) {
+    document.getElementById('work-name').value = work?.name || '';
+    document.getElementById('work-w').value = work?.final_size_mm?.[0] ?? '';
+    document.getElementById('work-h').value = work?.final_size_mm?.[1] ?? '';
+    document.getElementById('work-copies').value = work?.desired_copies ?? 1;
+    document.getElementById('work-bleed').value = work?.default_bleed_mm ?? 0;
+    document.getElementById('work-has-bleed').checked = !!(work && work.has_bleed);
+  }
+
+  function newWork() {
+    const work = {
+      id: `w${Date.now()}`,
+      name: 'Nuevo trabajo',
+      final_size_mm: [50, 50],
+      desired_copies: 1,
+      default_bleed_mm: state.layout.bleed_default_mm || 0,
+      has_bleed: false,
+    };
+    state.layout.works.push(work);
+    state.selectedWork = work;
+    renderWorks();
+    fillWorkForm(work);
+  }
+
+  function saveWork() {
+    if (!state.selectedWork) newWork();
+    const w = state.selectedWork;
+    w.name = document.getElementById('work-name').value || 'Trabajo';
+    w.final_size_mm = [
+      parseFloat(document.getElementById('work-w').value) || 0,
+      parseFloat(document.getElementById('work-h').value) || 0,
+    ];
+    w.desired_copies = parseInt(document.getElementById('work-copies').value || '1', 10);
+    w.default_bleed_mm = parseFloat(document.getElementById('work-bleed').value || '0');
+    w.has_bleed = document.getElementById('work-has-bleed').checked;
+    renderWorks();
+  }
+
+  function deleteWork() {
+    if (!state.selectedWork) return;
+    const workId = state.selectedWork.id;
+    const slotsInUse = state.layout.slots.some((s) => s.logical_work_id === workId);
+    if (slotsInUse) {
+      alert('No se puede eliminar: hay slots que usan este trabajo.');
+      return;
+    }
+    state.layout.works = state.layout.works.filter((w) => w.id !== workId);
+    state.selectedWork = null;
+    fillWorkForm(null);
+    renderWorks();
+  }
+
+  function renderDesigns() {
+    clearChildren(designsListEl);
+    state.layout.designs.forEach((d) => {
+      const li = document.createElement('li');
+      li.textContent = `${d.filename} (${d.ref})`;
+      designsListEl.appendChild(li);
+    });
+    renderSlotForm();
+  }
+
+  function addSlot() {
+    const idx = state.layout.slots.length + 1;
+    const workId = state.layout.works[0]?.id || null;
+    const slot = {
+      id: `s${Date.now()}_${idx}`,
+      x_mm: 10,
+      y_mm: 10,
+      w_mm: 50,
+      h_mm: 50,
+      rotation_deg: 0,
+      logical_work_id: workId,
+      bleed_mm: state.layout.bleed_default_mm || 0,
+      crop_marks: true,
+      locked: false,
+      design_ref: null,
+    };
+    state.layout.slots.push(slot);
+    selectSlot(slot.id);
+  }
+
+  function duplicateSlot() {
+    if (!state.selectedSlot) return;
+    const base = state.selectedSlot;
+    const copy = { ...base, id: `s${Date.now()}` };
+    copy.x_mm += 5;
+    copy.y_mm += 5;
+    state.layout.slots.push(copy);
+    selectSlot(copy.id);
+  }
+
+  function deleteSlot() {
+    if (!state.selectedSlot) return;
+    state.layout.slots = state.layout.slots.filter((s) => s.id !== state.selectedSlot.id);
+    state.selectedSlot = null;
+    renderSheet();
+    renderSlotForm();
+  }
+
+  function onSlotMouseDown(ev, slot) {
+    if (slot.locked) return;
+    const target = ev.target;
+    const isHandle = target.classList.contains('handle');
+    const startX = ev.clientX;
+    const startY = ev.clientY;
+    const initSlot = { ...slot };
+    const handleType = isHandle ? [...target.classList].find((c) => ['br', 'bl', 'tr', 'tl'].includes(c)) : null;
+
+    function onMove(moveEv) {
+      moveEv.preventDefault();
+      const dxPx = moveEv.clientX - startX;
+      const dyPx = startY - moveEv.clientY; // invert because bottom reference
+      const dx = dxPx / state.scale;
+      const dy = dyPx / state.scale;
+
+      if (!isHandle) {
+        slot.x_mm = initSlot.x_mm + dx;
+        slot.y_mm = initSlot.y_mm + dy;
+      } else {
+        if (handleType.includes('b')) {
+          slot.h_mm = Math.max(5, initSlot.h_mm + dy);
+        }
+        if (handleType.includes('t')) {
+          const newH = Math.max(5, initSlot.h_mm - dy);
+          slot.h_mm = newH;
+          slot.y_mm = initSlot.y_mm + dy;
+        }
+        if (handleType.includes('r')) {
+          slot.w_mm = Math.max(5, initSlot.w_mm + dx);
+        }
+        if (handleType.includes('l')) {
+          const newW = Math.max(5, initSlot.w_mm - dx);
+          slot.w_mm = newW;
+          slot.x_mm = initSlot.x_mm + dx;
+        }
+      }
+      renderSheet();
+      renderSlotForm();
+    }
+
+    function onUp() {
+      document.removeEventListener('mousemove', onMove);
+      document.removeEventListener('mouseup', onUp);
+    }
+
+    document.addEventListener('mousemove', onMove);
+    document.addEventListener('mouseup', onUp);
+  }
+
+  function applySlotForm() {
+    if (!state.selectedSlot) return;
+    const slot = state.selectedSlot;
+    slot.x_mm = parseFloat(document.getElementById('slot-x').value || '0');
+    slot.y_mm = parseFloat(document.getElementById('slot-y').value || '0');
+    slot.w_mm = parseFloat(document.getElementById('slot-w').value || '0');
+    slot.h_mm = parseFloat(document.getElementById('slot-h').value || '0');
+    slot.rotation_deg = parseFloat(document.getElementById('slot-rot').value || '0');
+    slot.bleed_mm = parseFloat(document.getElementById('slot-bleed').value || '0');
+    slot.crop_marks = document.getElementById('slot-crop').checked;
+    slot.locked = document.getElementById('slot-locked').checked;
+    slot.logical_work_id = document.getElementById('slot-work').value || null;
+    slot.design_ref = document.getElementById('slot-design').value || null;
+    renderSheet();
+  }
+
+  function layoutToJson() {
+    return JSON.stringify(state.layout);
+  }
+
+  async function saveLayout() {
+    const body = new FormData();
+    body.append('job_id', window.JOB_ID);
+    body.append('layout_json', layoutToJson());
+    const res = await fetch('/editor_offset/save', { method: 'POST', body });
+    return res.json();
+  }
+
+  async function requestAutoLayout() {
+    await saveLayout();
+    const res = await fetch(`/editor_offset/auto_layout/${window.JOB_ID}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ layout_json: layoutToJson() }),
+    });
+    const data = await res.json();
+    if (data.layout) {
+      state.layout = data.layout;
+      selectSlot(null);
+      renderWorks();
+      renderDesigns();
+      renderSheet();
+    }
+  }
+
+  async function requestPreview() {
+    await saveLayout();
+    const res = await fetch(`/editor_offset/preview/${window.JOB_ID}`, { method: 'POST' });
+    const data = await res.json();
+    if (data.url) {
+      previewImg.src = data.url + `?t=${Date.now()}`;
+    }
+  }
+
+  async function requestPdf() {
+    await saveLayout();
+    const res = await fetch(`/editor_offset/generar_pdf/${window.JOB_ID}`, { method: 'POST' });
+    const data = await res.json();
+    if (data.url) {
+      pdfOutput.innerHTML = `<a href="${data.url}" target="_blank">Descargar PDF</a>`;
+    }
+  }
+
+  async function uploadDesigns(ev) {
+    ev.preventDefault();
+    const filesInput = document.getElementById('design-files');
+    if (!filesInput.files.length) return;
+    const body = new FormData();
+    for (const f of filesInput.files) body.append('files', f);
+    const res = await fetch(`/editor_offset/upload/${window.JOB_ID}`, { method: 'POST', body });
+    const data = await res.json();
+    if (data.designs) {
+      state.layout.designs = data.designs;
+      renderDesigns();
+      filesInput.value = '';
+    }
+  }
+
+  async function init() {
+    parseInitialLayout();
+    renderWorks();
+    renderSheet();
+    renderDesigns();
+    fillWorkForm(state.layout.works[0]);
+    document.getElementById('btn-new-slot').addEventListener('click', addSlot);
+    document.getElementById('btn-dup-slot').addEventListener('click', duplicateSlot);
+    document.getElementById('btn-del-slot').addEventListener('click', deleteSlot);
+    document.getElementById('btn-save').addEventListener('click', saveLayout);
+    document.getElementById('btn-preview').addEventListener('click', requestPreview);
+    document.getElementById('btn-pdf').addEventListener('click', requestPdf);
+    document.getElementById('btn-auto').addEventListener('click', requestAutoLayout);
+    document.getElementById('btn-new-work').addEventListener('click', newWork);
+    document.getElementById('btn-save-work').addEventListener('click', saveWork);
+    document.getElementById('btn-delete-work').addEventListener('click', deleteWork);
+    document.getElementById('btn-apply-slot').addEventListener('click', applySlotForm);
+    uploadForm.addEventListener('submit', uploadDesigns);
+    document.addEventListener('click', (ev) => {
+      if (ev.target === sheetCanvas || ev.target === sheetEl) {
+        state.selectedSlot = null;
+        renderSlotForm();
+        renderSheet();
+      }
+    });
+    window.addEventListener('resize', () => {
+      renderSheet();
+    });
+  }
+
+  document.addEventListener('DOMContentLoaded', init);
+})();

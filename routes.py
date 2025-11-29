@@ -59,6 +59,7 @@ from montaje_offset import montar_pliego_offset
 from montaje_offset_inteligente import (
     Diseno,
     MontajeConfig,
+    montar_offset_desde_layout,
     realizar_montaje_inteligente,
     generar_preview_pliego,
 )
@@ -122,6 +123,8 @@ ASSETS_DIRNAME = "assets"
 ORIGINAL_PDF_NAME = "pliego.pdf"
 EDITED_PDF_NAME = "pliego_edit.pdf"
 EDITED_PREVIEW_NAME = "preview_edit.png"
+CONSTRUCTOR_DIRNAME = "constructor_offset_jobs"
+CONSTRUCTOR_LAYOUT_NAME = "layout_constructor.json"
 
 
 def _safe_job_id(job_id: str | None) -> str | None:
@@ -170,6 +173,46 @@ def _save_json(path: str, payload: Dict) -> None:
         json.dump(payload, fh, ensure_ascii=False, indent=2)
 
 
+def _constructor_root() -> str:
+    root = os.path.join(current_app.static_folder, CONSTRUCTOR_DIRNAME)
+    os.makedirs(root, exist_ok=True)
+    return root
+
+
+def _constructor_job_dir(job_id: str) -> str:
+    return os.path.join(_constructor_root(), job_id)
+
+
+def _constructor_layout_path(job_dir: str) -> str:
+    return os.path.join(job_dir, CONSTRUCTOR_LAYOUT_NAME)
+
+
+def _default_constructor_layout() -> Dict:
+    return {
+        "sheet_mm": [640, 880],
+        "margins_mm": [10, 10, 10, 10],
+        "bleed_default_mm": 3,
+        "gap_default_mm": 5,
+        "works": [],
+        "slots": [],
+        "designs": [],
+    }
+
+
+def _load_constructor_layout(job_dir: str) -> Dict | None:
+    path = _constructor_layout_path(job_dir)
+    if not os.path.exists(path):
+        return None
+    return _load_json(path)
+
+
+def _save_constructor_layout(job_dir: str, layout: Dict) -> str:
+    os.makedirs(job_dir, exist_ok=True)
+    path = _constructor_layout_path(job_dir)
+    _save_json(path, layout)
+    return path
+
+
 def _load_job_meta(job_dir: str) -> Dict | None:
     path = _meta_path(job_dir)
     if not os.path.exists(path):
@@ -182,6 +225,216 @@ def _load_job_meta(job_dir: str) -> Dict | None:
 
 def _post_editor_enabled() -> bool:
     return bool(current_app.config.get("ENABLE_POST_EDITOR", False))
+
+
+def _parse_constructor_payload() -> tuple[str | None, Dict | None]:
+    payload = request.get_json(silent=True) or {}
+    job_id = request.form.get("job_id") or payload.get("job_id")
+    raw_layout = request.form.get("layout_json") or payload.get("layout_json")
+    layout = None
+    if raw_layout:
+        try:
+            layout = json.loads(raw_layout) if isinstance(raw_layout, str) else raw_layout
+        except json.JSONDecodeError:
+            layout = None
+    return job_id, layout
+
+
+# --- Editor visual IA (montaje offset) ---
+
+
+def _load_or_init_constructor_layout(job_id: str) -> tuple[str, Dict]:
+    job_dir = _constructor_job_dir(job_id)
+    layout = _load_constructor_layout(job_dir)
+    if layout is None:
+        layout = _default_constructor_layout()
+        _save_constructor_layout(job_dir, layout)
+    return job_dir, layout
+
+
+@routes_bp.route("/editor_offset_visual", methods=["GET"])
+def editor_offset_visual():
+    job_id_param = request.args.get("job_id")
+    job_id = _safe_job_id(job_id_param) or uuid.uuid4().hex[:12]
+    job_dir, layout = _load_or_init_constructor_layout(job_id)
+    layout_json = json.dumps(layout)
+    return render_template(
+        "editor_offset_visual.html",
+        job_id=job_id,
+        layout_json=layout_json,
+    )
+
+
+@routes_bp.route("/editor_offset/save", methods=["POST"])
+def editor_offset_save():
+    job_id_raw, layout = _parse_constructor_payload()
+    job_id = _safe_job_id(job_id_raw)
+    if not job_id:
+        return _json_error("job_id inválido")
+    if layout is None:
+        return _json_error("layout_json faltante")
+    job_dir = _constructor_job_dir(job_id)
+    _save_constructor_layout(job_dir, layout)
+    return jsonify({"ok": True, "job_id": job_id})
+
+
+@routes_bp.route("/editor_offset/upload/<job_id>", methods=["POST"])
+def editor_offset_upload(job_id: str):
+    safe_job_id = _safe_job_id(job_id)
+    if not safe_job_id:
+        return _json_error("job_id inválido")
+    job_dir, layout = _load_or_init_constructor_layout(safe_job_id)
+    files = request.files.getlist("files") or request.files.getlist("file")
+    if not files:
+        return _json_error("No se enviaron PDFs")
+
+    designs = layout.get("designs", [])
+
+    def _next_ref() -> str:
+        prefix = "file"
+        max_idx = -1
+        for d in designs:
+            ref = str(d.get("ref", ""))
+            if ref.startswith(prefix):
+                try:
+                    idx = int(ref[len(prefix) :])
+                    max_idx = max(max_idx, idx)
+                except ValueError:
+                    continue
+        return f"{prefix}{max_idx + 1}"
+
+    for file_storage in files:
+        filename = secure_filename(file_storage.filename)
+        if not filename:
+            continue
+        os.makedirs(job_dir, exist_ok=True)
+        dest = os.path.join(job_dir, filename)
+        file_storage.save(dest)
+        new_ref = _next_ref()
+        designs.append(
+            {
+                "ref": new_ref,
+                "filename": filename,
+                "work_id": request.form.get("work_id"),
+            }
+        )
+
+    layout["designs"] = designs
+    _save_constructor_layout(job_dir, layout)
+    return jsonify({"designs": designs})
+
+
+def _build_fake_pdf(path: str, size_mm: tuple[float, float]) -> None:
+    from reportlab.pdfgen import canvas as rl_canvas
+
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    w_pt = size_mm[0] * mm
+    h_pt = size_mm[1] * mm
+    c = rl_canvas.Canvas(path, pagesize=(w_pt, h_pt))
+    c.setAuthor("editor_offset_visual")
+    c.rect(5, 5, w_pt - 10, h_pt - 10, stroke=1, fill=0)
+    c.save()
+
+
+def _generate_slots_with_ai(layout: Dict, job_dir: str) -> Dict:
+    works = layout.get("works", [])
+    if not works:
+        return layout
+
+    diseno_objs: List[Diseno] = []
+    pdf_meta: List[tuple[float, float, float, str | None]] = []
+    for idx, work in enumerate(works):
+        bleed = work.get("default_bleed_mm", layout.get("bleed_default_mm", 0)) or 0
+        final_w, final_h = work.get("final_size_mm", [0, 0])
+        pdf_w = float(final_w) + 2 * float(bleed)
+        pdf_h = float(final_h) + 2 * float(bleed)
+        pdf_path = os.path.join(job_dir, f"work_{idx}.pdf")
+        _build_fake_pdf(pdf_path, (pdf_w, pdf_h))
+        copias = int(work.get("desired_copies") or 1)
+        diseno_objs.append(Diseno(ruta=pdf_path, cantidad=max(1, copias)))
+        pdf_meta.append((pdf_w, pdf_h, float(bleed), work.get("id")))
+
+    margin_left, margin_right, margin_top, margin_bottom = layout.get("margins_mm", [10, 10, 10, 10])
+    config = MontajeConfig(
+        tamano_pliego=tuple(layout.get("sheet_mm", [640, 880])),
+        separacion=layout.get("gap_default_mm", 5),
+        margen_izquierdo=margin_left,
+        margen_derecho=margin_right,
+        margen_superior=margin_top,
+        margen_inferior=margin_bottom,
+        sangrado=0,
+        cutmarks_por_forma=False,
+        estrategia="auto",
+        es_pdf_final=False,
+        preview_path=os.path.join(job_dir, "auto_preview.png"),
+        devolver_posiciones=True,
+    )
+
+    res = realizar_montaje_inteligente(diseno_objs, config)
+    positions = []
+    if isinstance(res, dict):
+        positions = res.get("positions") or []
+
+    slots = []
+    for idx, pos in enumerate(positions):
+        file_idx = int(pos.get("file_idx", 0))
+        if file_idx < 0 or file_idx >= len(pdf_meta):
+            continue
+        pdf_w, pdf_h, bleed, work_id = pdf_meta[file_idx]
+        slots.append(
+            {
+                "id": f"s{idx}",
+                "x_mm": float(pos.get("x_mm", pos.get("x", 0))),
+                "y_mm": float(pos.get("y_mm", pos.get("y", 0))),
+                "w_mm": pdf_w,
+                "h_mm": pdf_h,
+                "rotation_deg": int(pos.get("rot_deg", 0)) % 360,
+                "logical_work_id": work_id,
+                "bleed_mm": bleed,
+                "crop_marks": True,
+                "locked": False,
+                "design_ref": None,
+            }
+        )
+
+    if slots:
+        layout["slots"] = slots
+    _save_constructor_layout(job_dir, layout)
+    return layout
+
+
+@routes_bp.route("/editor_offset/auto_layout/<job_id>", methods=["POST"])
+def editor_offset_auto_layout(job_id: str):
+    safe_job_id = _safe_job_id(job_id)
+    if not safe_job_id:
+        return _json_error("job_id inválido")
+    payload_layout = (_parse_constructor_payload()[1])
+    job_dir = _constructor_job_dir(safe_job_id)
+    layout = payload_layout or _load_constructor_layout(job_dir) or _default_constructor_layout()
+    updated = _generate_slots_with_ai(layout, job_dir)
+    return jsonify({"ok": True, "layout": updated})
+
+
+@routes_bp.route("/editor_offset/preview/<job_id>", methods=["POST"])
+def editor_offset_preview(job_id: str):
+    safe_job_id = _safe_job_id(job_id)
+    if not safe_job_id:
+        return _json_error("job_id inválido")
+    job_dir, layout = _load_or_init_constructor_layout(safe_job_id)
+    preview_path = montar_offset_desde_layout(layout, job_dir, preview=True)
+    rel = os.path.relpath(preview_path, current_app.static_folder).replace("\\", "/")
+    return jsonify({"ok": True, "url": url_for("static", filename=rel)})
+
+
+@routes_bp.route("/editor_offset/generar_pdf/<job_id>", methods=["POST"])
+def editor_offset_generar_pdf(job_id: str):
+    safe_job_id = _safe_job_id(job_id)
+    if not safe_job_id:
+        return _json_error("job_id inválido")
+    job_dir, layout = _load_or_init_constructor_layout(safe_job_id)
+    pdf_path = montar_offset_desde_layout(layout, job_dir, preview=False)
+    rel = os.path.relpath(pdf_path, current_app.static_folder).replace("\\", "/")
+    return jsonify({"ok": True, "url": url_for("static", filename=rel)})
 
 
 def call_openai_for_editor_chat(user_message: str, layout_state: Dict, job_id: str) -> Dict:

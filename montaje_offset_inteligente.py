@@ -1272,7 +1272,7 @@ def montar_pliego_offset_inteligente(
             x_trim_pt + w_trim_pt + bleed_pt + eps_pt,
             y_trim_pt + h_trim_pt + bleed_pt + eps_pt,
         )
-        if cutmarks_por_forma and bleed_eff > 0:
+        if cutmarks_por_forma and bleed_eff > 0 and pos.get("crop_marks", True):
             draw_cutmarks_around_form_reportlab(
                 canvas=c,
                 x_pt=x_trim_pt,
@@ -1367,4 +1367,118 @@ def montar_pliego_offset_inteligente(
             "sheet_mm": {"w": float(ancho_pliego), "h": float(alto_pliego)},
         }
 
+    return output_path
+
+
+def _sanitize_slot_bleed(slot: dict, work: dict | None, bleed_default: float) -> float:
+    bleed_val = slot.get("bleed_mm")
+    if bleed_val is None:
+        bleed_val = work.get("default_bleed_mm") if work else None
+    if bleed_val is None:
+        bleed_val = bleed_default
+    try:
+        return float(bleed_val)
+    except (TypeError, ValueError):
+        return float(bleed_default)
+
+
+def montar_offset_desde_layout(layout_data, job_dir, preview: bool = False):
+    """
+    layout_data viene del layout_constructor.json.
+    job_dir es la carpeta static/constructor_offset_jobs/<job_id>/.
+    Si preview=True: genera un PNG y devuelve su ruta.
+    Si preview=False: genera un PDF final y devuelve su ruta.
+    """
+
+    if layout_data is None:
+        raise ValueError("layout_data es requerido")
+
+    sheet_mm = layout_data.get("sheet_mm", [640, 880])
+    margins = layout_data.get("margins_mm", [10, 10, 10, 10])
+    bleed_default = float(layout_data.get("bleed_default_mm", 0) or 0)
+    gap_default = layout_data.get("gap_default_mm", 0)
+
+    designs = layout_data.get("designs", []) or []
+    works = {w.get("id"): w for w in (layout_data.get("works", []) or [])}
+    ref_to_idx: Dict[str, int] = {}
+    disenos: List[Diseno] = []
+
+    for d in designs:
+        filename = d.get("filename")
+        ref = d.get("ref")
+        if not filename or not ref:
+            continue
+        ruta_pdf = os.path.join(job_dir, filename)
+        if not os.path.exists(ruta_pdf):
+            continue
+        ref_to_idx[str(ref)] = len(disenos)
+        disenos.append(Diseno(ruta=ruta_pdf, cantidad=1))
+
+    posiciones_manual: List[dict] = []
+    any_crop = False
+    for slot in layout_data.get("slots", []) or []:
+        ref = slot.get("design_ref")
+        if not ref or ref not in ref_to_idx:
+            continue
+        work = works.get(slot.get("logical_work_id"))
+        bleed_val = _sanitize_slot_bleed(slot, work, bleed_default)
+        w_mm = float(slot.get("w_mm", 0))
+        h_mm = float(slot.get("h_mm", 0))
+        trim_w = w_mm - 2 * bleed_val if w_mm else 0
+        trim_h = h_mm - 2 * bleed_val if h_mm else 0
+        if trim_w <= 0:
+            trim_w = max(1.0, w_mm)
+        if trim_h <= 0:
+            trim_h = max(1.0, h_mm)
+        crop_flag = bool(slot.get("crop_marks", False))
+        any_crop = any_crop or crop_flag
+        posiciones_manual.append(
+            {
+                "file_idx": ref_to_idx[ref],
+                "x_mm": float(slot.get("x_mm", slot.get("x", 0))),
+                "y_mm": float(slot.get("y_mm", slot.get("y", 0))),
+                "w_mm": trim_w,
+                "h_mm": trim_h,
+                "rot_deg": int(slot.get("rotation_deg", slot.get("rot_deg", 0)) or 0),
+                "bleed_mm": bleed_val,
+                "crop_marks": crop_flag,
+            }
+        )
+
+    margin_left, margin_right, margin_top, margin_bottom = margins if len(margins) == 4 else (10, 10, 10, 10)
+    preview_path = os.path.join(job_dir, "preview.png") if preview else None
+    output_path = os.path.join(job_dir, "montaje_final.pdf")
+
+    config = MontajeConfig(
+        tamano_pliego=tuple(sheet_mm),
+        separacion=gap_default,
+        margen_izquierdo=margin_left,
+        margen_derecho=margin_right,
+        margen_superior=margin_top,
+        margen_inferior=margin_bottom,
+        sangrado=bleed_default,
+        cutmarks_por_forma=any_crop,
+        posiciones_manual=posiciones_manual,
+        modo_manual=True,
+        estrategia="manual",
+        es_pdf_final=not preview,
+        preview_path=preview_path,
+        output_path=output_path,
+    )
+
+    if not disenos:
+        # No hay diseños asignados; solo devuelve la ruta esperada
+        if preview:
+            return preview_path
+        return output_path
+
+    res = realizar_montaje_inteligente(disenos, config)
+    if preview:
+        if isinstance(res, dict):
+            return res.get("preview_path", preview_path)
+        return preview_path
+    if isinstance(res, str):
+        return res
+    if isinstance(res, dict):
+        return res.get("output_path", output_path)
     return output_path
