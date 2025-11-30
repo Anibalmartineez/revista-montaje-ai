@@ -95,6 +95,16 @@
       </section>
 
       <section class="panel-block">
+        <h2>Separación entre slots</h2>
+        <div class="grid-2">
+          <label>gap_x (mm) <input type="number" id="gap-x" step="0.1" value="0"></label>
+          <label>gap_y (mm) <input type="number" id="gap-y" step="0.1" value="0"></label>
+        </div>
+        <button id="btn-apply-gap" class="btn btn-secondary">Aplicar separación</button>
+        <p class="muted">Si hay 2+ slots seleccionados, la separación se aplica solo a ellos. Sin selección, afecta a todos los slots.</p>
+      </section>
+
+      <section class="panel-block">
         <h2>Diseños (PDF)</h2>
         <form id="upload-form">
           <label for="design-work-select" class="muted">Asignar PDFs al trabajo lógico (opcional)</label>

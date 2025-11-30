@@ -310,6 +310,75 @@
     renderSlotForm();
   }
 
+  function groupSlotsByRow(slots) {
+    const margin = 2; // tolerancia extra en mm
+    const rows = [];
+    const byCenterY = [...slots].sort(
+      (a, b) => a.y_mm + a.h_mm / 2 - (b.y_mm + b.h_mm / 2),
+    );
+
+    byCenterY.forEach((slot) => {
+      const centerY = slot.y_mm + slot.h_mm / 2;
+      let targetRow = rows.find(
+        (row) => Math.abs(row.centerY - centerY) <= (Math.max(row.maxHeight, slot.h_mm) / 2 + margin),
+      );
+      if (!targetRow) {
+        targetRow = { slots: [], centerY, maxHeight: slot.h_mm };
+        rows.push(targetRow);
+      }
+      targetRow.slots.push(slot);
+      targetRow.centerY =
+        (targetRow.centerY * (targetRow.slots.length - 1) + centerY) / targetRow.slots.length;
+      targetRow.maxHeight = Math.max(targetRow.maxHeight, slot.h_mm);
+    });
+
+    rows.sort((a, b) => a.centerY - b.centerY);
+    rows.forEach((row) => row.slots.sort((a, b) => a.x_mm - b.x_mm));
+    return rows;
+  }
+
+  function applyGapToSlots() {
+    if (!state.layout.slots || state.layout.slots.length === 0) {
+      alert('No hay slots para reordenar.');
+      return;
+    }
+
+    const selectedIds = state.selectedSlots ? Array.from(state.selectedSlots) : [];
+    const targetSlots =
+      selectedIds.length >= 2
+        ? state.layout.slots.filter((s) => selectedIds.includes(s.id))
+        : selectedIds.length === 0
+        ? [...state.layout.slots]
+        : null;
+
+    if (!targetSlots) {
+      alert('Selecciona al menos 2 slots o ninguno para aplicar la separación.');
+      return;
+    }
+
+    const gapX = parseFloat(document.getElementById('gap-x').value || '0');
+    const gapY = parseFloat(document.getElementById('gap-y').value || '0');
+
+    const startX = Math.min(...targetSlots.map((s) => s.x_mm));
+    const startY = Math.min(...targetSlots.map((s) => s.y_mm));
+
+    const rows = groupSlotsByRow(targetSlots);
+    let currentY = startY;
+
+    rows.forEach((row) => {
+      let currentX = startX;
+      row.slots.forEach((slot) => {
+        slot.x_mm = currentX;
+        slot.y_mm = currentY;
+        currentX += slot.w_mm + gapX;
+      });
+      currentY += row.maxHeight + gapY;
+    });
+
+    renderSheet();
+    renderSlotForm();
+  }
+
   function onSlotMouseDown(ev, slot) {
     if (slot.locked) return;
     const target = ev.target;
@@ -500,6 +569,7 @@
     document.getElementById('btn-preview').addEventListener('click', requestPreview);
     document.getElementById('btn-pdf').addEventListener('click', requestPdf);
     document.getElementById('btn-auto').addEventListener('click', requestAutoLayout);
+    document.getElementById('btn-apply-gap').addEventListener('click', applyGapToSlots);
     document.getElementById('btn-new-work').addEventListener('click', newWork);
     document.getElementById('btn-save-work').addEventListener('click', saveWork);
     document.getElementById('btn-delete-work').addEventListener('click', deleteWork);
