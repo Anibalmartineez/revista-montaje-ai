@@ -17,6 +17,18 @@
     selectedSlot: null,
     selectedSlots: new Set(),
     selectedWork: null,
+    snapSettings: {
+      snapSlots: true,
+      snapMargins: true,
+      snapGrid: true,
+      tolerance_mm: 3,
+      grid_mm: 5,
+    },
+    spacingSettings: {
+      spacingX_mm: 4,
+      spacingY_mm: 3,
+      live: true,
+    },
   };
 
   const history = {
@@ -56,6 +68,16 @@
     if (state.layout.bleed_default_mm === undefined) {
       state.layout.bleed_default_mm = 3;
     }
+    state.snapSettings = {
+      ...state.snapSettings,
+      ...(state.layout.snapSettings || state.layout.snap_settings || {}),
+    };
+    state.spacingSettings = {
+      ...state.spacingSettings,
+      ...(state.layout.spacingSettings || state.layout.spacing_settings || {}),
+    };
+    state.layout.snapSettings = { ...state.snapSettings };
+    state.layout.spacingSettings = { ...state.spacingSettings };
     normalizeLayoutFaces();
   }
 
@@ -95,12 +117,22 @@
     if (history.pointer <= 0) return;
     history.pointer -= 1;
     state.layout = JSON.parse(JSON.stringify(history.stack[history.pointer]));
+    state.snapSettings = {
+      ...state.snapSettings,
+      ...(state.layout.snapSettings || state.layout.snap_settings || {}),
+    };
+    state.spacingSettings = {
+      ...state.spacingSettings,
+      ...(state.layout.spacingSettings || state.layout.spacing_settings || {}),
+    };
     normalizeLayoutFaces();
     state.selectedSlot = null;
     state.selectedSlots = new Set();
     initSheetControls();
     renderWorks();
     renderDesigns();
+    renderSnapControls();
+    renderSpacingControls();
     recalcScale();
     renderSheet();
     renderSlotForm();
@@ -127,6 +159,53 @@
     state.scale = Math.max(scale, 0.2);
   }
 
+  function applySnap(x, y, slot) {
+    const tolerance = Number(state.snapSettings.tolerance_mm) || 0;
+    const grid = Number(state.snapSettings.grid_mm) || 1;
+    let snappedX = x;
+    let snappedY = y;
+
+    if (state.snapSettings.snapGrid && grid > 0) {
+      const nearestGridX = Math.round(x / grid) * grid;
+      const nearestGridY = Math.round(y / grid) * grid;
+      if (Math.abs(nearestGridX - x) <= tolerance) snappedX = nearestGridX;
+      if (Math.abs(nearestGridY - y) <= tolerance) snappedY = nearestGridY;
+    }
+
+    if (state.snapSettings.snapMargins && state.layout.sheet_mm) {
+      const [sheetW, sheetH] = state.layout.sheet_mm;
+      const margins = state.layout.margins_mm || [0, 0, 0, 0];
+      const [mLeft, mRight, mTop, mBottom] = margins;
+      const marginTargetsX = [0, mLeft, sheetW - slot.w_mm - mRight, sheetW - slot.w_mm];
+      const marginTargetsY = [0, mBottom, sheetH - slot.h_mm - mTop, sheetH - slot.h_mm];
+
+      marginTargetsX.forEach((targetX) => {
+        if (Math.abs(targetX - x) <= tolerance) snappedX = targetX;
+      });
+      marginTargetsY.forEach((targetY) => {
+        if (Math.abs(targetY - y) <= tolerance) snappedY = targetY;
+      });
+    }
+
+    if (state.snapSettings.snapSlots && state.layout.slots) {
+      const activeFace = slot.face || state.activeFace || 'front';
+      state.layout.slots.forEach((other) => {
+        if (other.id === slot.id) return;
+        if ((other.face || 'front') !== activeFace) return;
+        const edgesX = [other.x_mm, other.x_mm + other.w_mm];
+        const edgesY = [other.y_mm, other.y_mm + other.h_mm];
+        edgesX.forEach((edgeX) => {
+          if (Math.abs(edgeX - x) <= tolerance) snappedX = edgeX;
+        });
+        edgesY.forEach((edgeY) => {
+          if (Math.abs(edgeY - y) <= tolerance) snappedY = edgeY;
+        });
+      });
+    }
+
+    return { x: snappedX, y: snappedY };
+  }
+
   function applyZoom() {
     const sheet = document.getElementById('sheet');
     if (!sheet) return;
@@ -136,6 +215,69 @@
     if (label) {
       label.textContent = `${Math.round(state.zoom * 100)}%`;
     }
+  }
+
+  function syncSettingsToLayout() {
+    state.layout.snapSettings = { ...state.snapSettings };
+    state.layout.spacingSettings = { ...state.spacingSettings };
+  }
+
+  function renderSnapControls() {
+    const snapSlotsInput = document.getElementById('snap-slots');
+    const snapMarginsInput = document.getElementById('snap-margins');
+    const snapGridInput = document.getElementById('snap-grid');
+    const toleranceInput = document.getElementById('snap-tolerance');
+    if (snapSlotsInput) snapSlotsInput.checked = !!state.snapSettings.snapSlots;
+    if (snapMarginsInput) snapMarginsInput.checked = !!state.snapSettings.snapMargins;
+    if (snapGridInput) snapGridInput.checked = !!state.snapSettings.snapGrid;
+    if (toleranceInput) toleranceInput.value = state.snapSettings.tolerance_mm;
+  }
+
+  function updateSpacingLiveButton() {
+    const liveBtn = document.getElementById('btn-spacing-live');
+    if (!liveBtn) return;
+    liveBtn.textContent = state.spacingSettings.live ? 'LIVE ON' : 'LIVE OFF';
+    liveBtn.classList.toggle('btn-secondary', !!state.spacingSettings.live);
+  }
+
+  function renderSpacingControls() {
+    const spacingXInput = document.getElementById('spacing-x');
+    const spacingYInput = document.getElementById('spacing-y');
+    if (spacingXInput) spacingXInput.value = state.spacingSettings.spacingX_mm;
+    if (spacingYInput) spacingYInput.value = state.spacingSettings.spacingY_mm;
+    updateSpacingLiveButton();
+  }
+
+  function updateSnapSettingsFromUI() {
+    const snapSlotsInput = document.getElementById('snap-slots');
+    const snapMarginsInput = document.getElementById('snap-margins');
+    const snapGridInput = document.getElementById('snap-grid');
+    const toleranceInput = document.getElementById('snap-tolerance');
+    state.snapSettings.snapSlots = snapSlotsInput ? snapSlotsInput.checked : state.snapSettings.snapSlots;
+    state.snapSettings.snapMargins = snapMarginsInput ? snapMarginsInput.checked : state.snapSettings.snapMargins;
+    state.snapSettings.snapGrid = snapGridInput ? snapGridInput.checked : state.snapSettings.snapGrid;
+    state.snapSettings.tolerance_mm = toleranceInput
+      ? parseFloat(toleranceInput.value || state.snapSettings.tolerance_mm)
+      : state.snapSettings.tolerance_mm;
+    syncSettingsToLayout();
+  }
+
+  function updateSpacingSettingsFromUI() {
+    const spacingXInput = document.getElementById('spacing-x');
+    const spacingYInput = document.getElementById('spacing-y');
+    state.spacingSettings.spacingX_mm = spacingXInput
+      ? parseFloat(spacingXInput.value || state.spacingSettings.spacingX_mm)
+      : state.spacingSettings.spacingX_mm;
+    state.spacingSettings.spacingY_mm = spacingYInput
+      ? parseFloat(spacingYInput.value || state.spacingSettings.spacingY_mm)
+      : state.spacingSettings.spacingY_mm;
+    syncSettingsToLayout();
+  }
+
+  function toggleLiveSpacing() {
+    state.spacingSettings.live = !state.spacingSettings.live;
+    syncSettingsToLayout();
+    updateSpacingLiveButton();
   }
 
   function clearChildren(el) {
@@ -505,6 +647,33 @@
     return rows;
   }
 
+  function groupSlotsByColumn(slots) {
+    const margin = 2;
+    const cols = [];
+    const byCenterX = [...slots].sort(
+      (a, b) => a.x_mm + a.w_mm / 2 - (b.x_mm + b.w_mm / 2),
+    );
+
+    byCenterX.forEach((slot) => {
+      const centerX = slot.x_mm + slot.w_mm / 2;
+      let targetCol = cols.find(
+        (col) => Math.abs(col.centerX - centerX) <= (Math.max(col.maxWidth, slot.w_mm) / 2 + margin),
+      );
+      if (!targetCol) {
+        targetCol = { slots: [], centerX, maxWidth: slot.w_mm };
+        cols.push(targetCol);
+      }
+      targetCol.slots.push(slot);
+      targetCol.centerX =
+        (targetCol.centerX * (targetCol.slots.length - 1) + centerX) / targetCol.slots.length;
+      targetCol.maxWidth = Math.max(targetCol.maxWidth, slot.w_mm);
+    });
+
+    cols.sort((a, b) => a.centerX - b.centerX);
+    cols.forEach((col) => col.slots.sort((a, b) => a.y_mm - b.y_mm));
+    return cols;
+  }
+
   function applyGapToSlots() {
     if (!state.layout.slots || state.layout.slots.length === 0) {
       alert('No hay slots para reordenar.');
@@ -546,6 +715,81 @@
     renderSheet();
     renderSlotForm();
     pushHistory();
+  }
+
+  function applySpacing(mode = 'all', opts = {}) {
+    const { render = true, push = false, face = state.activeFace || 'front' } = opts;
+    const spacingX = Number(state.spacingSettings.spacingX_mm) || 0;
+    const spacingY = Number(state.spacingSettings.spacingY_mm) || 0;
+    const visibleSlots = state.layout.slots.filter((s) => (s.face || 'front') === face);
+    if (!visibleSlots.length) return false;
+
+    const createInitialMap = () => {
+      const map = new Map();
+      state.layout.slots.forEach((s) => map.set(s.id, { x: s.x_mm, y: s.y_mm }));
+      return map;
+    };
+
+    const moveGroup = (slot, dx, dy, initialMap, movedGroups) => {
+      if (!slot.group_id || movedGroups.has(slot.group_id)) return;
+      const faceKey = slot.face || face;
+      const members = state.layout.slots.filter(
+        (s) => s.group_id === slot.group_id && (s.face || 'front') === faceKey,
+      );
+      members.forEach((member) => {
+        const init = initialMap.get(member.id) || { x: member.x_mm, y: member.y_mm };
+        member.x_mm = init.x + dx;
+        member.y_mm = init.y + dy;
+      });
+      movedGroups.add(slot.group_id);
+    };
+
+    if (mode === 'all' || mode === 'rows') {
+      const initialMap = createInitialMap();
+      const movedGroups = new Set();
+      const rows = groupSlotsByRow(visibleSlots);
+      rows.forEach((row) => {
+        let currentX = row.slots[0].x_mm;
+        row.slots.forEach((slot, index) => {
+          if (index === 0) {
+            moveGroup(slot, 0, 0, initialMap, movedGroups);
+            return;
+          }
+          const prev = row.slots[index - 1];
+          currentX = prev.x_mm + prev.w_mm + spacingX;
+          const dx = currentX - slot.x_mm;
+          slot.x_mm = currentX;
+          moveGroup(slot, dx, 0, initialMap, movedGroups);
+        });
+      });
+    }
+
+    if (mode === 'all' || mode === 'columns') {
+      const initialMap = createInitialMap();
+      const movedGroups = new Set();
+      const cols = groupSlotsByColumn(visibleSlots);
+      cols.forEach((col) => {
+        let currentY = col.slots[0].y_mm;
+        col.slots.forEach((slot, index) => {
+          if (index === 0) {
+            moveGroup(slot, 0, 0, initialMap, movedGroups);
+            return;
+          }
+          const prev = col.slots[index - 1];
+          currentY = prev.y_mm + prev.h_mm + spacingY;
+          const dy = currentY - slot.y_mm;
+          slot.y_mm = currentY;
+          moveGroup(slot, 0, dy, initialMap, movedGroups);
+        });
+      });
+    }
+
+    if (render) {
+      renderSheet();
+      renderSlotForm();
+    }
+    if (push) pushHistory();
+    return true;
   }
 
   async function generateStepRepeatFromSelectedSlot() {
@@ -713,15 +957,22 @@
 
       if (!isHandle) {
         if (isGroupMove) {
+          const snapped = applySnap(initSlot.x_mm + dx, initSlot.y_mm + dy, slot);
+          const deltaX = snapped.x - initSlot.x_mm;
+          const deltaY = snapped.y - initSlot.y_mm;
           groupSlots.forEach((s) => {
             const initPos = groupInitialPositions.get(s.id);
             if (!initPos) return;
-            s.x_mm = initPos.x + dx;
-            s.y_mm = initPos.y + dy;
+            s.x_mm = initPos.x + deltaX;
+            s.y_mm = initPos.y + deltaY;
           });
         } else {
-          slot.x_mm = initSlot.x_mm + dx;
-          slot.y_mm = initSlot.y_mm + dy;
+          const snapped = applySnap(initSlot.x_mm + dx, initSlot.y_mm + dy, slot);
+          slot.x_mm = snapped.x;
+          slot.y_mm = snapped.y;
+        }
+        if (state.spacingSettings.live) {
+          applySpacing('all', { render: false, push: false, face: slot.face || state.activeFace });
         }
       } else {
         if (handleType.includes('b')) {
@@ -834,6 +1085,7 @@
 
   function layoutToJson() {
     normalizeLayoutFaces();
+    syncSettingsToLayout();
     return JSON.stringify(state.layout);
   }
 
@@ -927,6 +1179,8 @@
     renderSheet();
     renderFaceToggle();
     renderDesigns();
+    renderSnapControls();
+    renderSpacingControls();
     fillWorkForm(state.layout.works[0]);
     applyZoom();
     document.getElementById('btn-new-slot').addEventListener('click', addSlot);
@@ -941,6 +1195,28 @@
     document.getElementById('btn-pdf').addEventListener('click', requestPdf);
     document.getElementById('btn-auto').addEventListener('click', requestAutoLayout);
     document.getElementById('btn-apply-gap').addEventListener('click', applyGapToSlots);
+    document.getElementById('snap-slots')?.addEventListener('change', updateSnapSettingsFromUI);
+    document.getElementById('snap-margins')?.addEventListener('change', updateSnapSettingsFromUI);
+    document.getElementById('snap-grid')?.addEventListener('change', updateSnapSettingsFromUI);
+    document.getElementById('snap-tolerance')?.addEventListener('input', updateSnapSettingsFromUI);
+    document.getElementById('spacing-x')?.addEventListener('change', updateSpacingSettingsFromUI);
+    document.getElementById('spacing-y')?.addEventListener('change', updateSpacingSettingsFromUI);
+    document.getElementById('btn-spacing-apply-all')?.addEventListener('click', () => {
+      updateSpacingSettingsFromUI();
+      applySpacing('all', { push: true });
+    });
+    document.getElementById('btn-spacing-rows')?.addEventListener('click', () => {
+      updateSpacingSettingsFromUI();
+      applySpacing('rows', { push: true });
+    });
+    document.getElementById('btn-spacing-cols')?.addEventListener('click', () => {
+      updateSpacingSettingsFromUI();
+      applySpacing('columns', { push: true });
+    });
+    document.getElementById('btn-spacing-live')?.addEventListener('click', () => {
+      toggleLiveSpacing();
+      syncSettingsToLayout();
+    });
     document.getElementById('face-front')?.addEventListener('change', () => setActiveFace('front'));
     document.getElementById('face-back')?.addEventListener('change', () => setActiveFace('back'));
     document.getElementById('btn-duplicate-face')?.addEventListener('click', () => duplicateFrontToBack());

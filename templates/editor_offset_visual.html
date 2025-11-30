@@ -39,6 +39,33 @@
           <button id="btn-duplicate-face" class="btn btn-secondary" type="button">Duplicar pliego a dorso</button>
         </div>
       </div>
+      <div class="sheet-subtoolbar">
+        <div class="control-block">
+          <strong>Snap:</strong>
+          <label><input type="checkbox" id="snap-slots"> Slots</label>
+          <label><input type="checkbox" id="snap-margins"> Márgenes</label>
+          <label><input type="checkbox" id="snap-grid"> Grid 5mm</label>
+          <label class="inline-input">Sensibilidad
+            <input type="number" id="snap-tolerance" step="0.1" min="0" value="3">
+            <span class="unit">mm</span>
+          </label>
+        </div>
+        <div class="control-block spacing-controls">
+          <strong>Espaciado:</strong>
+          <label class="inline-input">Horizontal
+            <input type="number" id="spacing-x" step="0.1" value="4">
+            <span class="unit">mm</span>
+          </label>
+          <label class="inline-input">Vertical
+            <input type="number" id="spacing-y" step="0.1" value="3">
+            <span class="unit">mm</span>
+          </label>
+          <button id="btn-spacing-apply-all" class="btn btn-secondary btn-small" type="button">Aplicar a todos</button>
+          <button id="btn-spacing-rows" class="btn btn-small" type="button">Solo filas</button>
+          <button id="btn-spacing-cols" class="btn btn-small" type="button">Solo columnas</button>
+          <button id="btn-spacing-live" class="btn btn-small" type="button">LIVE ON</button>
+        </div>
+      </div>
       <div class="zoom-controls">
         <button type="button" id="zoom-out" class="btn btn-small">-</button>
         <span id="zoom-label" class="muted">100%</span>
