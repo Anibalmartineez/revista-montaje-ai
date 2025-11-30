@@ -12,9 +12,16 @@
   const state = {
     layout: {},
     scale: 1,
+    zoom: 1,
     selectedSlot: null,
     selectedSlots: new Set(),
     selectedWork: null,
+  };
+
+  const history = {
+    stack: [],
+    pointer: -1,
+    maxSize: 50,
   };
 
   function getSelectedSlot() {
@@ -50,6 +57,32 @@
     }
   }
 
+  function pushHistory() {
+    if (!state.layout) return;
+    const snapshot = JSON.parse(JSON.stringify(state.layout));
+    if (history.pointer < history.stack.length - 1) {
+      history.stack = history.stack.slice(0, history.pointer + 1);
+    }
+    history.stack.push(snapshot);
+    if (history.stack.length > history.maxSize) {
+      history.stack.shift();
+    }
+    history.pointer = history.stack.length - 1;
+  }
+
+  function undoHistory() {
+    if (history.pointer <= 0) return;
+    history.pointer -= 1;
+    state.layout = JSON.parse(JSON.stringify(history.stack[history.pointer]));
+    state.selectedSlot = null;
+    state.selectedSlots = new Set();
+    initSheetControls();
+    renderWorks();
+    renderDesigns();
+    renderSheet();
+    renderSlotForm();
+  }
+
   function mmToPx(mm) {
     return mm * state.scale;
   }
@@ -62,8 +95,30 @@
     state.scale = Math.max(scale, 0.2);
   }
 
+  function applyZoom() {
+    const sheet = document.getElementById('sheet');
+    if (!sheet) return;
+    sheet.style.transformOrigin = 'top left';
+    sheet.style.transform = `scale(${state.zoom})`;
+    const label = document.getElementById('zoom-label');
+    if (label) {
+      label.textContent = `${Math.round(state.zoom * 100)}%`;
+    }
+  }
+
   function clearChildren(el) {
     while (el.firstChild) el.removeChild(el.firstChild);
+  }
+
+  function initSheetControls() {
+    const layout = state.layout;
+    if (!layout.sheet_mm) {
+      layout.sheet_mm = [640, 880];
+    }
+    const sheetWInput = document.getElementById('sheet-w');
+    const sheetHInput = document.getElementById('sheet-h');
+    if (sheetWInput) sheetWInput.value = layout.sheet_mm[0];
+    if (sheetHInput) sheetHInput.value = layout.sheet_mm[1];
   }
 
   function renderSheet() {
@@ -103,6 +158,7 @@
       });
       sheetEl.appendChild(slotEl);
     });
+    applyZoom();
   }
 
   function selectSlot(id, opts = {}) {
@@ -237,6 +293,7 @@
     state.selectedWork = work;
     renderWorks();
     fillWorkForm(work);
+    pushHistory();
   }
 
   function saveWork() {
@@ -251,6 +308,7 @@
     w.default_bleed_mm = parseFloat(document.getElementById('work-bleed').value || '0');
     w.has_bleed = document.getElementById('work-has-bleed').checked;
     renderWorks();
+    pushHistory();
   }
 
   function deleteWork() {
@@ -266,6 +324,7 @@
     state.selectedWork = null;
     fillWorkForm(null);
     renderWorks();
+    pushHistory();
   }
 
   function renderDesigns() {
@@ -297,6 +356,7 @@
       design_ref: null,
     };
     state.layout.slots.push(slot);
+    pushHistory();
     selectSlot(slot.id);
   }
 
@@ -307,6 +367,7 @@
     copy.x_mm += 5;
     copy.y_mm += 5;
     state.layout.slots.push(copy);
+    pushHistory();
     selectSlot(copy.id);
   }
 
@@ -315,6 +376,7 @@
     state.layout.slots = state.layout.slots.filter((s) => s.id !== state.selectedSlot.id);
     state.selectedSlot = null;
     state.selectedSlots = new Set();
+    pushHistory();
     renderSheet();
     renderSlotForm();
   }
@@ -386,6 +448,7 @@
 
     renderSheet();
     renderSlotForm();
+    pushHistory();
   }
 
   async function generateStepRepeatFromSelectedSlot() {
@@ -514,6 +577,7 @@
     state.layout.slots = state.layout.slots.concat(newSlots);
     renderSheet();
     renderSlotForm();
+    pushHistory();
     selectSlot(master.id);
   }
 
@@ -524,6 +588,7 @@
     const startX = ev.clientX;
     const startY = ev.clientY;
     const initSlot = { ...slot };
+    let moved = false;
     const handleType = isHandle ? [...target.classList].find((c) => ['br', 'bl', 'tr', 'tl'].includes(c)) : null;
     const isGroupMove = !isHandle && slot.group_id;
     const groupSlots = isGroupMove
@@ -540,8 +605,9 @@
       moveEv.preventDefault();
       const dxPx = moveEv.clientX - startX;
       const dyPx = startY - moveEv.clientY; // invert because bottom reference
-      const dx = dxPx / state.scale;
-      const dy = dyPx / state.scale;
+      const effectiveScale = state.scale * state.zoom;
+      const dx = dxPx / effectiveScale;
+      const dy = dyPx / effectiveScale;
 
       if (!isHandle) {
         if (isGroupMove) {
@@ -573,6 +639,7 @@
           slot.x_mm = initSlot.x_mm + dx;
         }
       }
+      moved = true;
       renderSheet();
       renderSlotForm();
     }
@@ -580,6 +647,9 @@
     function onUp() {
       document.removeEventListener('mousemove', onMove);
       document.removeEventListener('mouseup', onUp);
+      if (moved) {
+        pushHistory();
+      }
     }
 
     document.addEventListener('mousemove', onMove);
@@ -600,6 +670,7 @@
     slot.logical_work_id = document.getElementById('slot-work').value || null;
     slot.design_ref = document.getElementById('slot-design').value || null;
     renderSheet();
+    pushHistory();
   }
 
   function applyDesignToSelected() {
@@ -618,6 +689,7 @@
         state.selectedSlot.design_ref = designRef;
         renderSheet();
         renderSlotForm();
+        pushHistory();
       } else {
         alert('No hay slots seleccionados.');
       }
@@ -632,6 +704,7 @@
 
     renderSheet();
     renderSlotForm();
+    pushHistory();
   }
 
   function layoutToJson() {
@@ -664,6 +737,8 @@
       renderWorks();
       renderDesigns();
       renderSheet();
+      initSheetControls();
+      pushHistory();
     }
   }
 
@@ -710,15 +785,19 @@
       state.layout.designs = data.designs;
       renderDesigns();
       filesInput.value = '';
+      pushHistory();
     }
   }
 
   async function init() {
     parseInitialLayout();
+    initSheetControls();
+    pushHistory();
     renderWorks();
     renderSheet();
     renderDesigns();
     fillWorkForm(state.layout.works[0]);
+    applyZoom();
     document.getElementById('btn-new-slot').addEventListener('click', addSlot);
     document.getElementById('btn-dup-slot').addEventListener('click', duplicateSlot);
     document.getElementById('btn-del-slot').addEventListener('click', deleteSlot);
@@ -742,6 +821,62 @@
       stepRepeatBtn.addEventListener('click', generateStepRepeatFromSelectedSlot);
     }
     uploadForm.addEventListener('submit', uploadDesigns);
+    const zoomInBtn = document.getElementById('zoom-in');
+    const zoomOutBtn = document.getElementById('zoom-out');
+    if (zoomInBtn) {
+      zoomInBtn.addEventListener('click', () => {
+        state.zoom = Math.min(2.0, state.zoom + 0.1);
+        applyZoom();
+      });
+    }
+    if (zoomOutBtn) {
+      zoomOutBtn.addEventListener('click', () => {
+        state.zoom = Math.max(0.5, state.zoom - 0.1);
+        applyZoom();
+      });
+    }
+    if (sheetCanvas) {
+      sheetCanvas.addEventListener('wheel', (ev) => {
+        if (!ev.ctrlKey) return;
+        ev.preventDefault();
+        const delta = ev.deltaY < 0 ? 0.1 : -0.1;
+        state.zoom = Math.min(2.0, Math.max(0.5, state.zoom + delta));
+        applyZoom();
+      });
+    }
+    document.getElementById('sheet-w')?.addEventListener('change', () => {
+      const w = parseFloat(document.getElementById('sheet-w').value || '0');
+      if (w > 0) {
+        state.layout.sheet_mm[0] = w;
+        renderSheet();
+        applyZoom();
+        pushHistory();
+      }
+    });
+    document.getElementById('sheet-h')?.addEventListener('change', () => {
+      const h = parseFloat(document.getElementById('sheet-h').value || '0');
+      if (h > 0) {
+        state.layout.sheet_mm[1] = h;
+        renderSheet();
+        applyZoom();
+        pushHistory();
+      }
+    });
+    document.getElementById('sheet-preset')?.addEventListener('change', (ev) => {
+      const val = ev.target.value;
+      if (!val) return;
+      const [wStr, hStr] = val.split('x');
+      const w = parseFloat(wStr);
+      const h = parseFloat(hStr);
+      if (w > 0 && h > 0) {
+        state.layout.sheet_mm = [w, h];
+        document.getElementById('sheet-w').value = w;
+        document.getElementById('sheet-h').value = h;
+        renderSheet();
+        applyZoom();
+        pushHistory();
+      }
+    });
     document.addEventListener('click', (ev) => {
       if (ev.target === sheetCanvas || ev.target === sheetEl) {
         state.selectedSlot = null;
@@ -752,6 +887,12 @@
     });
     window.addEventListener('resize', () => {
       renderSheet();
+    });
+    document.addEventListener('keydown', (ev) => {
+      if ((ev.ctrlKey || ev.metaKey) && ev.key.toLowerCase() === 'z') {
+        ev.preventDefault();
+        undoHistory();
+      }
     });
   }
 

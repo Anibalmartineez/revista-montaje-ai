@@ -43,6 +43,12 @@ body {
   gap: 8px;
 }
 
+.zoom-controls {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
 .btn {
   padding: 8px 12px;
   border: none;
