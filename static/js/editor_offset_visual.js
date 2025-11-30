@@ -112,9 +112,17 @@
 
   function recalcScale() {
     const sheet = state.layout.sheet_mm || [640, 880];
-    const maxW = sheetCanvas.clientWidth - 20;
-    const maxH = Math.max(sheetCanvas.clientHeight - 20, 400);
+    const prevScale = state.scale || 1;
+    const maxW = Math.max((sheetCanvas?.clientWidth || 0) - 20, 0);
+    const maxH = Math.max(Math.max((sheetCanvas?.clientHeight || 0) - 20, 400), 0);
+    if (!maxW || !maxH || !sheet[0] || !sheet[1]) {
+      return;
+    }
     const scale = Math.min(maxW / sheet[0], maxH / sheet[1]);
+    if (!Number.isFinite(scale) || scale <= 0) {
+      state.scale = prevScale;
+      return;
+    }
     state.scale = Math.max(scale, 0.2);
   }
 
@@ -145,7 +153,6 @@
   }
 
   function renderSheet() {
-    recalcScale();
     const [sheetW, sheetH] = state.layout.sheet_mm;
     sheetEl.style.width = `${mmToPx(sheetW)}px`;
     sheetEl.style.height = `${mmToPx(sheetH)}px`;
@@ -429,6 +436,42 @@
     state.layout.slots = state.layout.slots.filter((s) => s.id !== state.selectedSlot.id);
     state.selectedSlot = null;
     state.selectedSlots = new Set();
+    pushHistory();
+    renderSheet();
+    renderSlotForm();
+  }
+
+  function groupSelectedSlots() {
+    if (!state.selectedSlots || state.selectedSlots.size < 2) {
+      alert('Seleccioná al menos dos slots para agrupar.');
+      return;
+    }
+
+    const groupId = `g${Date.now()}_${Math.floor(Math.random() * 1000)}`;
+
+    state.layout.slots.forEach((slot) => {
+      if (state.selectedSlots.has(slot.id)) {
+        slot.group_id = groupId;
+      }
+    });
+
+    pushHistory();
+    renderSheet();
+    renderSlotForm();
+  }
+
+  function ungroupSelectedSlots() {
+    if (!state.selectedSlots || state.selectedSlots.size === 0) {
+      alert('No hay slots seleccionados para desagrupar.');
+      return;
+    }
+
+    state.layout.slots.forEach((slot) => {
+      if (state.selectedSlots.has(slot.id)) {
+        delete slot.group_id;
+      }
+    });
+
     pushHistory();
     renderSheet();
     renderSlotForm();
@@ -876,6 +919,7 @@
   async function init() {
     parseInitialLayout();
     initSheetControls();
+    recalcScale();
     pushHistory();
     renderWorks();
     renderSheet();
@@ -886,6 +930,10 @@
     document.getElementById('btn-new-slot').addEventListener('click', addSlot);
     document.getElementById('btn-dup-slot').addEventListener('click', duplicateSlot);
     document.getElementById('btn-del-slot').addEventListener('click', deleteSlot);
+    document.getElementById('btn-group-slots')?.addEventListener('click', groupSelectedSlots);
+    document
+      .getElementById('btn-ungroup-slots')
+      ?.addEventListener('click', ungroupSelectedSlots);
     document.getElementById('btn-save').addEventListener('click', saveLayout);
     document.getElementById('btn-preview').addEventListener('click', requestPreview);
     document.getElementById('btn-pdf').addEventListener('click', requestPdf);
@@ -936,6 +984,7 @@
       const w = parseFloat(document.getElementById('sheet-w').value || '0');
       if (w > 0) {
         state.layout.sheet_mm[0] = w;
+        recalcScale();
         renderSheet();
         applyZoom();
         pushHistory();
@@ -945,6 +994,7 @@
       const h = parseFloat(document.getElementById('sheet-h').value || '0');
       if (h > 0) {
         state.layout.sheet_mm[1] = h;
+        recalcScale();
         renderSheet();
         applyZoom();
         pushHistory();
@@ -960,6 +1010,7 @@
         state.layout.sheet_mm = [w, h];
         document.getElementById('sheet-w').value = w;
         document.getElementById('sheet-h').value = h;
+        recalcScale();
         renderSheet();
         applyZoom();
         pushHistory();
@@ -974,6 +1025,7 @@
       }
     });
     window.addEventListener('resize', () => {
+      recalcScale();
       renderSheet();
     });
     document.addEventListener('keydown', (ev) => {
