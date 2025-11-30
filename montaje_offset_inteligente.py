@@ -1414,64 +1414,82 @@ def montar_offset_desde_layout(layout_data, job_dir, preview: bool = False):
         ref_to_idx[str(ref)] = len(disenos)
         disenos.append(Diseno(ruta=ruta_pdf, cantidad=1))
 
-    posiciones_manual: List[dict] = []
-    any_crop = False
-    for slot in layout_data.get("slots", []) or []:
-        ref = slot.get("design_ref")
-        if not ref or ref not in ref_to_idx:
-            continue
-        work = works.get(slot.get("logical_work_id"))
-        bleed_val = _sanitize_slot_bleed(slot, work, bleed_default)
-        w_mm = float(slot.get("w_mm", 0))
-        h_mm = float(slot.get("h_mm", 0))
-        has_bleed = bool(work.get("has_bleed")) if work else False
+    def _positions_for_face(target_face: str) -> tuple[list[dict], bool]:
+        posiciones: List[dict] = []
+        face_crop = False
+        for slot in layout_data.get("slots", []) or []:
+            slot_face = (slot.get("face") or "front").lower()
+            if slot_face != target_face:
+                continue
+            ref = slot.get("design_ref")
+            if not ref or ref not in ref_to_idx:
+                continue
+            work = works.get(slot.get("logical_work_id"))
+            bleed_val = _sanitize_slot_bleed(slot, work, bleed_default)
+            w_mm = float(slot.get("w_mm", 0))
+            h_mm = float(slot.get("h_mm", 0))
+            has_bleed = bool(work.get("has_bleed")) if work else False
 
-        if has_bleed:
-            # Consideramos que w_mm/h_mm ya incluyen el sangrado completo
-            trim_w = w_mm
-            trim_h = h_mm
-        else:
-            trim_w = w_mm - 2 * bleed_val if w_mm else 0
-            trim_h = h_mm - 2 * bleed_val if h_mm else 0
-        if trim_w <= 0:
-            trim_w = max(1.0, w_mm)
-        if trim_h <= 0:
-            trim_h = max(1.0, h_mm)
-        crop_flag = bool(slot.get("crop_marks", False))
-        any_crop = any_crop or crop_flag
-        posiciones_manual.append(
-            {
-                "file_idx": ref_to_idx[ref],
-                "x_mm": float(slot.get("x_mm", slot.get("x", 0))),
-                "y_mm": float(slot.get("y_mm", slot.get("y", 0))),
-                "w_mm": trim_w,
-                "h_mm": trim_h,
-                "rot_deg": int(slot.get("rotation_deg", slot.get("rot_deg", 0)) or 0),
-                "bleed_mm": bleed_val,
-                "crop_marks": crop_flag,
-            }
-        )
+            if has_bleed:
+                # Consideramos que w_mm/h_mm ya incluyen el sangrado completo
+                trim_w = w_mm
+                trim_h = h_mm
+            else:
+                trim_w = w_mm - 2 * bleed_val if w_mm else 0
+                trim_h = h_mm - 2 * bleed_val if h_mm else 0
+            if trim_w <= 0:
+                trim_w = max(1.0, w_mm)
+            if trim_h <= 0:
+                trim_h = max(1.0, h_mm)
+            crop_flag = bool(slot.get("crop_marks", False))
+            face_crop = face_crop or crop_flag
+            posiciones.append(
+                {
+                    "file_idx": ref_to_idx[ref],
+                    "x_mm": float(slot.get("x_mm", slot.get("x", 0))),
+                    "y_mm": float(slot.get("y_mm", slot.get("y", 0))),
+                    "w_mm": trim_w,
+                    "h_mm": trim_h,
+                    "rot_deg": int(slot.get("rotation_deg", slot.get("rot_deg", 0)) or 0),
+                    "bleed_mm": bleed_val,
+                    "crop_marks": crop_flag,
+                }
+            )
+        return posiciones, face_crop
+
+    front_positions, front_crop = _positions_for_face("front")
+    back_positions, back_crop = _positions_for_face("back")
+    has_front = len(front_positions) > 0
+    has_back = len(back_positions) > 0
 
     margin_left, margin_right, margin_top, margin_bottom = margins if len(margins) == 4 else (10, 10, 10, 10)
     preview_path = os.path.join(job_dir, "preview.png") if preview else None
     output_path = os.path.join(job_dir, "montaje_final.pdf")
 
-    config = MontajeConfig(
-        tamano_pliego=tuple(sheet_mm),
-        separacion=gap_default,
-        margen_izquierdo=margin_left,
-        margen_derecho=margin_right,
-        margen_superior=margin_top,
-        margen_inferior=margin_bottom,
-        sangrado=bleed_default,
-        cutmarks_por_forma=any_crop,
-        posiciones_manual=posiciones_manual,
-        modo_manual=True,
-        estrategia="manual",
-        es_pdf_final=not preview,
-        preview_path=preview_path,
-        output_path=output_path,
-    )
+    def _config_for_positions(posiciones: List[dict], crop_flag: bool, output: str, preview_target: str | None):
+        return MontajeConfig(
+            tamano_pliego=tuple(sheet_mm),
+            separacion=gap_default,
+            margen_izquierdo=margin_left,
+            margen_derecho=margin_right,
+            margen_superior=margin_top,
+            margen_inferior=margin_bottom,
+            sangrado=bleed_default,
+            cutmarks_por_forma=crop_flag,
+            posiciones_manual=posiciones,
+            modo_manual=True,
+            estrategia="manual",
+            es_pdf_final=not preview,
+            preview_path=preview_target,
+            output_path=output,
+        )
+
+    def _resolve_output_path(res, default_path: str) -> str:
+        if isinstance(res, str):
+            return res
+        if isinstance(res, dict):
+            return res.get("output_path", default_path)
+        return default_path
 
     if not disenos:
         # No hay diseños asignados; solo devuelve la ruta esperada
@@ -1479,13 +1497,46 @@ def montar_offset_desde_layout(layout_data, job_dir, preview: bool = False):
             return preview_path
         return output_path
 
-    res = realizar_montaje_inteligente(disenos, config)
     if preview:
+        preview_positions = front_positions if has_front else back_positions
+        preview_crop = front_crop if has_front else back_crop
+        preview_config = _config_for_positions(preview_positions, preview_crop, output_path, preview_path)
+        res = realizar_montaje_inteligente(disenos, preview_config)
         if isinstance(res, dict):
             return res.get("preview_path", preview_path)
         return preview_path
-    if isinstance(res, str):
-        return res
-    if isinstance(res, dict):
-        return res.get("output_path", output_path)
+
+    if not has_back or not has_front:
+        target_positions = front_positions if has_front else back_positions
+        crop_flag = front_crop if has_front else back_crop
+        config = _config_for_positions(target_positions, crop_flag, output_path, None)
+        res = realizar_montaje_inteligente(disenos, config)
+        if isinstance(res, dict):
+            return res.get("output_path", output_path)
+        if isinstance(res, str):
+            return res
+        return output_path
+
+    front_output = os.path.join(job_dir, "montaje_front.pdf")
+    back_output = os.path.join(job_dir, "montaje_back.pdf")
+
+    front_config = _config_for_positions(front_positions, front_crop, front_output, None)
+    back_config = _config_for_positions(back_positions, back_crop, back_output, None)
+
+    front_res = realizar_montaje_inteligente(disenos, front_config)
+    back_res = realizar_montaje_inteligente(disenos, back_config)
+
+    front_path = _resolve_output_path(front_res, front_output)
+    back_path = _resolve_output_path(back_res, back_output)
+
+    writer = PdfWriter()
+    for pdf_path in (front_path, back_path):
+        reader = PdfReader(pdf_path)
+        for page in reader.pages:
+            writer.add_page(page)
+
+    os.makedirs(os.path.dirname(output_path), exist_ok=True)
+    with open(output_path, "wb") as fh:
+        writer.write(fh)
+
     return output_path

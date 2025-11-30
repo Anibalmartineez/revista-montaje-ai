@@ -13,6 +13,7 @@
     layout: {},
     scale: 1,
     zoom: 1,
+    activeFace: 'front',
     selectedSlot: null,
     selectedSlots: new Set(),
     selectedWork: null,
@@ -55,6 +56,26 @@
     if (state.layout.bleed_default_mm === undefined) {
       state.layout.bleed_default_mm = 3;
     }
+    normalizeLayoutFaces();
+  }
+
+  function normalizeLayoutFaces() {
+    if (!state.layout) return;
+    if (!Array.isArray(state.layout.faces) || state.layout.faces.length === 0) {
+      state.layout.faces = ['front'];
+    }
+    if (!state.layout.active_face || !state.layout.faces.includes(state.layout.active_face)) {
+      state.layout.active_face = state.layout.faces[0];
+    }
+    if (!state.layout.slots) {
+      state.layout.slots = [];
+    }
+    state.layout.slots.forEach((slot) => {
+      if (!slot.face) {
+        slot.face = 'front';
+      }
+    });
+    state.activeFace = state.layout.active_face || 'front';
   }
 
   function pushHistory() {
@@ -74,6 +95,7 @@
     if (history.pointer <= 0) return;
     history.pointer -= 1;
     state.layout = JSON.parse(JSON.stringify(history.stack[history.pointer]));
+    normalizeLayoutFaces();
     state.selectedSlot = null;
     state.selectedSlots = new Set();
     initSheetControls();
@@ -81,6 +103,7 @@
     renderDesigns();
     renderSheet();
     renderSlotForm();
+    renderFaceToggle();
   }
 
   function mmToPx(mm) {
@@ -128,7 +151,10 @@
     sheetEl.style.height = `${mmToPx(sheetH)}px`;
     clearChildren(sheetEl);
 
-    state.layout.slots.forEach((slot) => {
+    const activeFace = state.activeFace || 'front';
+    const visibleSlots = state.layout.slots.filter((slot) => (slot.face || 'front') === activeFace);
+
+    visibleSlots.forEach((slot) => {
       const slotEl = document.createElement('div');
       slotEl.className = 'slot';
       if (slot.locked) slotEl.classList.add('locked');
@@ -159,6 +185,31 @@
       sheetEl.appendChild(slotEl);
     });
     applyZoom();
+  }
+
+  function renderFaceToggle() {
+    const frontInput = document.getElementById('face-front');
+    const backInput = document.getElementById('face-back');
+    if (frontInput) {
+      frontInput.checked = state.activeFace === 'front';
+    }
+    if (backInput) {
+      backInput.checked = state.activeFace === 'back';
+    }
+  }
+
+  function setActiveFace(face) {
+    if (!face) return;
+    if (!state.layout.faces.includes(face)) {
+      state.layout.faces.push(face);
+    }
+    state.activeFace = face;
+    state.layout.active_face = face;
+    state.selectedSlot = null;
+    state.selectedSlots = new Set();
+    renderFaceToggle();
+    renderSheet();
+    renderSlotForm();
   }
 
   function selectSlot(id, opts = {}) {
@@ -354,6 +405,7 @@
       crop_marks: true,
       locked: false,
       design_ref: null,
+      face: state.activeFace || state.layout.active_face || 'front',
     };
     state.layout.slots.push(slot);
     pushHistory();
@@ -364,6 +416,7 @@
     if (!state.selectedSlot) return;
     const base = state.selectedSlot;
     const copy = { ...base, id: `s${Date.now()}` };
+    copy.face = copy.face || base.face || state.activeFace || 'front';
     copy.x_mm += 5;
     copy.y_mm += 5;
     state.layout.slots.push(copy);
@@ -457,6 +510,9 @@
       alert('Seleccioná primero un slot maestro.');
       return;
     }
+
+    const masterFace = master.face || 'front';
+    master.face = masterFace;
 
     const rows = parseInt(document.getElementById('sr-rows').value || '1', 10);
     const cols = parseInt(document.getElementById('sr-cols').value || '1', 10);
@@ -556,6 +612,8 @@
           crop_marks: baseCrop,
           rotation_deg: rotDeg,
         };
+
+        clone.face = masterFace;
 
         if (groupId) {
           clone.group_id = groupId;
@@ -707,7 +765,31 @@
     pushHistory();
   }
 
+  function duplicateFrontToBack() {
+    normalizeLayoutFaces();
+    if (!state.layout.faces.includes('back')) {
+      state.layout.faces.push('back');
+    }
+    const frontSlots = state.layout.slots.filter((slot) => (slot.face || 'front') === 'front');
+    if (frontSlots.length === 0) {
+      alert('No hay slots en el frente para duplicar.');
+      return;
+    }
+
+    const timestamp = Date.now();
+    const clones = frontSlots.map((slot, idx) => ({
+      ...slot,
+      id: `s${timestamp}_${idx}_back`,
+      face: 'back',
+    }));
+
+    state.layout.slots = state.layout.slots.concat(clones);
+    setActiveFace('back');
+    pushHistory();
+  }
+
   function layoutToJson() {
+    normalizeLayoutFaces();
     return JSON.stringify(state.layout);
   }
 
@@ -733,11 +815,13 @@
     const data = await res.json();
     if (data.layout) {
       state.layout = data.layout;
+      normalizeLayoutFaces();
       selectSlot(null);
       renderWorks();
       renderDesigns();
       renderSheet();
       initSheetControls();
+      renderFaceToggle();
       pushHistory();
     }
   }
@@ -795,6 +879,7 @@
     pushHistory();
     renderWorks();
     renderSheet();
+    renderFaceToggle();
     renderDesigns();
     fillWorkForm(state.layout.works[0]);
     applyZoom();
@@ -806,6 +891,9 @@
     document.getElementById('btn-pdf').addEventListener('click', requestPdf);
     document.getElementById('btn-auto').addEventListener('click', requestAutoLayout);
     document.getElementById('btn-apply-gap').addEventListener('click', applyGapToSlots);
+    document.getElementById('face-front')?.addEventListener('change', () => setActiveFace('front'));
+    document.getElementById('face-back')?.addEventListener('change', () => setActiveFace('back'));
+    document.getElementById('btn-duplicate-face')?.addEventListener('click', () => duplicateFrontToBack());
     document.getElementById('btn-new-work').addEventListener('click', newWork);
     document.getElementById('btn-save-work').addEventListener('click', saveWork);
     document.getElementById('btn-delete-work').addEventListener('click', deleteWork);
