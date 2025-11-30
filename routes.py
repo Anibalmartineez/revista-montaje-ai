@@ -196,7 +196,34 @@ def _default_constructor_layout() -> Dict:
         "works": [],
         "slots": [],
         "designs": [],
+        "faces": ["front"],
+        "active_face": "front",
     }
+
+
+def _ensure_faces_fields(layout: Dict) -> tuple[Dict, bool]:
+    changed = False
+    if not isinstance(layout, dict):
+        return layout, changed
+
+    faces = layout.get("faces")
+    if not isinstance(faces, list) or len(faces) == 0:
+        layout["faces"] = ["front"]
+        changed = True
+
+    active_face = layout.get("active_face")
+    if not active_face or active_face not in layout["faces"]:
+        layout["active_face"] = layout["faces"][0]
+        changed = True
+
+    slots = layout.get("slots")
+    if isinstance(slots, list):
+        for slot in slots:
+            if isinstance(slot, dict) and not slot.get("face"):
+                slot["face"] = "front"
+                changed = True
+
+    return layout, changed
 
 
 def _load_constructor_layout(job_dir: str) -> Dict | None:
@@ -249,6 +276,10 @@ def _load_or_init_constructor_layout(job_id: str) -> tuple[str, Dict]:
     if layout is None:
         layout = _default_constructor_layout()
         _save_constructor_layout(job_dir, layout)
+    else:
+        layout, changed = _ensure_faces_fields(layout)
+        if changed:
+            _save_constructor_layout(job_dir, layout)
     return job_dir, layout
 
 
@@ -273,6 +304,7 @@ def editor_offset_save():
         return _json_error("job_id inválido")
     if layout is None:
         return _json_error("layout_json faltante")
+    layout, _ = _ensure_faces_fields(layout)
     job_dir = _constructor_job_dir(job_id)
     _save_constructor_layout(job_dir, layout)
     return jsonify({"ok": True, "job_id": job_id})
@@ -341,6 +373,7 @@ def _build_fake_pdf(path: str, size_mm: tuple[float, float]) -> None:
 
 
 def _generate_slots_with_ai(layout: Dict, job_dir: str) -> Dict:
+    layout, _ = _ensure_faces_fields(layout)
     works = layout.get("works", [])
     if not works:
         return layout
@@ -403,6 +436,7 @@ def _generate_slots_with_ai(layout: Dict, job_dir: str) -> Dict:
                 "crop_marks": True,
                 "locked": False,
                 "design_ref": None,
+                "face": layout.get("active_face") or "front",
             }
         )
 
