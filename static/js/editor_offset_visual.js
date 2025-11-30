@@ -13,6 +13,7 @@
     layout: {},
     scale: 1,
     selectedSlot: null,
+    selectedSlots: new Set(),
     selectedWork: null,
   };
 
@@ -67,7 +68,8 @@
       const slotEl = document.createElement('div');
       slotEl.className = 'slot';
       if (slot.locked) slotEl.classList.add('locked');
-      if (state.selectedSlot && state.selectedSlot.id === slot.id) {
+      const isSelectedSet = state.selectedSlots && state.selectedSlots.has(slot.id);
+      if (isSelectedSet || (state.selectedSlot && state.selectedSlot.id === slot.id)) {
         slotEl.classList.add('selected');
       }
       slotEl.dataset.slotId = slot.id;
@@ -87,27 +89,55 @@
       slotEl.addEventListener('mousedown', (ev) => onSlotMouseDown(ev, slot));
       slotEl.addEventListener('click', (ev) => {
         ev.stopPropagation();
-        selectSlot(slot.id);
+        const toggle = ev.ctrlKey || ev.metaKey || ev.shiftKey;
+        selectSlot(slot.id, { toggle });
       });
       sheetEl.appendChild(slotEl);
     });
   }
 
-  function selectSlot(id) {
-    state.selectedSlot = state.layout.slots.find((s) => s.id === id) || null;
+  function selectSlot(id, opts = {}) {
+    const toggle = opts.toggle;
+    if (!id) {
+      state.selectedSlots = new Set();
+      state.selectedSlot = null;
+      renderSheet();
+      renderSlotForm();
+      return;
+    }
+
+    if (!state.selectedSlots) {
+      state.selectedSlots = new Set();
+    }
+
+    if (toggle) {
+      if (state.selectedSlots.has(id)) {
+        state.selectedSlots.delete(id);
+      } else {
+        state.selectedSlots.add(id);
+      }
+    } else {
+      state.selectedSlots = new Set([id]);
+    }
+
+    const firstSelectedId = state.selectedSlots.values().next().value;
+    state.selectedSlot = state.layout.slots.find((s) => s.id === firstSelectedId) || null;
     renderSheet();
     renderSlotForm();
   }
 
   function renderSlotForm() {
-    if (!state.selectedSlot) {
+    const slot = state.selectedSlot || (state.selectedSlots && state.selectedSlots.size > 0
+      ? state.layout.slots.find((s) => state.selectedSlots.has(s.id))
+      : null);
+
+    if (!slot) {
       slotForm.classList.add('hidden');
       slotNone.classList.remove('hidden');
       return;
     }
     slotForm.classList.remove('hidden');
     slotNone.classList.add('hidden');
-    const slot = state.selectedSlot;
     document.getElementById('slot-x').value = slot.x_mm ?? 0;
     document.getElementById('slot-y').value = slot.y_mm ?? 0;
     document.getElementById('slot-w').value = slot.w_mm ?? 0;
@@ -275,6 +305,7 @@
     if (!state.selectedSlot) return;
     state.layout.slots = state.layout.slots.filter((s) => s.id !== state.selectedSlot.id);
     state.selectedSlot = null;
+    state.selectedSlots = new Set();
     renderSheet();
     renderSlotForm();
   }
@@ -343,6 +374,38 @@
     slot.logical_work_id = document.getElementById('slot-work').value || null;
     slot.design_ref = document.getElementById('slot-design').value || null;
     renderSheet();
+  }
+
+  function applyDesignToSelected() {
+    const designRef = document.getElementById('slot-design').value;
+    if (!designRef) {
+      alert('Selecciona un PDF primero.');
+      return;
+    }
+
+    const selectedIds = state.selectedSlots && state.selectedSlots.size > 0
+      ? [...state.selectedSlots]
+      : [];
+
+    if (selectedIds.length === 0) {
+      if (state.selectedSlot) {
+        state.selectedSlot.design_ref = designRef;
+        renderSheet();
+        renderSlotForm();
+      } else {
+        alert('No hay slots seleccionados.');
+      }
+      return;
+    }
+
+    state.layout.slots.forEach((slot) => {
+      if (state.selectedSlots.has(slot.id)) {
+        slot.design_ref = designRef;
+      }
+    });
+
+    renderSheet();
+    renderSlotForm();
   }
 
   function layoutToJson() {
@@ -441,10 +504,17 @@
     document.getElementById('btn-save-work').addEventListener('click', saveWork);
     document.getElementById('btn-delete-work').addEventListener('click', deleteWork);
     document.getElementById('btn-apply-slot').addEventListener('click', applySlotForm);
+    document
+      .getElementById('btn-apply-design-selection')
+      .addEventListener('click', (ev) => {
+        ev.preventDefault();
+        applyDesignToSelected();
+      });
     uploadForm.addEventListener('submit', uploadDesigns);
     document.addEventListener('click', (ev) => {
       if (ev.target === sheetCanvas || ev.target === sheetEl) {
         state.selectedSlot = null;
+        state.selectedSlots = new Set();
         renderSlotForm();
         renderSheet();
       }
