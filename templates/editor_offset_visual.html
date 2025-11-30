@@ -31,6 +31,11 @@
         <button id="btn-dup-slot" class="btn" title="Duplica el slot seleccionado">Duplicar selección</button>
         <button id="btn-del-slot" class="btn" title="Elimina el slot seleccionado">Borrar selección</button>
       </div>
+      <div class="zoom-controls">
+        <button type="button" id="zoom-out" class="btn btn-small">-</button>
+        <span id="zoom-label" class="muted">100%</span>
+        <button type="button" id="zoom-in" class="btn btn-small">+</button>
+      </div>
       <div id="sheet-canvas" class="sheet-canvas">
         <div id="sheet" class="sheet"></div>
       </div>
@@ -47,6 +52,23 @@
     </section>
 
     <aside class="side-panel">
+      <section class="panel-block">
+        <h2>Pliego</h2>
+        <label>Ancho pliego (mm)
+          <input type="number" id="sheet-w" step="1" min="100">
+        </label>
+        <label>Alto pliego (mm)
+          <input type="number" id="sheet-h" step="1" min="100">
+        </label>
+        <label>Formato rápido
+          <select id="sheet-preset">
+            <option value="">Personalizado</option>
+            <option value="640x880">640 × 880 mm</option>
+            <option value="700x1000">700 × 1000 mm</option>
+            <option value="320x450">320 × 450 mm</option>
+          </select>
+        </label>
+      </section>
       <section class="panel-block">
         <div class="panel-header">
           <h2>Trabajos lógicos</h2>
