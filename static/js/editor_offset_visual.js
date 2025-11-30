@@ -101,6 +101,7 @@
     initSheetControls();
     renderWorks();
     renderDesigns();
+    recalcScale();
     renderSheet();
     renderSlotForm();
     renderFaceToggle();
@@ -860,10 +861,11 @@
       state.layout = data.layout;
       normalizeLayoutFaces();
       selectSlot(null);
+      initSheetControls();
       renderWorks();
       renderDesigns();
+      recalcScale();
       renderSheet();
-      initSheetControls();
       renderFaceToggle();
       pushHistory();
     }
