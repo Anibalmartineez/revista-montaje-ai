@@ -17,6 +17,15 @@
     selectedWork: null,
   };
 
+  function getSelectedSlot() {
+    if (!state.selectedSlot && state.selectedSlots && state.selectedSlots.size > 0) {
+      const firstSelectedId = state.selectedSlots.values().next().value;
+      state.selectedSlot = state.layout.slots.find((s) => s.id === firstSelectedId) || null;
+    }
+    if (!state.selectedSlot) return null;
+    return state.layout.slots.find((s) => s.id === state.selectedSlot.id) || null;
+  }
+
   function parseInitialLayout() {
     let layout = window.INITIAL_LAYOUT_JSON;
     if (typeof layout === 'string') {
@@ -379,6 +388,135 @@
     renderSlotForm();
   }
 
+  async function generateStepRepeatFromSelectedSlot() {
+    const master = getSelectedSlot();
+    if (!master) {
+      alert('Seleccioná primero un slot maestro.');
+      return;
+    }
+
+    const rows = parseInt(document.getElementById('sr-rows').value || '1', 10);
+    const cols = parseInt(document.getElementById('sr-cols').value || '1', 10);
+    const gapH = parseFloat(document.getElementById('sr-gap-h').value || '0') || 0;
+    const gapV = parseFloat(document.getElementById('sr-gap-v').value || '0') || 0;
+    const mode = document.getElementById('sr-mode').value;
+    const autoMargin = document.getElementById('sr-auto-margin').checked;
+    const rotationMode = document.getElementById('sr-rotation').value;
+    const pdfMode = document.getElementById('sr-assign-pdf-mode').value;
+    const groupMode = document.getElementById('sr-group-mode').value;
+    const copyBleed = document.getElementById('sr-copy-bleed').checked;
+    const nudgeX = parseFloat(document.getElementById('sr-nudge-x').value || '0') || 0;
+    const nudgeY = parseFloat(document.getElementById('sr-nudge-y').value || '0') || 0;
+
+    if (rows < 1 || cols < 1) {
+      alert('Filas y columnas deben ser al menos 1.');
+      return;
+    }
+
+    const sheetW = (state.layout.sheet_mm && state.layout.sheet_mm[0]) || 640;
+    const sheetH = (state.layout.sheet_mm && state.layout.sheet_mm[1]) || 880;
+    const margins = state.layout.margins_mm || [10, 10, 10, 10];
+    const [mLeft, mRight, mTop, mBottom] = margins;
+
+    const slotW = master.w_mm;
+    const slotH = master.h_mm;
+
+    const baseBleed = copyBleed ? master.bleed_mm || 0 : state.layout.bleed_default_mm || 0;
+    const baseCrop = copyBleed ? !!master.crop_marks : false;
+
+    const totalW = cols * slotW + (cols - 1) * gapH;
+    const totalH = rows * slotH + (rows - 1) * gapV;
+
+    let x0 = master.x_mm;
+    let y0 = master.y_mm;
+
+    if (mode === 'center') {
+      x0 = (sheetW - totalW) / 2;
+      y0 = (sheetH - totalH) / 2;
+    } else if (mode === 'align-left') {
+      x0 = autoMargin ? mLeft : 0;
+    } else if (mode === 'align-right') {
+      x0 = autoMargin ? sheetW - mRight - totalW : sheetW - totalW;
+    } else if (mode === 'align-top') {
+      y0 = autoMargin ? mTop : 0;
+    } else if (mode === 'align-bottom') {
+      y0 = autoMargin ? sheetH - mBottom - totalH : sheetH - totalH;
+    }
+
+    x0 += nudgeX;
+    y0 += nudgeY;
+
+    let groupId = null;
+    if (groupMode === 'grouped') {
+      groupId = `g${Date.now()}_${Math.floor(Math.random() * 1000)}`;
+    }
+
+    if (groupId) {
+      master.group_id = groupId;
+    }
+
+    let rotDeg = master.rotation_deg || 0;
+    if (rotationMode !== 'keep') {
+      rotDeg = parseFloat(rotationMode) || 0;
+    }
+
+    let designRef = master.design_ref || null;
+    if (pdfMode === 'none') {
+      designRef = null;
+    }
+
+    const newSlots = [];
+    let index = 0;
+    for (let r = 0; r < rows; r += 1) {
+      for (let c = 0; c < cols; c += 1) {
+        const isMasterPosition = r === 0 && c === 0;
+        const x = x0 + c * (slotW + gapH);
+        const y = y0 + r * (slotH + gapV);
+
+        if (isMasterPosition) {
+          master.x_mm = x;
+          master.y_mm = y;
+          master.bleed_mm = baseBleed;
+          master.crop_marks = baseCrop;
+          master.rotation_deg = rotDeg;
+          if (groupId) master.group_id = groupId;
+          if (pdfMode === 'same') master.design_ref = designRef;
+          continue;
+        }
+
+        const clone = {
+          ...master,
+          id: `s${Date.now()}_${r}_${c}_${index}`,
+          x_mm: x,
+          y_mm: y,
+          bleed_mm: baseBleed,
+          crop_marks: baseCrop,
+          rotation_deg: rotDeg,
+        };
+
+        if (groupId) {
+          clone.group_id = groupId;
+        } else {
+          delete clone.group_id;
+        }
+
+        if (pdfMode === 'same') {
+          clone.design_ref = designRef;
+        } else if (pdfMode === 'none') {
+          clone.design_ref = null;
+        }
+
+        newSlots.push(clone);
+        index += 1;
+      }
+    }
+
+    state.layout.slots = state.layout.slots.concat(newSlots);
+    renderSheet();
+    renderSlotForm();
+    selectSlot(master.id);
+  }
+
   function onSlotMouseDown(ev, slot) {
     if (slot.locked) return;
     const target = ev.target;
@@ -387,6 +525,16 @@
     const startY = ev.clientY;
     const initSlot = { ...slot };
     const handleType = isHandle ? [...target.classList].find((c) => ['br', 'bl', 'tr', 'tl'].includes(c)) : null;
+    const isGroupMove = !isHandle && slot.group_id;
+    const groupSlots = isGroupMove
+      ? state.layout.slots.filter((s) => s.group_id === slot.group_id)
+      : [];
+    const groupInitialPositions = new Map();
+    if (isGroupMove) {
+      groupSlots.forEach((s) => {
+        groupInitialPositions.set(s.id, { x: s.x_mm, y: s.y_mm });
+      });
+    }
 
     function onMove(moveEv) {
       moveEv.preventDefault();
@@ -396,8 +544,17 @@
       const dy = dyPx / state.scale;
 
       if (!isHandle) {
-        slot.x_mm = initSlot.x_mm + dx;
-        slot.y_mm = initSlot.y_mm + dy;
+        if (isGroupMove) {
+          groupSlots.forEach((s) => {
+            const initPos = groupInitialPositions.get(s.id);
+            if (!initPos) return;
+            s.x_mm = initPos.x + dx;
+            s.y_mm = initPos.y + dy;
+          });
+        } else {
+          slot.x_mm = initSlot.x_mm + dx;
+          slot.y_mm = initSlot.y_mm + dy;
+        }
       } else {
         if (handleType.includes('b')) {
           slot.h_mm = Math.max(5, initSlot.h_mm + dy);
@@ -580,6 +737,10 @@
         ev.preventDefault();
         applyDesignToSelected();
       });
+    const stepRepeatBtn = document.getElementById('sr-generate');
+    if (stepRepeatBtn) {
+      stepRepeatBtn.addEventListener('click', generateStepRepeatFromSelectedSlot);
+    }
     uploadForm.addEventListener('submit', uploadDesigns);
     document.addEventListener('click', (ev) => {
       if (ev.target === sheetCanvas || ev.target === sheetEl) {
