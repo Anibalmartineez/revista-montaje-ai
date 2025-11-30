@@ -94,6 +94,89 @@
         </div>
       </section>
 
+      <section class="panel-block" id="step-repeat-panel">
+        <h2>Step &amp; Repeat PRO</h2>
+        <p class="muted" id="step-repeat-help">
+          Seleccioná un slot maestro y definí cómo repetirlo en grilla.
+        </p>
+
+        <div class="form-grid">
+          <label>Filas
+            <input type="number" id="sr-rows" min="1" step="1" value="1">
+          </label>
+          <label>Columnas
+            <input type="number" id="sr-cols" min="1" step="1" value="1">
+          </label>
+        </div>
+
+        <div class="form-grid">
+          <label>Separación H (mm)
+            <input type="number" id="sr-gap-h" step="0.1" value="0">
+          </label>
+          <label>Separación V (mm)
+            <input type="number" id="sr-gap-v" step="0.1" value="0">
+          </label>
+        </div>
+
+        <label>Método de distribución
+          <select id="sr-mode">
+            <option value="free">Free mode (usar posición del slot maestro)</option>
+            <option value="center">Center block (centrar el bloque en el pliego)</option>
+            <option value="align-left">Align left</option>
+            <option value="align-right">Align right</option>
+            <option value="align-top">Align top</option>
+            <option value="align-bottom">Align bottom</option>
+          </select>
+        </label>
+
+        <label>
+          <input type="checkbox" id="sr-auto-margin" checked>
+          Usar margen automático del pliego
+        </label>
+
+        <label>Rotación masiva
+          <select id="sr-rotation">
+            <option value="keep">Mantener rotación del slot maestro</option>
+            <option value="0">0°</option>
+            <option value="90">90°</option>
+            <option value="180">180°</option>
+            <option value="270">270°</option>
+          </select>
+        </label>
+
+        <label>Asignar PDF
+          <select id="sr-assign-pdf-mode">
+            <option value="same">Usar el mismo PDF del slot maestro</option>
+            <option value="none">Sin PDF (solo cuadros vacíos)</option>
+          </select>
+        </label>
+
+        <label>Comportamiento
+          <select id="sr-group-mode">
+            <option value="grouped">Bloque agrupado (mover como grupo)</option>
+            <option value="independent">Editable slot por slot</option>
+          </select>
+        </label>
+
+        <label>
+          <input type="checkbox" id="sr-copy-bleed" checked>
+          Copiar sangrado y marcas de corte del slot maestro
+        </label>
+
+        <div class="form-grid">
+          <label>Ajuste fino X (mm)
+            <input type="number" id="sr-nudge-x" step="0.1" value="0">
+          </label>
+          <label>Ajuste fino Y (mm)
+            <input type="number" id="sr-nudge-y" step="0.1" value="0">
+          </label>
+        </div>
+
+        <button type="button" id="sr-generate" class="btn btn-secondary">
+          Generar Step &amp; Repeat
+        </button>
+      </section>
+
       <section class="panel-block">
         <h2>Separación entre slots</h2>
         <div class="grid-2">

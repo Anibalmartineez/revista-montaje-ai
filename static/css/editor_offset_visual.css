@@ -206,6 +206,12 @@ body {
   gap: 8px;
 }
 
+.form-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
 .form-actions {
   display: flex;
   gap: 8px;
