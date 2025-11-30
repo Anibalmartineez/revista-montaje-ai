@@ -9,7 +9,11 @@
   <header class="editor-header">
     <div>
       <h1>Editor visual IA</h1>
-      <p class="subtitle">Nuevo editor de montaje offset inteligente</p>
+      <p class="subtitle">
+        Definí primero tus <strong>Trabajos lógicos</strong> (medida final, copias y sangrado),
+        luego generá los <strong>slots</strong> con IA, acomodalos visualmente y por último
+        asigná los PDFs y generá el montaje final.
+      </p>
     </div>
     <div class="header-actions">
       <a class="btn" href="{{ url_for('routes.index') }}">Volver al inicio</a>
@@ -22,10 +26,10 @@
         <button id="btn-save" class="btn btn-primary">Guardar montaje</button>
         <button id="btn-preview" class="btn btn-secondary">Generar preview</button>
         <button id="btn-pdf" class="btn btn-secondary">Generar PDF final</button>
-        <button id="btn-auto" class="btn">Generar slots con IA</button>
-        <button id="btn-new-slot" class="btn">Añadir slot</button>
-        <button id="btn-dup-slot" class="btn">Duplicar selección</button>
-        <button id="btn-del-slot" class="btn">Borrar selección</button>
+        <button id="btn-auto" class="btn" title="Usa las medidas de los trabajos lógicos para crear los cuadros en el pliego">Generar slots con IA</button>
+        <button id="btn-new-slot" class="btn" title="Añade un cuadro manualmente">Añadir slot</button>
+        <button id="btn-dup-slot" class="btn" title="Duplica el slot seleccionado">Duplicar selección</button>
+        <button id="btn-del-slot" class="btn" title="Elimina el slot seleccionado">Borrar selección</button>
       </div>
       <div id="sheet-canvas" class="sheet-canvas">
         <div id="sheet" class="sheet"></div>
@@ -91,6 +95,10 @@
       <section class="panel-block">
         <h2>Diseños (PDF)</h2>
         <form id="upload-form">
+          <label for="design-work-select" class="muted">Asignar PDFs al trabajo lógico (opcional)</label>
+          <select id="design-work-select" name="work_id">
+            <option value="">-- Sin trabajo específico --</option>
+          </select>
           <input type="file" id="design-files" name="files" accept="application/pdf" multiple>
           <button type="submit" class="btn btn-secondary">Subir PDFs</button>
         </form>
