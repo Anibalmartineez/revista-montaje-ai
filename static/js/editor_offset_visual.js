@@ -144,6 +144,15 @@
 
   function renderWorks() {
     clearChildren(worksListEl);
+    const workSelectForUpload = document.getElementById('design-work-select');
+    const prevSelectedWork = workSelectForUpload ? workSelectForUpload.value : '';
+    if (workSelectForUpload) {
+      clearChildren(workSelectForUpload);
+      const defaultOpt = document.createElement('option');
+      defaultOpt.value = '';
+      defaultOpt.textContent = '-- Sin trabajo específico --';
+      workSelectForUpload.appendChild(defaultOpt);
+    }
     state.layout.works.forEach((w) => {
       const item = document.createElement('div');
       item.className = 'item';
@@ -155,7 +164,16 @@
         renderWorks();
       });
       worksListEl.appendChild(item);
+      if (workSelectForUpload) {
+        const opt = document.createElement('option');
+        opt.value = w.id;
+        opt.textContent = `${w.name} (${w.final_size_mm?.join('x')} mm)`;
+        workSelectForUpload.appendChild(opt);
+      }
     });
+    if (workSelectForUpload && prevSelectedWork) {
+      workSelectForUpload.value = prevSelectedWork;
+    }
   }
 
   function fillWorkForm(work) {
@@ -200,8 +218,9 @@
     if (!state.selectedWork) return;
     const workId = state.selectedWork.id;
     const slotsInUse = state.layout.slots.some((s) => s.logical_work_id === workId);
-    if (slotsInUse) {
-      alert('No se puede eliminar: hay slots que usan este trabajo.');
+    const designsInUse = state.layout.designs.some((d) => d.work_id === workId);
+    if (slotsInUse || designsInUse) {
+      alert('No se puede eliminar: hay slots o PDFs que usan este trabajo.');
       return;
     }
     state.layout.works = state.layout.works.filter((w) => w.id !== workId);
@@ -214,7 +233,9 @@
     clearChildren(designsListEl);
     state.layout.designs.forEach((d) => {
       const li = document.createElement('li');
-      li.textContent = `${d.filename} (${d.ref})`;
+      const work = state.layout.works.find((w) => w.id === d.work_id);
+      const workLabel = work ? ` · Trabajo: ${work.name}` : '';
+      li.textContent = `${d.filename} (${d.ref})${workLabel}`;
       designsListEl.appendChild(li);
     });
     renderSlotForm();
@@ -337,6 +358,10 @@
   }
 
   async function requestAutoLayout() {
+    if (!state.layout.works || state.layout.works.length === 0) {
+      alert('Primero crea al menos un Trabajo lógico con su medida final y copias.');
+      return;
+    }
     await saveLayout();
     const res = await fetch(`/editor_offset/auto_layout/${window.JOB_ID}`, {
       method: 'POST',
@@ -354,6 +379,10 @@
   }
 
   async function requestPreview() {
+    if (!state.layout.slots || state.layout.slots.length === 0) {
+      alert('No hay slots en el pliego. Crea o genera los cuadros antes de generar la preview/PDF.');
+      return;
+    }
     await saveLayout();
     const res = await fetch(`/editor_offset/preview/${window.JOB_ID}`, { method: 'POST' });
     const data = await res.json();
@@ -363,6 +392,10 @@
   }
 
   async function requestPdf() {
+    if (!state.layout.slots || state.layout.slots.length === 0) {
+      alert('No hay slots en el pliego. Crea o genera los cuadros antes de generar la preview/PDF.');
+      return;
+    }
     await saveLayout();
     const res = await fetch(`/editor_offset/generar_pdf/${window.JOB_ID}`, { method: 'POST' });
     const data = await res.json();
@@ -377,6 +410,11 @@
     if (!filesInput.files.length) return;
     const body = new FormData();
     for (const f of filesInput.files) body.append('files', f);
+    const workSelectForUpload = document.getElementById('design-work-select');
+    const selectedWorkId = workSelectForUpload ? workSelectForUpload.value : '';
+    if (selectedWorkId) {
+      body.append('work_id', selectedWorkId);
+    }
     const res = await fetch(`/editor_offset/upload/${window.JOB_ID}`, { method: 'POST', body });
     const data = await res.json();
     if (data.designs) {

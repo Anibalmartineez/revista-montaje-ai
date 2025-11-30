@@ -1424,8 +1424,15 @@ def montar_offset_desde_layout(layout_data, job_dir, preview: bool = False):
         bleed_val = _sanitize_slot_bleed(slot, work, bleed_default)
         w_mm = float(slot.get("w_mm", 0))
         h_mm = float(slot.get("h_mm", 0))
-        trim_w = w_mm - 2 * bleed_val if w_mm else 0
-        trim_h = h_mm - 2 * bleed_val if h_mm else 0
+        has_bleed = bool(work.get("has_bleed")) if work else False
+
+        if has_bleed:
+            # Consideramos que w_mm/h_mm ya incluyen el sangrado completo
+            trim_w = w_mm
+            trim_h = h_mm
+        else:
+            trim_w = w_mm - 2 * bleed_val if w_mm else 0
+            trim_h = h_mm - 2 * bleed_val if h_mm else 0
         if trim_w <= 0:
             trim_w = max(1.0, w_mm)
         if trim_h <= 0:

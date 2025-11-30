@@ -289,6 +289,10 @@ def editor_offset_upload(job_id: str):
         return _json_error("No se enviaron PDFs")
 
     designs = layout.get("designs", [])
+    work_id_form = request.form.get("work_id") or None
+    if not work_id_form and layout.get("works"):
+        if len(layout["works"]) == 1:
+            work_id_form = layout["works"][0].get("id")
 
     def _next_ref() -> str:
         prefix = "file"
@@ -315,7 +319,7 @@ def editor_offset_upload(job_id: str):
             {
                 "ref": new_ref,
                 "filename": filename,
-                "work_id": request.form.get("work_id"),
+                "work_id": work_id_form,
             }
         )
 
@@ -346,8 +350,13 @@ def _generate_slots_with_ai(layout: Dict, job_dir: str) -> Dict:
     for idx, work in enumerate(works):
         bleed = work.get("default_bleed_mm", layout.get("bleed_default_mm", 0)) or 0
         final_w, final_h = work.get("final_size_mm", [0, 0])
-        pdf_w = float(final_w) + 2 * float(bleed)
-        pdf_h = float(final_h) + 2 * float(bleed)
+        has_bleed = bool(work.get("has_bleed"))
+        if has_bleed:
+            pdf_w = float(final_w)
+            pdf_h = float(final_h)
+        else:
+            pdf_w = float(final_w) + 2 * float(bleed)
+            pdf_h = float(final_h) + 2 * float(bleed)
         pdf_path = os.path.join(job_dir, f"work_{idx}.pdf")
         _build_fake_pdf(pdf_path, (pdf_w, pdf_h))
         copias = int(work.get("desired_copies") or 1)
