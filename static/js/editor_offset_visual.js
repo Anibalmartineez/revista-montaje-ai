@@ -337,12 +337,7 @@
       slotEl.style.height = `${mmToPx(slot.h_mm)}px`;
       slotEl.style.transform = `rotate(${slot.rotation_deg || 0}deg)`;
 
-      const makeHandle = (cls) => {
-        const h = document.createElement('div');
-        h.className = `handle ${cls}`;
-        return h;
-      };
-      ['tl', 'tr', 'bl', 'br'].forEach((pos) => slotEl.appendChild(makeHandle(pos)));
+      // Handles de esquina desactivados, el usuario escala solo desde el panel lateral.
 
       slotEl.addEventListener('mousedown', (ev) => onSlotMouseDown(ev, slot));
       slotEl.addEventListener('click', (ev) => {
