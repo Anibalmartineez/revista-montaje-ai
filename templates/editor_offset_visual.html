@@ -151,6 +151,17 @@
         </div>
       </section>
 
+      <section class="panel-block" id="imposition-engine-panel">
+        <h2>Modo de imposición</h2>
+        <p class="muted">Elegí el motor y aplicalo sin perder la edición manual.</p>
+        <label><input type="radio" name="imposition-engine" value="repeat"> Step &amp; Repeat PRO</label>
+        <label><input type="radio" name="imposition-engine" value="nesting"> Nesting PRO</label>
+        <label><input type="radio" name="imposition-engine" value="hybrid"> Híbrido (Nesting PRO → Step &amp; Repeat si sobra espacio)</label>
+        <p class="muted" id="imposition-engine-hint"></p>
+        <button id="btn-apply-imposition" class="btn btn-secondary" type="button">Aplicar motor</button>
+        <p class="muted hidden" id="imposition-warning">Configura al menos un diseño con sus formas por pliego antes de aplicar la imposición.</p>
+      </section>
+
       <section class="panel-block" id="step-repeat-panel">
         <h2>Step &amp; Repeat PRO</h2>
         <p class="muted" id="step-repeat-help">

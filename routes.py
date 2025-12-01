@@ -15,6 +15,7 @@ from openai import OpenAI
 from PIL import Image, ImageDraw
 from reportlab.pdfgen import canvas
 from reportlab.lib.units import mm
+from PyPDF2 import PdfReader
 from flask import (
     Blueprint,
     request,
@@ -32,6 +33,7 @@ from flask import (
 )
 from werkzeug.utils import secure_filename
 from werkzeug.exceptions import RequestEntityTooLarge
+from engines.nesting_pro_engine import NestingResult, compute_nesting
 from montaje import montar_pdf
 from diagnostico import diagnosticar_pdf, analizar_grafico_tecnico
 from diagnostico_pdf import diagnostico_offset_pro
@@ -187,6 +189,17 @@ def _constructor_layout_path(job_dir: str) -> str:
     return os.path.join(job_dir, CONSTRUCTOR_LAYOUT_NAME)
 
 
+def _pdf_page_size_mm(path: str) -> tuple[float, float]:
+    try:
+        reader = PdfReader(path)
+        page = reader.pages[0]
+        w_pt = float(page.mediabox.width)
+        h_pt = float(page.mediabox.height)
+        return (w_pt * 25.4 / 72.0, h_pt * 25.4 / 72.0)
+    except Exception:
+        return 0.0, 0.0
+
+
 def _default_constructor_layout() -> Dict:
     return {
         "sheet_mm": [640, 880],
@@ -198,6 +211,8 @@ def _default_constructor_layout() -> Dict:
         "designs": [],
         "faces": ["front"],
         "active_face": "front",
+        "imposition_engine": "repeat",
+        "allowed_engines": ["repeat", "nesting", "hybrid"],
     }
 
 
@@ -222,6 +237,37 @@ def _ensure_faces_fields(layout: Dict) -> tuple[Dict, bool]:
             if isinstance(slot, dict) and not slot.get("face"):
                 slot["face"] = "front"
                 changed = True
+
+    return layout, changed
+
+
+def _ensure_imposition_fields(layout: Dict) -> tuple[Dict, bool]:
+    changed = False
+    if not isinstance(layout, dict):
+        return layout, changed
+
+    allowed = layout.get("allowed_engines")
+    if not isinstance(allowed, list) or not allowed:
+        layout["allowed_engines"] = ["repeat", "nesting", "hybrid"]
+        allowed = layout["allowed_engines"]
+        changed = True
+
+    engine = layout.get("imposition_engine")
+    if engine not in allowed:
+        layout["imposition_engine"] = allowed[0]
+        changed = True
+
+    designs = layout.get("designs", [])
+    for design in designs:
+        if "forms_per_plate" not in design:
+            design["forms_per_plate"] = 1
+            changed = True
+        if "allow_rotation" not in design:
+            design["allow_rotation"] = True
+            changed = True
+        if "bleed_mm" not in design:
+            design["bleed_mm"] = layout.get("bleed_default_mm", 0)
+            changed = True
 
     return layout, changed
 
@@ -278,6 +324,8 @@ def _load_or_init_constructor_layout(job_id: str) -> tuple[str, Dict]:
         _save_constructor_layout(job_dir, layout)
     else:
         layout, changed = _ensure_faces_fields(layout)
+        layout, changed_imposition = _ensure_imposition_fields(layout)
+        changed = changed or changed_imposition
         if changed:
             _save_constructor_layout(job_dir, layout)
     return job_dir, layout
@@ -305,6 +353,7 @@ def editor_offset_save():
     if layout is None:
         return _json_error("layout_json faltante")
     layout, _ = _ensure_faces_fields(layout)
+    layout, _ = _ensure_imposition_fields(layout)
     job_dir = _constructor_job_dir(job_id)
     _save_constructor_layout(job_dir, layout)
     return jsonify({"ok": True, "job_id": job_id})
@@ -347,11 +396,33 @@ def editor_offset_upload(job_id: str):
         dest = os.path.join(job_dir, filename)
         file_storage.save(dest)
         new_ref = _next_ref()
+        width_mm, height_mm = _pdf_page_size_mm(dest)
+        bleed_mm = layout.get("bleed_default_mm", 0)
+        allow_rotation = True
+        forms_per_plate = 1
+        if work_id_form:
+            related_work = next((w for w in layout.get("works", []) if w.get("id") == work_id_form), None)
+            if related_work:
+                bleed_mm = float(related_work.get("default_bleed_mm", bleed_mm) or 0)
+                allow_rotation = bool(related_work.get("allow_rotation", True))
+                forms_per_plate = int(related_work.get("forms_per_plate") or forms_per_plate)
+                final_size = related_work.get("final_size_mm") or []
+                if len(final_size) == 2:
+                    width_mm = float(final_size[0] or width_mm)
+                    height_mm = float(final_size[1] or height_mm)
+                    if not related_work.get("has_bleed"):
+                        width_mm += 2 * bleed_mm
+                        height_mm += 2 * bleed_mm
         designs.append(
             {
                 "ref": new_ref,
                 "filename": filename,
                 "work_id": work_id_form,
+                "width_mm": round(float(width_mm or 0), 3),
+                "height_mm": round(float(height_mm or 0), 3),
+                "bleed_mm": round(float(bleed_mm or 0), 3),
+                "allow_rotation": allow_rotation,
+                "forms_per_plate": max(1, forms_per_plate),
             }
         )
 
@@ -446,6 +517,150 @@ def _generate_slots_with_ai(layout: Dict, job_dir: str) -> Dict:
     return layout
 
 
+def _sheet_area(layout: Dict) -> tuple[float, float, float, float, float, float]:
+    sheet_w, sheet_h = layout.get("sheet_mm", [0, 0])
+    margins = layout.get("margins_mm", [0, 0, 0, 0])
+    left, right, top, bottom = (margins + [0, 0, 0, 0])[:4]
+    usable_w = max(0.0, float(sheet_w) - float(left) - float(right))
+    usable_h = max(0.0, float(sheet_h) - float(top) - float(bottom))
+    return usable_w, usable_h, float(left), float(right), float(top), float(bottom)
+
+
+def _design_dimensions(design: Dict, layout: Dict) -> tuple[float, float, float]:
+    bleed = float(design.get("bleed_mm") or layout.get("bleed_default_mm") or 0)
+    width = float(design.get("width_mm") or 0)
+    height = float(design.get("height_mm") or 0)
+    return width + 2 * bleed, height + 2 * bleed, bleed
+
+
+def _slots_from_nesting_result(result: NestingResult, layout: Dict) -> List[Dict]:
+    active_face = layout.get("active_face") or "front"
+    slots: List[Dict] = []
+    for idx, slot in enumerate(result.slots):
+        slots.append(
+            {
+                "id": f"nest_{idx}",
+                "x_mm": float(slot.get("x_mm", 0)),
+                "y_mm": float(slot.get("y_mm", 0)),
+                "w_mm": float(slot.get("w_mm", 0)),
+                "h_mm": float(slot.get("h_mm", 0)),
+                "rotation_deg": int(slot.get("rotation_deg", 0)) % 360,
+                "logical_work_id": None,
+                "bleed_mm": float(slot.get("bleed_mm", layout.get("bleed_default_mm", 0))),
+                "crop_marks": True,
+                "locked": False,
+                "design_ref": slot.get("design_ref") or slot.get("file"),
+                "face": active_face,
+            }
+        )
+    return slots
+
+
+def _build_step_repeat_slots(layout: Dict) -> List[Dict]:
+    designs = layout.get("designs") or []
+    if not designs:
+        raise ValueError("No hay diseños configurados para aplicar Step & Repeat.")
+    usable_w, usable_h, left, _, _, bottom = _sheet_area(layout)
+    if usable_w <= 0 or usable_h <= 0:
+        return []
+
+    gap = float(layout.get("gap_default_mm") or 0)
+    slots: List[Dict] = []
+    active_face = layout.get("active_face") or "front"
+
+    cursor_x = left
+    cursor_y = bottom
+    row_height = 0.0
+
+    for design in designs:
+        piece_w, piece_h, bleed = _design_dimensions(design, layout)
+        allow_rotation = bool(design.get("allow_rotation", True))
+        forms = max(1, int(design.get("forms_per_plate") or 1))
+
+        for _ in range(forms):
+            slot_w, slot_h, rot = piece_w, piece_h, 0
+            if cursor_x + slot_w > left + usable_w and allow_rotation and (cursor_x + piece_h) <= (left + usable_w):
+                slot_w, slot_h = piece_h, piece_w
+                rot = 90
+
+            if cursor_x + slot_w > left + usable_w:
+                cursor_x = left
+                cursor_y += row_height + gap
+                row_height = 0.0
+
+            if cursor_y + slot_h > bottom + usable_h:
+                return slots
+
+            slots.append(
+                {
+                    "id": f"sr_{len(slots)}",
+                    "x_mm": cursor_x,
+                    "y_mm": cursor_y,
+                    "w_mm": slot_w,
+                    "h_mm": slot_h,
+                    "rotation_deg": rot,
+                    "logical_work_id": design.get("work_id"),
+                    "bleed_mm": bleed,
+                    "crop_marks": True,
+                    "locked": False,
+                    "design_ref": design.get("ref"),
+                    "face": active_face,
+                }
+            )
+
+            cursor_x += slot_w + gap
+            row_height = max(row_height, slot_h)
+
+        cursor_x = left
+        cursor_y += row_height + gap
+        row_height = 0.0
+
+    return slots
+
+
+def _repeat_pattern_over_sheet(base_slots: List[Dict], bbox: tuple[float, float, float, float], layout: Dict) -> List[Dict]:
+    if not base_slots:
+        return []
+    usable_w, usable_h, left, _, _, bottom = _sheet_area(layout)
+    if usable_w <= 0 or usable_h <= 0:
+        return []
+    min_x, min_y, max_x, max_y = bbox
+    block_w = max(0.0, max_x - min_x)
+    block_h = max(0.0, max_y - min_y)
+    if block_w <= 0 or block_h <= 0:
+        return base_slots
+
+    gap = float(layout.get("gap_default_mm") or 0)
+    slots: List[Dict] = []
+    y_offset = bottom
+    while y_offset + block_h <= bottom + usable_h + 1e-6:
+        x_offset = left
+        while x_offset + block_w <= left + usable_w + 1e-6:
+            for slot in base_slots:
+                slots.append(
+                    {
+                        **slot,
+                        "id": f"hyb_{len(slots)}",
+                        "x_mm": x_offset + (slot["x_mm"] - min_x),
+                        "y_mm": y_offset + (slot["y_mm"] - min_y),
+                    }
+                )
+            x_offset += block_w + gap
+        y_offset += block_h + gap
+    return slots
+
+
+def _apply_imposition_engine(layout: Dict, engine: str) -> List[Dict]:
+    if engine == "nesting":
+        nesting = compute_nesting(layout)
+        return _slots_from_nesting_result(nesting, layout)
+    if engine == "hybrid":
+        nesting = compute_nesting(layout)
+        base_slots = _slots_from_nesting_result(nesting, layout)
+        return _repeat_pattern_over_sheet(base_slots, nesting.bbox, layout)
+    return _build_step_repeat_slots(layout)
+
+
 @routes_bp.route("/editor_offset/auto_layout/<job_id>", methods=["POST"])
 def editor_offset_auto_layout(job_id: str):
     safe_job_id = _safe_job_id(job_id)
@@ -456,6 +671,42 @@ def editor_offset_auto_layout(job_id: str):
     layout = payload_layout or _load_constructor_layout(job_dir) or _default_constructor_layout()
     updated = _generate_slots_with_ai(layout, job_dir)
     return jsonify({"ok": True, "layout": updated})
+
+
+@routes_bp.post("/editor_offset_visual/apply_imposition")
+def editor_offset_apply_imposition():
+    job_id_raw, payload_layout = _parse_constructor_payload()
+    job_id = _safe_job_id(job_id_raw)
+    if not job_id:
+        return _json_error("job_id inválido")
+
+    job_dir, stored_layout = _load_or_init_constructor_layout(job_id)
+    layout = payload_layout or stored_layout or _default_constructor_layout()
+    layout, _ = _ensure_faces_fields(layout)
+    layout, _ = _ensure_imposition_fields(layout)
+
+    if not layout.get("designs"):
+        return _json_error("Configurá al menos un diseño con sus formas por pliego antes de aplicar la imposición.")
+
+    allowed = layout.get("allowed_engines") or ["repeat", "nesting", "hybrid"]
+    selected_engine = (
+        request.form.get("selected_engine")
+        or (payload_layout or {}).get("imposition_engine")
+        or layout.get("imposition_engine")
+        or allowed[0]
+    )
+    if selected_engine not in allowed:
+        selected_engine = allowed[0]
+    layout["imposition_engine"] = selected_engine
+
+    try:
+        slots = _apply_imposition_engine(layout, selected_engine)
+    except ValueError as exc:
+        return _json_error(str(exc))
+
+    layout["slots"] = slots
+    _save_constructor_layout(job_dir, layout)
+    return jsonify({"ok": True, "layout": layout})
 
 
 @routes_bp.route("/editor_offset/preview/<job_id>", methods=["POST"])

@@ -1412,7 +1412,8 @@ def montar_offset_desde_layout(layout_data, job_dir, preview: bool = False):
         if not os.path.exists(ruta_pdf):
             continue
         ref_to_idx[str(ref)] = len(disenos)
-        disenos.append(Diseno(ruta=ruta_pdf, cantidad=1))
+        forms_per_plate = max(1, int(d.get("forms_per_plate") or 1))
+        disenos.append(Diseno(ruta=ruta_pdf, cantidad=forms_per_plate))
 
     def _positions_for_face(target_face: str) -> tuple[list[dict], bool]:
         posiciones: List[dict] = []
@@ -1457,6 +1458,14 @@ def montar_offset_desde_layout(layout_data, job_dir, preview: bool = False):
             )
         return posiciones, face_crop
 
+    def _strategy_from_engine(layout_obj: dict) -> str:
+        engine = (layout_obj.get("imposition_engine") or "repeat").lower()
+        if engine == "nesting":
+            return "nesting_pro"
+        if engine == "hybrid":
+            return "hybrid_nesting_repeat"
+        return "grid"
+
     front_positions, front_crop = _positions_for_face("front")
     back_positions, back_crop = _positions_for_face("back")
     has_front = len(front_positions) > 0
@@ -1466,7 +1475,14 @@ def montar_offset_desde_layout(layout_data, job_dir, preview: bool = False):
     preview_path = os.path.join(job_dir, "preview.png") if preview else None
     output_path = os.path.join(job_dir, "montaje_final.pdf")
 
-    def _config_for_positions(posiciones: List[dict], crop_flag: bool, output: str, preview_target: str | None):
+    def _config_for_positions(
+        posiciones: List[dict],
+        crop_flag: bool,
+        output: str,
+        preview_target: str | None,
+        estrategia_nombre: str,
+    ):
+        modo_manual = bool(posiciones)
         return MontajeConfig(
             tamano_pliego=tuple(sheet_mm),
             separacion=gap_default,
@@ -1476,9 +1492,9 @@ def montar_offset_desde_layout(layout_data, job_dir, preview: bool = False):
             margen_inferior=margin_bottom,
             sangrado=bleed_default,
             cutmarks_por_forma=crop_flag,
-            posiciones_manual=posiciones,
-            modo_manual=True,
-            estrategia="manual",
+            posiciones_manual=posiciones if modo_manual else None,
+            modo_manual=modo_manual,
+            estrategia="manual" if modo_manual else estrategia_nombre,
             es_pdf_final=not preview,
             preview_path=preview_target,
             output_path=output,
@@ -1497,10 +1513,14 @@ def montar_offset_desde_layout(layout_data, job_dir, preview: bool = False):
             return preview_path
         return output_path
 
+    estrategia_nombre = _strategy_from_engine(layout_data)
+
     if preview:
         preview_positions = front_positions if has_front else back_positions
         preview_crop = front_crop if has_front else back_crop
-        preview_config = _config_for_positions(preview_positions, preview_crop, output_path, preview_path)
+        preview_config = _config_for_positions(
+            preview_positions, preview_crop, output_path, preview_path, estrategia_nombre
+        )
         res = realizar_montaje_inteligente(disenos, preview_config)
         if isinstance(res, dict):
             return res.get("preview_path", preview_path)
@@ -1509,7 +1529,7 @@ def montar_offset_desde_layout(layout_data, job_dir, preview: bool = False):
     if not has_back or not has_front:
         target_positions = front_positions if has_front else back_positions
         crop_flag = front_crop if has_front else back_crop
-        config = _config_for_positions(target_positions, crop_flag, output_path, None)
+        config = _config_for_positions(target_positions, crop_flag, output_path, None, estrategia_nombre)
         res = realizar_montaje_inteligente(disenos, config)
         if isinstance(res, dict):
             return res.get("output_path", output_path)
@@ -1520,8 +1540,8 @@ def montar_offset_desde_layout(layout_data, job_dir, preview: bool = False):
     front_output = os.path.join(job_dir, "montaje_front.pdf")
     back_output = os.path.join(job_dir, "montaje_back.pdf")
 
-    front_config = _config_for_positions(front_positions, front_crop, front_output, None)
-    back_config = _config_for_positions(back_positions, back_crop, back_output, None)
+    front_config = _config_for_positions(front_positions, front_crop, front_output, None, estrategia_nombre)
+    back_config = _config_for_positions(back_positions, back_crop, back_output, None, estrategia_nombre)
 
     front_res = realizar_montaje_inteligente(disenos, front_config)
     back_res = realizar_montaje_inteligente(disenos, back_config)
