@@ -31,6 +31,8 @@ PREVIEW_DPI = int(os.getenv("PREVIEW_DPI", "144"))  # 120–150 DPI recomendado
 @dataclass
 class Diseno:
     ruta: str
+    # En el flujo del editor visual, ``cantidad`` se interpreta como "formas por pliego"
+    # (no como copias totales) para alinear la comunicación con el motor de imposición.
     cantidad: int = 1
 
 
