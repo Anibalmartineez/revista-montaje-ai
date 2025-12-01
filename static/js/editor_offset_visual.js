@@ -103,6 +103,18 @@
     }));
   }
 
+  function normalizeFormsPerPlateValue(value) {
+    const parsed = parseInt(value, 10);
+    if (!Number.isFinite(parsed) || parsed < 1) return 1;
+    return parsed;
+  }
+
+  function normalizeNonNegativeNumber(value, fallback = 0) {
+    const parsed = parseFloat(value);
+    if (!Number.isFinite(parsed) || parsed < 0) return fallback;
+    return parsed;
+  }
+
   function normalizeLayoutFaces() {
     if (!state.layout) return;
     if (!Array.isArray(state.layout.faces) || state.layout.faces.length === 0) {
@@ -590,7 +602,9 @@
       formsInput.min = '1';
       formsInput.value = d.forms_per_plate ?? 1;
       formsInput.addEventListener('change', () => {
-        d.forms_per_plate = Math.max(1, parseInt(formsInput.value || '1', 10));
+        const normalized = normalizeFormsPerPlateValue(formsInput.value);
+        formsInput.value = normalized;
+        d.forms_per_plate = normalized;
         pushHistory();
       });
       formsLabel.appendChild(formsInput);
@@ -603,7 +617,9 @@
       widthInput.step = '0.1';
       widthInput.value = d.width_mm ?? 0;
       widthInput.addEventListener('change', () => {
-        d.width_mm = parseFloat(widthInput.value || '0') || 0;
+        const normalized = normalizeNonNegativeNumber(widthInput.value, 0);
+        widthInput.value = normalized;
+        d.width_mm = normalized;
         pushHistory();
       });
       widthLabel.appendChild(widthInput);
@@ -616,7 +632,9 @@
       heightInput.step = '0.1';
       heightInput.value = d.height_mm ?? 0;
       heightInput.addEventListener('change', () => {
-        d.height_mm = parseFloat(heightInput.value || '0') || 0;
+        const normalized = normalizeNonNegativeNumber(heightInput.value, 0);
+        heightInput.value = normalized;
+        d.height_mm = normalized;
         pushHistory();
       });
       heightLabel.appendChild(heightInput);
@@ -629,7 +647,9 @@
       bleedInput.step = '0.1';
       bleedInput.value = d.bleed_mm ?? 0;
       bleedInput.addEventListener('change', () => {
-        d.bleed_mm = parseFloat(bleedInput.value || '0') || 0;
+        const normalized = normalizeNonNegativeNumber(bleedInput.value, 0);
+        bleedInput.value = normalized;
+        d.bleed_mm = normalized;
         pushHistory();
       });
       bleedLabel.appendChild(bleedInput);
@@ -1279,6 +1299,14 @@
     normalizeDesignDefaults();
     ensureEngineDefaults();
     syncSettingsToLayout();
+    if (Array.isArray(state.layout.slots) && state.layout.slots.length > 0) {
+      const confirmed = window.confirm(
+        'Aplicar el motor de imposición reemplazará los slots actuales del pliego.\n'
+          + 'Si realizaste ajustes manuales, se perderán esos cambios.\n'
+          + '¿Deseas continuar?',
+      );
+      if (!confirmed) return;
+    }
     const body = new FormData();
     body.append('job_id', window.JOB_ID);
     body.append('selected_engine', state.layout.imposition_engine);
