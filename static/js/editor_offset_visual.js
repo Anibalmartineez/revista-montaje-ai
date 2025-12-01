@@ -59,6 +59,8 @@
     state.layout.works = state.layout.works || [];
     state.layout.slots = state.layout.slots || [];
     state.layout.designs = state.layout.designs || [];
+    ensureEngineDefaults();
+    normalizeDesignDefaults();
     if (!state.layout.sheet_mm) {
       state.layout.sheet_mm = [640, 880];
     }
@@ -79,6 +81,26 @@
     state.layout.snapSettings = { ...state.snapSettings };
     state.layout.spacingSettings = { ...state.spacingSettings };
     normalizeLayoutFaces();
+  }
+
+  function ensureEngineDefaults() {
+    if (!Array.isArray(state.layout.allowed_engines) || state.layout.allowed_engines.length === 0) {
+      state.layout.allowed_engines = ['repeat', 'nesting', 'hybrid'];
+    }
+    if (!state.layout.imposition_engine || !state.layout.allowed_engines.includes(state.layout.imposition_engine)) {
+      state.layout.imposition_engine = state.layout.allowed_engines[0];
+    }
+  }
+
+  function normalizeDesignDefaults() {
+    state.layout.designs = (state.layout.designs || []).map((d) => ({
+      ...d,
+      width_mm: d.width_mm ?? d.w_mm ?? 0,
+      height_mm: d.height_mm ?? d.h_mm ?? 0,
+      bleed_mm: d.bleed_mm ?? state.layout.bleed_default_mm ?? 0,
+      allow_rotation: d.allow_rotation !== false,
+      forms_per_plate: Math.max(1, parseInt(d.forms_per_plate || '1', 10)),
+    }));
   }
 
   function normalizeLayoutFaces() {
@@ -125,6 +147,8 @@
       ...state.spacingSettings,
       ...(state.layout.spacingSettings || state.layout.spacing_settings || {}),
     };
+    ensureEngineDefaults();
+    normalizeDesignDefaults();
     normalizeLayoutFaces();
     state.selectedSlot = null;
     state.selectedSlots = new Set();
@@ -133,6 +157,7 @@
     renderDesigns();
     renderSnapControls();
     renderSpacingControls();
+    renderImpositionControls();
     recalcScale();
     renderSheet();
     renderSlotForm();
@@ -546,12 +571,117 @@
     clearChildren(designsListEl);
     state.layout.designs.forEach((d) => {
       const li = document.createElement('li');
+      li.className = 'design-item';
+
+      const title = document.createElement('div');
+      title.className = 'design-title';
       const work = state.layout.works.find((w) => w.id === d.work_id);
       const workLabel = work ? ` · Trabajo: ${work.name}` : '';
-      li.textContent = `${d.filename} (${d.ref})${workLabel}`;
+      title.textContent = `${d.filename || d.ref} (${d.ref})${workLabel}`;
+      li.appendChild(title);
+
+      const grid = document.createElement('div');
+      grid.className = 'design-grid';
+
+      const formsLabel = document.createElement('label');
+      formsLabel.textContent = 'Formas/pliego';
+      const formsInput = document.createElement('input');
+      formsInput.type = 'number';
+      formsInput.min = '1';
+      formsInput.value = d.forms_per_plate ?? 1;
+      formsInput.addEventListener('change', () => {
+        d.forms_per_plate = Math.max(1, parseInt(formsInput.value || '1', 10));
+        pushHistory();
+      });
+      formsLabel.appendChild(formsInput);
+      grid.appendChild(formsLabel);
+
+      const widthLabel = document.createElement('label');
+      widthLabel.textContent = 'Ancho (mm)';
+      const widthInput = document.createElement('input');
+      widthInput.type = 'number';
+      widthInput.step = '0.1';
+      widthInput.value = d.width_mm ?? 0;
+      widthInput.addEventListener('change', () => {
+        d.width_mm = parseFloat(widthInput.value || '0') || 0;
+        pushHistory();
+      });
+      widthLabel.appendChild(widthInput);
+      grid.appendChild(widthLabel);
+
+      const heightLabel = document.createElement('label');
+      heightLabel.textContent = 'Alto (mm)';
+      const heightInput = document.createElement('input');
+      heightInput.type = 'number';
+      heightInput.step = '0.1';
+      heightInput.value = d.height_mm ?? 0;
+      heightInput.addEventListener('change', () => {
+        d.height_mm = parseFloat(heightInput.value || '0') || 0;
+        pushHistory();
+      });
+      heightLabel.appendChild(heightInput);
+      grid.appendChild(heightLabel);
+
+      const bleedLabel = document.createElement('label');
+      bleedLabel.textContent = 'Bleed (mm)';
+      const bleedInput = document.createElement('input');
+      bleedInput.type = 'number';
+      bleedInput.step = '0.1';
+      bleedInput.value = d.bleed_mm ?? 0;
+      bleedInput.addEventListener('change', () => {
+        d.bleed_mm = parseFloat(bleedInput.value || '0') || 0;
+        pushHistory();
+      });
+      bleedLabel.appendChild(bleedInput);
+      grid.appendChild(bleedLabel);
+
+      const rotationLabel = document.createElement('label');
+      rotationLabel.className = 'checkbox-inline';
+      const rotationInput = document.createElement('input');
+      rotationInput.type = 'checkbox';
+      rotationInput.checked = d.allow_rotation !== false;
+      rotationInput.addEventListener('change', () => {
+        d.allow_rotation = rotationInput.checked;
+        pushHistory();
+      });
+      rotationLabel.appendChild(rotationInput);
+      rotationLabel.append(' Permitir rotación');
+      grid.appendChild(rotationLabel);
+
+      li.appendChild(grid);
       designsListEl.appendChild(li);
     });
     renderSlotForm();
+    renderImpositionControls();
+  }
+
+  function renderImpositionControls() {
+    ensureEngineDefaults();
+    const engine = state.layout.imposition_engine || 'repeat';
+    document.querySelectorAll('input[name="imposition-engine"]').forEach((input) => {
+      if (input) input.checked = input.value === engine;
+    });
+
+    const hint = document.getElementById('imposition-engine-hint');
+    if (hint) {
+      if (engine === 'nesting') {
+        hint.textContent = 'Nesting PRO optimiza la ubicación de cada diseño con rotación opcional.';
+      } else if (engine === 'hybrid') {
+        hint.textContent = 'Híbrido: se arma un patrón con Nesting PRO y se repite como bloque donde haya espacio disponible.';
+      } else {
+        hint.textContent = 'Step & Repeat PRO repetirá las formas declaradas respetando márgenes y pinzas.';
+      }
+    }
+
+    const warning = document.getElementById('imposition-warning');
+    if (warning) {
+      warning.classList.toggle('hidden', !!(state.layout.designs && state.layout.designs.length));
+    }
+
+    const stepPanel = document.getElementById('step-repeat-panel');
+    if (stepPanel) {
+      stepPanel.classList.toggle('hidden', engine === 'nesting');
+    }
   }
 
   function addSlot() {
@@ -1100,6 +1230,8 @@
   function layoutToJson() {
     normalizeLayoutFaces();
     syncSettingsToLayout();
+    ensureEngineDefaults();
+    normalizeDesignDefaults();
     return JSON.stringify(state.layout);
   }
 
@@ -1130,6 +1262,52 @@
       initSheetControls();
       renderWorks();
       renderDesigns();
+      recalcScale();
+      renderSheet();
+      renderFaceToggle();
+      pushHistory();
+    }
+  }
+
+  async function applyImpositionEngine() {
+    if (!state.layout.designs || state.layout.designs.length === 0) {
+      const warning = document.getElementById('imposition-warning');
+      if (warning) warning.classList.remove('hidden');
+      alert('Configura al menos un diseño antes de aplicar el motor de imposición.');
+      return;
+    }
+    normalizeDesignDefaults();
+    ensureEngineDefaults();
+    syncSettingsToLayout();
+    const body = new FormData();
+    body.append('job_id', window.JOB_ID);
+    body.append('selected_engine', state.layout.imposition_engine);
+    body.append('layout_json', layoutToJson());
+    const res = await fetch('/editor_offset_visual/apply_imposition', { method: 'POST', body });
+    const data = await res.json();
+    if (!data.ok && data.error) {
+      alert(data.error);
+      return;
+    }
+    if (data.layout) {
+      state.layout = data.layout;
+      ensureEngineDefaults();
+      normalizeDesignDefaults();
+      normalizeLayoutFaces();
+      state.snapSettings = {
+        ...state.snapSettings,
+        ...(state.layout.snapSettings || state.layout.snap_settings || {}),
+      };
+      state.spacingSettings = {
+        ...state.spacingSettings,
+        ...(state.layout.spacingSettings || state.layout.spacing_settings || {}),
+      };
+      initSheetControls();
+      renderWorks();
+      renderDesigns();
+      renderSnapControls();
+      renderSpacingControls();
+      renderImpositionControls();
       recalcScale();
       renderSheet();
       renderFaceToggle();
@@ -1178,6 +1356,8 @@
     const data = await res.json();
     if (data.designs) {
       state.layout.designs = data.designs;
+      normalizeDesignDefaults();
+      ensureEngineDefaults();
       renderDesigns();
       filesInput.value = '';
       pushHistory();
@@ -1195,6 +1375,7 @@
     renderDesigns();
     renderSnapControls();
     renderSpacingControls();
+    renderImpositionControls();
     fillWorkForm(state.layout.works[0]);
     applyZoom();
     document.getElementById('btn-new-slot').addEventListener('click', addSlot);
@@ -1208,6 +1389,7 @@
     document.getElementById('btn-preview').addEventListener('click', requestPreview);
     document.getElementById('btn-pdf').addEventListener('click', requestPdf);
     document.getElementById('btn-auto').addEventListener('click', requestAutoLayout);
+    document.getElementById('btn-apply-imposition')?.addEventListener('click', applyImpositionEngine);
     document.getElementById('btn-apply-gap').addEventListener('click', applyGapToSlots);
     document.getElementById('snap-slots')?.addEventListener('change', updateSnapSettingsFromUI);
     document.getElementById('snap-margins')?.addEventListener('change', updateSnapSettingsFromUI);
@@ -1249,6 +1431,12 @@
       stepRepeatBtn.addEventListener('click', generateStepRepeatFromSelectedSlot);
     }
     uploadForm.addEventListener('submit', uploadDesigns);
+    document.querySelectorAll('input[name="imposition-engine"]').forEach((input) => {
+      input.addEventListener('change', (ev) => {
+        state.layout.imposition_engine = ev.target.value;
+        renderImpositionControls();
+      });
+    });
     const zoomInBtn = document.getElementById('zoom-in');
     const zoomOutBtn = document.getElementById('zoom-out');
     if (zoomInBtn) {

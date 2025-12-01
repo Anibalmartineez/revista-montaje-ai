@@ -9,3 +9,4 @@ opencv-python-headless==4.9.0.80
 matplotlib==3.8.4
 pdf2image==1.16.3
 PyPDF2==3.0.1
+rectpack==0.2.2
