@@ -160,8 +160,8 @@ body {
 
 .slot .handle {
   position: absolute;
-  width: 10px;
-  height: 10px;
+  width: 6px;
+  height: 6px;
   background: #fff;
   border: 2px solid #111827;
   box-sizing: border-box;

@@ -206,6 +206,21 @@
     return { x: snappedX, y: snappedY };
   }
 
+  function updateHandleScale() {
+    const handles = document.querySelectorAll('.slot .handle');
+    const zoom = state.zoom || 1;
+
+    let size = 6 * zoom;
+
+    if (size < 3) size = 3;
+    if (size > 8) size = 8;
+
+    handles.forEach((h) => {
+      h.style.width = `${size}px`;
+      h.style.height = `${size}px`;
+    });
+  }
+
   function applyZoom() {
     const sheet = document.getElementById('sheet');
     if (!sheet) return;
@@ -215,6 +230,7 @@
     if (label) {
       label.textContent = `${Math.round(state.zoom * 100)}%`;
     }
+    updateHandleScale();
   }
 
   function syncSettingsToLayout() {
@@ -334,6 +350,7 @@
       });
       sheetEl.appendChild(slotEl);
     });
+    updateHandleScale();
     applyZoom();
   }
 
