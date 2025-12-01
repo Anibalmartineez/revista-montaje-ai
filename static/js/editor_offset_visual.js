@@ -210,10 +210,12 @@
     const handles = document.querySelectorAll('.slot .handle');
     const zoom = state.zoom || 1;
 
-    let size = 6 * zoom;
+    // Tamaño base muy pequeño (4 px a 100%)
+    let size = 4 * zoom;
 
-    if (size < 3) size = 3;
-    if (size > 8) size = 8;
+    // Limitar para que nunca se hagan molestos
+    if (size < 2) size = 2;
+    if (size > 5) size = 5;
 
     handles.forEach((h) => {
       h.style.width = `${size}px`;
