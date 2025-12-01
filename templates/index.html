@@ -108,13 +108,33 @@
     button[value="redimensionar"]:hover {
       background-color: #5a6268;
     }
-button[value="analisis_grafico"] {
-  background-color: #004aad;
-}
+    button[value="analisis_grafico"] {
+      background-color: #004aad;
+    }
 
-button[value="analisis_grafico"]:hover {
-  background-color: #00367a;
-}
+    button[value="analisis_grafico"]:hover {
+      background-color: #00367a;
+    }
+
+    .btn-editor-visual {
+      display: block;
+      width: 100%;
+      background: linear-gradient(135deg, #2563eb, #1e40af);
+      color: white !important;
+      font-size: 22px;
+      font-weight: 700;
+      padding: 18px 25px;
+      border-radius: 12px;
+      margin-bottom: 25px;
+      text-align: center;
+      box-shadow: 0px 6px 18px rgba(37, 99, 235, 0.35);
+      transition: transform .15s ease, box-shadow .2s ease;
+    }
+
+    .btn-editor-visual:hover {
+      transform: scale(1.04);
+      box-shadow: 0px 10px 28px rgba(37, 99, 235, 0.45);
+    }
 
     .boton-funcion {
       display: block;
@@ -246,11 +266,14 @@ button[value="analisis_grafico"]:hover {
       </div>
 
       <!-- Botones de acción -->
-<button name='action' value='montar'>Montar Revista</button>
-<button name='action' value='diagnostico'>Diagnóstico Técnico (IA)</button>
-<button name='action' value='corregir_sangrado'>Corregir Márgenes y Sangrado</button>
-<button name='action' value='redimensionar'>Redimensionar PDF</button>
-<button name='action' value='analisis_grafico'>Analizar Gráfico Técnico</button>
+      <a href="{{ url_for('routes.editor_offset_visual') }}" class="btn btn-editor-visual" target="_blank">
+        🧠 Editor Visual IA (Nuevo)
+      </a>
+      <button name='action' value='montar'>Montar Revista</button>
+      <button name='action' value='diagnostico'>Diagnóstico Técnico (IA)</button>
+      <button name='action' value='corregir_sangrado'>Corregir Márgenes y Sangrado</button>
+      <button name='action' value='redimensionar'>Redimensionar PDF</button>
+      <button name='action' value='analisis_grafico'>Analizar Gráfico Técnico</button>
 </form>
 
       <!-- Botones de acceso externo -->
