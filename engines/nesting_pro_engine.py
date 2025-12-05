@@ -73,7 +73,11 @@ def _rectpack_positions(pieces: List[NestingPiece], layout: Dict) -> NestingResu
         rect_w = padded_w + pad
         rect_h = padded_h + pad
         for _ in range(piece.forms_per_plate):
-            packer.add_rect(rect_w, rect_h, rid=piece.design_ref, rot=piece.allow_rotation)
+            # rectpack sólo acepta (width, height, rid).
+            # La rotación se controla globalmente con rotation=True al crear el packer.
+            # Usamos 'rid' para identificar el diseño y luego inferimos si fue rotado
+            # comparando ancho/alto en rect_list().
+            packer.add_rect(rect_w, rect_h, rid=piece.design_ref)
 
     packer.pack()
 
