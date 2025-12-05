@@ -184,13 +184,17 @@
     const baseW = slot.w_mm || 0;
     const baseH = slot.h_mm || 0;
     const rotation = ((slot.rotation_deg || 0) % 360 + 360) % 360;
+    const rotated = rotation === 90 || rotation === 270;
+
+    const visualW = rotated ? baseH : baseW;
+    const visualH = rotated ? baseW : baseH;
 
 
     return {
       x: slot.x_mm,
       y: slot.y_mm,
-      w: baseW,
-      h: baseH,
+      w: visualW,
+      h: visualH,
       rotation,
     };
   }
