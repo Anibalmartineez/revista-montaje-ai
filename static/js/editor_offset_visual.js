@@ -180,6 +180,21 @@
     return mm * state.scale;
   }
 
+  function getSlotRenderBox(slot) {
+    const baseW = slot.w_mm || 0;
+    const baseH = slot.h_mm || 0;
+    const rotation = ((slot.rotation_deg || 0) % 360 + 360) % 360;
+
+
+    return {
+      x: slot.x_mm,
+      y: slot.y_mm,
+      w: baseW,
+      h: baseH,
+      rotation,
+    };
+  }
+
   function recalcScale() {
     const sheet = state.layout.sheet_mm || [640, 880];
     const prevScale = state.scale || 1;
@@ -368,11 +383,13 @@
         slotEl.classList.add('selected');
       }
       slotEl.dataset.slotId = slot.id;
-      slotEl.style.left = `${mmToPx(slot.x_mm)}px`;
-      slotEl.style.bottom = `${mmToPx(slot.y_mm)}px`;
-      slotEl.style.width = `${mmToPx(slot.w_mm)}px`;
-      slotEl.style.height = `${mmToPx(slot.h_mm)}px`;
-      slotEl.style.transform = `rotate(${slot.rotation_deg || 0}deg)`;
+      const renderBox = getSlotRenderBox(slot);
+      slotEl.style.left = `${mmToPx(renderBox.x)}px`;
+      slotEl.style.bottom = `${mmToPx(renderBox.y)}px`;
+      slotEl.style.width = `${mmToPx(renderBox.w)}px`;
+      slotEl.style.height = `${mmToPx(renderBox.h)}px`;
+      slotEl.style.transformOrigin = 'center';
+      slotEl.style.transform = `rotate(${renderBox.rotation}deg)`;
 
       // Handles de esquina desactivados, el usuario escala solo desde el panel lateral.
 
