@@ -320,3 +320,52 @@ body {
   align-items: center;
   gap: 6px;
 }
+
+.panel-accordion {
+  border: 1px solid #ddd;
+  border-radius: 8px;
+  padding: 6px 10px 8px;
+  margin-bottom: 10px;
+  background: #fafafa;
+}
+
+.panel-accordion > summary {
+  font-weight: 600;
+  cursor: pointer;
+  list-style: none;
+  margin: -6px -10px 6px;
+  padding: 6px 10px;
+  border-radius: 8px;
+  background: #f0f0f0;
+}
+
+.panel-accordion[open] > summary {
+  border-bottom-left-radius: 0;
+  border-bottom-right-radius: 0;
+}
+
+.panel-basic > summary {
+  background: #e8f4ff;
+}
+
+.panel-designs > summary {
+  background: #e8ffe8;
+}
+
+.panel-imposition > summary {
+  background: #fff7e0;
+}
+
+.panel-advanced > summary {
+  background: #f5e8ff;
+}
+
+.panel-output > summary {
+  background: #e8fff9;
+}
+
+.panel-output button,
+.panel-imposition button {
+  width: 100%;
+  margin-top: 5px;
+}
