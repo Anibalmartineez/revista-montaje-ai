@@ -75,6 +75,7 @@ class MontajeConfig:
     devolver_posiciones: bool = False
     resumen_path: Optional[str] = None
     export_compat: Optional[str] = None  # None | "pdfx1a" | "adobe_compatible"
+    ctp_config: Optional[dict] = None
 
 
 def mm_to_px(mm: float, dpi: int) -> int:
@@ -696,6 +697,7 @@ def montar_pliego_offset_inteligente(
     posiciones_manual: list[dict] | None = None,
     devolver_posiciones: bool = False,
     resumen_path: str | None = None,
+    ctp_config: dict | None = None,
     **kwargs,
 ) -> str | Tuple[bytes, str]:
     """Genera un PDF montando múltiples diseños con lógica profesional.
@@ -724,6 +726,7 @@ def montar_pliego_offset_inteligente(
     output_path = kwargs.get("output_pdf_path", output_path)
     posiciones_manual = kwargs.get("posiciones_override", posiciones_manual)
     export_compat = kwargs.get("export_compat")
+    ctp_config = kwargs.get("ctp_config", ctp_config)
     if posiciones_manual is not None:
         estrategia = "manual"
 
@@ -734,6 +737,10 @@ def montar_pliego_offset_inteligente(
 
     used_bbox = [None, None, None, None]
     eps_pt = EPS_MM * MM_TO_PT
+    ctp_cfg = ctp_config or {}
+    ctp_enabled = bool(ctp_cfg.get("enabled"))
+    gripper_mm = float(ctp_cfg.get("gripper_mm", 0) or 0)
+    block_bbox_pt = [None, None, None, None]
 
     margen_izq = float(margen_izq) + lateral_mm
     margen_der = float(margen_der)
@@ -1241,11 +1248,22 @@ def montar_pliego_offset_inteligente(
                 usar_trimbox=(bleed_effective > 0 or usar_trimbox),
             )
         img = image_cache[cache_key]
-        w_pt = mm_to_pt(pos["ancho"] + 2 * bleed_effective)
-        h_pt = mm_to_pt(pos["alto"] + 2 * bleed_effective)
+        base_w_mm = pos["ancho"]
+        base_h_mm = pos["alto"]
+        draw_w_mm = base_w_mm + 2 * bleed_effective
+        draw_h_mm = base_h_mm + 2 * bleed_effective
+        trim_w_mm = base_w_mm
+        trim_h_mm = base_h_mm
         x_pt = mm_to_pt(pos["x"])
         y_pt = mm_to_pt(pos["y"])
         rot = int(pos.get("rot_deg") or 0) % 360
+
+        if rot in (90, 270):
+            draw_w_mm, draw_h_mm = draw_h_mm, draw_w_mm
+            trim_w_mm, trim_h_mm = trim_h_mm, trim_w_mm
+
+        w_pt = mm_to_pt(draw_w_mm)
+        h_pt = mm_to_pt(draw_h_mm)
 
         if rot:
             img_to_draw = img.rotate(-rot, resample=Image.BILINEAR, expand=True)
@@ -1261,11 +1279,11 @@ def montar_pliego_offset_inteligente(
         x_trim_pt = x_pt + mm_to_pt(bleed_eff)
         y_trim_pt = y_pt + mm_to_pt(bleed_eff)
         if bleed_effective > 0:
-            w_trim_pt = mm_to_pt(pos["ancho"])
-            h_trim_pt = mm_to_pt(pos["alto"])
+            w_trim_pt = mm_to_pt(trim_w_mm)
+            h_trim_pt = mm_to_pt(trim_h_mm)
         else:
-            w_trim_pt = mm_to_pt(pos["ancho"] - 2 * bleed_eff)
-            h_trim_pt = mm_to_pt(pos["alto"] - 2 * bleed_eff)
+            w_trim_pt = mm_to_pt(trim_w_mm - 2 * bleed_eff)
+            h_trim_pt = mm_to_pt(trim_h_mm - 2 * bleed_eff)
         bleed_pt = max(0.0, bleed_eff) * MM_TO_PT
         _bbox_add(
             used_bbox,
@@ -1274,6 +1292,7 @@ def montar_pliego_offset_inteligente(
             x_trim_pt + w_trim_pt + bleed_pt + eps_pt,
             y_trim_pt + h_trim_pt + bleed_pt + eps_pt,
         )
+        _bbox_add(block_bbox_pt, x_pt, y_pt, x_pt + w_pt, y_pt + h_pt)
         if cutmarks_por_forma and bleed_eff > 0 and pos.get("crop_marks", True):
             draw_cutmarks_around_form_reportlab(
                 canvas=c,
@@ -1291,6 +1310,29 @@ def montar_pliego_offset_inteligente(
         bottom = mm_to_pt(margen_inf)
         right = sheet_w_pt - mm_to_pt(margen_der)
         top = sheet_h_pt - mm_to_pt(margen_sup)
+        if ctp_enabled and block_bbox_pt[0] is not None:
+            c.saveState()
+            c.setFillColorRGB(0.3, 0.3, 0.3)
+            strip_height_pt = mm_to_pt(6)
+            strip_offset_pt = mm_to_pt(2)
+            strip_y = min(sheet_h_pt - strip_height_pt - strip_offset_pt, block_bbox_pt[3] + strip_offset_pt)
+            strip_y = max(strip_y, block_bbox_pt[1])
+            strip_width_pt = block_bbox_pt[2] - block_bbox_pt[0]
+            c.rect(block_bbox_pt[0], strip_y, strip_width_pt, strip_height_pt, fill=1, stroke=0)
+
+            mark_size_pt = mm_to_pt(3)
+            c.setStrokeColorRGB(0, 0, 0)
+            c.setLineWidth(0.4)
+            for cx in (block_bbox_pt[0] + mark_size_pt * 2, (block_bbox_pt[0] + block_bbox_pt[2]) / 2, block_bbox_pt[2] - mark_size_pt * 2):
+                cy = strip_y + strip_height_pt + mark_size_pt
+                c.line(cx - mark_size_pt, cy, cx + mark_size_pt, cy)
+                c.line(cx, cy - mark_size_pt, cx, cy + mark_size_pt)
+
+            text_y = min(mm_to_pt(max(gripper_mm * 0.5, 3)), sheet_h_pt - mm_to_pt(4))
+            c.setFillColorRGB(0.15, 0.15, 0.15)
+            c.setFont("Helvetica", 9)
+            c.drawString(mm_to_pt(5), text_y, f"Producción / CTP activo · Pinza {gripper_mm:.1f} mm")
+            c.restoreState()
         if marcas_registro:
             def cross(x: float, y: float, s_mm: float = 5) -> None:
                 s = mm_to_pt(s_mm)
@@ -1399,6 +1441,10 @@ def montar_offset_desde_layout(layout_data, job_dir, preview: bool = False):
     margins = layout_data.get("margins_mm", [10, 10, 10, 10])
     bleed_default = float(layout_data.get("bleed_default_mm", 0) or 0)
     gap_default = layout_data.get("gap_default_mm", 0)
+    ctp_cfg = layout_data.get("ctp", {}) or {}
+    ctp_enabled = bool(ctp_cfg.get("enabled"))
+    gripper_mm = float(ctp_cfg.get("gripper_mm", 0) or 0)
+    base_pinza_mm = float(layout_data.get("pinza_mm", 0) or 0)
 
     designs = layout_data.get("designs", []) or []
     works = {w.get("id"): w for w in (layout_data.get("works", []) or [])}
@@ -1492,6 +1538,7 @@ def montar_offset_desde_layout(layout_data, job_dir, preview: bool = False):
             margen_derecho=margin_right,
             margen_superior=margin_top,
             margen_inferior=margin_bottom,
+            pinza_mm=gripper_mm if ctp_enabled else base_pinza_mm,
             sangrado=bleed_default,
             cutmarks_por_forma=crop_flag,
             posiciones_manual=posiciones if modo_manual else None,
@@ -1500,6 +1547,7 @@ def montar_offset_desde_layout(layout_data, job_dir, preview: bool = False):
             es_pdf_final=not preview,
             preview_path=preview_target,
             output_path=output,
+            ctp_config=ctp_cfg,
         )
 
     def _resolve_output_path(res, default_path: str) -> str:

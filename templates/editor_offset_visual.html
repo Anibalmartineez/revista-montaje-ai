@@ -292,6 +292,44 @@
         </section>
       </details>
 
+      <details class="panel-accordion panel-ctp">
+        <summary>Producción / CTP</summary>
+
+        <p class="muted">
+          Este modo ajusta el montaje para salida final a plancha offset:
+          centrado, con pinza inferior y listo para CTP.
+        </p>
+
+        <label>Pinza inferior (mm)
+          <input type="number" id="ctp-gripper-mm" min="0" step="1" value="40">
+        </label>
+
+        <label class="checkbox-inline">
+          <input type="checkbox" id="ctp-show-guide">
+          Mostrar zona de pinza en el canvas
+        </label>
+
+        <label class="checkbox-inline">
+          <input type="checkbox" id="ctp-lock-after" checked>
+          Bloquear slots después de aplicar
+        </label>
+
+        <div class="form-actions">
+          <button type="button" id="btn-ctp-apply" class="btn btn-secondary">
+            Aplicar Producción / CTP
+          </button>
+          <button type="button" id="btn-ctp-disable" class="btn btn-small">
+            Quitar ajustes CTP
+          </button>
+        </div>
+
+        <!-- Dejá preparado bloque para futuro: tiras CMYK / texto técnico -->
+        <p class="muted">
+          En una segunda etapa, desde aquí se activarán tiras de control CMYK,
+          marcas de registro y texto técnico en la pinza.
+        </p>
+      </details>
+
       <details class="panel-accordion panel-output" open>
         <summary>Salida final</summary>
         <div class="form-actions">
