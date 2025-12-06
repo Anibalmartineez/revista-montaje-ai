@@ -60,6 +60,7 @@
     state.layout.slots = state.layout.slots || [];
     state.layout.designs = state.layout.designs || [];
     ensureEngineDefaults();
+    ensureCtpDefaults();
     normalizeDesignDefaults();
     if (!state.layout.sheet_mm) {
       state.layout.sheet_mm = [640, 880];
@@ -90,6 +91,18 @@
     if (!state.layout.imposition_engine || !state.layout.allowed_engines.includes(state.layout.imposition_engine)) {
       state.layout.imposition_engine = state.layout.allowed_engines[0];
     }
+  }
+
+  function ensureCtpDefaults() {
+    if (!state.layout) return;
+    if (!state.layout.ctp) {
+      state.layout.ctp = {};
+    }
+    const ctp = state.layout.ctp;
+    if (ctp.enabled === undefined) ctp.enabled = false;
+    if (ctp.gripper_mm === undefined) ctp.gripper_mm = 40;
+    if (ctp.lock_after === undefined) ctp.lock_after = true;
+    if (ctp.show_guide === undefined) ctp.show_guide = false;
   }
 
   function normalizeDesignDefaults() {
@@ -370,6 +383,8 @@
     sheetEl.style.height = `${mmToPx(sheetH)}px`;
     clearChildren(sheetEl);
 
+    renderCtpGuideOverlay();
+
     const activeFace = state.activeFace || 'front';
     const visibleSlots = state.layout.slots.filter((slot) => (slot.face || 'front') === activeFace);
 
@@ -402,6 +417,18 @@
     });
     updateHandleScale();
     applyZoom();
+  }
+
+  function renderCtpGuideOverlay() {
+    const ctp = state.layout?.ctp;
+    if (!ctp || !ctp.show_guide || !ctp.enabled) return;
+    if ((state.activeFace || 'front') !== 'front') return;
+    const gripper = Number(ctp.gripper_mm || 0);
+    if (!sheetEl) return;
+    const guideEl = document.createElement('div');
+    guideEl.className = 'ctp-guide';
+    guideEl.style.height = `${mmToPx(Math.max(0, gripper))}px`;
+    sheetEl.appendChild(guideEl);
   }
 
   function renderFaceToggle() {
@@ -972,6 +999,102 @@
     return true;
   }
 
+  function readCtpParamsFromUI() {
+    if (!state.layout) return;
+    state.layout.ctp = state.layout.ctp || {};
+    const gripperInput = document.getElementById('ctp-gripper-mm');
+    const showGuideInput = document.getElementById('ctp-show-guide');
+    const lockAfterInput = document.getElementById('ctp-lock-after');
+
+    const gripperVal = gripperInput ? parseFloat(gripperInput.value || '0') : state.layout.ctp.gripper_mm;
+    state.layout.ctp.gripper_mm = Number.isFinite(gripperVal) ? gripperVal : state.layout.ctp.gripper_mm || 0;
+    state.layout.ctp.show_guide = !!showGuideInput?.checked;
+    state.layout.ctp.lock_after = lockAfterInput?.checked !== false;
+  }
+
+  function syncCtpUIFromLayout() {
+    const ctp = state.layout?.ctp || {};
+    const gripperInput = document.getElementById('ctp-gripper-mm');
+    const showGuideInput = document.getElementById('ctp-show-guide');
+    const lockAfterInput = document.getElementById('ctp-lock-after');
+    if (gripperInput) gripperInput.value = ctp.gripper_mm ?? 40;
+    if (showGuideInput) showGuideInput.checked = !!ctp.show_guide;
+    if (lockAfterInput) lockAfterInput.checked = ctp.lock_after !== false;
+  }
+
+  function computeFrontBlockBBox() {
+    const frontSlots = (state.layout.slots || []).filter((s) => (s.face || 'front') === 'front');
+    if (!frontSlots.length) return null;
+    let minX = Infinity;
+    let maxX = -Infinity;
+    let minY = Infinity;
+    let maxY = -Infinity;
+
+    frontSlots.forEach((slot) => {
+      const baseW = Number(slot.w_mm || 0);
+      const baseH = Number(slot.h_mm || 0);
+      const rot = ((slot.rotation_deg || 0) % 360 + 360) % 360;
+      const width = rot === 90 || rot === 270 ? baseH : baseW;
+      const height = rot === 90 || rot === 270 ? baseW : baseH;
+      const x0 = Number(slot.x_mm || 0);
+      const y0 = Number(slot.y_mm || 0);
+      const x1 = x0 + width;
+      const y1 = y0 + height;
+      minX = Math.min(minX, x0);
+      maxX = Math.max(maxX, x1);
+      minY = Math.min(minY, y0);
+      maxY = Math.max(maxY, y1);
+    });
+
+    if (!isFinite(minX) || !isFinite(minY)) return null;
+    return { minX, maxX, minY, maxY };
+  }
+
+  function applyCtpAlignment() {
+    readCtpParamsFromUI();
+    const ctp = state.layout?.ctp;
+    if (!ctp) return;
+    const bbox = computeFrontBlockBBox();
+    if (!bbox) {
+      alert('No hay slots en el frente para aplicar Producción / CTP.');
+      return;
+    }
+
+    const sheetW = (state.layout.sheet_mm && state.layout.sheet_mm[0]) || 0;
+    const blockWidth = bbox.maxX - bbox.minX;
+    const desiredMinX = (sheetW - blockWidth) / 2;
+    const deltaX = desiredMinX - bbox.minX;
+    const desiredMinY = Number(ctp.gripper_mm || 0);
+    const deltaY = desiredMinY - bbox.minY;
+
+    state.layout.slots.forEach((slot) => {
+      if ((slot.face || 'front') !== 'front') return;
+      slot.x_mm = (slot.x_mm || 0) + deltaX;
+      slot.y_mm = (slot.y_mm || 0) + deltaY;
+      if (ctp.lock_after !== false) {
+        slot.locked = true;
+      }
+    });
+
+    ctp.enabled = true;
+    renderSheet();
+    renderSlotForm();
+    pushHistory();
+  }
+
+  function disableCtpAdjustments() {
+    if (!state.layout?.ctp) return;
+    state.layout.ctp.enabled = false;
+    state.layout.ctp.show_guide = false;
+    (state.layout.slots || []).forEach((slot) => {
+      slot.locked = false;
+    });
+    syncCtpUIFromLayout();
+    renderSheet();
+    renderSlotForm();
+    pushHistory();
+  }
+
   async function generateStepRepeatFromSelectedSlot() {
     const master = getSelectedSlot();
     if (!master) {
@@ -1267,6 +1390,8 @@
     normalizeLayoutFaces();
     syncSettingsToLayout();
     ensureEngineDefaults();
+    ensureCtpDefaults();
+    readCtpParamsFromUI();
     normalizeDesignDefaults();
     return JSON.stringify(state.layout);
   }
@@ -1420,6 +1545,7 @@
     renderSnapControls();
     renderSpacingControls();
     renderImpositionControls();
+    syncCtpUIFromLayout();
     fillWorkForm(state.layout.works[0]);
     applyZoom();
     document.getElementById('btn-new-slot').addEventListener('click', addSlot);
@@ -1435,6 +1561,18 @@
     document.getElementById('btn-auto').addEventListener('click', requestAutoLayout);
     document.getElementById('btn-apply-imposition')?.addEventListener('click', applyImpositionEngine);
     document.getElementById('btn-apply-gap').addEventListener('click', applyGapToSlots);
+    document.getElementById('btn-ctp-apply')?.addEventListener('click', applyCtpAlignment);
+    document.getElementById('btn-ctp-disable')?.addEventListener('click', disableCtpAdjustments);
+    document.getElementById('ctp-gripper-mm')?.addEventListener('change', () => {
+      readCtpParamsFromUI();
+    });
+    document.getElementById('ctp-show-guide')?.addEventListener('change', () => {
+      readCtpParamsFromUI();
+      renderSheet();
+    });
+    document.getElementById('ctp-lock-after')?.addEventListener('change', () => {
+      readCtpParamsFromUI();
+    });
     document.getElementById('snap-slots')?.addEventListener('change', updateSnapSettingsFromUI);
     document.getElementById('snap-margins')?.addEventListener('change', updateSnapSettingsFromUI);
     document.getElementById('snap-grid')?.addEventListener('change', updateSnapSettingsFromUI);
