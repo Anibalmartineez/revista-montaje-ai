@@ -222,86 +222,127 @@ def draw_cutmarks_around_form_reportlab(canvas, x_pt, y_pt, w_pt, h_pt, bleed_mm
 
 
 def draw_professional_cmyk_strip(canvas, x, y, width, height):
-    """
-    Dibuja una tira de control CMYK profesional para CTP térmico.
-    - 4 columnas: C, M, Y, K
-    - Cada columna con 5 parches de trama: 5%, 25%, 50%, 75%, 100%
-    - Una fila de escala de grises (0% a 100% en varios pasos)
-    - Targets de registro en los extremos de la tira
-    - Un parche de sobreimpresión CMYK
-    - Textos pequeños debajo de cada columna (C, M, Y, K)
+    """Dibuja una tira de control CMYK profesional para impresión offset.
+
+    La composición respeta el rectángulo (x, y, width, height) y se centra en
+    la lectura del impresor: sólidos CMYK, parches de trama, escala de grises,
+    un gris balanceado CMY, líneas finas para enfoque y microtexto de control.
     """
 
     c = canvas
     c.saveState()
 
-    col_width = width / 4.0
-    margin = height * 0.05
-    text_size = 6
-    gray_height = height * 0.18
-    available_patch_height = height - (text_size + gray_height + 3 * margin)
-    patch_area_height = min(
-        max(available_patch_height, height * 0.4),
-        height - (text_size + gray_height + 2 * margin),
-    )
-    patch_h = patch_area_height / 5.0
+    margin = min(height * 0.08, mm_to_pt(1.5))
+    inner_x = x + margin
+    inner_y = y + margin
+    inner_w = width - 2 * margin
+    inner_h = height - 2 * margin
 
-    text_y = y + margin
-    gray_y = text_y + text_size + margin
-    patch_y = gray_y + gray_height + margin
+    row_gap = inner_h * 0.04
+    solid_h = inner_h * 0.22
+    halftone_h = inner_h * 0.22
+    gray_h = inner_h * 0.18
+    balance_h = inner_h * 0.16
+    lines_h = inner_h - (solid_h + halftone_h + gray_h + balance_h + 4 * row_gap)
 
-    c.setFillColorRGB(0.92, 0.92, 0.92)
-    c.rect(x, y, width, height, fill=1, stroke=0)
+    y_cursor = inner_y + inner_h
 
-    shades = [0.05, 0.25, 0.5, 0.75, 1.0]
-    channels = [
-        ("C", lambda v: (v, 0, 0, 0)),
-        ("M", lambda v: (0, v, 0, 0)),
-        ("Y", lambda v: (0, 0, v, 0)),
-        ("K", lambda v: (0, 0, 0, v)),
+    # (a) Bloques sólidos CMYK
+    y_cursor -= solid_h
+    gap = inner_w * 0.01
+    block_w = (inner_w - 3 * gap) / 4.0
+    for i, color in enumerate(
+        [
+            (1, 0, 0, 0),  # C
+            (0, 1, 0, 0),  # M
+            (0, 0, 1, 0),  # Y
+            (0, 0, 0, 1),  # K
+        ]
+    ):
+        c.setFillColorCMYK(*color)
+        c.rect(inner_x + i * (block_w + gap), y_cursor, block_w, solid_h, fill=1, stroke=0)
+
+    y_cursor -= row_gap
+
+    # (b) Parches de trama por canal (25%, 50%, 75%)
+    y_cursor -= halftone_h
+    channel_w = (inner_w - 3 * gap) / 4.0
+    patch_gap = channel_w * 0.05
+    patch_w = (channel_w - 2 * patch_gap) / 3.0
+    halftone_levels = [0.25, 0.5, 0.75]
+    channel_colors = [
+        ("C", (1, 0, 0, 0)),
+        ("M", (0, 1, 0, 0)),
+        ("Y", (0, 0, 1, 0)),
+        ("K", (0, 0, 0, 1)),
     ]
-
-    for idx, (label, color_fn) in enumerate(channels):
-        base_x = x + idx * col_width + margin
-        for j, v in enumerate(shades):
-            c.setFillColorCMYK(*color_fn(v))
+    for idx, (_, base_color) in enumerate(channel_colors):
+        cx = inner_x + idx * (channel_w + gap)
+        for j, lvl in enumerate(halftone_levels):
+            c.setFillColorCMYK(
+                base_color[0] * lvl,
+                base_color[1] * lvl,
+                base_color[2] * lvl,
+                base_color[3] * lvl,
+            )
             c.rect(
-                base_x,
-                patch_y + j * patch_h,
-                col_width - 2 * margin,
-                patch_h - margin * 0.3,
+                cx + j * (patch_w + patch_gap),
+                y_cursor,
+                patch_w,
+                halftone_h,
                 fill=1,
                 stroke=0,
             )
 
-        c.setFont("Helvetica", text_size)
-        c.setFillColorRGB(0.1, 0.1, 0.1)
-        c.drawCentredString(x + idx * col_width + col_width / 2.0, text_y, label)
+    y_cursor -= row_gap
 
+    # (c) Escala de grises en K
+    y_cursor -= gray_h
     gray_steps = [0.0, 0.25, 0.5, 0.75, 1.0]
-    gray_patch_w = width / len(gray_steps)
-    for i, g in enumerate(gray_steps):
-        c.setFillColorCMYK(0, 0, 0, g)
-        c.rect(x + i * gray_patch_w, gray_y, gray_patch_w, gray_height, fill=1, stroke=0)
+    gray_w = (inner_w - (len(gray_steps) - 1) * gap) / len(gray_steps)
+    for i, val in enumerate(gray_steps):
+        c.setFillColorCMYK(0, 0, 0, val)
+        c.rect(inner_x + i * (gray_w + gap), y_cursor, gray_w, gray_h, fill=1, stroke=0)
 
-    target_y = y + height / 2.0
-    target_size = mm_to_pt(1.8)
+    y_cursor -= row_gap
 
-    def _cross(cx, cy):
-        c.setStrokeColorRGB(0, 0, 0)
-        c.setLineWidth(0.3)
-        c.line(cx - target_size, cy, cx + target_size, cy)
-        c.line(cx, cy - target_size, cx, cy + target_size)
+    # (d) Parche de gris balanceado CMY con etiqueta
+    y_cursor -= balance_h
+    balance_w = inner_w * 0.2
+    balance_x = inner_x + (inner_w - balance_w) / 2.0
+    balance_h_patch = balance_h * 0.7
+    c.setFillColorCMYK(0.5, 0.4, 0.4, 0)
+    c.rect(balance_x, y_cursor + balance_h - balance_h_patch, balance_w, balance_h_patch, fill=1, stroke=0)
+    c.setFillColorCMYK(0, 0, 0, 1)
+    c.setFont("Helvetica", 6)
+    c.drawCentredString(balance_x + balance_w / 2.0, y_cursor + balance_h * 0.15, "GRAY BAL")
 
-    _cross(x + margin * 2, target_y)
-    _cross(x + width - margin * 2, target_y)
+    y_cursor -= row_gap
 
-    overprint_w = col_width * 0.6
-    overprint_h = gray_height * 0.8
-    overprint_x = x + width / 2.0 - overprint_w / 2.0
-    overprint_y = patch_y + patch_area_height - overprint_h - margin
-    c.setFillColorCMYK(1, 1, 1, 1)
-    c.rect(overprint_x, overprint_y, overprint_w, overprint_h, fill=1, stroke=0)
+    # (e) Líneas finas de control
+    y_cursor -= lines_h
+    line_block_w = inner_w * 0.2
+    line_x = inner_x
+    line_y = y_cursor
+    c.setStrokeColorCMYK(0, 0, 0, 1)
+    c.setLineWidth(0.1)
+    for i in range(5):
+        lx = line_x + i * (line_block_w / 10.0)
+        c.line(lx, line_y, lx, line_y + lines_h)
+    c.setLineWidth(0.2)
+    for i in range(4):
+        lx = line_x + line_block_w * 0.55 + i * (line_block_w / 12.0)
+        c.line(lx, line_y, lx, line_y + lines_h)
+    c.setLineWidth(0.1)
+    for j in range(4):
+        ly = line_y + (j + 1) * (lines_h / 5.0)
+        c.line(line_x, ly, line_x + line_block_w, ly)
+
+    # (f) Microtexto
+    c.setFillColorCMYK(0, 0, 0, 1)
+    c.setFont("Helvetica", 5.5)
+    text_y = line_y + lines_h * 0.35
+    c.drawString(line_x + line_block_w + gap, text_y, "CONTROL COLOR OFFSET")
 
     c.restoreState()
 def detectar_sangrado_pdf(path: str) -> float:
