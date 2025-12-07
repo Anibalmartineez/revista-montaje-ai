@@ -470,7 +470,7 @@ def calcular_posiciones(
             x_cursor += ancho_total + separacion
             fila_max_altura = max(fila_max_altura, alto_total)
 
-    if centrar and posiciones and not (ctp_enabled and posiciones_manual):
+    if centrar and posiciones:
         min_x = min(p["x"] for p in posiciones)
         max_x = max(p["x"] + p["ancho"] + 2 * sangrado for p in posiciones)
         min_y = min(p["y"] for p in posiciones)
