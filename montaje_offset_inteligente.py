@@ -470,7 +470,7 @@ def calcular_posiciones(
             x_cursor += ancho_total + separacion
             fila_max_altura = max(fila_max_altura, alto_total)
 
-    if centrar and posiciones:
+    if centrar and posiciones and not (ctp_enabled and posiciones_manual):
         min_x = min(p["x"] for p in posiciones)
         max_x = max(p["x"] + p["ancho"] + 2 * sangrado for p in posiciones)
         min_y = min(p["y"] for p in posiciones)
@@ -745,7 +745,14 @@ def montar_pliego_offset_inteligente(
     margen_izq = float(margen_izq) + lateral_mm
     margen_der = float(margen_der)
     margen_sup = float(margen_sup)
-    margen_inf = float(margen_inf) + pinza_mm
+    # ⚠️ LÓGICA NUEVA DE PINZA / MARGEN INFERIOR
+    if ctp_enabled:
+        # Si Producción / CTP está activo, el margen inferior real del pliego
+        # DEBE SER exactamente el valor de "Pinza inferior (mm)" del editor visual.
+        margen_inf = float(gripper_mm)
+    else:
+        # Comportamiento clásico: margen inferior base + pinza_mm configurada
+        margen_inf = float(margen_inf) + pinza_mm
 
     ancho_util = ancho_pliego - margen_izq - margen_der
 
@@ -877,7 +884,7 @@ def montar_pliego_offset_inteligente(
             )
 
         # opcionalmente centrar
-        if centrar and posiciones:
+        if centrar and posiciones and not ctp_enabled:
             min_x = min(pp["x"] for pp in posiciones)
             max_x = max(pp["x"] + pp["ancho"] + 2 * pp.get("bleed_mm", sangrado) for pp in posiciones)
             min_y = min(pp["y"] for pp in posiciones)
@@ -1025,7 +1032,7 @@ def montar_pliego_offset_inteligente(
                 if y_cursor - margen_inf < unit_h:
                     break
 
-    if centrar and posiciones:
+    if centrar and posiciones and not (ctp_enabled and posiciones_manual):
         min_x = min(p["x"] for p in posiciones)
         max_x = max(p["x"] + p["ancho"] + 2 * sangrado for p in posiciones)
         min_y = min(p["y"] for p in posiciones)
