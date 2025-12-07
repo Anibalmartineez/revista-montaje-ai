@@ -219,6 +219,91 @@ def draw_cutmarks_around_form_reportlab(canvas, x_pt, y_pt, w_pt, h_pt, bleed_mm
     c.restoreState()
 
 
+
+
+def draw_professional_cmyk_strip(canvas, x, y, width, height):
+    """
+    Dibuja una tira de control CMYK profesional para CTP térmico.
+    - 4 columnas: C, M, Y, K
+    - Cada columna con 5 parches de trama: 5%, 25%, 50%, 75%, 100%
+    - Una fila de escala de grises (0% a 100% en varios pasos)
+    - Targets de registro en los extremos de la tira
+    - Un parche de sobreimpresión CMYK
+    - Textos pequeños debajo de cada columna (C, M, Y, K)
+    """
+
+    c = canvas
+    c.saveState()
+
+    col_width = width / 4.0
+    margin = height * 0.05
+    text_size = 6
+    gray_height = height * 0.18
+    available_patch_height = height - (text_size + gray_height + 3 * margin)
+    patch_area_height = min(
+        max(available_patch_height, height * 0.4),
+        height - (text_size + gray_height + 2 * margin),
+    )
+    patch_h = patch_area_height / 5.0
+
+    text_y = y + margin
+    gray_y = text_y + text_size + margin
+    patch_y = gray_y + gray_height + margin
+
+    c.setFillColorRGB(0.92, 0.92, 0.92)
+    c.rect(x, y, width, height, fill=1, stroke=0)
+
+    shades = [0.05, 0.25, 0.5, 0.75, 1.0]
+    channels = [
+        ("C", lambda v: (v, 0, 0, 0)),
+        ("M", lambda v: (0, v, 0, 0)),
+        ("Y", lambda v: (0, 0, v, 0)),
+        ("K", lambda v: (0, 0, 0, v)),
+    ]
+
+    for idx, (label, color_fn) in enumerate(channels):
+        base_x = x + idx * col_width + margin
+        for j, v in enumerate(shades):
+            c.setFillColorCMYK(*color_fn(v))
+            c.rect(
+                base_x,
+                patch_y + j * patch_h,
+                col_width - 2 * margin,
+                patch_h - margin * 0.3,
+                fill=1,
+                stroke=0,
+            )
+
+        c.setFont("Helvetica", text_size)
+        c.setFillColorRGB(0.1, 0.1, 0.1)
+        c.drawCentredString(x + idx * col_width + col_width / 2.0, text_y, label)
+
+    gray_steps = [0.0, 0.25, 0.5, 0.75, 1.0]
+    gray_patch_w = width / len(gray_steps)
+    for i, g in enumerate(gray_steps):
+        c.setFillColorCMYK(0, 0, 0, g)
+        c.rect(x + i * gray_patch_w, gray_y, gray_patch_w, gray_height, fill=1, stroke=0)
+
+    target_y = y + height / 2.0
+    target_size = mm_to_pt(1.8)
+
+    def _cross(cx, cy):
+        c.setStrokeColorRGB(0, 0, 0)
+        c.setLineWidth(0.3)
+        c.line(cx - target_size, cy, cx + target_size, cy)
+        c.line(cx, cy - target_size, cx, cy + target_size)
+
+    _cross(x + margin * 2, target_y)
+    _cross(x + width - margin * 2, target_y)
+
+    overprint_w = col_width * 0.6
+    overprint_h = gray_height * 0.8
+    overprint_x = x + width / 2.0 - overprint_w / 2.0
+    overprint_y = patch_y + patch_area_height - overprint_h - margin
+    c.setFillColorCMYK(1, 1, 1, 1)
+    c.rect(overprint_x, overprint_y, overprint_w, overprint_h, fill=1, stroke=0)
+
+    c.restoreState()
 def detectar_sangrado_pdf(path: str) -> float:
     """Devuelve el sangrado existente en un PDF en milímetros.
 
@@ -1325,7 +1410,7 @@ def montar_pliego_offset_inteligente(
             # -------- TIRA CMYK SUPERIOR (solo si está activada) --------
             if marks_cfg.get("control_strip"):
                 c.saveState()
-                strip_height_pt = mm_to_pt(6)
+                strip_height_pt = mm_to_pt(12)
                 strip_offset_pt = mm_to_pt(2)
 
                 strip_y = min(
@@ -1337,29 +1422,13 @@ def montar_pliego_offset_inteligente(
                 strip_x = block_bbox_pt[0]
                 strip_width_pt = block_bbox_pt[2] - block_bbox_pt[0]
 
-                # Fondo neutro de la tira
-                c.setFillColorRGB(0.9, 0.9, 0.9)
-                c.rect(strip_x, strip_y, strip_width_pt, strip_height_pt, fill=1, stroke=0)
-
-                # Pequeños parches CMYK distribuidos en la tira
-                patch_w = strip_width_pt / 12.0
-                patch_h = strip_height_pt * 0.8
-                px = strip_x + mm_to_pt(1)
-                py = strip_y + (strip_height_pt - patch_h) / 2.0
-
-                # C
-                c.setFillColorCMYK(1, 0, 0, 0)
-                c.rect(px, py, patch_w, patch_h, fill=1, stroke=0)
-                # M
-                c.setFillColorCMYK(0, 1, 0, 0)
-                c.rect(px + patch_w, py, patch_w, patch_h, fill=1, stroke=0)
-                # Y
-                c.setFillColorCMYK(0, 0, 1, 0)
-                c.rect(px + patch_w * 2, py, patch_w, patch_h, fill=1, stroke=0)
-                # K
-                c.setFillColorCMYK(0, 0, 0, 1)
-                c.rect(px + patch_w * 3, py, patch_w, patch_h, fill=1, stroke=0)
-
+                draw_professional_cmyk_strip(
+                    canvas=c,
+                    x=strip_x,
+                    y=strip_y,
+                    width=strip_width_pt,
+                    height=strip_height_pt,
+                )
                 c.restoreState()
 
             # -------- TEXTO TÉCNICO EN PINZA --------
@@ -1418,6 +1487,7 @@ def montar_pliego_offset_inteligente(
                     c.drawString(sheet_w_pt - mm_to_pt(30), y_cmyk, "CMYK")
 
             c.restoreState()
+
         if marks_cfg.get("registro"):
             marcas_registro = True
         if marcas_registro:
@@ -1427,10 +1497,23 @@ def montar_pliego_offset_inteligente(
                 c.line(x, y - s, x, y + s)
                 _bbox_add(used_bbox, x - s - eps_pt, y - s - eps_pt, x + s + eps_pt, y + s + eps_pt)
             c.setLineWidth(0.3)
-            cross(left, bottom)
-            cross(left, top)
-            cross(right, bottom)
-            cross(right, top)
+            if ctp_enabled and block_bbox_pt[0] is not None:
+                offset_pt = mm_to_pt(10)
+                block_left, block_bottom, block_right, block_top = block_bbox_pt
+                x_left = max(mm_to_pt(3), block_left - offset_pt)
+                x_right = min(sheet_w_pt - mm_to_pt(3), block_right + offset_pt)
+                y_bottom = max(mm_to_pt(3), block_bottom - offset_pt)
+                y_top = min(sheet_h_pt - mm_to_pt(3), block_top + offset_pt)
+                cross(x_left, y_bottom)
+                cross(x_left, y_top)
+                cross(x_right, y_bottom)
+                cross(x_right, y_top)
+            else:
+                cross(left, bottom)
+                cross(left, top)
+                cross(right, bottom)
+                cross(right, top)
+
         if marcas_corte:
             mark = mm_to_pt(5)
             c.setLineWidth(0.3)
@@ -1446,6 +1529,7 @@ def montar_pliego_offset_inteligente(
             c.line(right, top, right, top + mark)
             c.line(right, top, right + mark, top)
             _bbox_add(used_bbox, right - eps_pt, top - eps_pt, right + mark + eps_pt, top + mark + eps_pt)
+
         c.setStrokeColorRGB(0, 0, 0)
     c.save()
 
