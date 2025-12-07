@@ -124,6 +124,9 @@ body {
   padding: 10px;
   overflow: auto;
   min-height: 420px;
+  /* [TOUCH] Evita scroll/zoom accidental durante el drag */
+  touch-action: none;
+  user-select: none;
 }
 
 .sheet {
@@ -137,6 +140,9 @@ body {
   );
   border: 2px solid #9ca3af;
   margin: 0 auto;
+  /* [TOUCH] Evita gestos táctiles dentro del pliego */
+  touch-action: none;
+  user-select: none;
 }
 
 .ctp-guide {
@@ -156,6 +162,9 @@ body {
   background: rgba(37, 99, 235, 0.08);
   box-sizing: border-box;
   cursor: move;
+  /* [TOUCH] Permite arrastrar sin scroll ni selección de texto */
+  touch-action: none;
+  user-select: none;
 }
 
 .slot.locked {

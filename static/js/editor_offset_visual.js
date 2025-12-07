@@ -37,6 +37,25 @@
     maxSize: 50,
   };
 
+  // [TOUCH] Estado del drag unificado para mouse y táctil
+  const dragState = {
+    active: false,
+    pointerId: null,
+    slot: null,
+    slotElement: null,
+    startX: 0,
+    startY: 0,
+    initSlot: null,
+    handleType: null,
+    isHandle: false,
+    isGroupMove: false,
+    groupSlots: [],
+    groupInitialPositions: new Map(),
+    moved: false,
+    moveHandler: null,
+    upHandler: null,
+  };
+
   function getSelectedSlot() {
     if (!state.selectedSlot && state.selectedSlots && state.selectedSlots.size > 0) {
       const firstSelectedId = state.selectedSlots.values().next().value;
@@ -423,7 +442,8 @@
 
       // Handles de esquina desactivados, el usuario escala solo desde el panel lateral.
 
-      slotEl.addEventListener('mousedown', (ev) => onSlotMouseDown(ev, slot));
+      // [TOUCH] Soporte unificado de drag con Pointer Events
+      slotEl.addEventListener('pointerdown', (ev) => onSlotPointerDown(ev, slot, slotEl));
       slotEl.addEventListener('click', (ev) => {
         ev.stopPropagation();
         const toggle = ev.ctrlKey || ev.metaKey || ev.shiftKey;
@@ -1283,15 +1303,17 @@
     selectSlot(master.id);
   }
 
-  function onSlotMouseDown(ev, slot) {
+  // [TOUCH] Unificación de drag: inicio
+  function startDrag(ev, slot, slotElement) {
     if (slot.locked) return;
+    if (typeof ev.button === 'number' && ev.button !== 0) return;
+    ev.preventDefault();
+
     const target = ev.target;
     const isHandle = target.classList.contains('handle');
-    const startX = ev.clientX;
-    const startY = ev.clientY;
-    const initSlot = { ...slot };
-    let moved = false;
-    const handleType = isHandle ? [...target.classList].find((c) => ['br', 'bl', 'tr', 'tl'].includes(c)) : null;
+    const handleType = isHandle
+      ? [...target.classList].find((c) => ['br', 'bl', 'tr', 'tl'].includes(c))
+      : null;
     const isGroupMove = !isHandle && slot.group_id;
     const groupSlots = isGroupMove
       ? state.layout.slots.filter((s) => s.group_id === slot.group_id)
@@ -1303,66 +1325,137 @@
       });
     }
 
-    function onMove(moveEv) {
-      moveEv.preventDefault();
-      const dxPx = moveEv.clientX - startX;
-      const dyPx = startY - moveEv.clientY; // invert because bottom reference
-      const effectiveScale = state.scale * state.zoom;
-      const dx = dxPx / effectiveScale;
-      const dy = dyPx / effectiveScale;
+    dragState.active = true;
+    dragState.pointerId = ev.pointerId;
+    dragState.slot = slot;
+    dragState.slotElement = slotElement;
+    dragState.startX = ev.clientX;
+    dragState.startY = ev.clientY;
+    dragState.initSlot = { ...slot };
+    dragState.handleType = handleType;
+    dragState.isHandle = isHandle;
+    dragState.isGroupMove = isGroupMove;
+    dragState.groupSlots = groupSlots;
+    dragState.groupInitialPositions = groupInitialPositions;
+    dragState.moved = false;
 
-      if (!isHandle) {
-        if (isGroupMove) {
-          const snapped = applySnap(initSlot.x_mm + dx, initSlot.y_mm + dy, slot);
-          const deltaX = snapped.x - initSlot.x_mm;
-          const deltaY = snapped.y - initSlot.y_mm;
-          groupSlots.forEach((s) => {
-            const initPos = groupInitialPositions.get(s.id);
-            if (!initPos) return;
-            s.x_mm = initPos.x + deltaX;
-            s.y_mm = initPos.y + deltaY;
-          });
-        } else {
-          const snapped = applySnap(initSlot.x_mm + dx, initSlot.y_mm + dy, slot);
-          slot.x_mm = snapped.x;
-          slot.y_mm = snapped.y;
-        }
-        if (state.spacingSettings.live) {
-          applySpacing('all', { render: false, push: false, face: slot.face || state.activeFace });
-        }
+    const moveHandler = (moveEv) => moveDrag(moveEv);
+    const upHandler = (upEv) => endDrag(upEv);
+    dragState.moveHandler = moveHandler;
+    dragState.upHandler = upHandler;
+
+    if (slotElement?.setPointerCapture && ev.pointerId != null) {
+      slotElement.setPointerCapture(ev.pointerId);
+    }
+
+    document.addEventListener('pointermove', moveHandler);
+    document.addEventListener('pointerup', upHandler);
+    document.addEventListener('pointercancel', upHandler);
+  }
+
+  // [TOUCH] Unificación de drag: movimiento
+  function moveDrag(moveEv) {
+    if (!dragState.active) return;
+    if (dragState.pointerId != null && moveEv.pointerId !== dragState.pointerId) return;
+    moveEv.preventDefault();
+
+    const {
+      startX,
+      startY,
+      initSlot,
+      slot,
+      isHandle,
+      handleType,
+      isGroupMove,
+      groupSlots,
+      groupInitialPositions,
+    } = dragState;
+
+    const dxPx = moveEv.clientX - startX;
+    const dyPx = startY - moveEv.clientY; // invert because bottom reference
+    const effectiveScale = state.scale * state.zoom;
+    const dx = dxPx / effectiveScale;
+    const dy = dyPx / effectiveScale;
+
+    if (!isHandle) {
+      if (isGroupMove) {
+        const snapped = applySnap(initSlot.x_mm + dx, initSlot.y_mm + dy, slot);
+        const deltaX = snapped.x - initSlot.x_mm;
+        const deltaY = snapped.y - initSlot.y_mm;
+        groupSlots.forEach((s) => {
+          const initPos = groupInitialPositions.get(s.id);
+          if (!initPos) return;
+          s.x_mm = initPos.x + deltaX;
+          s.y_mm = initPos.y + deltaY;
+        });
       } else {
-        if (handleType.includes('b')) {
-          slot.h_mm = Math.max(5, initSlot.h_mm + dy);
-        }
-        if (handleType.includes('t')) {
-          const newH = Math.max(5, initSlot.h_mm - dy);
-          slot.h_mm = newH;
-          slot.y_mm = initSlot.y_mm + dy;
-        }
-        if (handleType.includes('r')) {
-          slot.w_mm = Math.max(5, initSlot.w_mm + dx);
-        }
-        if (handleType.includes('l')) {
-          const newW = Math.max(5, initSlot.w_mm - dx);
-          slot.w_mm = newW;
-          slot.x_mm = initSlot.x_mm + dx;
-        }
+        const snapped = applySnap(initSlot.x_mm + dx, initSlot.y_mm + dy, slot);
+        slot.x_mm = snapped.x;
+        slot.y_mm = snapped.y;
       }
-      moved = true;
-      renderSheet();
-      renderSlotForm();
-    }
-
-    function onUp() {
-      document.removeEventListener('mousemove', onMove);
-      document.removeEventListener('mouseup', onUp);
-      if (moved) {
-        pushHistory();
+      if (state.spacingSettings.live) {
+        applySpacing('all', { render: false, push: false, face: slot.face || state.activeFace });
+      }
+    } else {
+      if (handleType.includes('b')) {
+        slot.h_mm = Math.max(5, initSlot.h_mm + dy);
+      }
+      if (handleType.includes('t')) {
+        const newH = Math.max(5, initSlot.h_mm - dy);
+        slot.h_mm = newH;
+        slot.y_mm = initSlot.y_mm + dy;
+      }
+      if (handleType.includes('r')) {
+        slot.w_mm = Math.max(5, initSlot.w_mm + dx);
+      }
+      if (handleType.includes('l')) {
+        const newW = Math.max(5, initSlot.w_mm - dx);
+        slot.w_mm = newW;
+        slot.x_mm = initSlot.x_mm + dx;
       }
     }
 
-    document.addEventListener('mousemove', onMove);
-    document.addEventListener('mouseup', onUp);
+    dragState.moved = true;
+    renderSheet();
+    renderSlotForm();
+  }
+
+  // [TOUCH] Unificación de drag: finalización
+  function endDrag(upEv) {
+    if (!dragState.active) return;
+    if (dragState.pointerId != null && upEv.pointerId !== dragState.pointerId) return;
+
+    document.removeEventListener('pointermove', dragState.moveHandler);
+    document.removeEventListener('pointerup', dragState.upHandler);
+    document.removeEventListener('pointercancel', dragState.upHandler);
+
+    if (dragState.slotElement?.releasePointerCapture && dragState.pointerId != null) {
+      try {
+        dragState.slotElement.releasePointerCapture(dragState.pointerId);
+      } catch (e) {
+        // ignore if already released
+      }
+    }
+
+    if (dragState.moved) {
+      pushHistory();
+    }
+
+    dragState.active = false;
+    dragState.pointerId = null;
+    dragState.slot = null;
+    dragState.slotElement = null;
+    dragState.isHandle = false;
+    dragState.handleType = null;
+    dragState.isGroupMove = false;
+    dragState.groupSlots = [];
+    dragState.groupInitialPositions = new Map();
+    dragState.moveHandler = null;
+    dragState.upHandler = null;
+  }
+
+  function onSlotPointerDown(ev, slot, slotElement) {
+    startDrag(ev, slot, slotElement);
   }
 
   function applySlotForm() {
