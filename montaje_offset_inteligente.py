@@ -1317,29 +1317,109 @@ def montar_pliego_offset_inteligente(
         bottom = mm_to_pt(margen_inf)
         right = sheet_w_pt - mm_to_pt(margen_der)
         top = sheet_h_pt - mm_to_pt(margen_sup)
+        marks_cfg = {}
         if ctp_enabled and block_bbox_pt[0] is not None:
+            marks_cfg = (ctp_cfg.get("marks") or {}) if isinstance(ctp_cfg, dict) else {}
+            tech_cfg = (ctp_cfg.get("technical_text") or {}) if isinstance(ctp_cfg, dict) else {}
+
+            # -------- TIRA CMYK SUPERIOR (solo si está activada) --------
+            if marks_cfg.get("control_strip"):
+                c.saveState()
+                strip_height_pt = mm_to_pt(6)
+                strip_offset_pt = mm_to_pt(2)
+
+                strip_y = min(
+                    sheet_h_pt - strip_height_pt - strip_offset_pt,
+                    block_bbox_pt[3] + strip_offset_pt,
+                )
+                strip_y = max(strip_y, block_bbox_pt[1])
+
+                strip_x = block_bbox_pt[0]
+                strip_width_pt = block_bbox_pt[2] - block_bbox_pt[0]
+
+                # Fondo neutro de la tira
+                c.setFillColorRGB(0.9, 0.9, 0.9)
+                c.rect(strip_x, strip_y, strip_width_pt, strip_height_pt, fill=1, stroke=0)
+
+                # Pequeños parches CMYK distribuidos en la tira
+                patch_w = strip_width_pt / 12.0
+                patch_h = strip_height_pt * 0.8
+                px = strip_x + mm_to_pt(1)
+                py = strip_y + (strip_height_pt - patch_h) / 2.0
+
+                # C
+                c.setFillColorCMYK(1, 0, 0, 0)
+                c.rect(px, py, patch_w, patch_h, fill=1, stroke=0)
+                # M
+                c.setFillColorCMYK(0, 1, 0, 0)
+                c.rect(px + patch_w, py, patch_w, patch_h, fill=1, stroke=0)
+                # Y
+                c.setFillColorCMYK(0, 0, 1, 0)
+                c.rect(px + patch_w * 2, py, patch_w, patch_h, fill=1, stroke=0)
+                # K
+                c.setFillColorCMYK(0, 0, 0, 1)
+                c.rect(px + patch_w * 3, py, patch_w, patch_h, fill=1, stroke=0)
+
+                c.restoreState()
+
+            # -------- TEXTO TÉCNICO EN PINZA --------
+            job_name = str(tech_cfg.get("job_name") or "").strip()
+            client = str(tech_cfg.get("client") or "").strip()
+            notes = str(tech_cfg.get("notes") or "").strip()
+            extra_text = str(tech_cfg.get("extra_text") or "").strip()
+            auto_cmyk = bool(tech_cfg.get("auto_cmyk", True))
+
+            base_y = mm_to_pt(max(gripper_mm * 0.4, 3))
+            max_y = sheet_h_pt - mm_to_pt(4)
+            text_y = min(base_y, max_y)
+
             c.saveState()
-            c.setFillColorRGB(0.3, 0.3, 0.3)
-            strip_height_pt = mm_to_pt(6)
-            strip_offset_pt = mm_to_pt(2)
-            strip_y = min(sheet_h_pt - strip_height_pt - strip_offset_pt, block_bbox_pt[3] + strip_offset_pt)
-            strip_y = max(strip_y, block_bbox_pt[1])
-            strip_width_pt = block_bbox_pt[2] - block_bbox_pt[0]
-            c.rect(block_bbox_pt[0], strip_y, strip_width_pt, strip_height_pt, fill=1, stroke=0)
-
-            mark_size_pt = mm_to_pt(3)
-            c.setStrokeColorRGB(0, 0, 0)
-            c.setLineWidth(0.4)
-            for cx in (block_bbox_pt[0] + mark_size_pt * 2, (block_bbox_pt[0] + block_bbox_pt[2]) / 2, block_bbox_pt[2] - mark_size_pt * 2):
-                cy = strip_y + strip_height_pt + mark_size_pt
-                c.line(cx - mark_size_pt, cy, cx + mark_size_pt, cy)
-                c.line(cx, cy - mark_size_pt, cx, cy + mark_size_pt)
-
-            text_y = min(mm_to_pt(max(gripper_mm * 0.5, 3)), sheet_h_pt - mm_to_pt(4))
+            c.setFont("Helvetica", 8)
             c.setFillColorRGB(0.15, 0.15, 0.15)
-            c.setFont("Helvetica", 9)
-            c.drawString(mm_to_pt(5), text_y, f"Producción / CTP activo · Pinza {gripper_mm:.1f} mm")
+
+            x_text = mm_to_pt(5)
+
+            line1_parts = []
+            if client:
+                line1_parts.append(f"CLIENTE: {client}")
+            if job_name:
+                line1_parts.append(f"TRABAJO: {job_name}")
+            line1 = " – ".join(line1_parts) if line1_parts else ""
+            if line1:
+                c.drawString(x_text, text_y, line1)
+
+            if notes:
+                c.drawString(x_text, text_y + mm_to_pt(3), notes)
+
+            if extra_text:
+                c.drawString(x_text, text_y + mm_to_pt(6), extra_text)
+
+            # Texto CMYK automático (C M Y K en su canal)
+            if auto_cmyk:
+                try:
+                    c.setFont("Helvetica-Bold", 9)
+                    base_x_cmyk = sheet_w_pt - mm_to_pt(40)
+                    y_cmyk = text_y
+
+                    # C
+                    c.setFillColorCMYK(1, 0, 0, 0)
+                    c.drawString(base_x_cmyk, y_cmyk, "C")
+                    # M
+                    c.setFillColorCMYK(0, 1, 0, 0)
+                    c.drawString(base_x_cmyk + mm_to_pt(4), y_cmyk, "M")
+                    # Y
+                    c.setFillColorCMYK(0, 0, 1, 0)
+                    c.drawString(base_x_cmyk + mm_to_pt(8), y_cmyk, "Y")
+                    # K
+                    c.setFillColorCMYK(0, 0, 0, 1)
+                    c.drawString(base_x_cmyk + mm_to_pt(12), y_cmyk, "K")
+                except Exception:
+                    c.setFillColorRGB(0.1, 0.1, 0.1)
+                    c.drawString(sheet_w_pt - mm_to_pt(30), y_cmyk, "CMYK")
+
             c.restoreState()
+        if marks_cfg.get("registro"):
+            marcas_registro = True
         if marcas_registro:
             def cross(x: float, y: float, s_mm: float = 5) -> None:
                 s = mm_to_pt(s_mm)
