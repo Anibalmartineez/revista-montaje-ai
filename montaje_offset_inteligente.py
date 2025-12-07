@@ -232,119 +232,78 @@ def draw_professional_cmyk_strip(canvas, x, y, width, height):
     c = canvas
     c.saveState()
 
-    margin = min(height * 0.08, mm_to_pt(1.5))
+    margin = min(height * 0.1, mm_to_pt(1.5))
     inner_x = x + margin
     inner_y = y + margin
     inner_w = width - 2 * margin
     inner_h = height - 2 * margin
 
-    row_gap = inner_h * 0.04
-    solid_h = inner_h * 0.22
-    halftone_h = inner_h * 0.22
-    gray_h = inner_h * 0.18
-    balance_h = inner_h * 0.16
-    lines_h = inner_h - (solid_h + halftone_h + gray_h + balance_h + 4 * row_gap)
+    if inner_w <= 0 or inner_h <= 0:
+        c.restoreState()
+        return
 
-    y_cursor = inner_y + inner_h
+    patch_h = inner_h * 0.8
+    patch_w = patch_h
+    patch_y = inner_y + (inner_h - patch_h) / 2.0
+    gap = patch_w * 0.25
 
-    # (a) Bloques sólidos CMYK
-    y_cursor -= solid_h
-    gap = inner_w * 0.01
-    block_w = (inner_w - 3 * gap) / 4.0
-    for i, color in enumerate(
-        [
-            (1, 0, 0, 0),  # C
-            (0, 1, 0, 0),  # M
-            (0, 0, 1, 0),  # Y
-            (0, 0, 0, 1),  # K
-        ]
-    ):
-        c.setFillColorCMYK(*color)
-        c.rect(inner_x + i * (block_w + gap), y_cursor, block_w, solid_h, fill=1, stroke=0)
-
-    y_cursor -= row_gap
-
-    # (b) Parches de trama por canal (25%, 50%, 75%)
-    y_cursor -= halftone_h
-    channel_w = (inner_w - 3 * gap) / 4.0
-    patch_gap = channel_w * 0.05
-    patch_w = (channel_w - 2 * patch_gap) / 3.0
-    halftone_levels = [0.25, 0.5, 0.75]
-    channel_colors = [
-        ("C", (1, 0, 0, 0)),
-        ("M", (0, 1, 0, 0)),
-        ("Y", (0, 0, 1, 0)),
-        ("K", (0, 0, 0, 1)),
+    patch_defs = [
+        ("C100", (1, 0, 0, 0), 1.0),
+        ("M100", (0, 1, 0, 0), 1.0),
+        ("Y100", (0, 0, 1, 0), 1.0),
+        ("K100", (0, 0, 0, 1), 1.0),
+        ("C50", (1, 0, 0, 0), 0.5),
+        ("M50", (0, 1, 0, 0), 0.5),
+        ("Y50", (0, 0, 1, 0), 0.5),
+        ("K50", (0, 0, 0, 1), 0.5),
+        ("G25", (0, 0, 0, 0.25), None),
+        ("G50", (0, 0, 0, 0.50), None),
+        ("G75", (0, 0, 0, 0.75), None),
     ]
-    for idx, (_, base_color) in enumerate(channel_colors):
-        cx = inner_x + idx * (channel_w + gap)
-        for j, lvl in enumerate(halftone_levels):
-            c.setFillColorCMYK(
-                base_color[0] * lvl,
-                base_color[1] * lvl,
-                base_color[2] * lvl,
-                base_color[3] * lvl,
-            )
-            c.rect(
-                cx + j * (patch_w + patch_gap),
-                y_cursor,
-                patch_w,
-                halftone_h,
-                fill=1,
-                stroke=0,
-            )
 
-    y_cursor -= row_gap
+    def small_cross(cx, cy, size_pt=mm_to_pt(0.8)):
+        c.setStrokeColorCMYK(0, 0, 0, 1)
+        c.setLineWidth(0.15)
+        c.line(cx - size_pt, cy, cx + size_pt, cy)
+        c.line(cx, cy - size_pt, cx, cy + size_pt)
 
-    # (c) Escala de grises en K
-    y_cursor -= gray_h
-    gray_steps = [0.0, 0.25, 0.5, 0.75, 1.0]
-    gray_w = (inner_w - (len(gray_steps) - 1) * gap) / len(gray_steps)
-    for i, val in enumerate(gray_steps):
-        c.setFillColorCMYK(0, 0, 0, val)
-        c.rect(inner_x + i * (gray_w + gap), y_cursor, gray_w, gray_h, fill=1, stroke=0)
+    x_cursor = inner_x
+    max_x = inner_x + inner_w
+    center_y = inner_y + inner_h / 2.0
+    patch_count = 0
 
-    y_cursor -= row_gap
+    running = True
+    while running and x_cursor + patch_w <= max_x:
+        for _, base_cmyk, level in patch_defs:
+            if x_cursor + patch_w > max_x:
+                running = False
+                break
 
-    # (d) Parche de gris balanceado CMY con etiqueta
-    y_cursor -= balance_h
-    balance_w = inner_w * 0.2
-    balance_x = inner_x + (inner_w - balance_w) / 2.0
-    balance_h_patch = balance_h * 0.7
-    c.setFillColorCMYK(0.5, 0.4, 0.4, 0)
-    c.rect(balance_x, y_cursor + balance_h - balance_h_patch, balance_w, balance_h_patch, fill=1, stroke=0)
-    c.setFillColorCMYK(0, 0, 0, 1)
-    c.setFont("Helvetica", 6)
-    c.drawCentredString(balance_x + balance_w / 2.0, y_cursor + balance_h * 0.15, "GRAY BAL")
+            if level is None:
+                color = base_cmyk
+            else:
+                color = tuple(v * level for v in base_cmyk)
 
-    y_cursor -= row_gap
+            c.setFillColorCMYK(*color)
+            c.rect(x_cursor, patch_y, patch_w, patch_h, fill=1, stroke=0)
 
-    # (e) Líneas finas de control
-    y_cursor -= lines_h
-    line_block_w = inner_w * 0.2
-    line_x = inner_x
-    line_y = y_cursor
-    c.setStrokeColorCMYK(0, 0, 0, 1)
-    c.setLineWidth(0.1)
-    for i in range(5):
-        lx = line_x + i * (line_block_w / 10.0)
-        c.line(lx, line_y, lx, line_y + lines_h)
-    c.setLineWidth(0.2)
-    for i in range(4):
-        lx = line_x + line_block_w * 0.55 + i * (line_block_w / 12.0)
-        c.line(lx, line_y, lx, line_y + lines_h)
-    c.setLineWidth(0.1)
-    for j in range(4):
-        ly = line_y + (j + 1) * (lines_h / 5.0)
-        c.line(line_x, ly, line_x + line_block_w, ly)
+            patch_count += 1
+            if patch_count % 6 == 0:
+                small_cross(x_cursor + patch_w / 2.0, center_y)
 
-    # (f) Microtexto
+            x_cursor += patch_w + gap
+
     c.setFillColorCMYK(0, 0, 0, 1)
     c.setFont("Helvetica", 5.5)
-    text_y = line_y + lines_h * 0.35
-    c.drawString(line_x + line_block_w + gap, text_y, "CONTROL COLOR OFFSET")
+    c.drawCentredString(
+        inner_x + inner_w / 2.0,
+        inner_y + inner_h + mm_to_pt(0.5),
+        "CONTROL COLOR OFFSET",
+    )
 
     c.restoreState()
+
+
 def detectar_sangrado_pdf(path: str) -> float:
     """Devuelve el sangrado existente en un PDF en milímetros.
 
