@@ -103,6 +103,22 @@
     if (ctp.gripper_mm === undefined) ctp.gripper_mm = 40;
     if (ctp.lock_after === undefined) ctp.lock_after = true;
     if (ctp.show_guide === undefined) ctp.show_guide = false;
+
+    if (!ctp.marks) {
+      ctp.marks = {};
+    }
+    if (ctp.marks.registro === undefined) ctp.marks.registro = false;
+    if (ctp.marks.control_strip === undefined) ctp.marks.control_strip = false;
+
+    if (!ctp.technical_text) {
+      ctp.technical_text = {};
+    }
+    const t = ctp.technical_text;
+    if (t.job_name === undefined) t.job_name = '';
+    if (t.client === undefined) t.client = '';
+    if (t.notes === undefined) t.notes = '';
+    if (t.auto_cmyk === undefined) t.auto_cmyk = true;
+    if (t.extra_text === undefined) t.extra_text = '';
   }
 
   function normalizeDesignDefaults() {
@@ -1002,24 +1018,61 @@
   function readCtpParamsFromUI() {
     if (!state.layout) return;
     state.layout.ctp = state.layout.ctp || {};
+    ensureCtpDefaults();
     const gripperInput = document.getElementById('ctp-gripper-mm');
     const showGuideInput = document.getElementById('ctp-show-guide');
     const lockAfterInput = document.getElementById('ctp-lock-after');
+    const marksRegistroInput = document.getElementById('ctp-marks-registro');
+    const stripInput = document.getElementById('ctp-strip-cmyk');
+    const jobNameInput = document.getElementById('ctp-job-name');
+    const clientInput = document.getElementById('ctp-client');
+    const notesInput = document.getElementById('ctp-notes');
+    const autoCmykInput = document.getElementById('ctp-auto-cmyk');
+    const extraTextInput = document.getElementById('ctp-extra-text');
 
     const gripperVal = gripperInput ? parseFloat(gripperInput.value || '0') : state.layout.ctp.gripper_mm;
     state.layout.ctp.gripper_mm = Number.isFinite(gripperVal) ? gripperVal : state.layout.ctp.gripper_mm || 0;
     state.layout.ctp.show_guide = !!showGuideInput?.checked;
     state.layout.ctp.lock_after = lockAfterInput?.checked !== false;
+
+    state.layout.ctp.marks = state.layout.ctp.marks || {};
+    state.layout.ctp.marks.registro = !!marksRegistroInput?.checked;
+    state.layout.ctp.marks.control_strip = !!stripInput?.checked;
+
+    state.layout.ctp.technical_text = state.layout.ctp.technical_text || {};
+    const t = state.layout.ctp.technical_text;
+    t.job_name = jobNameInput ? jobNameInput.value || '' : t.job_name || '';
+    t.client = clientInput ? clientInput.value || '' : t.client || '';
+    t.notes = notesInput ? notesInput.value || '' : t.notes || '';
+    t.auto_cmyk = autoCmykInput ? !!autoCmykInput.checked : t.auto_cmyk !== false;
+    t.extra_text = extraTextInput ? extraTextInput.value || '' : t.extra_text || '';
   }
 
   function syncCtpUIFromLayout() {
+    ensureCtpDefaults();
     const ctp = state.layout?.ctp || {};
+    const t = ctp.technical_text || {};
+    const marks = ctp.marks || {};
     const gripperInput = document.getElementById('ctp-gripper-mm');
     const showGuideInput = document.getElementById('ctp-show-guide');
     const lockAfterInput = document.getElementById('ctp-lock-after');
+    const marksRegistroInput = document.getElementById('ctp-marks-registro');
+    const stripInput = document.getElementById('ctp-strip-cmyk');
+    const jobNameInput = document.getElementById('ctp-job-name');
+    const clientInput = document.getElementById('ctp-client');
+    const notesInput = document.getElementById('ctp-notes');
+    const autoCmykInput = document.getElementById('ctp-auto-cmyk');
+    const extraTextInput = document.getElementById('ctp-extra-text');
     if (gripperInput) gripperInput.value = ctp.gripper_mm ?? 40;
     if (showGuideInput) showGuideInput.checked = !!ctp.show_guide;
     if (lockAfterInput) lockAfterInput.checked = ctp.lock_after !== false;
+    if (marksRegistroInput) marksRegistroInput.checked = !!marks.registro;
+    if (stripInput) stripInput.checked = !!marks.control_strip;
+    if (jobNameInput) jobNameInput.value = t.job_name ?? '';
+    if (clientInput) clientInput.value = t.client ?? '';
+    if (notesInput) notesInput.value = t.notes ?? '';
+    if (autoCmykInput) autoCmykInput.checked = t.auto_cmyk !== false;
+    if (extraTextInput) extraTextInput.value = t.extra_text ?? '';
   }
 
   function computeFrontBlockBBox() {

@@ -323,11 +323,40 @@
           </button>
         </div>
 
-        <!-- Dejá preparado bloque para futuro: tiras CMYK / texto técnico -->
-        <p class="muted">
-          En una segunda etapa, desde aquí se activarán tiras de control CMYK,
-          marcas de registro y texto técnico en la pinza.
-        </p>
+        <hr>
+
+        <label class="checkbox-inline">
+          <input type="checkbox" id="ctp-marks-registro">
+          Marcas de registro CMYK profesionales
+        </label>
+
+        <label class="checkbox-inline">
+          <input type="checkbox" id="ctp-strip-cmyk">
+          Tira de control CMYK superior (ancho del bloque)
+        </label>
+
+        <h3 class="panel-subtitle">Texto técnico en pinza</h3>
+
+        <label>Nombre del trabajo
+          <input type="text" id="ctp-job-name" placeholder="Ej: ETIQUETA DULCITA 1L">
+        </label>
+
+        <label>Cliente (opcional)
+          <input type="text" id="ctp-client" placeholder="Ej: AGS">
+        </label>
+
+        <label>Observaciones
+          <input type="text" id="ctp-notes" placeholder="Ej: Tirada 25.000 – 4/0 CMYK">
+        </label>
+
+        <label class="checkbox-inline">
+          <input type="checkbox" id="ctp-auto-cmyk" checked>
+          Generar texto técnico CMYK automático (C M Y K)
+        </label>
+
+        <label>Texto adicional libre
+          <textarea id="ctp-extra-text" rows="2" placeholder="Notas técnicas extra, versión, fecha, etc."></textarea>
+        </label>
       </details>
 
       <details class="panel-accordion panel-output" open>
