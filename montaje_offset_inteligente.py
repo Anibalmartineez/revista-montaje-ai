@@ -1342,25 +1342,33 @@ def montar_pliego_offset_inteligente(
         img = image_cache[cache_key]
         base_w_mm = pos["ancho"]
         base_h_mm = pos["alto"]
+        cx_mm = pos["x"] + base_w_mm / 2.0
+        cy_mm = pos["y"] + base_h_mm / 2.0
         draw_w_mm = base_w_mm + 2 * bleed_effective
         draw_h_mm = base_h_mm + 2 * bleed_effective
         trim_w_mm = base_w_mm
         trim_h_mm = base_h_mm
-        x_pt = mm_to_pt(pos["x"])
-        y_pt = mm_to_pt(pos["y"])
         rot = int(pos.get("rot_deg") or 0) % 360
+        swapped = rot in (90, 270)
 
-        if rot in (90, 270):
-            draw_w_mm, draw_h_mm = draw_h_mm, draw_w_mm
-            trim_w_mm, trim_h_mm = trim_h_mm, trim_w_mm
+        eff_draw_w_mm = draw_h_mm if swapped else draw_w_mm
+        eff_draw_h_mm = draw_w_mm if swapped else draw_h_mm
+        eff_trim_w_mm = trim_h_mm if swapped else trim_w_mm
+        eff_trim_h_mm = trim_w_mm if swapped else trim_h_mm
 
-        w_pt = mm_to_pt(draw_w_mm)
-        h_pt = mm_to_pt(draw_h_mm)
+        x_draw_mm = cx_mm - eff_draw_w_mm / 2.0
+        y_draw_mm = cy_mm - eff_draw_h_mm / 2.0
+
+        x_pt = mm_to_pt(x_draw_mm)
+        y_pt = mm_to_pt(y_draw_mm)
+        w_pt = mm_to_pt(eff_draw_w_mm)
+        h_pt = mm_to_pt(eff_draw_h_mm)
 
         if rot:
             img_to_draw = img.rotate(-rot, resample=Image.BILINEAR, expand=True)
         else:
             img_to_draw = img
+
         c.drawImage(ImageReader(img_to_draw), x_pt, y_pt, width=w_pt, height=h_pt)
 
         bleed_eff = bleed_effective
@@ -1368,14 +1376,14 @@ def montar_pliego_offset_inteligente(
             if archivo not in bleed_cache:
                 bleed_cache[archivo] = detectar_sangrado_pdf(archivo)
             bleed_eff = bleed_cache[archivo]
-        x_trim_pt = x_pt + mm_to_pt(bleed_eff)
-        y_trim_pt = y_pt + mm_to_pt(bleed_eff)
+        x_trim_pt = mm_to_pt(x_draw_mm + bleed_eff)
+        y_trim_pt = mm_to_pt(y_draw_mm + bleed_eff)
         if bleed_effective > 0:
-            w_trim_pt = mm_to_pt(trim_w_mm)
-            h_trim_pt = mm_to_pt(trim_h_mm)
+            w_trim_pt = mm_to_pt(eff_trim_w_mm)
+            h_trim_pt = mm_to_pt(eff_trim_h_mm)
         else:
-            w_trim_pt = mm_to_pt(trim_w_mm - 2 * bleed_eff)
-            h_trim_pt = mm_to_pt(trim_h_mm - 2 * bleed_eff)
+            w_trim_pt = mm_to_pt(eff_trim_w_mm - 2 * bleed_eff)
+            h_trim_pt = mm_to_pt(eff_trim_h_mm - 2 * bleed_eff)
         bleed_pt = max(0.0, bleed_eff) * MM_TO_PT
         _bbox_add(
             used_bbox,
