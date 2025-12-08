@@ -228,6 +228,38 @@
     return mm * state.scale;
   }
 
+  function getEffectiveSlotBox(slot, override = {}) {
+    const baseW = slot.w_mm || 0;
+    const baseH = slot.h_mm || 0;
+    const x = override.x ?? slot.x_mm;
+    const y = override.y ?? slot.y_mm;
+    const rotation = ((slot.rotation_deg || 0) % 360 + 360) % 360;
+    const cx = x + baseW / 2;
+    const cy = y + baseH / 2;
+    const swapped = rotation === 90 || rotation === 270;
+    const effW = swapped ? baseH : baseW;
+    const effH = swapped ? baseW : baseH;
+
+    return {
+      rotation,
+      baseW,
+      baseH,
+      effW,
+      effH,
+      cx,
+      cy,
+      x: cx - effW / 2,
+      y: cy - effH / 2,
+    };
+  }
+
+  function slotCoordsFromBox(box) {
+    return {
+      x: box.cx - box.baseW / 2,
+      y: box.cy - box.baseH / 2,
+    };
+  }
+
   function getSlotRenderBox(slot) {
     const baseW = slot.w_mm || 0;
     const baseH = slot.h_mm || 0;
@@ -261,28 +293,29 @@
   function applySnap(x, y, slot) {
     const tolerance = Number(state.snapSettings.tolerance_mm) || 0;
     const grid = Number(state.snapSettings.grid_mm) || 1;
-    let snappedX = x;
-    let snappedY = y;
+    const targetBox = getEffectiveSlotBox(slot, { x, y });
+    let snappedLeft = targetBox.x;
+    let snappedBottom = targetBox.y;
 
     if (state.snapSettings.snapGrid && grid > 0) {
-      const nearestGridX = Math.round(x / grid) * grid;
-      const nearestGridY = Math.round(y / grid) * grid;
-      if (Math.abs(nearestGridX - x) <= tolerance) snappedX = nearestGridX;
-      if (Math.abs(nearestGridY - y) <= tolerance) snappedY = nearestGridY;
+      const nearestGridX = Math.round(targetBox.x / grid) * grid;
+      const nearestGridY = Math.round(targetBox.y / grid) * grid;
+      if (Math.abs(nearestGridX - targetBox.x) <= tolerance) snappedLeft = nearestGridX;
+      if (Math.abs(nearestGridY - targetBox.y) <= tolerance) snappedBottom = nearestGridY;
     }
 
     if (state.snapSettings.snapMargins && state.layout.sheet_mm) {
       const [sheetW, sheetH] = state.layout.sheet_mm;
       const margins = state.layout.margins_mm || [0, 0, 0, 0];
       const [mLeft, mRight, mTop, mBottom] = margins;
-      const marginTargetsX = [0, mLeft, sheetW - slot.w_mm - mRight, sheetW - slot.w_mm];
-      const marginTargetsY = [0, mBottom, sheetH - slot.h_mm - mTop, sheetH - slot.h_mm];
+      const marginTargetsX = [0, mLeft, sheetW - targetBox.effW - mRight, sheetW - targetBox.effW];
+      const marginTargetsY = [0, mBottom, sheetH - targetBox.effH - mTop, sheetH - targetBox.effH];
 
       marginTargetsX.forEach((targetX) => {
-        if (Math.abs(targetX - x) <= tolerance) snappedX = targetX;
+        if (Math.abs(targetX - snappedLeft) <= tolerance) snappedLeft = targetX;
       });
       marginTargetsY.forEach((targetY) => {
-        if (Math.abs(targetY - y) <= tolerance) snappedY = targetY;
+        if (Math.abs(targetY - snappedBottom) <= tolerance) snappedBottom = targetY;
       });
     }
 
@@ -291,18 +324,28 @@
       state.layout.slots.forEach((other) => {
         if (other.id === slot.id) return;
         if ((other.face || 'front') !== activeFace) return;
-        const edgesX = [other.x_mm, other.x_mm + other.w_mm];
-        const edgesY = [other.y_mm, other.y_mm + other.h_mm];
+        const otherBox = getEffectiveSlotBox(other);
+        const edgesX = [otherBox.x, otherBox.x + otherBox.effW];
+        const edgesY = [otherBox.y, otherBox.y + otherBox.effH];
         edgesX.forEach((edgeX) => {
-          if (Math.abs(edgeX - x) <= tolerance) snappedX = edgeX;
+          if (Math.abs(edgeX - snappedLeft) <= tolerance) snappedLeft = edgeX;
         });
         edgesY.forEach((edgeY) => {
-          if (Math.abs(edgeY - y) <= tolerance) snappedY = edgeY;
+          if (Math.abs(edgeY - snappedBottom) <= tolerance) snappedBottom = edgeY;
         });
       });
     }
 
-    return { x: snappedX, y: snappedY };
+    const snappedCx = snappedLeft + targetBox.effW / 2;
+    const snappedCy = snappedBottom + targetBox.effH / 2;
+    const finalCoords = slotCoordsFromBox({
+      ...targetBox,
+      cx: snappedCx,
+      cy: snappedCy,
+      x: snappedLeft,
+      y: snappedBottom,
+    });
+    return { x: finalCoords.x, y: finalCoords.y };
   }
 
   function updateHandleScale() {
@@ -866,54 +909,62 @@
   function groupSlotsByRow(slots) {
     const margin = 2; // tolerancia extra en mm
     const rows = [];
-    const byCenterY = [...slots].sort(
-      (a, b) => a.y_mm + a.h_mm / 2 - (b.y_mm + b.h_mm / 2),
-    );
+    const byCenterY = [...slots].sort((a, b) => {
+      const boxA = getEffectiveSlotBox(a);
+      const boxB = getEffectiveSlotBox(b);
+      return boxA.cy - boxB.cy;
+    });
 
     byCenterY.forEach((slot) => {
-      const centerY = slot.y_mm + slot.h_mm / 2;
+      const box = getEffectiveSlotBox(slot);
+      const centerY = box.cy;
       let targetRow = rows.find(
-        (row) => Math.abs(row.centerY - centerY) <= (Math.max(row.maxHeight, slot.h_mm) / 2 + margin),
+        (row) => Math.abs(row.centerY - centerY) <= (Math.max(row.maxHeight, box.effH) / 2 + margin),
       );
       if (!targetRow) {
-        targetRow = { slots: [], centerY, maxHeight: slot.h_mm };
+        targetRow = { slots: [], centerY, maxHeight: box.effH };
         rows.push(targetRow);
       }
       targetRow.slots.push(slot);
       targetRow.centerY =
         (targetRow.centerY * (targetRow.slots.length - 1) + centerY) / targetRow.slots.length;
-      targetRow.maxHeight = Math.max(targetRow.maxHeight, slot.h_mm);
+      targetRow.maxHeight = Math.max(targetRow.maxHeight, box.effH);
     });
 
     rows.sort((a, b) => a.centerY - b.centerY);
-    rows.forEach((row) => row.slots.sort((a, b) => a.x_mm - b.x_mm));
+    rows.forEach((row) => row.slots.sort((a, b) => getEffectiveSlotBox(a).x - getEffectiveSlotBox(b).x));
     return rows;
   }
 
   function groupSlotsByColumn(slots) {
     const margin = 2;
     const cols = [];
-    const byCenterX = [...slots].sort(
-      (a, b) => a.x_mm + a.w_mm / 2 - (b.x_mm + b.w_mm / 2),
-    );
+    const byCenterX = [...slots].sort((a, b) => {
+      const boxA = getEffectiveSlotBox(a);
+      const boxB = getEffectiveSlotBox(b);
+      return boxA.cx - boxB.cx;
+    });
 
     byCenterX.forEach((slot) => {
-      const centerX = slot.x_mm + slot.w_mm / 2;
+      const box = getEffectiveSlotBox(slot);
+      const centerX = box.cx;
       let targetCol = cols.find(
-        (col) => Math.abs(col.centerX - centerX) <= (Math.max(col.maxWidth, slot.w_mm) / 2 + margin),
+        (col) => Math.abs(col.centerX - centerX) <= (Math.max(col.maxWidth, box.effW) / 2 + margin),
       );
       if (!targetCol) {
-        targetCol = { slots: [], centerX, maxWidth: slot.w_mm };
+        targetCol = { slots: [], centerX, maxWidth: box.effW };
         cols.push(targetCol);
       }
       targetCol.slots.push(slot);
       targetCol.centerX =
         (targetCol.centerX * (targetCol.slots.length - 1) + centerX) / targetCol.slots.length;
-      targetCol.maxWidth = Math.max(targetCol.maxWidth, slot.w_mm);
+      targetCol.maxWidth = Math.max(targetCol.maxWidth, box.effW);
     });
 
     cols.sort((a, b) => a.centerX - b.centerX);
-    cols.forEach((col) => col.slots.sort((a, b) => a.y_mm - b.y_mm));
+    cols.forEach((col) =>
+      col.slots.sort((a, b) => getEffectiveSlotBox(a).y - getEffectiveSlotBox(b).y),
+    );
     return cols;
   }
 
@@ -992,16 +1043,22 @@
       const movedGroups = new Set();
       const rows = groupSlotsByRow(visibleSlots);
       rows.forEach((row) => {
-        let currentX = row.slots[0].x_mm;
+        let currentX = getEffectiveSlotBox(row.slots[0]).x;
         row.slots.forEach((slot, index) => {
+          const box = getEffectiveSlotBox(slot);
           if (index === 0) {
-            moveGroup(slot, 0, 0, initialMap, movedGroups);
+            const dx = currentX - box.x;
+            const newCx = box.cx + dx;
+            slot.x_mm = newCx - box.baseW / 2;
+            moveGroup(slot, dx, 0, initialMap, movedGroups);
             return;
           }
           const prev = row.slots[index - 1];
-          currentX = prev.x_mm + prev.w_mm + spacingX;
-          const dx = currentX - slot.x_mm;
-          slot.x_mm = currentX;
+          const prevBox = getEffectiveSlotBox(prev);
+          currentX = prevBox.x + prevBox.effW + spacingX;
+          const dx = currentX - box.x;
+          const newCx = box.cx + dx;
+          slot.x_mm = newCx - box.baseW / 2;
           moveGroup(slot, dx, 0, initialMap, movedGroups);
         });
       });
@@ -1012,16 +1069,22 @@
       const movedGroups = new Set();
       const cols = groupSlotsByColumn(visibleSlots);
       cols.forEach((col) => {
-        let currentY = col.slots[0].y_mm;
+        let currentY = getEffectiveSlotBox(col.slots[0]).y;
         col.slots.forEach((slot, index) => {
+          const box = getEffectiveSlotBox(slot);
           if (index === 0) {
-            moveGroup(slot, 0, 0, initialMap, movedGroups);
+            const dy = currentY - box.y;
+            const newCy = box.cy + dy;
+            slot.y_mm = newCy - box.baseH / 2;
+            moveGroup(slot, 0, dy, initialMap, movedGroups);
             return;
           }
           const prev = col.slots[index - 1];
-          currentY = prev.y_mm + prev.h_mm + spacingY;
-          const dy = currentY - slot.y_mm;
-          slot.y_mm = currentY;
+          const prevBox = getEffectiveSlotBox(prev);
+          currentY = prevBox.y + prevBox.effH + spacingY;
+          const dy = currentY - box.y;
+          const newCy = box.cy + dy;
+          slot.y_mm = newCy - box.baseH / 2;
           moveGroup(slot, 0, dy, initialMap, movedGroups);
         });
       });
