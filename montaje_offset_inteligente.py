@@ -1646,15 +1646,12 @@ def montar_offset_desde_layout(layout_data, job_dir, preview: bool = False):
 
     sheet_mm = layout_data.get("sheet_mm", [640, 880])
     margins = layout_data.get("margins_mm", [10, 10, 10, 10])
-    bleed_default_raw = layout_data.get("bleed_default_mm", 3)
+    bleed_default_raw = layout_data.get("bleed_default_mm")
     try:
-        bleed_default = float(bleed_default_raw or 3)
+        bleed_default = float(bleed_default_raw)
     except (TypeError, ValueError):
         bleed_default = 3.0
-    try:
-        bleed_layout = float(bleed_default_raw or 3)
-    except (TypeError, ValueError):
-        bleed_layout = 3.0
+    bleed_layout = bleed_default
     gap_default = layout_data.get("gap_default_mm", 0)
     ctp_cfg = layout_data.get("ctp", {}) or {}
     ctp_enabled = bool(ctp_cfg.get("enabled"))
