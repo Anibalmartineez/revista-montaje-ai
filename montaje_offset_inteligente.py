@@ -1692,6 +1692,8 @@ def montar_offset_desde_layout(layout_data, job_dir, preview: bool = False):
         forms_per_plate = max(1, int(d.get("forms_per_plate") or 1))
         disenos.append(Diseno(ruta=ruta_pdf, cantidad=forms_per_plate))
 
+    engine_name = (layout_data.get("imposition_engine") or "repeat").lower()
+
     def _positions_for_face(target_face: str) -> tuple[list[dict], bool]:
         posiciones: List[dict] = []
         face_crop = False
@@ -1715,8 +1717,13 @@ def montar_offset_desde_layout(layout_data, job_dir, preview: bool = False):
                 trim_w = w_mm
                 trim_h = h_mm
             else:
-                trim_w = w_mm - 2 * bleed_layout if w_mm else 0
-                trim_h = h_mm - 2 * bleed_layout if h_mm else 0
+                if engine_name == "repeat":
+                    # Antes restábamos bleed_default otra vez y eso abría un gap fijo (p. ej. 3 mm) entre slots.
+                    trim_w = w_mm
+                    trim_h = h_mm
+                else:
+                    trim_w = w_mm - 2 * bleed_layout if w_mm else 0
+                    trim_h = h_mm - 2 * bleed_layout if h_mm else 0
             if trim_w <= 0:
                 trim_w = max(1.0, w_mm)
             if trim_h <= 0:

@@ -592,7 +592,10 @@ def _build_step_repeat_slots(layout: Dict) -> List[Dict]:
     if usable_w <= 0 or usable_h <= 0:
         return []
 
-    gap = float(layout.get("gap_default_mm") or 0)
+    spacing = layout.get("spacingSettings") or layout.get("spacing_settings") or {}
+    # Bleed define el tamaño del slot; el gap del layout define la separación entre slots.
+    gap_x = float(spacing.get("spacingX_mm", layout.get("gap_default_mm", 0)) or 0)
+    gap_y = float(spacing.get("spacingY_mm", layout.get("gap_default_mm", 0)) or 0)
     slots: List[Dict] = []
     active_face = layout.get("active_face") or "front"
 
@@ -613,7 +616,7 @@ def _build_step_repeat_slots(layout: Dict) -> List[Dict]:
 
             if cursor_x + slot_w > left + usable_w:
                 cursor_x = left
-                cursor_y += row_height + gap
+                cursor_y += row_height + gap_y
                 row_height = 0.0
 
             if cursor_y + slot_h > bottom + usable_h:
@@ -636,11 +639,11 @@ def _build_step_repeat_slots(layout: Dict) -> List[Dict]:
                 }
             )
 
-            cursor_x += slot_w + gap
+            cursor_x += slot_w + gap_x
             row_height = max(row_height, slot_h)
 
         cursor_x = left
-        cursor_y += row_height + gap
+        cursor_y += row_height + gap_y
         row_height = 0.0
 
     return slots
