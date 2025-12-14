@@ -913,6 +913,8 @@ def montar_pliego_offset_inteligente(
     # --- RAMA MANUAL: si estrategia == "manual" y hay posiciones_manual ---
     if estrategia == "manual" and posiciones_manual:
         # posiciones_manual viene en mm, bottom-left, con w/h = TRIM (sin sangrado)
+        # Para repeat, el slot ya representa la caja final con bleed incluido; el bleed
+        # de salida solo afecta contenido interno y marcas, no el tamaño externo.
         # Normaliza a la misma estructura que usa el dibujado final.
         posiciones = []
         for p in posiciones_manual:
@@ -955,14 +957,29 @@ def montar_pliego_offset_inteligente(
             # 4) último recurso
             if bleed_effective is None:
                 bleed_effective = 0.0
+            slot_box_final = bool(p.get("slot_box_final"))
+            final_w_mm = float(p["w_mm"])
+            final_h_mm = float(p["h_mm"])
+            if slot_box_final:
+                bleed_effective = min(
+                    float(bleed_effective),
+                    final_w_mm / 2.0 if final_w_mm > 0 else 0.0,
+                    final_h_mm / 2.0 if final_h_mm > 0 else 0.0,
+                )
+            base_w_mm = final_w_mm
+            base_h_mm = final_h_mm
+            if slot_box_final:
+                base_w_mm = max(0.1, final_w_mm - 2 * bleed_effective)
+                base_h_mm = max(0.1, final_h_mm - 2 * bleed_effective)
+
             posiciones.append(
                 {
                     "archivo": ruta,        # informativo, no usar para enlazar
                     "file_idx": idx,        # clave estable para enlazar al PDF correcto
                     "x": float(p["x_mm"]),
                     "y": float(p["y_mm"]),
-                    "ancho": float(p["w_mm"]),  # TRIM
-                    "alto": float(p["h_mm"]),  # TRIM
+                    "ancho": base_w_mm,  # TRIM
+                    "alto": base_h_mm,  # TRIM
                     "rot_deg": int(p.get("rot_deg", p.get("rot", 0)) or 0) % 360,
                     "bleed_mm": float(bleed_effective) if bleed_effective is not None else 0.0,
                 }
@@ -1176,8 +1193,13 @@ def montar_pliego_offset_inteligente(
             y_mm = float(p.get("y_mm", p.get("y", 0)))
             w_base = float(p.get("w_mm", p.get("ancho_mm", p.get("ancho", p.get("w", 0)))))
             h_base = float(p.get("h_mm", p.get("alto_mm", p.get("alto", p.get("h", 0)))))
-            w_mm = w_base + 2 * sangrado
-            h_mm = h_base + 2 * sangrado
+            bleed_mm = p.get("bleed_mm", sangrado)
+            try:
+                bleed_mm = float(bleed_mm)
+            except Exception:
+                bleed_mm = sangrado
+            w_mm = w_base + 2 * (bleed_mm or 0)
+            h_mm = h_base + 2 * (bleed_mm or 0)
             rot_deg = int(p.get("rot_deg", p.get("rot", 0)) or 0) % 360
 
             idx = p.get("file_idx")
@@ -1740,6 +1762,8 @@ def montar_offset_desde_layout(layout_data, job_dir, preview: bool = False):
                     "rot_deg": int(slot.get("rotation_deg", slot.get("rot_deg", 0)) or 0),
                     "bleed_mm": bleed_val,
                     "crop_marks": crop_flag,
+                    # Para repeat, el slot ya es la caja final con bleed incluido.
+                    "slot_box_final": engine_name == "repeat",
                 }
             )
         return posiciones, face_crop
