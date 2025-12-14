@@ -1601,13 +1601,18 @@ def _sanitize_slot_bleed(
     bleed_default: float,
     work: dict | None = None,
 ) -> float:
-    bleed_val = slot.get("bleed_mm")
+    bleed_val = None
+    if isinstance(export_settings, dict):
+        bleed_val = export_settings.get("bleed_mm")
+
     if bleed_val is None and design_ref is not None:
         design_overrides = (design_export or {}).get(str(design_ref))
         if isinstance(design_overrides, dict):
             bleed_val = design_overrides.get("bleed_mm")
-    if bleed_val is None and isinstance(export_settings, dict):
-        bleed_val = export_settings.get("bleed_mm")
+
+    if bleed_val is None:
+        bleed_val = slot.get("bleed_mm")
+
     if bleed_val is None and work:
         bleed_val = work.get("default_bleed_mm")
     if bleed_val is None:
@@ -1621,13 +1626,20 @@ def _sanitize_slot_bleed(
 def _resolve_slot_crop_marks(
     slot: dict, design_ref: str | None, design_export: dict | None, export_settings: dict | None
 ) -> bool:
-    crop_val = slot.get("crop_marks")
-    if crop_val is None and design_ref is not None:
+    crop_val = None
+    if isinstance(export_settings, dict):
+        crop_val = export_settings.get("crop_marks")
+        if crop_val is not None:
+            return bool(crop_val)
+
+    if design_ref is not None:
         design_overrides = (design_export or {}).get(str(design_ref))
         if isinstance(design_overrides, dict):
             crop_val = design_overrides.get("crop_marks")
-    if crop_val is None and isinstance(export_settings, dict):
-        crop_val = export_settings.get("crop_marks")
+
+    if crop_val is None:
+        crop_val = slot.get("crop_marks")
+
     if crop_val is None:
         crop_val = True
     return bool(crop_val)
@@ -1661,6 +1673,7 @@ def montar_offset_desde_layout(layout_data, job_dir, preview: bool = False):
     export_settings = export_settings_raw if isinstance(export_settings_raw, dict) else {}
     design_export_raw = layout_data.get("design_export")
     design_export = design_export_raw if isinstance(design_export_raw, dict) else {}
+    # Manual sanity: Diseño bleed=3 → export bleed=1 produce PDF con 1mm; export crop off produce PDF sin marcas.
 
     designs = layout_data.get("designs", []) or []
     works = {w.get("id"): w for w in (layout_data.get("works", []) or [])}
