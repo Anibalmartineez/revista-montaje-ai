@@ -359,6 +359,25 @@
         </label>
       </details>
 
+      <details class="panel-accordion panel-export-settings" open>
+        <summary>Salida / Preprensa</summary>
+
+        <label class="inline-input">Sangrado real (mm)
+          <input type="number" id="export-bleed-mm" min="0" step="0.1">
+        </label>
+
+        <label class="checkbox-inline">
+          <input type="checkbox" id="export-crop-marks">
+          Marcas de corte
+        </label>
+
+        <div class="form-actions">
+          <button id="export-apply-global" class="btn btn-secondary" type="button">Aplicar a todos</button>
+        </div>
+
+        <div id="design-export-list" class="design-export-list"></div>
+      </details>
+
       <details class="panel-accordion panel-output" open>
         <summary>Salida final</summary>
         <div class="form-actions">

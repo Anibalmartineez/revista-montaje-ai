@@ -80,6 +80,7 @@
     state.layout.designs = state.layout.designs || [];
     ensureEngineDefaults();
     ensureCtpDefaults();
+    ensureExportDefaults();
     normalizeDesignDefaults();
     if (!state.layout.sheet_mm) {
       state.layout.sheet_mm = [640, 880];
@@ -138,6 +139,23 @@
     if (t.notes === undefined) t.notes = '';
     if (t.auto_cmyk === undefined) t.auto_cmyk = true;
     if (t.extra_text === undefined) t.extra_text = '';
+  }
+
+  function ensureExportDefaults() {
+    if (!state.layout) return;
+    if (!state.layout.export_settings || typeof state.layout.export_settings !== 'object') {
+      state.layout.export_settings = { bleed_mm: 3, crop_marks: true };
+    } else {
+      if (state.layout.export_settings.bleed_mm === undefined) {
+        state.layout.export_settings.bleed_mm = 3;
+      }
+      if (state.layout.export_settings.crop_marks === undefined) {
+        state.layout.export_settings.crop_marks = true;
+      }
+    }
+    if (!state.layout.design_export || typeof state.layout.design_export !== 'object') {
+      state.layout.design_export = {};
+    }
   }
 
   function normalizeDesignDefaults() {
@@ -208,6 +226,7 @@
       ...(state.layout.spacingSettings || state.layout.spacing_settings || {}),
     };
     ensureEngineDefaults();
+    ensureExportDefaults();
     normalizeDesignDefaults();
     normalizeLayoutFaces();
     state.selectedSlot = null;
@@ -217,6 +236,7 @@
     renderDesigns();
     renderSnapControls();
     renderSpacingControls();
+    renderExportSettings();
     renderImpositionControls();
     recalcScale();
     renderSheet();
@@ -406,6 +426,147 @@
     if (spacingXInput) spacingXInput.value = state.spacingSettings.spacingX_mm;
     if (spacingYInput) spacingYInput.value = state.spacingSettings.spacingY_mm;
     updateSpacingLiveButton();
+  }
+
+  function clearDesignOverride(ref) {
+    if (!state.layout.design_export) return;
+    delete state.layout.design_export[ref];
+  }
+
+  function updateDesignOverride(ref, updater) {
+    ensureExportDefaults();
+    const current = state.layout.design_export[ref] || {};
+    const next = { ...current };
+    updater(next);
+    const hasEntries = Object.keys(next).length > 0;
+    if (hasEntries) {
+      state.layout.design_export[ref] = next;
+    } else {
+      clearDesignOverride(ref);
+    }
+  }
+
+  function renderExportSettings() {
+    ensureExportDefaults();
+    const bleedInput = document.getElementById('export-bleed-mm');
+    const cropInput = document.getElementById('export-crop-marks');
+    if (bleedInput) bleedInput.value = state.layout.export_settings.bleed_mm;
+    if (cropInput) cropInput.checked = state.layout.export_settings.crop_marks !== false;
+
+    const listEl = document.getElementById('design-export-list');
+    if (!listEl) return;
+    clearChildren(listEl);
+
+    if (!state.layout.designs || state.layout.designs.length === 0) {
+      const empty = document.createElement('p');
+      empty.className = 'muted';
+      empty.textContent = 'Subí PDFs para configurar ajustes de sangrado y marcas opcionales por diseño.';
+      listEl.appendChild(empty);
+      return;
+    }
+
+    const globalBleed = state.layout.export_settings.bleed_mm;
+    const globalCrop = state.layout.export_settings.crop_marks !== false;
+
+    state.layout.designs.forEach((design) => {
+      const designKey = design.ref || design.filename || 'PDF';
+      const overrides = state.layout.design_export[designKey] || {};
+
+      const row = document.createElement('div');
+      row.className = 'design-export-row';
+
+      const title = document.createElement('div');
+      title.className = 'design-export-title';
+      title.textContent = `${design.filename || design.ref || 'PDF'} (${design.ref || designKey})`;
+      row.appendChild(title);
+
+      const controls = document.createElement('div');
+      controls.className = 'design-export-controls';
+
+      const bleedLabel = document.createElement('label');
+      bleedLabel.className = 'inline-input';
+      bleedLabel.textContent = 'Sangrado (mm)';
+      const bleedInputDesign = document.createElement('input');
+      bleedInputDesign.type = 'number';
+      bleedInputDesign.min = '0';
+      bleedInputDesign.step = '0.1';
+      bleedInputDesign.dataset.designRef = designKey;
+      bleedInputDesign.className = 'design-export-bleed';
+      bleedInputDesign.placeholder = `${globalBleed}`;
+      bleedInputDesign.value = overrides.bleed_mm ?? '';
+      bleedInputDesign.addEventListener('change', () => {
+        const parsed = normalizeNonNegativeNumber(bleedInputDesign.value, NaN);
+        if (Number.isFinite(parsed)) {
+          updateDesignOverride(designKey, (next) => {
+            next.bleed_mm = parsed;
+          });
+          bleedInputDesign.value = parsed;
+        } else {
+          updateDesignOverride(designKey, (next) => {
+            delete next.bleed_mm;
+          });
+          bleedInputDesign.value = '';
+        }
+        pushHistory();
+        renderExportSettings();
+      });
+      bleedLabel.appendChild(bleedInputDesign);
+      controls.appendChild(bleedLabel);
+
+      const cropLabel = document.createElement('label');
+      cropLabel.className = 'checkbox-inline';
+      const cropInputDesign = document.createElement('input');
+      cropInputDesign.type = 'checkbox';
+      cropInputDesign.className = 'design-export-crop';
+      cropInputDesign.dataset.designRef = designKey;
+      const effectiveCrop = overrides.crop_marks === undefined ? globalCrop : !!overrides.crop_marks;
+      cropInputDesign.checked = effectiveCrop;
+      cropInputDesign.addEventListener('change', () => {
+        updateDesignOverride(designKey, (next) => {
+          next.crop_marks = cropInputDesign.checked;
+        });
+        pushHistory();
+      });
+      cropLabel.appendChild(cropInputDesign);
+      cropLabel.append(' Marcas de corte');
+      controls.appendChild(cropLabel);
+
+      const resetBtn = document.createElement('button');
+      resetBtn.type = 'button';
+      resetBtn.className = 'btn btn-small btn-secondary';
+      resetBtn.textContent = 'Usar global';
+      resetBtn.addEventListener('click', () => {
+        clearDesignOverride(designKey);
+        renderExportSettings();
+        pushHistory();
+      });
+      controls.appendChild(resetBtn);
+
+      row.appendChild(controls);
+      listEl.appendChild(row);
+    });
+  }
+
+  function applyGlobalExportSettings(pushToHistory = true) {
+    ensureExportDefaults();
+    const bleedInput = document.getElementById('export-bleed-mm');
+    const cropInput = document.getElementById('export-crop-marks');
+
+    if (bleedInput) {
+      const parsed = normalizeNonNegativeNumber(
+        bleedInput.value,
+        state.layout.export_settings.bleed_mm ?? 3,
+      );
+      state.layout.export_settings.bleed_mm = parsed;
+      bleedInput.value = parsed;
+    }
+
+    if (cropInput) {
+      state.layout.export_settings.crop_marks = !!cropInput.checked;
+    }
+
+    if (pushToHistory) pushHistory();
+    renderExportSettings();
   }
 
   function updateSnapSettingsFromUI() {
@@ -793,6 +954,7 @@
       li.appendChild(grid);
       designsListEl.appendChild(li);
     });
+    renderExportSettings();
     renderSlotForm();
     renderImpositionControls();
   }
@@ -1600,6 +1762,8 @@
     syncSettingsToLayout();
     ensureEngineDefaults();
     ensureCtpDefaults();
+    ensureExportDefaults();
+    applyGlobalExportSettings(false);
     readCtpParamsFromUI();
     normalizeDesignDefaults();
     return JSON.stringify(state.layout);
@@ -1627,6 +1791,7 @@
     const data = await res.json();
     if (data.layout) {
       state.layout = data.layout;
+      ensureExportDefaults();
       normalizeLayoutFaces();
       selectSlot(null);
       initSheetControls();
@@ -1670,6 +1835,7 @@
     if (data.layout) {
       state.layout = data.layout;
       ensureEngineDefaults();
+      ensureExportDefaults();
       normalizeDesignDefaults();
       normalizeLayoutFaces();
       state.snapSettings = {
@@ -1736,6 +1902,7 @@
       state.layout.designs = data.designs;
       normalizeDesignDefaults();
       ensureEngineDefaults();
+      ensureExportDefaults();
       renderDesigns();
       filesInput.value = '';
       pushHistory();
@@ -1764,6 +1931,15 @@
     document
       .getElementById('btn-ungroup-slots')
       ?.addEventListener('click', ungroupSelectedSlots);
+    document.getElementById('export-apply-global')?.addEventListener('click', () => {
+      applyGlobalExportSettings(true);
+    });
+    document.getElementById('export-bleed-mm')?.addEventListener('change', () => {
+      applyGlobalExportSettings(false);
+    });
+    document.getElementById('export-crop-marks')?.addEventListener('change', () => {
+      applyGlobalExportSettings(false);
+    });
     document.getElementById('btn-save').addEventListener('click', saveLayout);
     document.getElementById('btn-preview').addEventListener('click', requestPreview);
     document.getElementById('btn-pdf').addEventListener('click', requestPdf);

@@ -1593,16 +1593,44 @@ def montar_pliego_offset_inteligente(
     return output_path
 
 
-def _sanitize_slot_bleed(slot: dict, work: dict | None, bleed_default: float) -> float:
+def _sanitize_slot_bleed(
+    slot: dict,
+    design_ref: str | None,
+    design_export: dict | None,
+    export_settings: dict | None,
+    bleed_default: float,
+    work: dict | None = None,
+) -> float:
     bleed_val = slot.get("bleed_mm")
-    if bleed_val is None:
-        bleed_val = work.get("default_bleed_mm") if work else None
+    if bleed_val is None and design_ref is not None:
+        design_overrides = (design_export or {}).get(str(design_ref))
+        if isinstance(design_overrides, dict):
+            bleed_val = design_overrides.get("bleed_mm")
+    if bleed_val is None and isinstance(export_settings, dict):
+        bleed_val = export_settings.get("bleed_mm")
+    if bleed_val is None and work:
+        bleed_val = work.get("default_bleed_mm")
     if bleed_val is None:
         bleed_val = bleed_default
     try:
         return float(bleed_val)
     except (TypeError, ValueError):
         return float(bleed_default)
+
+
+def _resolve_slot_crop_marks(
+    slot: dict, design_ref: str | None, design_export: dict | None, export_settings: dict | None
+) -> bool:
+    crop_val = slot.get("crop_marks")
+    if crop_val is None and design_ref is not None:
+        design_overrides = (design_export or {}).get(str(design_ref))
+        if isinstance(design_overrides, dict):
+            crop_val = design_overrides.get("crop_marks")
+    if crop_val is None and isinstance(export_settings, dict):
+        crop_val = export_settings.get("crop_marks")
+    if crop_val is None:
+        crop_val = True
+    return bool(crop_val)
 
 
 def montar_offset_desde_layout(layout_data, job_dir, preview: bool = False):
@@ -1618,12 +1646,24 @@ def montar_offset_desde_layout(layout_data, job_dir, preview: bool = False):
 
     sheet_mm = layout_data.get("sheet_mm", [640, 880])
     margins = layout_data.get("margins_mm", [10, 10, 10, 10])
-    bleed_default = float(layout_data.get("bleed_default_mm", 0) or 0)
+    bleed_default_raw = layout_data.get("bleed_default_mm", 3)
+    try:
+        bleed_default = float(bleed_default_raw or 3)
+    except (TypeError, ValueError):
+        bleed_default = 3.0
+    try:
+        bleed_layout = float(bleed_default_raw or 3)
+    except (TypeError, ValueError):
+        bleed_layout = 3.0
     gap_default = layout_data.get("gap_default_mm", 0)
     ctp_cfg = layout_data.get("ctp", {}) or {}
     ctp_enabled = bool(ctp_cfg.get("enabled"))
     gripper_mm = float(ctp_cfg.get("gripper_mm", 0) or 0)
     base_pinza_mm = float(layout_data.get("pinza_mm", 0) or 0)
+    export_settings_raw = layout_data.get("export_settings")
+    export_settings = export_settings_raw if isinstance(export_settings_raw, dict) else {}
+    design_export_raw = layout_data.get("design_export")
+    design_export = design_export_raw if isinstance(design_export_raw, dict) else {}
 
     designs = layout_data.get("designs", []) or []
     works = {w.get("id"): w for w in (layout_data.get("works", []) or [])}
@@ -1653,7 +1693,9 @@ def montar_offset_desde_layout(layout_data, job_dir, preview: bool = False):
             if not ref or ref not in ref_to_idx:
                 continue
             work = works.get(slot.get("logical_work_id"))
-            bleed_val = _sanitize_slot_bleed(slot, work, bleed_default)
+            bleed_val = _sanitize_slot_bleed(
+                slot, ref, design_export, export_settings, bleed_default, work
+            )
             w_mm = float(slot.get("w_mm", 0))
             h_mm = float(slot.get("h_mm", 0))
             has_bleed = bool(work.get("has_bleed")) if work else False
@@ -1663,13 +1705,13 @@ def montar_offset_desde_layout(layout_data, job_dir, preview: bool = False):
                 trim_w = w_mm
                 trim_h = h_mm
             else:
-                trim_w = w_mm - 2 * bleed_val if w_mm else 0
-                trim_h = h_mm - 2 * bleed_val if h_mm else 0
+                trim_w = w_mm - 2 * bleed_layout if w_mm else 0
+                trim_h = h_mm - 2 * bleed_layout if h_mm else 0
             if trim_w <= 0:
                 trim_w = max(1.0, w_mm)
             if trim_h <= 0:
                 trim_h = max(1.0, h_mm)
-            crop_flag = bool(slot.get("crop_marks", False))
+            crop_flag = _resolve_slot_crop_marks(slot, ref, design_export, export_settings)
             face_crop = face_crop or crop_flag
             posiciones.append(
                 {
