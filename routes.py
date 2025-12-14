@@ -209,6 +209,8 @@ def _default_constructor_layout() -> Dict:
         "works": [],
         "slots": [],
         "designs": [],
+        "export_settings": {"bleed_mm": 3, "crop_marks": True},
+        "design_export": {},
         "faces": ["front"],
         "active_face": "front",
         "imposition_engine": "repeat",
@@ -272,6 +274,30 @@ def _ensure_imposition_fields(layout: Dict) -> tuple[Dict, bool]:
     return layout, changed
 
 
+def _ensure_export_fields(layout: Dict) -> tuple[Dict, bool]:
+    changed = False
+    if not isinstance(layout, dict):
+        return layout, changed
+
+    export_settings = layout.get("export_settings")
+    if not isinstance(export_settings, dict):
+        layout["export_settings"] = {"bleed_mm": 3, "crop_marks": True}
+        changed = True
+    else:
+        if export_settings.get("bleed_mm") is None:
+            export_settings["bleed_mm"] = 3
+            changed = True
+        if export_settings.get("crop_marks") is None:
+            export_settings["crop_marks"] = True
+            changed = True
+
+    if not isinstance(layout.get("design_export"), dict):
+        layout["design_export"] = {}
+        changed = True
+
+    return layout, changed
+
+
 def _load_constructor_layout(job_dir: str) -> Dict | None:
     path = _constructor_layout_path(job_dir)
     if not os.path.exists(path):
@@ -325,7 +351,8 @@ def _load_or_init_constructor_layout(job_id: str) -> tuple[str, Dict]:
     else:
         layout, changed = _ensure_faces_fields(layout)
         layout, changed_imposition = _ensure_imposition_fields(layout)
-        changed = changed or changed_imposition
+        layout, changed_export = _ensure_export_fields(layout)
+        changed = changed or changed_imposition or changed_export
         if changed:
             _save_constructor_layout(job_dir, layout)
     return job_dir, layout
@@ -354,6 +381,7 @@ def editor_offset_save():
         return _json_error("layout_json faltante")
     layout, _ = _ensure_faces_fields(layout)
     layout, _ = _ensure_imposition_fields(layout)
+    layout, _ = _ensure_export_fields(layout)
     job_dir = _constructor_job_dir(job_id)
     _save_constructor_layout(job_dir, layout)
     return jsonify({"ok": True, "job_id": job_id})
