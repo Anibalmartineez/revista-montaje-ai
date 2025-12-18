@@ -930,6 +930,15 @@ def _montaje_config_from_params(
     params: Dict,
     **overrides,
 ) -> MontajeConfig:
+    export_settings = params.get("export_settings") if isinstance(params.get("export_settings"), dict) else {}
+    resolved_output_mode = overrides.get("output_mode")
+    if resolved_output_mode is None:
+        raw_mode = params.get("output_mode")
+        if raw_mode is not None:
+            resolved_output_mode = raw_mode
+    if resolved_output_mode is None and isinstance(export_settings, dict):
+        resolved_output_mode = export_settings.get("output_mode")
+
     base_kwargs = {
         "tamano_pliego": tamano_pliego,
         "separacion": params.get("separacion"),
@@ -963,6 +972,8 @@ def _montaje_config_from_params(
         ),
         "export_compat": params.get("export_compat"),
     }
+    if resolved_output_mode is not None:
+        base_kwargs["output_mode"] = resolved_output_mode
     base_kwargs.update(overrides)
     return MontajeConfig(**base_kwargs)
 

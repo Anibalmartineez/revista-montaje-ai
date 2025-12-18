@@ -1406,29 +1406,27 @@ def montar_pliego_offset_inteligente(
 
             c.drawImage(ImageReader(img_to_draw), x_pt, y_pt, width=w_pt, height=h_pt)
 
-        if is_vector_hybrid:
-            overlay_w_mm = eff_trim_w_mm
-            overlay_h_mm = eff_trim_h_mm
-            overlay_x_mm = cx_mm - overlay_w_mm / 2.0
-            overlay_y_mm = cy_mm - overlay_h_mm / 2.0
-            vector_overlays.append(
-                {
-                    "path": archivo,
-                    "x_mm": overlay_x_mm,
-                    "y_mm": overlay_y_mm,
-                    "w_mm": overlay_w_mm,
-                    "h_mm": overlay_h_mm,
-                    "rot_deg": rot,
-                }
-            )
-
         bleed_eff = bleed_effective
         if bleed_effective is None or bleed_effective <= 0:
             if archivo not in bleed_cache:
                 bleed_cache[archivo] = detectar_sangrado_pdf(archivo)
             bleed_eff = bleed_cache[archivo]
-        x_trim_pt = mm_to_pt(x_draw_mm + bleed_eff)
-        y_trim_pt = mm_to_pt(y_draw_mm + bleed_eff)
+        x_trim_mm = x_draw_mm + bleed_eff
+        y_trim_mm = y_draw_mm + bleed_eff
+
+        if is_vector_hybrid:
+            vector_overlays.append(
+                {
+                    "path": archivo,
+                    "x_mm": x_trim_mm,
+                    "y_mm": y_trim_mm,
+                    "w_mm": eff_trim_w_mm,
+                    "h_mm": eff_trim_h_mm,
+                    "rot_deg": rot,
+                }
+            )
+        x_trim_pt = mm_to_pt(x_trim_mm)
+        y_trim_pt = mm_to_pt(y_trim_mm)
         if bleed_effective > 0:
             w_trim_pt = mm_to_pt(eff_trim_w_mm)
             h_trim_pt = mm_to_pt(eff_trim_h_mm)
