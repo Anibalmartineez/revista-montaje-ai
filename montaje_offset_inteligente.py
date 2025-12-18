@@ -76,6 +76,7 @@ class MontajeConfig:
     resumen_path: Optional[str] = None
     export_compat: Optional[str] = None  # None | "pdfx1a" | "adobe_compatible"
     ctp_config: Optional[dict] = None
+    output_mode: str = "raster"
 
 
 def mm_to_px(mm: float, dpi: int) -> int:
@@ -783,6 +784,7 @@ def montar_pliego_offset_inteligente(
     devolver_posiciones: bool = False,
     resumen_path: str | None = None,
     ctp_config: dict | None = None,
+    output_mode: str = "raster",
     **kwargs,
 ) -> str | Tuple[bytes, str]:
     """Genera un PDF montando múltiples diseños con lógica profesional.
@@ -812,6 +814,7 @@ def montar_pliego_offset_inteligente(
     posiciones_manual = kwargs.get("posiciones_override", posiciones_manual)
     export_compat = kwargs.get("export_compat")
     ctp_config = kwargs.get("ctp_config", ctp_config)
+    output_mode = (kwargs.get("output_mode", output_mode) or "raster").lower()
     if posiciones_manual is not None:
         estrategia = "manual"
 
@@ -1339,6 +1342,8 @@ def montar_pliego_offset_inteligente(
 
     image_cache: Dict[tuple[str, float], Image.Image] = {}
     bleed_cache: Dict[str, float] = {}
+    vector_overlays: list[dict] = []
+    is_vector_hybrid = output_mode == "vector_hybrid"
     for pos in posiciones:
         idx = pos.get("file_idx")
         if idx is None:
@@ -1355,13 +1360,20 @@ def montar_pliego_offset_inteligente(
         if bleed_effective is None:
             bleed_effective = 0.0
         cache_key = (archivo, float(bleed_effective))
-        if cache_key not in image_cache:
-            image_cache[cache_key] = _pdf_a_imagen_con_sangrado(
-                archivo,
-                bleed_effective,
-                usar_trimbox=(bleed_effective > 0 or usar_trimbox),
-            )
-        img = image_cache[cache_key]
+        draw_raster = True
+        if is_vector_hybrid and bleed_effective <= 0:
+            draw_raster = False
+
+        if draw_raster:
+            if cache_key not in image_cache:
+                image_cache[cache_key] = _pdf_a_imagen_con_sangrado(
+                    archivo,
+                    bleed_effective,
+                    usar_trimbox=(bleed_effective > 0 or usar_trimbox),
+                )
+            img = image_cache[cache_key]
+        else:
+            img = None
         base_w_mm = pos["ancho"]
         base_h_mm = pos["alto"]
         cx_mm = pos["x"] + base_w_mm / 2.0
@@ -1386,12 +1398,29 @@ def montar_pliego_offset_inteligente(
         w_pt = mm_to_pt(eff_draw_w_mm)
         h_pt = mm_to_pt(eff_draw_h_mm)
 
-        if rot:
-            img_to_draw = img.rotate(-rot, resample=Image.BILINEAR, expand=True)
-        else:
-            img_to_draw = img
+        if draw_raster and img is not None:
+            if rot:
+                img_to_draw = img.rotate(-rot, resample=Image.BILINEAR, expand=True)
+            else:
+                img_to_draw = img
 
-        c.drawImage(ImageReader(img_to_draw), x_pt, y_pt, width=w_pt, height=h_pt)
+            c.drawImage(ImageReader(img_to_draw), x_pt, y_pt, width=w_pt, height=h_pt)
+
+        if is_vector_hybrid:
+            overlay_w_mm = eff_trim_w_mm
+            overlay_h_mm = eff_trim_h_mm
+            overlay_x_mm = cx_mm - overlay_w_mm / 2.0
+            overlay_y_mm = cy_mm - overlay_h_mm / 2.0
+            vector_overlays.append(
+                {
+                    "path": archivo,
+                    "x_mm": overlay_x_mm,
+                    "y_mm": overlay_y_mm,
+                    "w_mm": overlay_w_mm,
+                    "h_mm": overlay_h_mm,
+                    "rot_deg": rot,
+                }
+            )
 
         bleed_eff = bleed_effective
         if bleed_effective is None or bleed_effective <= 0:
@@ -1563,6 +1592,51 @@ def montar_pliego_offset_inteligente(
         c.setStrokeColorRGB(0, 0, 0)
     c.save()
 
+    if is_vector_hybrid and vector_overlays:
+        tmp_out = output_path + ".tmp.pdf"
+        try:
+            with fitz.open(output_path) as target_doc:
+                page = target_doc[0]
+
+                for overlay in vector_overlays:
+                    with fitz.open(overlay["path"]) as src_doc:
+                        src_page = src_doc[0]
+                        clip_rect = None
+                        try:
+                            clip_rect = src_page.trimbox
+                        except Exception:
+                            clip_rect = None
+                        if clip_rect is None:
+                            try:
+                                clip_rect = src_page.cropbox
+                            except Exception:
+                                clip_rect = None
+                        if clip_rect is None:
+                            clip_rect = src_page.mediabox
+
+                        target_rect = fitz.Rect(
+                            mm_to_pt(overlay["x_mm"]),
+                            mm_to_pt(overlay["y_mm"]),
+                            mm_to_pt(overlay["x_mm"] + overlay["w_mm"]),
+                            mm_to_pt(overlay["y_mm"] + overlay["h_mm"]),
+                        )
+                        page.show_pdf_page(
+                            target_rect,
+                            src_doc,
+                            0,
+                            rotate=int(overlay.get("rot_deg", 0)) % 360,
+                            clip=clip_rect,
+                        )
+
+                target_doc.save(tmp_out, incremental=False)
+            os.replace(tmp_out, output_path)
+        finally:
+            try:
+                if os.path.exists(tmp_out):
+                    os.remove(tmp_out)
+            except Exception:
+                pass
+
     if export_area_util and used_bbox[0] is not None:
         recortar_pdf_a_bbox(output_path, output_path, [used_bbox])
 
@@ -1693,6 +1767,7 @@ def montar_offset_desde_layout(layout_data, job_dir, preview: bool = False):
     base_pinza_mm = float(layout_data.get("pinza_mm", 0) or 0)
     export_settings_raw = layout_data.get("export_settings")
     export_settings = export_settings_raw if isinstance(export_settings_raw, dict) else {}
+    output_mode = str(export_settings.get("output_mode", "raster")).lower()
     design_export_raw = layout_data.get("design_export")
     design_export = design_export_raw if isinstance(design_export_raw, dict) else {}
     # Manual sanity: Diseño bleed=3 → export bleed=1 produce PDF con 1mm; export crop off produce PDF sin marcas.
@@ -1810,6 +1885,7 @@ def montar_offset_desde_layout(layout_data, job_dir, preview: bool = False):
             preview_path=preview_target,
             output_path=output,
             ctp_config=ctp_cfg,
+            output_mode=output_mode,
         )
 
     def _resolve_output_path(res, default_path: str) -> str:

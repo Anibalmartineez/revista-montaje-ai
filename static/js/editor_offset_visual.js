@@ -144,13 +144,16 @@
   function ensureExportDefaults() {
     if (!state.layout) return;
     if (!state.layout.export_settings || typeof state.layout.export_settings !== 'object') {
-      state.layout.export_settings = { bleed_mm: 3, crop_marks: true };
+      state.layout.export_settings = { bleed_mm: 3, crop_marks: true, output_mode: 'raster' };
     } else {
       if (state.layout.export_settings.bleed_mm === undefined) {
         state.layout.export_settings.bleed_mm = 3;
       }
       if (state.layout.export_settings.crop_marks === undefined) {
         state.layout.export_settings.crop_marks = true;
+      }
+      if (!state.layout.export_settings.output_mode) {
+        state.layout.export_settings.output_mode = 'raster';
       }
     }
     if (!state.layout.design_export || typeof state.layout.design_export !== 'object') {
@@ -450,8 +453,16 @@
     ensureExportDefaults();
     const bleedInput = document.getElementById('export-bleed-mm');
     const cropInput = document.getElementById('export-crop-marks');
+    const outputModeSelect = document.getElementById('export-output-mode');
     if (bleedInput) bleedInput.value = state.layout.export_settings.bleed_mm;
     if (cropInput) cropInput.checked = state.layout.export_settings.crop_marks !== false;
+    if (outputModeSelect) {
+      const mode = state.layout.export_settings.output_mode || 'raster';
+      outputModeSelect.value = mode;
+      if (outputModeSelect.value !== mode) {
+        outputModeSelect.value = 'raster';
+      }
+    }
 
     const listEl = document.getElementById('design-export-list');
     if (!listEl) return;
@@ -551,6 +562,7 @@
     ensureExportDefaults();
     const bleedInput = document.getElementById('export-bleed-mm');
     const cropInput = document.getElementById('export-crop-marks');
+    const outputModeSelect = document.getElementById('export-output-mode');
 
     if (bleedInput) {
       const parsed = normalizeNonNegativeNumber(
@@ -563,6 +575,15 @@
 
     if (cropInput) {
       state.layout.export_settings.crop_marks = !!cropInput.checked;
+    }
+
+    if (outputModeSelect) {
+      const selected = outputModeSelect.value || 'raster';
+      const allowedModes = ['raster', 'vector_hybrid'];
+      state.layout.export_settings.output_mode = allowedModes.includes(selected)
+        ? selected
+        : 'raster';
+      outputModeSelect.value = state.layout.export_settings.output_mode;
     }
 
     if (pushToHistory) pushHistory();
@@ -1938,6 +1959,9 @@
       applyGlobalExportSettings(false);
     });
     document.getElementById('export-crop-marks')?.addEventListener('change', () => {
+      applyGlobalExportSettings(false);
+    });
+    document.getElementById('export-output-mode')?.addEventListener('change', () => {
       applyGlobalExportSettings(false);
     });
     document.getElementById('btn-save').addEventListener('click', saveLayout);
