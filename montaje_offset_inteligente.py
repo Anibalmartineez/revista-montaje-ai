@@ -1593,40 +1593,49 @@ def montar_pliego_offset_inteligente(
     c.save()
 
     if is_vector_hybrid and vector_overlays:
-        with fitz.open(output_path) as target_doc:
-            page = target_doc[0]
+        tmp_out = output_path + ".tmp.pdf"
+        try:
+            with fitz.open(output_path) as target_doc:
+                page = target_doc[0]
 
-            for overlay in vector_overlays:
-                with fitz.open(overlay["path"]) as src_doc:
-                    src_page = src_doc[0]
-                    clip_rect = None
-                    try:
-                        clip_rect = src_page.trimbox
-                    except Exception:
+                for overlay in vector_overlays:
+                    with fitz.open(overlay["path"]) as src_doc:
+                        src_page = src_doc[0]
                         clip_rect = None
-                    if clip_rect is None:
                         try:
-                            clip_rect = src_page.cropbox
+                            clip_rect = src_page.trimbox
                         except Exception:
                             clip_rect = None
-                    if clip_rect is None:
-                        clip_rect = src_page.mediabox
+                        if clip_rect is None:
+                            try:
+                                clip_rect = src_page.cropbox
+                            except Exception:
+                                clip_rect = None
+                        if clip_rect is None:
+                            clip_rect = src_page.mediabox
 
-                    target_rect = fitz.Rect(
-                        mm_to_pt(overlay["x_mm"]),
-                        mm_to_pt(overlay["y_mm"]),
-                        mm_to_pt(overlay["x_mm"] + overlay["w_mm"]),
-                        mm_to_pt(overlay["y_mm"] + overlay["h_mm"]),
-                    )
-                    page.show_pdf_page(
-                        target_rect,
-                        src_doc,
-                        0,
-                        rotate=int(overlay.get("rot_deg", 0)) % 360,
-                        clip=clip_rect,
-                    )
+                        target_rect = fitz.Rect(
+                            mm_to_pt(overlay["x_mm"]),
+                            mm_to_pt(overlay["y_mm"]),
+                            mm_to_pt(overlay["x_mm"] + overlay["w_mm"]),
+                            mm_to_pt(overlay["y_mm"] + overlay["h_mm"]),
+                        )
+                        page.show_pdf_page(
+                            target_rect,
+                            src_doc,
+                            0,
+                            rotate=int(overlay.get("rot_deg", 0)) % 360,
+                            clip=clip_rect,
+                        )
 
-            target_doc.save(output_path, incremental=False)
+                target_doc.save(tmp_out, incremental=False)
+            os.replace(tmp_out, output_path)
+        finally:
+            try:
+                if os.path.exists(tmp_out):
+                    os.remove(tmp_out)
+            except Exception:
+                pass
 
     if export_area_util and used_bbox[0] is not None:
         recortar_pdf_a_bbox(output_path, output_path, [used_bbox])
