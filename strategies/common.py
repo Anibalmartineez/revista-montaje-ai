@@ -54,6 +54,7 @@ def build_call_args(config: MontajeConfig) -> Tuple[float, float, Dict[str, Any]
         "resumen_path": config.resumen_path,
         "export_compat": config.export_compat,
         "ctp_config": config.ctp_config,
+        "output_mode": getattr(config, "output_mode", "raster"),
     }
 
     return float(ancho_pliego), float(alto_pliego), kwargs
