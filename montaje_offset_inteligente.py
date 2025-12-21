@@ -1204,6 +1204,9 @@ def montar_pliego_offset_inteligente(
                 copias = min(restante, forms_x * forms_y)
                 top_y = y_cursor
 
+                rot_deg = g.get("rot_deg", 90 if g.get("rotado") else 0)
+                bloque_posiciones: List[Dict[str, float]] = []
+
                 for idx in range(copias):
                     col = idx % forms_x
                     row = idx // forms_x
@@ -1214,7 +1217,7 @@ def montar_pliego_offset_inteligente(
                     if alinear_filas:
                         offset_y = (unit_h - (g["alto_real"] + 2 * sangrado)) / 2
 
-                    posiciones.append(
+                    bloque_posiciones.append(
                         {
                             "archivo": g["archivo"],
                             "file_idx": g["file_idx"],
@@ -1223,11 +1226,13 @@ def montar_pliego_offset_inteligente(
                             "ancho": g["ancho_real"],
                             "alto": g["alto_real"],
                             "rotado": g["rotado"],
-                            "rot_deg": g.get("rot_deg", 90 if g.get("rotado") else 0),
+                            "rot_deg": rot_deg,
                             "source_w_mm": g["ancho"],
                             "source_h_mm": g["alto"],
                         }
                     )
+
+                posiciones.extend(bloque_posiciones)
 
                 block_height = forms_y * unit_h + (forms_y - 1) * sep_v
                 y_cursor = top_y - block_height - sep_v * 2

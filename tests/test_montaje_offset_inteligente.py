@@ -104,6 +104,35 @@ def test_calcular_posiciones_alinear_filas():
     assert len(ys) == 1
 
 
+def test_flujo_principal_agrega_todas_las_copias(tmp_path):
+    pdf_path = tmp_path / "pieza.pdf"
+    c = canvas.Canvas(str(pdf_path), pagesize=(30 * mm, 20 * mm))
+    c.drawString(5, 5, "pieza")
+    c.save()
+
+    output_pdf = tmp_path / "pliego.pdf"
+    resultado = montar_pliego_offset_inteligente(
+        diseños=[(str(pdf_path), 4)],
+        ancho_pliego=200,
+        alto_pliego=200,
+        separacion=0,
+        sangrado=2,
+        margen_izq=5,
+        margen_der=5,
+        margen_sup=5,
+        margen_inf=5,
+        estrategia="flujo",
+        devolver_posiciones=True,
+        output_path=str(output_pdf),
+        preview_path=None,
+    )
+
+    positions = resultado.get("positions", [])
+    assert len(positions) == 4
+    coords = {(p["x_mm"], p["y_mm"]) for p in positions}
+    assert len(coords) == 4
+
+
 @pytest.fixture
 def client():
     app.config["TESTING"] = True
