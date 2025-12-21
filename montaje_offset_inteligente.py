@@ -915,6 +915,7 @@ def montar_pliego_offset_inteligente(
         margen_inf = float(margen_inf) + pinza_mm
 
     ancho_util = ancho_pliego - margen_izq - margen_der
+    alto_util = alto_pliego - margen_sup - margen_inf
 
     if estrategia == "maxrects":
         preferir_horizontal = False
@@ -929,16 +930,34 @@ def montar_pliego_offset_inteligente(
     for file_idx, (path, cantidad) in enumerate(diseños):
         ancho, alto = obtener_dimensiones_pdf(path, usar_trimbox=usar_trimbox)
         rotado = False
+        rot_deg = 0
+        unit_w = ancho + 2 * sangrado
+        unit_h = alto + 2 * sangrado
+
         if permitir_rotacion:
-            unit_w = ancho + 2 * sangrado
-            unit_w_rot = alto + 2 * sangrado
-            forms_x = int((ancho_util + sep_h) / (unit_w + sep_h))
-            forms_x_rot = int((ancho_util + sep_h) / (unit_w_rot + sep_h))
-            if preferir_horizontal:
-                if alto > ancho and forms_x_rot >= forms_x:
-                    rotado = True
-            elif forms_x_rot > forms_x:
+            rot_unit_w = alto + 2 * sangrado
+            rot_unit_h = ancho + 2 * sangrado
+
+            def _eval_fit(w_unit: float, h_unit: float) -> tuple[int, float]:
+                forms_x = int((ancho_util + sep_h) / (w_unit + sep_h)) if w_unit > 0 else 0
+                forms_y = int((alto_util + sep_v) / (h_unit + sep_v)) if h_unit > 0 else 0
+                total = max(0, forms_x) * max(0, forms_y)
+                waste = (ancho_util * alto_util) - total * (w_unit * h_unit)
+                return total, waste
+
+            total_0, waste_0 = _eval_fit(unit_w, unit_h)
+            total_90, waste_90 = _eval_fit(rot_unit_w, rot_unit_h)
+
+            if total_90 > total_0 or (
+                total_90 == total_0 and waste_90 < waste_0 - 1e-6
+            ):
                 rotado = True
+            elif total_90 == total_0 and abs(waste_90 - waste_0) <= 1e-6 and preferir_horizontal:
+                if alto > ancho:
+                    rotado = True
+
+        if rotado:
+            rot_deg = 90
         real_ancho = alto if rotado else ancho
         real_alto = ancho if rotado else alto
         grupos.append(
@@ -951,6 +970,7 @@ def montar_pliego_offset_inteligente(
                 "alto_real": real_alto,
                 "cantidad": int(cantidad),
                 "rotado": rotado,
+                "rot_deg": rot_deg,
             }
         )
         max_unit_w = max(max_unit_w, real_ancho + 2 * sangrado)
@@ -981,6 +1001,9 @@ def montar_pliego_offset_inteligente(
                         "ancho": g["ancho_real"],
                         "alto": g["alto_real"],
                         "rotado": g["rotado"],
+                        "rot_deg": g.get("rot_deg", 90 if g.get("rotado") else 0),
+                        "source_w_mm": g["ancho"],
+                        "source_h_mm": g["alto"],
                     }
                 )
         return lista
@@ -1057,6 +1080,8 @@ def montar_pliego_offset_inteligente(
                     "alto": base_h_mm,  # TRIM
                     "rot_deg": int(p.get("rot_deg", p.get("rot", 0)) or 0) % 360,
                     "bleed_mm": float(bleed_effective) if bleed_effective is not None else 0.0,
+                    "source_w_mm": base_w_mm,
+                    "source_h_mm": base_h_mm,
                 }
             )
 
@@ -1185,17 +1210,20 @@ def montar_pliego_offset_inteligente(
                     if alinear_filas:
                         offset_y = (unit_h - (g["alto_real"] + 2 * sangrado)) / 2
 
-                    posiciones.append(
-                        {
-                            "archivo": g["archivo"],
-                            "file_idx": g["file_idx"],
-                            "x": x,
-                            "y": y + offset_y,
-                            "ancho": g["ancho_real"],
-                            "alto": g["alto_real"],
-                            "rotado": g["rotado"],
-                        }
-                    )
+                posiciones.append(
+                    {
+                        "archivo": g["archivo"],
+                        "file_idx": g["file_idx"],
+                        "x": x,
+                        "y": y + offset_y,
+                        "ancho": g["ancho_real"],
+                        "alto": g["alto_real"],
+                        "rotado": g["rotado"],
+                        "rot_deg": g.get("rot_deg", 90 if g.get("rotado") else 0),
+                        "source_w_mm": g["ancho"],
+                        "source_h_mm": g["alto"],
+                    }
+                )
 
                 block_height = forms_y * unit_h + (forms_y - 1) * sep_v
                 y_cursor = top_y - block_height - sep_v * 2
@@ -1454,21 +1482,30 @@ def montar_pliego_offset_inteligente(
                         usar_trimbox=(bleed_effective > 0 or usar_trimbox),
                     )
                 img = image_cache[cache_key]
-        base_w_mm = pos["ancho"]
-        base_h_mm = pos["alto"]
-        cx_mm = pos["x"] + base_w_mm / 2.0
-        cy_mm = pos["y"] + base_h_mm / 2.0
-        draw_w_mm = base_w_mm + 2 * bleed_effective
-        draw_h_mm = base_h_mm + 2 * bleed_effective
-        trim_w_mm = base_w_mm
-        trim_h_mm = base_h_mm
+        base_w_mm = float(pos.get("w_mm", pos.get("ancho_mm", pos.get("ancho", pos.get("w", 0.0)))))
+        base_h_mm = float(pos.get("h_mm", pos.get("alto_mm", pos.get("alto", pos.get("h", 0.0)))))
+        x_base_mm = float(pos.get("x_mm", pos.get("x", 0.0)))
+        y_base_mm = float(pos.get("y_mm", pos.get("y", 0.0)))
         rot = int(pos.get("rot_deg") or 0) % 360
         swapped = rot in (90, 270)
 
-        eff_draw_w_mm = draw_h_mm if swapped else draw_w_mm
-        eff_draw_h_mm = draw_w_mm if swapped else draw_h_mm
-        eff_trim_w_mm = trim_h_mm if swapped else trim_w_mm
-        eff_trim_h_mm = trim_w_mm if swapped else trim_h_mm
+        cx_mm = x_base_mm + base_w_mm / 2.0
+        cy_mm = y_base_mm + base_h_mm / 2.0
+
+        source_w_mm = float(pos.get("source_w_mm", base_h_mm if swapped else base_w_mm))
+        source_h_mm = float(pos.get("source_h_mm", base_w_mm if swapped else base_h_mm))
+
+        draw_w_mm = base_w_mm + 2 * bleed_effective
+        draw_h_mm = base_h_mm + 2 * bleed_effective
+        source_draw_w_mm = source_w_mm + 2 * bleed_effective
+        source_draw_h_mm = source_h_mm + 2 * bleed_effective
+        trim_w_mm = base_w_mm
+        trim_h_mm = base_h_mm
+
+        eff_draw_w_mm = draw_w_mm
+        eff_draw_h_mm = draw_h_mm
+        eff_trim_w_mm = trim_w_mm
+        eff_trim_h_mm = trim_h_mm
 
         x_draw_mm = cx_mm - eff_draw_w_mm / 2.0
         y_draw_mm = cy_mm - eff_draw_h_mm / 2.0
@@ -1479,15 +1516,28 @@ def montar_pliego_offset_inteligente(
         h_pt = mm_to_pt(eff_draw_h_mm)
 
         if draw_raster and img is not None:
-            if rot:
-                img_to_draw = img.rotate(-rot, resample=Image.BILINEAR, expand=True)
-            else:
-                img_to_draw = img
-
-            draw_kwargs = {"width": w_pt, "height": h_pt}
-            if getattr(img_to_draw, "mode", "") == "RGBA":
+            draw_kwargs = {}
+            if getattr(img, "mode", "") == "RGBA":
                 draw_kwargs["mask"] = "auto"
-            c.drawImage(ImageReader(img_to_draw), x_pt, y_pt, **draw_kwargs)
+
+            cx_pt = mm_to_pt(cx_mm)
+            cy_pt = mm_to_pt(cy_mm)
+            draw_w_pt = mm_to_pt(source_draw_w_mm)
+            draw_h_pt = mm_to_pt(source_draw_h_mm)
+
+            c.saveState()
+            c.translate(cx_pt, cy_pt)
+            if rot:
+                c.rotate(-rot)
+            c.drawImage(
+                ImageReader(img),
+                -draw_w_pt / 2.0,
+                -draw_h_pt / 2.0,
+                width=draw_w_pt,
+                height=draw_h_pt,
+                **draw_kwargs,
+            )
+            c.restoreState()
 
         bleed_eff = bleed_effective
         if bleed_effective is None or bleed_effective <= 0:
