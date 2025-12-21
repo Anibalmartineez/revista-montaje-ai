@@ -927,37 +927,41 @@ def montar_pliego_offset_inteligente(
     grupos = []
     max_unit_w = 0.0
     max_unit_h = 0.0
+
+    base_dims: list[tuple[int, str, float, float, int]] = []
     for file_idx, (path, cantidad) in enumerate(diseños):
         ancho, alto = obtener_dimensiones_pdf(path, usar_trimbox=usar_trimbox)
-        rotado = False
-        rot_deg = 0
-        unit_w = ancho + 2 * sangrado
-        unit_h = alto + 2 * sangrado
+        base_dims.append((file_idx, path, float(ancho), float(alto), int(cantidad)))
 
-        if permitir_rotacion:
-            rot_unit_w = alto + 2 * sangrado
-            rot_unit_h = ancho + 2 * sangrado
+    rotar_global = False
+    if permitir_rotacion and base_dims:
+        max_ancho = max(d[2] for d in base_dims)
+        max_alto = max(d[3] for d in base_dims)
 
-            def _eval_fit(w_unit: float, h_unit: float) -> tuple[int, float]:
-                forms_x = int((ancho_util + sep_h) / (w_unit + sep_h)) if w_unit > 0 else 0
-                forms_y = int((alto_util + sep_v) / (h_unit + sep_v)) if h_unit > 0 else 0
-                total = max(0, forms_x) * max(0, forms_y)
-                waste = (ancho_util * alto_util) - total * (w_unit * h_unit)
-                return total, waste
+        unit_w = max_ancho + 2 * sangrado
+        unit_h = max_alto + 2 * sangrado
+        rot_unit_w = max_alto + 2 * sangrado
+        rot_unit_h = max_ancho + 2 * sangrado
 
-            total_0, waste_0 = _eval_fit(unit_w, unit_h)
-            total_90, waste_90 = _eval_fit(rot_unit_w, rot_unit_h)
+        def _eval_fit(w_unit: float, h_unit: float) -> tuple[int, float]:
+            forms_x = int((ancho_util + sep_h) / (w_unit + sep_h)) if w_unit > 0 else 0
+            forms_y = int((alto_util + sep_v) / (h_unit + sep_v)) if h_unit > 0 else 0
+            total = max(0, forms_x) * max(0, forms_y)
+            waste = (ancho_util * alto_util) - total * (w_unit * h_unit)
+            return total, waste
 
-            if total_90 > total_0 or (
-                total_90 == total_0 and waste_90 < waste_0 - 1e-6
-            ):
-                rotado = True
-            elif total_90 == total_0 and abs(waste_90 - waste_0) <= 1e-6 and preferir_horizontal:
-                if alto > ancho:
-                    rotado = True
+        total_0, waste_0 = _eval_fit(unit_w, unit_h)
+        total_90, waste_90 = _eval_fit(rot_unit_w, rot_unit_h)
 
-        if rotado:
-            rot_deg = 90
+        if total_90 > total_0 or (total_90 == total_0 and waste_90 < waste_0 - 1e-6):
+            rotar_global = True
+        elif total_90 == total_0 and abs(waste_90 - waste_0) <= 1e-6 and preferir_horizontal:
+            if max_alto > max_ancho:
+                rotar_global = True
+
+    for file_idx, path, ancho, alto, cantidad in base_dims:
+        rotado = rotar_global
+        rot_deg = 90 if rotado else 0
         real_ancho = alto if rotado else ancho
         real_alto = ancho if rotado else alto
         grupos.append(
@@ -1210,20 +1214,20 @@ def montar_pliego_offset_inteligente(
                     if alinear_filas:
                         offset_y = (unit_h - (g["alto_real"] + 2 * sangrado)) / 2
 
-                posiciones.append(
-                    {
-                        "archivo": g["archivo"],
-                        "file_idx": g["file_idx"],
-                        "x": x,
-                        "y": y + offset_y,
-                        "ancho": g["ancho_real"],
-                        "alto": g["alto_real"],
-                        "rotado": g["rotado"],
-                        "rot_deg": g.get("rot_deg", 90 if g.get("rotado") else 0),
-                        "source_w_mm": g["ancho"],
-                        "source_h_mm": g["alto"],
-                    }
-                )
+                    posiciones.append(
+                        {
+                            "archivo": g["archivo"],
+                            "file_idx": g["file_idx"],
+                            "x": x,
+                            "y": y + offset_y,
+                            "ancho": g["ancho_real"],
+                            "alto": g["alto_real"],
+                            "rotado": g["rotado"],
+                            "rot_deg": g.get("rot_deg", 90 if g.get("rotado") else 0),
+                            "source_w_mm": g["ancho"],
+                            "source_h_mm": g["alto"],
+                        }
+                    )
 
                 block_height = forms_y * unit_h + (forms_y - 1) * sep_v
                 y_cursor = top_y - block_height - sep_v * 2
