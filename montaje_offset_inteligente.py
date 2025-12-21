@@ -1682,6 +1682,7 @@ def montar_pliego_offset_inteligente(
         try:
             with fitz.open(output_path) as target_doc:
                 page = target_doc[0]
+                page_h_pt = float(page.rect.height)
 
                 for overlay in vector_overlays:
                     with fitz.open(overlay["path"]) as src_doc:
@@ -1699,12 +1700,16 @@ def montar_pliego_offset_inteligente(
                         if clip_rect is None:
                             clip_rect = src_page.mediabox
 
-                        target_rect = fitz.Rect(
-                            mm_to_pt(overlay["x_mm"]),
-                            mm_to_pt(overlay["y_mm"]),
-                            mm_to_pt(overlay["x_mm"] + overlay["w_mm"]),
-                            mm_to_pt(overlay["y_mm"] + overlay["h_mm"]),
-                        )
+                        x_pt = mm_to_pt(overlay["x_mm"])
+                        y_pt = mm_to_pt(overlay["y_mm"])
+                        w_pt = mm_to_pt(overlay["w_mm"])
+                        h_pt = mm_to_pt(overlay["h_mm"])
+
+                        x0 = x_pt
+                        y0 = page_h_pt - (y_pt + h_pt)
+                        x1 = x_pt + w_pt
+                        y1 = page_h_pt - y_pt
+                        target_rect = fitz.Rect(x0, y0, x1, y1)
                         page.show_pdf_page(
                             target_rect,
                             src_doc,
