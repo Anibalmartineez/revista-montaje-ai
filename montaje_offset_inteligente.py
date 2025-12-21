@@ -386,6 +386,78 @@ def _pdf_a_imagen_con_sangrado(
     return img_con_sangrado
 
 
+def _pdf_a_imagen_trim(path: str, usar_trimbox: bool = True) -> Image.Image:
+    """Rasteriza únicamente el área de trim del PDF a 300 dpi.
+
+    Se utiliza para generar el marco de sangrado espejo en modo vector_hybrid
+    sin rasterizar el centro del diseño.
+    """
+
+    doc = fitz.open(path)
+    page = doc[0]
+    clip = None
+    if usar_trimbox and getattr(page, "trimbox", None):
+        try:
+            clip = page.trimbox
+        except AttributeError:
+            clip = None
+    pix = page.get_pixmap(dpi=300, alpha=False, clip=clip)
+    img = Image.frombytes("RGB", [pix.width, pix.height], pix.samples)
+    doc.close()
+    return img
+
+
+def _render_vector_hybrid_bleed(path: str, bleed_mm: float, usar_trimbox: bool = True) -> Image.Image:
+    """Genera un marco de sangrado espejo alrededor del trim.
+
+    Retorna una imagen RGBA con el centro transparente y únicamente los bordes
+    y esquinas rasterizados mediante espejo. Se utiliza exclusivamente para
+    el modo ``vector_hybrid``.
+    """
+
+    if bleed_mm <= 0:
+        raise ValueError("El sangrado debe ser positivo para generar el marco")
+
+    trim_img = _pdf_a_imagen_trim(path, usar_trimbox=usar_trimbox)
+    bleed_px = int(round((bleed_mm / 25.4) * 300))
+    if bleed_px <= 0:
+        raise ValueError("El sangrado en píxeles debe ser positivo")
+
+    trim_w, trim_h = trim_img.size
+    frame_w = trim_w + 2 * bleed_px
+    frame_h = trim_h + 2 * bleed_px
+
+    frame = Image.new("RGBA", (frame_w, frame_h), (0, 0, 0, 0))
+
+    strip_w = min(bleed_px, trim_w)
+    strip_h = min(bleed_px, trim_h)
+
+    left_src = trim_img.crop((0, 0, strip_w, trim_h)).transpose(Image.FLIP_LEFT_RIGHT)
+    frame.paste(left_src.convert("RGBA"), (0, bleed_px))
+
+    right_src = trim_img.crop((trim_w - strip_w, 0, trim_w, trim_h)).transpose(Image.FLIP_LEFT_RIGHT)
+    frame.paste(right_src.convert("RGBA"), (bleed_px + trim_w, bleed_px))
+
+    top_src = trim_img.crop((0, 0, trim_w, strip_h)).transpose(Image.FLIP_TOP_BOTTOM)
+    frame.paste(top_src.convert("RGBA"), (bleed_px, 0))
+
+    bottom_src = trim_img.crop((0, trim_h - strip_h, trim_w, trim_h)).transpose(Image.FLIP_TOP_BOTTOM)
+    frame.paste(bottom_src.convert("RGBA"), (bleed_px, bleed_px + trim_h))
+
+    tl_src = trim_img.crop((0, 0, strip_w, strip_h)).transpose(Image.FLIP_LEFT_RIGHT).transpose(Image.FLIP_TOP_BOTTOM)
+    frame.paste(tl_src.convert("RGBA"), (0, 0))
+
+    tr_src = trim_img.crop((trim_w - strip_w, 0, trim_w, strip_h)).transpose(Image.FLIP_LEFT_RIGHT).transpose(Image.FLIP_TOP_BOTTOM)
+    frame.paste(tr_src.convert("RGBA"), (bleed_px + trim_w, 0))
+
+    bl_src = trim_img.crop((0, trim_h - strip_h, strip_w, trim_h)).transpose(Image.FLIP_LEFT_RIGHT).transpose(Image.FLIP_TOP_BOTTOM)
+    frame.paste(bl_src.convert("RGBA"), (0, bleed_px + trim_h))
+
+    br_src = trim_img.crop((trim_w - strip_w, trim_h - strip_h, trim_w, trim_h)).transpose(Image.FLIP_LEFT_RIGHT).transpose(Image.FLIP_TOP_BOTTOM)
+    frame.paste(br_src.convert("RGBA"), (bleed_px + trim_w, bleed_px + trim_h))
+
+    return frame
+
 
 def _parse_separacion(separacion: float | Tuple[float, float] | Dict[str, float]) -> Tuple[float, float]:
     """Devuelve separación horizontal y vertical en mm."""
@@ -1342,6 +1414,7 @@ def montar_pliego_offset_inteligente(
 
     image_cache: Dict[tuple[str, float], Image.Image] = {}
     bleed_cache: Dict[str, float] = {}
+    bleed_frame_cache: Dict[tuple[str, float], Image.Image] = {}
     vector_overlays: list[dict] = []
     is_vector_hybrid = output_mode == "vector_hybrid"
     for pos in posiciones:
@@ -1361,19 +1434,26 @@ def montar_pliego_offset_inteligente(
             bleed_effective = 0.0
         cache_key = (archivo, float(bleed_effective))
         draw_raster = True
-        if is_vector_hybrid and bleed_effective <= 0:
-            draw_raster = False
-
-        if draw_raster:
-            if cache_key not in image_cache:
-                image_cache[cache_key] = _pdf_a_imagen_con_sangrado(
-                    archivo,
-                    bleed_effective,
-                    usar_trimbox=(bleed_effective > 0 or usar_trimbox),
-                )
-            img = image_cache[cache_key]
+        img = None
+        if is_vector_hybrid:
+            draw_raster = bleed_effective > 0
+            if draw_raster:
+                if cache_key not in bleed_frame_cache:
+                    bleed_frame_cache[cache_key] = _render_vector_hybrid_bleed(
+                        archivo,
+                        bleed_effective,
+                        usar_trimbox=True,
+                    )
+                img = bleed_frame_cache[cache_key]
         else:
-            img = None
+            if draw_raster:
+                if cache_key not in image_cache:
+                    image_cache[cache_key] = _pdf_a_imagen_con_sangrado(
+                        archivo,
+                        bleed_effective,
+                        usar_trimbox=(bleed_effective > 0 or usar_trimbox),
+                    )
+                img = image_cache[cache_key]
         base_w_mm = pos["ancho"]
         base_h_mm = pos["alto"]
         cx_mm = pos["x"] + base_w_mm / 2.0
@@ -1404,7 +1484,10 @@ def montar_pliego_offset_inteligente(
             else:
                 img_to_draw = img
 
-            c.drawImage(ImageReader(img_to_draw), x_pt, y_pt, width=w_pt, height=h_pt)
+            draw_kwargs = {"width": w_pt, "height": h_pt}
+            if getattr(img_to_draw, "mode", "") == "RGBA":
+                draw_kwargs["mask"] = "auto"
+            c.drawImage(ImageReader(img_to_draw), x_pt, y_pt, **draw_kwargs)
 
         bleed_eff = bleed_effective
         if bleed_effective is None or bleed_effective <= 0:
@@ -1414,12 +1497,15 @@ def montar_pliego_offset_inteligente(
         x_trim_mm = x_draw_mm + bleed_eff
         y_trim_mm = y_draw_mm + bleed_eff
 
+        overlay_x_mm = x_draw_mm + bleed_effective
+        overlay_y_mm = y_draw_mm + bleed_effective
+
         if is_vector_hybrid:
             vector_overlays.append(
                 {
                     "path": archivo,
-                    "x_mm": x_trim_mm,
-                    "y_mm": y_trim_mm,
+                    "x_mm": overlay_x_mm,
+                    "y_mm": overlay_y_mm,
                     "w_mm": eff_trim_w_mm,
                     "h_mm": eff_trim_h_mm,
                     "rot_deg": rot,
@@ -1454,6 +1540,7 @@ def montar_pliego_offset_inteligente(
             )
 
     image_cache.clear()
+    bleed_frame_cache.clear()
     if not preview_only:
         left = mm_to_pt(margen_izq)
         bottom = mm_to_pt(margen_inf)
