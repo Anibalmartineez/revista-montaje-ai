@@ -209,7 +209,7 @@ def _default_constructor_layout() -> Dict:
         "works": [],
         "slots": [],
         "designs": [],
-        "export_settings": {"bleed_mm": 3, "crop_marks": True},
+        "export_settings": {"bleed_mm": 3, "crop_marks": True, "output_mode": "raster"},
         "design_export": {},
         "faces": ["front"],
         "active_face": "front",
@@ -281,7 +281,11 @@ def _ensure_export_fields(layout: Dict) -> tuple[Dict, bool]:
 
     export_settings = layout.get("export_settings")
     if not isinstance(export_settings, dict):
-        layout["export_settings"] = {"bleed_mm": 3, "crop_marks": True}
+        layout["export_settings"] = {
+            "bleed_mm": 3,
+            "crop_marks": True,
+            "output_mode": "raster",
+        }
         changed = True
     else:
         if export_settings.get("bleed_mm") is None:
@@ -289,6 +293,9 @@ def _ensure_export_fields(layout: Dict) -> tuple[Dict, bool]:
             changed = True
         if export_settings.get("crop_marks") is None:
             export_settings["crop_marks"] = True
+            changed = True
+        if export_settings.get("output_mode") is None:
+            export_settings["output_mode"] = "raster"
             changed = True
 
     if not isinstance(layout.get("design_export"), dict):
@@ -923,6 +930,15 @@ def _montaje_config_from_params(
     params: Dict,
     **overrides,
 ) -> MontajeConfig:
+    export_settings = params.get("export_settings") if isinstance(params.get("export_settings"), dict) else {}
+    resolved_output_mode = overrides.get("output_mode")
+    if resolved_output_mode is None:
+        raw_mode = params.get("output_mode")
+        if raw_mode is not None:
+            resolved_output_mode = raw_mode
+    if resolved_output_mode is None and isinstance(export_settings, dict):
+        resolved_output_mode = export_settings.get("output_mode")
+
     base_kwargs = {
         "tamano_pliego": tamano_pliego,
         "separacion": params.get("separacion"),
@@ -956,6 +972,8 @@ def _montaje_config_from_params(
         ),
         "export_compat": params.get("export_compat"),
     }
+    if resolved_output_mode is not None:
+        base_kwargs["output_mode"] = resolved_output_mode
     base_kwargs.update(overrides)
     return MontajeConfig(**base_kwargs)
 

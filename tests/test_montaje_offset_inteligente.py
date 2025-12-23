@@ -15,6 +15,7 @@ import uuid
 os.environ.setdefault("OPENAI_API_KEY", "test")
 
 import pytest
+import montaje_offset_inteligente
 from app import app
 from routes import POST_EDITOR_DIR, LAYOUT_FILENAME
 from montaje_offset_inteligente import (
@@ -101,6 +102,35 @@ def test_calcular_posiciones_alinear_filas():
     assert xs[2] - xs[1] == pytest.approx(54)
     ys = {p["y"] for p in posiciones}
     assert len(ys) == 1
+
+
+def test_flujo_principal_agrega_todas_las_copias(tmp_path):
+    pdf_path = tmp_path / "pieza.pdf"
+    c = canvas.Canvas(str(pdf_path), pagesize=(30 * mm, 20 * mm))
+    c.drawString(5, 5, "pieza")
+    c.save()
+
+    output_pdf = tmp_path / "pliego.pdf"
+    resultado = montar_pliego_offset_inteligente(
+        diseños=[(str(pdf_path), 4)],
+        ancho_pliego=200,
+        alto_pliego=200,
+        separacion=0,
+        sangrado=2,
+        margen_izq=5,
+        margen_der=5,
+        margen_sup=5,
+        margen_inf=5,
+        estrategia="flujo",
+        devolver_posiciones=True,
+        output_path=str(output_pdf),
+        preview_path=None,
+    )
+
+    positions = resultado.get("positions", [])
+    assert len(positions) == 4
+    coords = {(p["x_mm"], p["y_mm"]) for p in positions}
+    assert len(coords) == 4
 
 
 @pytest.fixture
@@ -347,6 +377,58 @@ def test_manual_positions_preview_and_pdf(tmp_path):
         centrar=False,
     )
     assert out.exists()
+
+
+def _crear_pdf_simple(tmp_path: Path, nombre: str = "simple.pdf") -> str:
+    pdf_path = tmp_path / nombre
+    c = canvas.Canvas(str(pdf_path), pagesize=(50 * mm, 50 * mm))
+    c.rect(5 * mm, 5 * mm, 40 * mm, 40 * mm)
+    c.setFillColorRGB(1, 0, 0)
+    c.drawString(10, 10, "vector")
+    c.save()
+    return str(pdf_path)
+
+
+def test_vector_hybrid_con_sangrado(tmp_path):
+    pdf_path = _crear_pdf_simple(tmp_path)
+    out_path = tmp_path / "salida_vector_hybrid_bleed.pdf"
+
+    output = montaje_offset_inteligente.montar_pliego_offset_inteligente(
+        diseños=[(pdf_path, 1)],
+        ancho_pliego=200,
+        alto_pliego=200,
+        separacion=0,
+        sangrado=2,
+        espaciado_horizontal=0,
+        espaciado_vertical=0,
+        output_path=str(out_path),
+        output_mode="vector_hybrid",
+    )
+
+    assert os.path.exists(out_path)
+    assert os.path.getsize(out_path) > 0
+    assert output == str(out_path)
+
+
+def test_vector_hybrid_sin_sangrado(tmp_path):
+    pdf_path = _crear_pdf_simple(tmp_path, "simple_sin_bleed.pdf")
+    out_path = tmp_path / "salida_vector_hybrid_sin_bleed.pdf"
+
+    output = montaje_offset_inteligente.montar_pliego_offset_inteligente(
+        diseños=[(pdf_path, 1)],
+        ancho_pliego=200,
+        alto_pliego=200,
+        separacion=0,
+        sangrado=0,
+        espaciado_horizontal=0,
+        espaciado_vertical=0,
+        output_path=str(out_path),
+        output_mode="vector_hybrid",
+    )
+
+    assert os.path.exists(out_path)
+    assert os.path.getsize(out_path) > 0
+    assert output == str(out_path)
 
 
 def _crear_pdf_en(tmp_path, nombre: str = "base.pdf") -> str:

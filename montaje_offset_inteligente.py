@@ -76,6 +76,7 @@ class MontajeConfig:
     resumen_path: Optional[str] = None
     export_compat: Optional[str] = None  # None | "pdfx1a" | "adobe_compatible"
     ctp_config: Optional[dict] = None
+    output_mode: str = "raster"
 
 
 def mm_to_px(mm: float, dpi: int) -> int:
@@ -384,6 +385,78 @@ def _pdf_a_imagen_con_sangrado(
     doc.close()
     return img_con_sangrado
 
+
+def _pdf_a_imagen_trim(path: str, usar_trimbox: bool = True) -> Image.Image:
+    """Rasteriza únicamente el área de trim del PDF a 300 dpi.
+
+    Se utiliza para generar el marco de sangrado espejo en modo vector_hybrid
+    sin rasterizar el centro del diseño.
+    """
+
+    doc = fitz.open(path)
+    page = doc[0]
+    clip = None
+    if usar_trimbox and getattr(page, "trimbox", None):
+        try:
+            clip = page.trimbox
+        except AttributeError:
+            clip = None
+    pix = page.get_pixmap(dpi=300, alpha=False, clip=clip)
+    img = Image.frombytes("RGB", [pix.width, pix.height], pix.samples)
+    doc.close()
+    return img
+
+
+def _render_vector_hybrid_bleed(path: str, bleed_mm: float, usar_trimbox: bool = True) -> Image.Image:
+    """Genera un marco de sangrado espejo alrededor del trim.
+
+    Retorna una imagen RGBA con el centro transparente y únicamente los bordes
+    y esquinas rasterizados mediante espejo. Se utiliza exclusivamente para
+    el modo ``vector_hybrid``.
+    """
+
+    if bleed_mm <= 0:
+        raise ValueError("El sangrado debe ser positivo para generar el marco")
+
+    trim_img = _pdf_a_imagen_trim(path, usar_trimbox=usar_trimbox)
+    bleed_px = int(round((bleed_mm / 25.4) * 300))
+    if bleed_px <= 0:
+        raise ValueError("El sangrado en píxeles debe ser positivo")
+
+    trim_w, trim_h = trim_img.size
+    frame_w = trim_w + 2 * bleed_px
+    frame_h = trim_h + 2 * bleed_px
+
+    frame = Image.new("RGBA", (frame_w, frame_h), (0, 0, 0, 0))
+
+    strip_w = min(bleed_px, trim_w)
+    strip_h = min(bleed_px, trim_h)
+
+    left_src = trim_img.crop((0, 0, strip_w, trim_h)).transpose(Image.FLIP_LEFT_RIGHT)
+    frame.paste(left_src.convert("RGBA"), (0, bleed_px))
+
+    right_src = trim_img.crop((trim_w - strip_w, 0, trim_w, trim_h)).transpose(Image.FLIP_LEFT_RIGHT)
+    frame.paste(right_src.convert("RGBA"), (bleed_px + trim_w, bleed_px))
+
+    top_src = trim_img.crop((0, 0, trim_w, strip_h)).transpose(Image.FLIP_TOP_BOTTOM)
+    frame.paste(top_src.convert("RGBA"), (bleed_px, 0))
+
+    bottom_src = trim_img.crop((0, trim_h - strip_h, trim_w, trim_h)).transpose(Image.FLIP_TOP_BOTTOM)
+    frame.paste(bottom_src.convert("RGBA"), (bleed_px, bleed_px + trim_h))
+
+    tl_src = trim_img.crop((0, 0, strip_w, strip_h)).transpose(Image.FLIP_LEFT_RIGHT).transpose(Image.FLIP_TOP_BOTTOM)
+    frame.paste(tl_src.convert("RGBA"), (0, 0))
+
+    tr_src = trim_img.crop((trim_w - strip_w, 0, trim_w, strip_h)).transpose(Image.FLIP_LEFT_RIGHT).transpose(Image.FLIP_TOP_BOTTOM)
+    frame.paste(tr_src.convert("RGBA"), (bleed_px + trim_w, 0))
+
+    bl_src = trim_img.crop((0, trim_h - strip_h, strip_w, trim_h)).transpose(Image.FLIP_LEFT_RIGHT).transpose(Image.FLIP_TOP_BOTTOM)
+    frame.paste(bl_src.convert("RGBA"), (0, bleed_px + trim_h))
+
+    br_src = trim_img.crop((trim_w - strip_w, trim_h - strip_h, trim_w, trim_h)).transpose(Image.FLIP_LEFT_RIGHT).transpose(Image.FLIP_TOP_BOTTOM)
+    frame.paste(br_src.convert("RGBA"), (bleed_px + trim_w, bleed_px + trim_h))
+
+    return frame
 
 
 def _parse_separacion(separacion: float | Tuple[float, float] | Dict[str, float]) -> Tuple[float, float]:
@@ -783,6 +856,7 @@ def montar_pliego_offset_inteligente(
     devolver_posiciones: bool = False,
     resumen_path: str | None = None,
     ctp_config: dict | None = None,
+    output_mode: str = "raster",
     **kwargs,
 ) -> str | Tuple[bytes, str]:
     """Genera un PDF montando múltiples diseños con lógica profesional.
@@ -812,6 +886,7 @@ def montar_pliego_offset_inteligente(
     posiciones_manual = kwargs.get("posiciones_override", posiciones_manual)
     export_compat = kwargs.get("export_compat")
     ctp_config = kwargs.get("ctp_config", ctp_config)
+    output_mode = (kwargs.get("output_mode", output_mode) or "raster").lower()
     if posiciones_manual is not None:
         estrategia = "manual"
 
@@ -840,6 +915,7 @@ def montar_pliego_offset_inteligente(
         margen_inf = float(margen_inf) + pinza_mm
 
     ancho_util = ancho_pliego - margen_izq - margen_der
+    alto_util = alto_pliego - margen_sup - margen_inf
 
     if estrategia == "maxrects":
         preferir_horizontal = False
@@ -851,19 +927,41 @@ def montar_pliego_offset_inteligente(
     grupos = []
     max_unit_w = 0.0
     max_unit_h = 0.0
+
+    base_dims: list[tuple[int, str, float, float, int]] = []
     for file_idx, (path, cantidad) in enumerate(diseños):
         ancho, alto = obtener_dimensiones_pdf(path, usar_trimbox=usar_trimbox)
-        rotado = False
-        if permitir_rotacion:
-            unit_w = ancho + 2 * sangrado
-            unit_w_rot = alto + 2 * sangrado
-            forms_x = int((ancho_util + sep_h) / (unit_w + sep_h))
-            forms_x_rot = int((ancho_util + sep_h) / (unit_w_rot + sep_h))
-            if preferir_horizontal:
-                if alto > ancho and forms_x_rot >= forms_x:
-                    rotado = True
-            elif forms_x_rot > forms_x:
-                rotado = True
+        base_dims.append((file_idx, path, float(ancho), float(alto), int(cantidad)))
+
+    rotar_global = False
+    if permitir_rotacion and base_dims:
+        max_ancho = max(d[2] for d in base_dims)
+        max_alto = max(d[3] for d in base_dims)
+
+        unit_w = max_ancho + 2 * sangrado
+        unit_h = max_alto + 2 * sangrado
+        rot_unit_w = max_alto + 2 * sangrado
+        rot_unit_h = max_ancho + 2 * sangrado
+
+        def _eval_fit(w_unit: float, h_unit: float) -> tuple[int, float]:
+            forms_x = int((ancho_util + sep_h) / (w_unit + sep_h)) if w_unit > 0 else 0
+            forms_y = int((alto_util + sep_v) / (h_unit + sep_v)) if h_unit > 0 else 0
+            total = max(0, forms_x) * max(0, forms_y)
+            waste = (ancho_util * alto_util) - total * (w_unit * h_unit)
+            return total, waste
+
+        total_0, waste_0 = _eval_fit(unit_w, unit_h)
+        total_90, waste_90 = _eval_fit(rot_unit_w, rot_unit_h)
+
+        if total_90 > total_0 or (total_90 == total_0 and waste_90 < waste_0 - 1e-6):
+            rotar_global = True
+        elif total_90 == total_0 and abs(waste_90 - waste_0) <= 1e-6 and preferir_horizontal:
+            if max_alto > max_ancho:
+                rotar_global = True
+
+    for file_idx, path, ancho, alto, cantidad in base_dims:
+        rotado = rotar_global
+        rot_deg = 90 if rotado else 0
         real_ancho = alto if rotado else ancho
         real_alto = ancho if rotado else alto
         grupos.append(
@@ -876,6 +974,7 @@ def montar_pliego_offset_inteligente(
                 "alto_real": real_alto,
                 "cantidad": int(cantidad),
                 "rotado": rotado,
+                "rot_deg": rot_deg,
             }
         )
         max_unit_w = max(max_unit_w, real_ancho + 2 * sangrado)
@@ -906,6 +1005,9 @@ def montar_pliego_offset_inteligente(
                         "ancho": g["ancho_real"],
                         "alto": g["alto_real"],
                         "rotado": g["rotado"],
+                        "rot_deg": g.get("rot_deg", 90 if g.get("rotado") else 0),
+                        "source_w_mm": g["ancho"],
+                        "source_h_mm": g["alto"],
                     }
                 )
         return lista
@@ -982,6 +1084,8 @@ def montar_pliego_offset_inteligente(
                     "alto": base_h_mm,  # TRIM
                     "rot_deg": int(p.get("rot_deg", p.get("rot", 0)) or 0) % 360,
                     "bleed_mm": float(bleed_effective) if bleed_effective is not None else 0.0,
+                    "source_w_mm": base_w_mm,
+                    "source_h_mm": base_h_mm,
                 }
             )
 
@@ -1100,6 +1204,9 @@ def montar_pliego_offset_inteligente(
                 copias = min(restante, forms_x * forms_y)
                 top_y = y_cursor
 
+                rot_deg = g.get("rot_deg", 90 if g.get("rotado") else 0)
+                bloque_posiciones: List[Dict[str, float]] = []
+
                 for idx in range(copias):
                     col = idx % forms_x
                     row = idx // forms_x
@@ -1110,7 +1217,7 @@ def montar_pliego_offset_inteligente(
                     if alinear_filas:
                         offset_y = (unit_h - (g["alto_real"] + 2 * sangrado)) / 2
 
-                    posiciones.append(
+                    bloque_posiciones.append(
                         {
                             "archivo": g["archivo"],
                             "file_idx": g["file_idx"],
@@ -1119,8 +1226,13 @@ def montar_pliego_offset_inteligente(
                             "ancho": g["ancho_real"],
                             "alto": g["alto_real"],
                             "rotado": g["rotado"],
+                            "rot_deg": rot_deg,
+                            "source_w_mm": g["ancho"],
+                            "source_h_mm": g["alto"],
                         }
                     )
+
+                posiciones.extend(bloque_posiciones)
 
                 block_height = forms_y * unit_h + (forms_y - 1) * sep_v
                 y_cursor = top_y - block_height - sep_v * 2
@@ -1339,6 +1451,9 @@ def montar_pliego_offset_inteligente(
 
     image_cache: Dict[tuple[str, float], Image.Image] = {}
     bleed_cache: Dict[str, float] = {}
+    bleed_frame_cache: Dict[tuple[str, float], Image.Image] = {}
+    vector_overlays: list[dict] = []
+    is_vector_hybrid = output_mode == "vector_hybrid"
     for pos in posiciones:
         idx = pos.get("file_idx")
         if idx is None:
@@ -1355,23 +1470,46 @@ def montar_pliego_offset_inteligente(
         if bleed_effective is None:
             bleed_effective = 0.0
         cache_key = (archivo, float(bleed_effective))
-        if cache_key not in image_cache:
-            image_cache[cache_key] = _pdf_a_imagen_con_sangrado(
-                archivo,
-                bleed_effective,
-                usar_trimbox=(bleed_effective > 0 or usar_trimbox),
-            )
-        img = image_cache[cache_key]
-        base_w_mm = pos["ancho"]
-        base_h_mm = pos["alto"]
-        cx_mm = pos["x"] + base_w_mm / 2.0
-        cy_mm = pos["y"] + base_h_mm / 2.0
-        draw_w_mm = base_w_mm + 2 * bleed_effective
-        draw_h_mm = base_h_mm + 2 * bleed_effective
-        trim_w_mm = base_w_mm
-        trim_h_mm = base_h_mm
+        draw_raster = True
+        img = None
+        if is_vector_hybrid:
+            draw_raster = bleed_effective > 0
+            if draw_raster:
+                if cache_key not in bleed_frame_cache:
+                    bleed_frame_cache[cache_key] = _render_vector_hybrid_bleed(
+                        archivo,
+                        bleed_effective,
+                        usar_trimbox=True,
+                    )
+                img = bleed_frame_cache[cache_key]
+        else:
+            if draw_raster:
+                if cache_key not in image_cache:
+                    image_cache[cache_key] = _pdf_a_imagen_con_sangrado(
+                        archivo,
+                        bleed_effective,
+                        usar_trimbox=(bleed_effective > 0 or usar_trimbox),
+                    )
+                img = image_cache[cache_key]
+        base_w_mm = float(pos.get("w_mm", pos.get("ancho_mm", pos.get("ancho", pos.get("w", 0.0)))))
+        base_h_mm = float(pos.get("h_mm", pos.get("alto_mm", pos.get("alto", pos.get("h", 0.0)))))
+        x_base_mm = float(pos.get("x_mm", pos.get("x", 0.0)))
+        y_base_mm = float(pos.get("y_mm", pos.get("y", 0.0)))
         rot = int(pos.get("rot_deg") or 0) % 360
         swapped = rot in (90, 270)
+
+        cx_mm = x_base_mm + base_w_mm / 2.0
+        cy_mm = y_base_mm + base_h_mm / 2.0
+
+        source_w_mm = float(pos.get("source_w_mm", base_h_mm if swapped else base_w_mm))
+        source_h_mm = float(pos.get("source_h_mm", base_w_mm if swapped else base_h_mm))
+
+        draw_w_mm = base_w_mm + 2 * bleed_effective
+        draw_h_mm = base_h_mm + 2 * bleed_effective
+        source_draw_w_mm = source_w_mm + 2 * bleed_effective
+        source_draw_h_mm = source_h_mm + 2 * bleed_effective
+        trim_w_mm = base_w_mm
+        trim_h_mm = base_h_mm
 
         eff_draw_w_mm = draw_h_mm if swapped else draw_w_mm
         eff_draw_h_mm = draw_w_mm if swapped else draw_h_mm
@@ -1386,20 +1524,54 @@ def montar_pliego_offset_inteligente(
         w_pt = mm_to_pt(eff_draw_w_mm)
         h_pt = mm_to_pt(eff_draw_h_mm)
 
-        if rot:
-            img_to_draw = img.rotate(-rot, resample=Image.BILINEAR, expand=True)
-        else:
-            img_to_draw = img
+        if draw_raster and img is not None:
+            draw_kwargs = {}
+            if getattr(img, "mode", "") == "RGBA":
+                draw_kwargs["mask"] = "auto"
 
-        c.drawImage(ImageReader(img_to_draw), x_pt, y_pt, width=w_pt, height=h_pt)
+            cx_pt = mm_to_pt(cx_mm)
+            cy_pt = mm_to_pt(cy_mm)
+            draw_w_pt = mm_to_pt(source_draw_w_mm)
+            draw_h_pt = mm_to_pt(source_draw_h_mm)
+
+            c.saveState()
+            c.translate(cx_pt, cy_pt)
+            if rot:
+                c.rotate(-rot)
+            c.drawImage(
+                ImageReader(img),
+                -draw_w_pt / 2.0,
+                -draw_h_pt / 2.0,
+                width=draw_w_pt,
+                height=draw_h_pt,
+                **draw_kwargs,
+            )
+            c.restoreState()
 
         bleed_eff = bleed_effective
         if bleed_effective is None or bleed_effective <= 0:
             if archivo not in bleed_cache:
                 bleed_cache[archivo] = detectar_sangrado_pdf(archivo)
             bleed_eff = bleed_cache[archivo]
-        x_trim_pt = mm_to_pt(x_draw_mm + bleed_eff)
-        y_trim_pt = mm_to_pt(y_draw_mm + bleed_eff)
+        x_trim_mm = x_draw_mm + bleed_eff
+        y_trim_mm = y_draw_mm + bleed_eff
+
+        overlay_x_mm = x_draw_mm + bleed_effective
+        overlay_y_mm = y_draw_mm + bleed_effective
+
+        if is_vector_hybrid:
+            vector_overlays.append(
+                {
+                    "path": archivo,
+                    "x_mm": overlay_x_mm,
+                    "y_mm": overlay_y_mm,
+                    "w_mm": eff_trim_w_mm,
+                    "h_mm": eff_trim_h_mm,
+                    "rot_deg": rot,
+                }
+            )
+        x_trim_pt = mm_to_pt(x_trim_mm)
+        y_trim_pt = mm_to_pt(y_trim_mm)
         if bleed_effective > 0:
             w_trim_pt = mm_to_pt(eff_trim_w_mm)
             h_trim_pt = mm_to_pt(eff_trim_h_mm)
@@ -1427,6 +1599,7 @@ def montar_pliego_offset_inteligente(
             )
 
     image_cache.clear()
+    bleed_frame_cache.clear()
     if not preview_only:
         left = mm_to_pt(margen_izq)
         bottom = mm_to_pt(margen_inf)
@@ -1563,6 +1736,56 @@ def montar_pliego_offset_inteligente(
         c.setStrokeColorRGB(0, 0, 0)
     c.save()
 
+    if is_vector_hybrid and vector_overlays:
+        tmp_out = output_path + ".tmp.pdf"
+        try:
+            with fitz.open(output_path) as target_doc:
+                page = target_doc[0]
+                page_h_pt = float(page.rect.height)
+
+                for overlay in vector_overlays:
+                    with fitz.open(overlay["path"]) as src_doc:
+                        src_page = src_doc[0]
+                        clip_rect = None
+                        try:
+                            clip_rect = src_page.trimbox
+                        except Exception:
+                            clip_rect = None
+                        if clip_rect is None:
+                            try:
+                                clip_rect = src_page.cropbox
+                            except Exception:
+                                clip_rect = None
+                        if clip_rect is None:
+                            clip_rect = src_page.mediabox
+
+                        x_pt = mm_to_pt(overlay["x_mm"])
+                        y_pt = mm_to_pt(overlay["y_mm"])
+                        w_pt = mm_to_pt(overlay["w_mm"])
+                        h_pt = mm_to_pt(overlay["h_mm"])
+
+                        x0 = x_pt
+                        y0 = page_h_pt - (y_pt + h_pt)
+                        x1 = x_pt + w_pt
+                        y1 = page_h_pt - y_pt
+                        target_rect = fitz.Rect(x0, y0, x1, y1)
+                        page.show_pdf_page(
+                            target_rect,
+                            src_doc,
+                            0,
+                            rotate=int(overlay.get("rot_deg", 0)) % 360,
+                            clip=clip_rect,
+                        )
+
+                target_doc.save(tmp_out, incremental=False)
+            os.replace(tmp_out, output_path)
+        finally:
+            try:
+                if os.path.exists(tmp_out):
+                    os.remove(tmp_out)
+            except Exception:
+                pass
+
     if export_area_util and used_bbox[0] is not None:
         recortar_pdf_a_bbox(output_path, output_path, [used_bbox])
 
@@ -1693,6 +1916,7 @@ def montar_offset_desde_layout(layout_data, job_dir, preview: bool = False):
     base_pinza_mm = float(layout_data.get("pinza_mm", 0) or 0)
     export_settings_raw = layout_data.get("export_settings")
     export_settings = export_settings_raw if isinstance(export_settings_raw, dict) else {}
+    output_mode = str(export_settings.get("output_mode", "raster")).lower()
     design_export_raw = layout_data.get("design_export")
     design_export = design_export_raw if isinstance(design_export_raw, dict) else {}
     # Manual sanity: Diseño bleed=3 → export bleed=1 produce PDF con 1mm; export crop off produce PDF sin marcas.
@@ -1810,6 +2034,7 @@ def montar_offset_desde_layout(layout_data, job_dir, preview: bool = False):
             preview_path=preview_target,
             output_path=output,
             ctp_config=ctp_cfg,
+            output_mode=output_mode,
         )
 
     def _resolve_output_path(res, default_path: str) -> str:
