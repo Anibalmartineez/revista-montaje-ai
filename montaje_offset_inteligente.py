@@ -1511,10 +1511,10 @@ def montar_pliego_offset_inteligente(
         trim_w_mm = base_w_mm
         trim_h_mm = base_h_mm
 
-        eff_draw_w_mm = draw_w_mm
-        eff_draw_h_mm = draw_h_mm
-        eff_trim_w_mm = trim_w_mm
-        eff_trim_h_mm = trim_h_mm
+        eff_draw_w_mm = draw_h_mm if swapped else draw_w_mm
+        eff_draw_h_mm = draw_w_mm if swapped else draw_h_mm
+        eff_trim_w_mm = trim_h_mm if swapped else trim_w_mm
+        eff_trim_h_mm = trim_w_mm if swapped else trim_h_mm
 
         x_draw_mm = cx_mm - eff_draw_w_mm / 2.0
         y_draw_mm = cy_mm - eff_draw_h_mm / 2.0
