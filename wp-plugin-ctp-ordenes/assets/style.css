@@ -1,0 +1,92 @@
+.ctp-form-wrap {
+    max-width: 720px;
+    margin: 0 auto 2rem;
+    padding: 1.5rem;
+    border: 1px solid #e2e2e2;
+    border-radius: 8px;
+    background: #fff;
+}
+
+.ctp-form {
+    display: grid;
+    gap: 1rem;
+}
+
+.ctp-field {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+}
+
+.ctp-field label {
+    font-weight: 600;
+}
+
+.ctp-field input,
+.ctp-field select,
+.ctp-field textarea {
+    padding: 0.6rem 0.75rem;
+    border: 1px solid #cfcfcf;
+    border-radius: 6px;
+    font-size: 1rem;
+}
+
+.ctp-button {
+    background: #1a73e8;
+    color: #fff;
+    border: none;
+    border-radius: 6px;
+    padding: 0.75rem 1.25rem;
+    font-size: 1rem;
+    cursor: pointer;
+}
+
+.ctp-button:hover {
+    background: #1558b0;
+}
+
+.ctp-alert {
+    padding: 0.75rem 1rem;
+    border-radius: 6px;
+    margin-bottom: 1rem;
+}
+
+.ctp-alert-success {
+    background: #e9f6ec;
+    border: 1px solid #b7e0c2;
+    color: #1e6331;
+}
+
+.ctp-alert-error {
+    background: #fdeaea;
+    border: 1px solid #f0b5b5;
+    color: #8a1f1f;
+}
+
+.ctp-table-wrap {
+    overflow-x: auto;
+    margin: 0 auto 2rem;
+}
+
+.ctp-table {
+    width: 100%;
+    border-collapse: collapse;
+    min-width: 640px;
+}
+
+.ctp-table th,
+.ctp-table td {
+    padding: 0.75rem;
+    border: 1px solid #e2e2e2;
+    text-align: left;
+}
+
+.ctp-table thead {
+    background: #f5f5f5;
+}
+
+@media (max-width: 640px) {
+    .ctp-form-wrap {
+        padding: 1rem;
+    }
+}
