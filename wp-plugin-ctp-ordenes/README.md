@@ -1,6 +1,6 @@
 # CTP Órdenes (MVP)
 
-Plugin WordPress para cargar y listar órdenes de CTP mediante shortcodes.
+Plugin WordPress para cargar y listar órdenes de CTP, con gestión básica de proveedores, facturas y pagos parciales mediante shortcodes.
 
 ## Instalación (ZIP)
 1. Desde la raíz del repo, comprime la carpeta `wp-plugin-ctp-ordenes/` como ZIP.
@@ -14,7 +14,14 @@ Plugin WordPress para cargar y listar órdenes de CTP mediante shortcodes.
   - Inserta el shortcode `[ctp_cargar_orden]` en una página o módulo de código de Divi.
 - **Listado de órdenes:**
   - Inserta el shortcode `[ctp_listar_ordenes]` en una página o módulo de código de Divi.
+- **Gestión de proveedores:**
+  - Inserta el shortcode `[ctp_proveedores]` para crear, editar y eliminar proveedores.
+- **Facturas de proveedores (cuentas por pagar):**
+  - Inserta el shortcode `[ctp_facturas_proveedor]` para registrar facturas, pagos parciales y ver estados.
 
 ## Consideraciones
-- Al activar el plugin se crea la tabla `{prefijo_wp}ctp_ordenes`.
+- Al activar el plugin se crea la tabla `{prefijo_wp}ctp_ordenes` y las nuevas tablas:
+  - `{prefijo_wp}ctp_proveedores`
+  - `{prefijo_wp}ctp_facturas_proveedor`
+  - `{prefijo_wp}ctp_pagos_factura`
 - El total se calcula en vivo con JavaScript y se recalcula en el servidor antes de guardar.
