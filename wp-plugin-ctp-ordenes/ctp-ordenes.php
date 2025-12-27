@@ -1214,6 +1214,28 @@ function ctp_dashboard_shortcode() {
         $tab = 'ordenes';
     }
 
+    global $wpdb;
+    $table_ordenes = $wpdb->prefix . 'ctp_ordenes';
+    $table_proveedores = $wpdb->prefix . 'ctp_proveedores';
+    $table_facturas = $wpdb->prefix . 'ctp_facturas_proveedor';
+    $recent_date = date('Y-m-d', strtotime('-30 days', current_time('timestamp')));
+
+    $ordenes_total = (int) $wpdb->get_var("SELECT COUNT(*) FROM {$table_ordenes}");
+    $ordenes_recientes = (int) $wpdb->get_var(
+        $wpdb->prepare(
+            "SELECT COUNT(*) FROM {$table_ordenes} WHERE fecha >= %s",
+            $recent_date
+        )
+    );
+    $proveedores_total = (int) $wpdb->get_var("SELECT COUNT(*) FROM {$table_proveedores}");
+    $facturas_pendientes = (int) $wpdb->get_var(
+        "SELECT COUNT(*) FROM {$table_facturas} WHERE estado_pago IN ('pendiente','parcial')"
+    );
+    $saldo_pendiente = (float) $wpdb->get_var(
+        "SELECT COALESCE(SUM(saldo), 0) FROM {$table_facturas} WHERE estado_pago IN ('pendiente','parcial')"
+    );
+    $saldo_pendiente_formatted = number_format($saldo_pendiente, 0, ',', '.');
+
     $base_url = get_permalink();
     $tabs = array(
         'ordenes' => 'Órdenes',
@@ -1228,6 +1250,30 @@ function ctp_dashboard_shortcode() {
             <div class="ctp-dashboard-header">
                 <h2>Sistema CTP</h2>
                 <p class="ctp-dashboard-subtitle">Panel central para órdenes, proveedores y facturación.</p>
+            </div>
+            <div class="ctp-summary-grid">
+                <div class="ctp-summary-card">
+                    <div class="ctp-summary-title">Órdenes</div>
+                    <div class="ctp-summary-value"><?php echo esc_html(number_format($ordenes_total, 0, ',', '.')); ?></div>
+                    <div class="ctp-summary-meta">
+                        <?php echo esc_html(sprintf('Últimos 30 días: %s', number_format($ordenes_recientes, 0, ',', '.'))); ?>
+                    </div>
+                </div>
+                <div class="ctp-summary-card">
+                    <div class="ctp-summary-title">Proveedores</div>
+                    <div class="ctp-summary-value"><?php echo esc_html(number_format($proveedores_total, 0, ',', '.')); ?></div>
+                    <div class="ctp-summary-meta">Total registrados</div>
+                </div>
+                <div class="ctp-summary-card">
+                    <div class="ctp-summary-title">Facturas pendientes</div>
+                    <div class="ctp-summary-value"><?php echo esc_html(number_format($facturas_pendientes, 0, ',', '.')); ?></div>
+                    <div class="ctp-summary-meta">Pendiente o parcial</div>
+                </div>
+                <div class="ctp-summary-card">
+                    <div class="ctp-summary-title">Saldo pendiente</div>
+                    <div class="ctp-summary-value"><?php echo esc_html('Gs. ' . $saldo_pendiente_formatted); ?></div>
+                    <div class="ctp-summary-meta">Monto por pagar</div>
+                </div>
             </div>
             <div class="ctp-dashboard-nav">
             <?php foreach ($tabs as $key => $label) : ?>

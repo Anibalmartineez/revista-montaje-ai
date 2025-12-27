@@ -1,10 +1,17 @@
 .ctp-dashboard {
     padding: 2rem 0;
+    width: 100%;
+}
+
+.ctp-dashboard,
+.ctp-dashboard * {
+    box-sizing: border-box;
 }
 
 .ctp-dashboard-container {
-    max-width: 1200px;
-    margin: 0 auto;
+    max-width: 1080px;
+    width: 100%;
+    margin: 0 auto !important;
     padding: 0 1.5rem;
 }
 
@@ -74,6 +81,43 @@
     border-radius: 16px;
     padding: 1.5rem;
     box-shadow: 0 12px 30px rgba(15, 23, 42, 0.08);
+    max-width: 100%;
+}
+
+.ctp-summary-grid {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 1rem;
+    margin-bottom: 1.75rem;
+}
+
+.ctp-summary-card {
+    background: #f8fafc;
+    border: 1px solid #e2e8f0;
+    border-radius: 16px;
+    padding: 1.1rem 1.25rem;
+    display: grid;
+    gap: 0.35rem;
+    box-shadow: 0 10px 24px rgba(15, 23, 42, 0.06);
+}
+
+.ctp-summary-title {
+    font-size: 0.85rem;
+    font-weight: 700;
+    color: #64748b;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+}
+
+.ctp-summary-value {
+    font-size: 1.6rem;
+    font-weight: 700;
+    color: #0f172a;
+}
+
+.ctp-summary-meta {
+    font-size: 0.85rem;
+    color: #64748b;
 }
 
 .ctp-card-header {
@@ -232,7 +276,8 @@
     width: 100%;
     border-collapse: separate;
     border-spacing: 0;
-    min-width: 640px;
+    min-width: 520px;
+    max-width: 100%;
     font-size: 0.95rem;
     color: #1f2937;
 }
@@ -341,9 +386,34 @@
     }
 }
 
+@media (max-width: 980px) {
+    .ctp-summary-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+}
+
+@media (max-width: 768px) {
+    .ctp-summary-grid {
+        grid-template-columns: 1fr;
+    }
+}
+
 @media (max-width: 640px) {
+    .ctp-dashboard {
+        overflow-x: hidden;
+    }
+
     .ctp-dashboard-container {
         padding: 0 1rem;
+    }
+
+    .ctp-dashboard-nav {
+        gap: 0.5rem;
+    }
+
+    .ctp-dashboard-button {
+        flex: 1 1 0;
+        justify-content: center;
     }
 
     .ctp-card {
@@ -357,5 +427,27 @@
     .ctp-actions {
         flex-direction: column;
         align-items: flex-start;
+    }
+
+    .ctp-table {
+        min-width: 420px;
+    }
+}
+
+@media (max-width: 480px) {
+    .ctp-summary-card {
+        padding: 0.9rem 1rem;
+    }
+
+    .ctp-summary-title {
+        font-size: 0.78rem;
+    }
+
+    .ctp-summary-value {
+        font-size: 1.35rem;
+    }
+
+    .ctp-summary-meta {
+        font-size: 0.78rem;
     }
 }
