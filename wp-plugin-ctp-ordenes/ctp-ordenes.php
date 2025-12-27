@@ -121,6 +121,7 @@ function ctp_ordenes_should_enqueue_assets() {
         'ctp_listar_ordenes',
         'ctp_proveedores',
         'ctp_facturas_proveedor',
+        'ctp_dashboard',
     );
 
     foreach ($shortcodes as $shortcode) {
@@ -1162,3 +1163,52 @@ function ctp_facturas_proveedor_shortcode() {
     return ob_get_clean();
 }
 add_shortcode('ctp_facturas_proveedor', 'ctp_facturas_proveedor_shortcode');
+
+function ctp_dashboard_shortcode() {
+    ctp_ordenes_enqueue_assets(true);
+
+    $tab = isset($_GET['tab']) ? sanitize_key(wp_unslash($_GET['tab'])) : 'ordenes';
+    if (!in_array($tab, array('ordenes', 'proveedores', 'facturas'), true)) {
+        $tab = 'ordenes';
+    }
+
+    $base_url = get_permalink();
+    $tabs = array(
+        'ordenes' => 'Órdenes',
+        'proveedores' => 'Proveedores',
+        'facturas' => 'Facturas',
+    );
+
+    ob_start();
+    ?>
+    <div class="ctp-dashboard">
+        <h2>Sistema CTP</h2>
+        <div class="ctp-dashboard-nav">
+            <?php foreach ($tabs as $key => $label) : ?>
+                <?php
+                $url = add_query_arg('tab', $key, $base_url);
+                $class = 'ctp-dashboard-button';
+                if ($tab === $key) {
+                    $class .= ' is-active';
+                }
+                ?>
+                <a class="<?php echo esc_attr($class); ?>" href="<?php echo esc_url($url); ?>">
+                    <?php echo esc_html($label); ?>
+                </a>
+            <?php endforeach; ?>
+        </div>
+        <div class="ctp-dashboard-content">
+            <?php if ($tab === 'ordenes') : ?>
+                <?php echo do_shortcode('[ctp_cargar_orden]'); ?>
+                <?php echo do_shortcode('[ctp_listar_ordenes]'); ?>
+            <?php elseif ($tab === 'proveedores') : ?>
+                <?php echo do_shortcode('[ctp_proveedores]'); ?>
+            <?php else : ?>
+                <?php echo do_shortcode('[ctp_facturas_proveedor]'); ?>
+            <?php endif; ?>
+        </div>
+    </div>
+    <?php
+    return ob_get_clean();
+}
+add_shortcode('ctp_dashboard', 'ctp_dashboard_shortcode');
