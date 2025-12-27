@@ -346,7 +346,11 @@ function ctp_cargar_orden_shortcode() {
 
     ob_start();
     ?>
-    <div class="ctp-form-wrap">
+    <div class="ctp-card ctp-form-wrap">
+        <div class="ctp-card-header">
+            <h3 class="ctp-card-title">Nueva orden</h3>
+            <p class="ctp-card-subtitle">Registra una orden y calcula el total automáticamente.</p>
+        </div>
         <?php if (!empty($mensaje)) : ?>
             <div class="ctp-alert ctp-alert-success">
                 <?php echo esc_html($mensaje); ?>
@@ -363,7 +367,7 @@ function ctp_cargar_orden_shortcode() {
             </div>
         <?php endif; ?>
 
-        <form method="post" class="ctp-form">
+        <form method="post" class="ctp-form ctp-form-grid">
             <?php wp_nonce_field('ctp_cargar_orden', 'ctp_cargar_orden_nonce'); ?>
             <input type="hidden" name="ctp_cargar_orden_submit" value="1">
 
@@ -382,7 +386,7 @@ function ctp_cargar_orden_shortcode() {
                 <input type="text" id="ctp-cliente" name="cliente" required value="<?php echo esc_attr($cliente_val); ?>">
             </div>
 
-            <div class="ctp-field">
+            <div class="ctp-field ctp-field-full">
                 <label for="ctp-descripcion">Descripción</label>
                 <textarea id="ctp-descripcion" name="descripcion" rows="3"><?php echo esc_textarea($descripcion_val); ?></textarea>
             </div>
@@ -417,7 +421,7 @@ function ctp_cargar_orden_shortcode() {
                 <input type="number" id="ctp-total" class="ctp-total" name="total" readonly value="<?php echo esc_attr(number_format($total_val, 2, '.', '')); ?>">
             </div>
 
-            <div class="ctp-field">
+            <div class="ctp-field ctp-field-full">
                 <button type="submit" class="ctp-button">Guardar orden</button>
             </div>
         </form>
@@ -445,8 +449,13 @@ function ctp_listar_ordenes_shortcode() {
 
     ob_start();
     ?>
-    <div class="ctp-table-wrap">
-        <table class="ctp-table">
+    <div class="ctp-card">
+        <div class="ctp-card-header">
+            <h3 class="ctp-card-title">Últimas órdenes</h3>
+            <p class="ctp-card-subtitle">Las 50 órdenes más recientes registradas.</p>
+        </div>
+        <div class="ctp-table-wrap">
+            <table class="ctp-table">
             <thead>
                 <tr>
                     <th>Fecha</th>
@@ -477,7 +486,8 @@ function ctp_listar_ordenes_shortcode() {
                     </tr>
                 <?php endif; ?>
             </tbody>
-        </table>
+            </table>
+        </div>
     </div>
     <?php
     return ob_get_clean();
@@ -610,9 +620,14 @@ function ctp_proveedores_shortcode() {
 
     ob_start();
     ?>
-    <div class="ctp-form-wrap">
-        <?php ctp_ordenes_render_alerts($mensajes); ?>
-        <form method="post" class="ctp-form">
+    <?php ctp_ordenes_render_alerts($mensajes); ?>
+    <div class="ctp-stack">
+        <div class="ctp-card ctp-form-wrap">
+            <div class="ctp-card-header">
+                <h3 class="ctp-card-title">Nuevo proveedor</h3>
+                <p class="ctp-card-subtitle">Agrega un proveedor para asociarlo a facturas y pagos.</p>
+            </div>
+            <form method="post" class="ctp-form ctp-form-grid">
             <?php wp_nonce_field('ctp_proveedor_add', 'ctp_proveedor_nonce'); ?>
             <input type="hidden" name="ctp_proveedor_action" value="add">
 
@@ -636,19 +651,24 @@ function ctp_proveedores_shortcode() {
                 <input type="email" id="ctp-proveedor-email" name="email">
             </div>
 
-            <div class="ctp-field">
+            <div class="ctp-field ctp-field-full">
                 <label for="ctp-proveedor-notas">Notas</label>
                 <textarea id="ctp-proveedor-notas" name="notas" rows="3"></textarea>
             </div>
 
-            <div class="ctp-field">
+            <div class="ctp-field ctp-field-full">
                 <button type="submit" class="ctp-button">Agregar proveedor</button>
             </div>
         </form>
-    </div>
+        </div>
 
-    <div class="ctp-table-wrap">
-        <table class="ctp-table">
+        <div class="ctp-card">
+            <div class="ctp-card-header">
+                <h3 class="ctp-card-title">Proveedores registrados</h3>
+                <p class="ctp-card-subtitle">Gestiona los datos principales de cada proveedor.</p>
+            </div>
+            <div class="ctp-table-wrap">
+                <table class="ctp-table">
             <thead>
                 <tr>
                     <th>Nombre</th>
@@ -672,32 +692,34 @@ function ctp_proveedores_shortcode() {
                                 <div class="ctp-actions">
                                     <details class="ctp-details">
                                         <summary class="ctp-button ctp-button-secondary">Editar</summary>
-                                        <form method="post" class="ctp-inline-form">
-                                            <?php wp_nonce_field('ctp_proveedor_edit', 'ctp_proveedor_nonce'); ?>
-                                            <input type="hidden" name="ctp_proveedor_action" value="edit">
-                                            <input type="hidden" name="proveedor_id" value="<?php echo esc_attr($proveedor->id); ?>">
-                                            <div class="ctp-field">
-                                                <label>Nombre</label>
-                                                <input type="text" name="nombre" required value="<?php echo esc_attr($proveedor->nombre); ?>">
-                                            </div>
-                                            <div class="ctp-field">
-                                                <label>RUC</label>
-                                                <input type="text" name="ruc" value="<?php echo esc_attr($proveedor->ruc); ?>">
-                                            </div>
-                                            <div class="ctp-field">
-                                                <label>Teléfono</label>
-                                                <input type="text" name="telefono" value="<?php echo esc_attr($proveedor->telefono); ?>">
-                                            </div>
-                                            <div class="ctp-field">
-                                                <label>Email</label>
-                                                <input type="email" name="email" value="<?php echo esc_attr($proveedor->email); ?>">
-                                            </div>
-                                            <div class="ctp-field">
-                                                <label>Notas</label>
-                                                <textarea name="notas" rows="2"><?php echo esc_textarea($proveedor->notas); ?></textarea>
-                                            </div>
-                                            <button type="submit" class="ctp-button">Guardar</button>
-                                        </form>
+                                        <div class="ctp-details-panel">
+                                            <form method="post" class="ctp-inline-form ctp-form-grid">
+                                                <?php wp_nonce_field('ctp_proveedor_edit', 'ctp_proveedor_nonce'); ?>
+                                                <input type="hidden" name="ctp_proveedor_action" value="edit">
+                                                <input type="hidden" name="proveedor_id" value="<?php echo esc_attr($proveedor->id); ?>">
+                                                <div class="ctp-field">
+                                                    <label>Nombre</label>
+                                                    <input type="text" name="nombre" required value="<?php echo esc_attr($proveedor->nombre); ?>">
+                                                </div>
+                                                <div class="ctp-field">
+                                                    <label>RUC</label>
+                                                    <input type="text" name="ruc" value="<?php echo esc_attr($proveedor->ruc); ?>">
+                                                </div>
+                                                <div class="ctp-field">
+                                                    <label>Teléfono</label>
+                                                    <input type="text" name="telefono" value="<?php echo esc_attr($proveedor->telefono); ?>">
+                                                </div>
+                                                <div class="ctp-field">
+                                                    <label>Email</label>
+                                                    <input type="email" name="email" value="<?php echo esc_attr($proveedor->email); ?>">
+                                                </div>
+                                                <div class="ctp-field ctp-field-full">
+                                                    <label>Notas</label>
+                                                    <textarea name="notas" rows="2"><?php echo esc_textarea($proveedor->notas); ?></textarea>
+                                                </div>
+                                                <button type="submit" class="ctp-button ctp-field-full">Guardar</button>
+                                            </form>
+                                        </div>
                                     </details>
                                     <form method="post" class="ctp-inline-form">
                                         <?php wp_nonce_field('ctp_proveedor_delete', 'ctp_proveedor_nonce'); ?>
@@ -715,7 +737,9 @@ function ctp_proveedores_shortcode() {
                     </tr>
                 <?php endif; ?>
             </tbody>
-        </table>
+                </table>
+            </div>
+        </div>
     </div>
     <?php
     return ob_get_clean();
@@ -953,9 +977,14 @@ function ctp_facturas_proveedor_shortcode() {
 
     ob_start();
     ?>
-    <div class="ctp-form-wrap">
-        <?php ctp_ordenes_render_alerts($mensajes); ?>
-        <form method="post" class="ctp-form">
+    <?php ctp_ordenes_render_alerts($mensajes); ?>
+    <div class="ctp-stack">
+        <div class="ctp-card ctp-form-wrap">
+            <div class="ctp-card-header">
+                <h3 class="ctp-card-title">Registrar factura</h3>
+                <p class="ctp-card-subtitle">Carga la factura y controla su estado de pago.</p>
+            </div>
+            <form method="post" class="ctp-form ctp-form-grid">
             <?php wp_nonce_field('ctp_factura_add', 'ctp_factura_nonce'); ?>
             <input type="hidden" name="ctp_factura_action" value="add_factura">
 
@@ -994,14 +1023,18 @@ function ctp_facturas_proveedor_shortcode() {
                 <input type="date" id="ctp-factura-vencimiento" name="vencimiento">
             </div>
 
-            <div class="ctp-field">
+            <div class="ctp-field ctp-field-full">
                 <button type="submit" class="ctp-button">Registrar factura</button>
             </div>
         </form>
-    </div>
+        </div>
 
-    <div class="ctp-form-wrap ctp-filters">
-        <form method="get" class="ctp-form ctp-form-inline">
+        <div class="ctp-card ctp-form-wrap ctp-filters">
+            <div class="ctp-card-header">
+                <h3 class="ctp-card-title">Filtrar facturas</h3>
+                <p class="ctp-card-subtitle">Aplica filtros para encontrar pagos pendientes o parciales.</p>
+            </div>
+            <form method="get" class="ctp-form ctp-form-inline">
             <div class="ctp-field">
                 <label for="ctp-filter-estado">Estado</label>
                 <select id="ctp-filter-estado" name="estado">
@@ -1028,10 +1061,15 @@ function ctp_facturas_proveedor_shortcode() {
                 <button type="submit" class="ctp-button ctp-button-secondary">Filtrar</button>
             </div>
         </form>
-    </div>
+        </div>
 
-    <div class="ctp-table-wrap">
-        <table class="ctp-table">
+        <div class="ctp-card">
+            <div class="ctp-card-header">
+                <h3 class="ctp-card-title">Facturas registradas</h3>
+                <p class="ctp-card-subtitle">Seguimiento de saldos y pagos por proveedor.</p>
+            </div>
+            <div class="ctp-table-wrap">
+                <table class="ctp-table">
             <thead>
                 <tr>
                     <th>Fecha</th>
@@ -1063,34 +1101,36 @@ function ctp_facturas_proveedor_shortcode() {
                                 <div class="ctp-actions">
                                     <details class="ctp-details">
                                         <summary class="ctp-button ctp-button-secondary">Registrar pago</summary>
-                                        <form method="post" class="ctp-inline-form">
-                                            <?php wp_nonce_field('ctp_pago_add', 'ctp_factura_nonce'); ?>
-                                            <input type="hidden" name="ctp_factura_action" value="add_pago">
-                                            <input type="hidden" name="factura_id" value="<?php echo esc_attr($factura->id); ?>">
-                                            <div class="ctp-field">
-                                                <label>Fecha de pago</label>
-                                                <input type="date" name="fecha_pago" value="<?php echo esc_attr(current_time('Y-m-d')); ?>">
-                                            </div>
-                                            <div class="ctp-field">
-                                                <label>Monto</label>
-                                                <input type="number" name="monto" step="0.01" min="0.01" required>
-                                            </div>
-                                            <div class="ctp-field">
-                                                <label>Método</label>
-                                                <select name="metodo">
-                                                    <option value="">Selecciona</option>
-                                                    <option value="efectivo">Efectivo</option>
-                                                    <option value="transferencia">Transferencia</option>
-                                                    <option value="cheque">Cheque</option>
-                                                    <option value="otro">Otro</option>
-                                                </select>
-                                            </div>
-                                            <div class="ctp-field">
-                                                <label>Nota</label>
-                                                <input type="text" name="nota">
-                                            </div>
-                                            <button type="submit" class="ctp-button">Guardar pago</button>
-                                        </form>
+                                        <div class="ctp-details-panel">
+                                            <form method="post" class="ctp-inline-form ctp-form-grid">
+                                                <?php wp_nonce_field('ctp_pago_add', 'ctp_factura_nonce'); ?>
+                                                <input type="hidden" name="ctp_factura_action" value="add_pago">
+                                                <input type="hidden" name="factura_id" value="<?php echo esc_attr($factura->id); ?>">
+                                                <div class="ctp-field">
+                                                    <label>Fecha de pago</label>
+                                                    <input type="date" name="fecha_pago" value="<?php echo esc_attr(current_time('Y-m-d')); ?>">
+                                                </div>
+                                                <div class="ctp-field">
+                                                    <label>Monto</label>
+                                                    <input type="number" name="monto" step="0.01" min="0.01" required>
+                                                </div>
+                                                <div class="ctp-field">
+                                                    <label>Método</label>
+                                                    <select name="metodo">
+                                                        <option value="">Selecciona</option>
+                                                        <option value="efectivo">Efectivo</option>
+                                                        <option value="transferencia">Transferencia</option>
+                                                        <option value="cheque">Cheque</option>
+                                                        <option value="otro">Otro</option>
+                                                    </select>
+                                                </div>
+                                                <div class="ctp-field">
+                                                    <label>Nota</label>
+                                                    <input type="text" name="nota">
+                                                </div>
+                                                <button type="submit" class="ctp-button ctp-field-full">Guardar pago</button>
+                                            </form>
+                                        </div>
                                     </details>
                                     <details class="ctp-details">
                                         <summary class="ctp-button ctp-button-secondary">Ver pagos</summary>
@@ -1104,7 +1144,7 @@ function ctp_facturas_proveedor_shortcode() {
                                             )
                                         );
                                         ?>
-                                        <div class="ctp-payments">
+                                        <div class="ctp-details-panel ctp-payments">
                                             <?php if (!empty($pagos)) : ?>
                                                 <table class="ctp-table ctp-table-small">
                                                     <thead>
@@ -1157,7 +1197,9 @@ function ctp_facturas_proveedor_shortcode() {
                     </tr>
                 <?php endif; ?>
             </tbody>
-        </table>
+                </table>
+            </div>
+        </div>
     </div>
     <?php
     return ob_get_clean();
@@ -1182,8 +1224,12 @@ function ctp_dashboard_shortcode() {
     ob_start();
     ?>
     <div class="ctp-dashboard">
-        <h2>Sistema CTP</h2>
-        <div class="ctp-dashboard-nav">
+        <div class="ctp-dashboard-container">
+            <div class="ctp-dashboard-header">
+                <h2>Sistema CTP</h2>
+                <p class="ctp-dashboard-subtitle">Panel central para órdenes, proveedores y facturación.</p>
+            </div>
+            <div class="ctp-dashboard-nav">
             <?php foreach ($tabs as $key => $label) : ?>
                 <?php
                 $url = add_query_arg('tab', $key, $base_url);
@@ -1196,16 +1242,23 @@ function ctp_dashboard_shortcode() {
                     <?php echo esc_html($label); ?>
                 </a>
             <?php endforeach; ?>
-        </div>
-        <div class="ctp-dashboard-content">
-            <?php if ($tab === 'ordenes') : ?>
-                <?php echo do_shortcode('[ctp_cargar_orden]'); ?>
-                <?php echo do_shortcode('[ctp_listar_ordenes]'); ?>
-            <?php elseif ($tab === 'proveedores') : ?>
-                <?php echo do_shortcode('[ctp_proveedores]'); ?>
-            <?php else : ?>
-                <?php echo do_shortcode('[ctp_facturas_proveedor]'); ?>
-            <?php endif; ?>
+            </div>
+            <div class="ctp-dashboard-content">
+                <?php if ($tab === 'ordenes') : ?>
+                    <div class="ctp-dashboard-grid">
+                        <div class="ctp-dashboard-col">
+                            <?php echo do_shortcode('[ctp_cargar_orden]'); ?>
+                        </div>
+                        <div class="ctp-dashboard-col">
+                            <?php echo do_shortcode('[ctp_listar_ordenes]'); ?>
+                        </div>
+                    </div>
+                <?php elseif ($tab === 'proveedores') : ?>
+                    <?php echo do_shortcode('[ctp_proveedores]'); ?>
+                <?php else : ?>
+                    <?php echo do_shortcode('[ctp_facturas_proveedor]'); ?>
+                <?php endif; ?>
+            </div>
         </div>
     </div>
     <?php
