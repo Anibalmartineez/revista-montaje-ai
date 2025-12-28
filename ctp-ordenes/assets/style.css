@@ -6,6 +6,7 @@
     line-height: 1.5;
     width: 100%;
     max-width: 100%;
+    overflow-x: clip;
 }
 
 .ctp-app *,
@@ -27,7 +28,7 @@
     padding: 2rem 0;
     width: 100%;
     max-width: 100%;
-    overflow-x: hidden;
+    overflow-x: clip;
 }
 
 .ctp-app .ctp-dashboard,
@@ -36,9 +37,10 @@
 }
 
 .ctp-app .ctp-dashboard-container {
-    max-width: 1080px;
     width: 100%;
-    margin: 0 auto !important;
+    max-width: 1080px;
+    margin-left: auto;
+    margin-right: auto;
     padding: 0 1.5rem;
 }
 
@@ -109,6 +111,7 @@
     padding: 1.5rem;
     box-shadow: 0 12px 30px rgba(15, 23, 42, 0.08);
     max-width: 100%;
+    overflow-x: clip;
 }
 
 .ctp-app .ctp-summary-grid {
@@ -306,6 +309,7 @@
 }
 
 .ctp-app .ctp-table-wrap {
+    width: 100%;
     max-width: 100%;
     overflow-x: auto;
     -webkit-overflow-scrolling: touch;
@@ -501,10 +505,6 @@
 }
 
 @media (max-width: 640px) {
-    .ctp-app .ctp-dashboard {
-        overflow-x: visible;
-    }
-
     .ctp-app .ctp-form-grid {
         grid-template-columns: 1fr;
     }
