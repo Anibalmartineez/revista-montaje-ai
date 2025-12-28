@@ -3,11 +3,12 @@
 Plugin WordPress para cargar y listar órdenes de CTP, con gestión básica de proveedores, facturas y pagos parciales mediante shortcodes.
 
 ## Instalación (ZIP)
-1. Desde la raíz del repo, comprime la carpeta `wp-plugin-ctp-ordenes/` como ZIP.
+1. Desde la raíz del repo, comprime la carpeta `ctp-ordenes/` como ZIP.
+   - Ejemplo: `zip -r ctp-ordenes.zip ctp-ordenes`
 2. En WordPress, ve a **Plugins → Añadir nuevo → Subir plugin**.
 3. Selecciona el ZIP y activa el plugin.
 
-> **Nota:** El ZIP debe contener la carpeta del plugin (`wp-plugin-ctp-ordenes/`) en su raíz.
+> **Nota:** El ZIP debe contener la carpeta del plugin (`ctp-ordenes/`) en su raíz.
 
 ## Uso de shortcodes (Divi o editor clásico)
 - **Formulario de carga:**
