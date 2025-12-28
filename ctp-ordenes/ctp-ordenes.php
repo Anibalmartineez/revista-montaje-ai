@@ -199,7 +199,7 @@ function ctp_ordenes_render_alerts($mensajes) {
 }
 
 function ctp_wrap($html) {
-    return '<div class="ctp-dashboard"><div class="ctp-dashboard-container">' . $html . '</div></div>';
+    return '<div class="ctp-app ctp-dashboard"><div class="ctp-dashboard-container"><div class="ctp-dashboard-content">' . $html . '</div></div></div>';
 }
 
 function ctp_ordenes_recalculate_factura($factura_id) {
@@ -1272,7 +1272,7 @@ function ctp_dashboard_shortcode() {
 
     ob_start();
     ?>
-    <div class="ctp-dashboard">
+    <div class="ctp-app ctp-dashboard">
         <div class="ctp-dashboard-container">
             <div class="ctp-dashboard-header">
                 <h2>Sistema CTP</h2>
