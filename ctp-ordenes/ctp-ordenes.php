@@ -147,19 +147,24 @@ function ctp_ordenes_enqueue_assets($force = false) {
     }
 
     $plugin_url = plugin_dir_url(__FILE__);
+    $plugin_path = plugin_dir_path(__FILE__);
+    $style_path = $plugin_path . 'assets/style.css';
+    $script_path = $plugin_path . 'assets/app.js';
+    $style_version = file_exists($style_path) ? filemtime($style_path) : CTP_ORDENES_VERSION;
+    $script_version = file_exists($script_path) ? filemtime($script_path) : CTP_ORDENES_VERSION;
 
     wp_enqueue_style(
         'ctp-ordenes-style',
         $plugin_url . 'assets/style.css',
         array(),
-        CTP_ORDENES_VERSION
+        $style_version
     );
 
     wp_enqueue_script(
         'ctp-ordenes-app',
         $plugin_url . 'assets/app.js',
         array(),
-        CTP_ORDENES_VERSION,
+        $script_version,
         true
     );
 
