@@ -1,3 +1,25 @@
+/* Scope Reset */
+.ctp-scope {
+    all: revert;
+    display: block;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    color: #0f172a;
+    line-height: 1.5;
+}
+
+.ctp-scope *,
+.ctp-scope *::before,
+.ctp-scope *::after {
+    box-sizing: border-box;
+}
+
+.ctp-scope .ctp-field input,
+.ctp-scope .ctp-field select,
+.ctp-scope .ctp-field textarea {
+    width: 100%;
+    max-width: 100%;
+}
+
 .ctp-dashboard {
     padding: 2rem 0;
     width: 100%;
@@ -202,9 +224,9 @@
     box-shadow: 0 0 0 3px rgba(26, 115, 232, 0.18);
 }
 
-.ctp-dashboard .ctp-field input,
-.ctp-dashboard .ctp-field select,
-.ctp-dashboard .ctp-field textarea {
+.ctp-scope .ctp-field input,
+.ctp-scope .ctp-field select,
+.ctp-scope .ctp-field textarea {
     width: 100% !important;
     display: block;
     box-sizing: border-box;
@@ -487,14 +509,77 @@
         overflow-x: visible;
     }
 
-    .ctp-table td .ctp-actions {
+    .ctp-table {
+        min-width: 0;
+        border-spacing: 0;
+    }
+
+    .ctp-table thead {
+        display: none;
+    }
+
+    .ctp-table tbody,
+    .ctp-table tr,
+    .ctp-table td {
+        display: block;
+        width: 100%;
+    }
+
+    .ctp-table tbody tr {
+        border: 1px solid #e2e8f0;
+        border-radius: 14px;
+        padding: 0.75rem 1rem;
+        background: #fff;
+        box-shadow: 0 6px 14px rgba(15, 23, 42, 0.08);
+        margin-bottom: 1rem;
+    }
+
+    .ctp-table tbody tr:last-child {
+        margin-bottom: 0;
+    }
+
+    .ctp-table td {
+        border-bottom: none;
+        padding: 0.5rem 0;
+        display: flex;
+        align-items: flex-start;
+        justify-content: space-between;
+        gap: 1rem;
+        white-space: normal;
+    }
+
+    .ctp-table td::before {
+        content: attr(data-label);
+        font-weight: 700;
+        font-size: 0.82rem;
+        text-transform: uppercase;
+        letter-spacing: 0.03em;
+        color: #64748b;
+    }
+
+    .ctp-table td.ctp-actions-cell,
+    .ctp-table td.ctp-table-text {
         flex-direction: column;
-        align-items: stretch;
+        align-items: flex-start;
+    }
+
+    .ctp-table td.ctp-actions-cell::before {
+        margin-bottom: 0.35rem;
+    }
+
+    .ctp-table td .ctp-actions {
+        flex-direction: row;
+        flex-wrap: nowrap;
+        align-items: center;
+        gap: 0.5rem;
+        overflow-x: auto;
+        padding-bottom: 0.2rem;
     }
 
     .ctp-table td .ctp-actions .ctp-button {
-        width: 100%;
+        width: auto;
         justify-content: center;
+        flex: 0 0 auto;
     }
 }
 
