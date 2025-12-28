@@ -198,6 +198,16 @@ function ctp_ordenes_render_alerts($mensajes) {
     }
 }
 
+function ctp_ordenes_wrap_app($contenido) {
+    global $ctp_ordenes_in_dashboard;
+
+    if (!empty($ctp_ordenes_in_dashboard)) {
+        return $contenido;
+    }
+
+    return '<div class="ctp-app">' . $contenido . '</div>';
+}
+
 function ctp_ordenes_recalculate_factura($factura_id) {
     global $wpdb;
 
@@ -351,7 +361,6 @@ function ctp_cargar_orden_shortcode() {
 
     ob_start();
     ?>
-    <div class="ctp-scope">
     <div class="ctp-card ctp-form-wrap">
         <div class="ctp-card-header">
             <h3 class="ctp-card-title">Nueva orden</h3>
@@ -432,9 +441,8 @@ function ctp_cargar_orden_shortcode() {
             </div>
         </form>
     </div>
-    </div>
     <?php
-    return ob_get_clean();
+    return ctp_ordenes_wrap_app(ob_get_clean());
 }
 add_shortcode('ctp_cargar_orden', 'ctp_cargar_orden_shortcode');
 
@@ -456,7 +464,6 @@ function ctp_listar_ordenes_shortcode() {
 
     ob_start();
     ?>
-    <div class="ctp-scope">
     <div class="ctp-card">
         <div class="ctp-card-header">
             <h3 class="ctp-card-title">Últimas órdenes</h3>
@@ -497,9 +504,8 @@ function ctp_listar_ordenes_shortcode() {
             </table>
         </div>
     </div>
-    </div>
     <?php
-    return ob_get_clean();
+    return ctp_ordenes_wrap_app(ob_get_clean());
 }
 add_shortcode('ctp_listar_ordenes', 'ctp_listar_ordenes_shortcode');
 
@@ -629,7 +635,6 @@ function ctp_proveedores_shortcode() {
 
     ob_start();
     ?>
-    <div class="ctp-scope">
     <?php ctp_ordenes_render_alerts($mensajes); ?>
     <div class="ctp-stack">
         <div class="ctp-card ctp-form-wrap">
@@ -751,9 +756,8 @@ function ctp_proveedores_shortcode() {
             </div>
         </div>
     </div>
-    </div>
     <?php
-    return ob_get_clean();
+    return ctp_ordenes_wrap_app(ob_get_clean());
 }
 add_shortcode('ctp_proveedores', 'ctp_proveedores_shortcode');
 
@@ -988,7 +992,6 @@ function ctp_facturas_proveedor_shortcode() {
 
     ob_start();
     ?>
-    <div class="ctp-scope">
     <?php ctp_ordenes_render_alerts($mensajes); ?>
     <div class="ctp-stack">
         <div class="ctp-card ctp-form-wrap">
@@ -1170,10 +1173,10 @@ function ctp_facturas_proveedor_shortcode() {
                                                     <tbody>
                                                         <?php foreach ($pagos as $pago) : ?>
                                                             <tr>
-                                                                <td><?php echo esc_html($pago->fecha_pago); ?></td>
-                                                                <td><?php echo esc_html(number_format((float) $pago->monto, 0, ',', '.')); ?></td>
-                                                                <td><?php echo esc_html($pago->metodo); ?></td>
-                                                                <td class="ctp-table-text"><?php echo esc_html($pago->nota); ?></td>
+                                                                <td data-label="Fecha"><?php echo esc_html($pago->fecha_pago); ?></td>
+                                                                <td data-label="Monto"><?php echo esc_html(number_format((float) $pago->monto, 0, ',', '.')); ?></td>
+                                                                <td data-label="Método"><?php echo esc_html($pago->metodo); ?></td>
+                                                                <td class="ctp-table-text" data-label="Nota"><?php echo esc_html($pago->nota); ?></td>
                                                             </tr>
                                                         <?php endforeach; ?>
                                                     </tbody>
@@ -1213,9 +1216,8 @@ function ctp_facturas_proveedor_shortcode() {
             </div>
         </div>
     </div>
-    </div>
     <?php
-    return ob_get_clean();
+    return ctp_ordenes_wrap_app(ob_get_clean());
 }
 add_shortcode('ctp_facturas_proveedor', 'ctp_facturas_proveedor_shortcode');
 
@@ -1256,10 +1258,12 @@ function ctp_dashboard_shortcode() {
         'facturas' => 'Facturas',
     );
 
+    global $ctp_ordenes_in_dashboard;
+    $ctp_ordenes_in_dashboard = true;
+
     ob_start();
     ?>
-    <div class="ctp-scope">
-    <div class="ctp-dashboard">
+    <div class="ctp-app ctp-dashboard">
         <div class="ctp-dashboard-container">
             <div class="ctp-dashboard-header">
                 <h2>Sistema CTP</h2>
@@ -1321,8 +1325,9 @@ function ctp_dashboard_shortcode() {
             </div>
         </div>
     </div>
-    </div>
     <?php
-    return ob_get_clean();
+    $contenido = ob_get_clean();
+    $ctp_ordenes_in_dashboard = false;
+    return $contenido;
 }
 add_shortcode('ctp_dashboard', 'ctp_dashboard_shortcode');
