@@ -1,6 +1,8 @@
 .ctp-dashboard {
     padding: 2rem 0;
     width: 100%;
+    max-width: 100%;
+    overflow-x: hidden;
 }
 
 .ctp-dashboard,
@@ -268,12 +270,14 @@
 }
 
 .ctp-table-wrap {
+    max-width: 100%;
     overflow-x: auto;
     margin: 0;
 }
 
 .ctp-table {
     width: 100%;
+    table-layout: fixed;
     border-collapse: separate;
     border-spacing: 0;
     min-width: 520px;
@@ -287,6 +291,12 @@
     padding: 0.85rem 0.75rem;
     text-align: left;
     border-bottom: 1px solid #e2e8f0;
+    overflow-wrap: anywhere;
+    word-break: break-word;
+}
+
+.ctp-table td {
+    white-space: normal;
 }
 
 .ctp-table thead th {
@@ -380,27 +390,40 @@
     margin-top: 0;
 }
 
-@media (max-width: 960px) {
+@media (max-width: 980px) {
     .ctp-dashboard-grid {
         grid-template-columns: 1fr;
     }
-}
 
-@media (max-width: 980px) {
     .ctp-summary-grid {
         grid-template-columns: repeat(2, minmax(0, 1fr));
     }
-}
 
-@media (max-width: 768px) {
-    .ctp-summary-grid {
+    .ctp-form-grid {
         grid-template-columns: 1fr;
+    }
+
+    .ctp-actions {
+        flex-direction: column;
+        align-items: stretch;
+    }
+
+    .ctp-actions .ctp-button {
+        width: 100%;
+        justify-content: center;
+    }
+
+    .ctp-field input,
+    .ctp-field select,
+    .ctp-field textarea {
+        width: 100%;
+        max-width: 100%;
     }
 }
 
-@media (max-width: 640px) {
-    .ctp-dashboard {
-        overflow-x: hidden;
+@media (max-width: 767px) {
+    .ctp-summary-grid {
+        grid-template-columns: 1fr;
     }
 
     .ctp-dashboard-container {
@@ -420,21 +443,12 @@
         padding: 1.2rem;
     }
 
-    .ctp-form-grid {
-        grid-template-columns: 1fr;
-    }
-
-    .ctp-actions {
-        flex-direction: column;
-        align-items: flex-start;
-    }
-
     .ctp-table {
         min-width: 420px;
     }
 }
 
-@media (max-width: 480px) {
+@media (max-width: 479px) {
     .ctp-summary-card {
         padding: 0.9rem 1rem;
     }
