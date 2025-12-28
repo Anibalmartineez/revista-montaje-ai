@@ -680,8 +680,8 @@ function ctp_proveedores_shortcode() {
                     <th>RUC</th>
                     <th>Teléfono</th>
                     <th>Email</th>
-                    <th>Notas</th>
-                    <th>Acciones</th>
+                    <th class="ctp-table-text">Notas</th>
+                    <th class="ctp-actions-cell">Acciones</th>
                 </tr>
             </thead>
             <tbody>
@@ -692,8 +692,8 @@ function ctp_proveedores_shortcode() {
                             <td><?php echo esc_html($proveedor->ruc); ?></td>
                             <td><?php echo esc_html($proveedor->telefono); ?></td>
                             <td><?php echo esc_html($proveedor->email); ?></td>
-                            <td><?php echo esc_html($proveedor->notas); ?></td>
-                            <td>
+                            <td class="ctp-table-text"><?php echo esc_html($proveedor->notas); ?></td>
+                            <td class="ctp-actions-cell">
                                 <div class="ctp-actions">
                                     <details class="ctp-details">
                                         <summary class="ctp-button ctp-button-secondary">Editar</summary>
@@ -1084,7 +1084,7 @@ function ctp_facturas_proveedor_shortcode() {
                     <th>Pagado</th>
                     <th>Saldo</th>
                     <th>Estado</th>
-                    <th>Acciones</th>
+                    <th class="ctp-actions-cell">Acciones</th>
                 </tr>
             </thead>
             <tbody>
@@ -1097,7 +1097,7 @@ function ctp_facturas_proveedor_shortcode() {
                             <td><?php echo esc_html(number_format((float) $factura->monto_total, 0, ',', '.')); ?></td>
                             <td><?php echo esc_html(number_format((float) $factura->monto_pagado, 0, ',', '.')); ?></td>
                             <td><?php echo esc_html(number_format((float) $factura->saldo, 0, ',', '.')); ?></td>
-                            <td>
+                            <td class="ctp-actions-cell">
                                 <span class="ctp-status ctp-status-<?php echo esc_attr($factura->estado_pago); ?>">
                                     <?php echo esc_html(ucfirst($factura->estado_pago)); ?>
                                 </span>
@@ -1157,7 +1157,7 @@ function ctp_facturas_proveedor_shortcode() {
                                                             <th>Fecha</th>
                                                             <th>Monto</th>
                                                             <th>Método</th>
-                                                            <th>Nota</th>
+                                                            <th class="ctp-table-text">Nota</th>
                                                         </tr>
                                                     </thead>
                                                     <tbody>
@@ -1166,7 +1166,7 @@ function ctp_facturas_proveedor_shortcode() {
                                                                 <td><?php echo esc_html($pago->fecha_pago); ?></td>
                                                                 <td><?php echo esc_html(number_format((float) $pago->monto, 0, ',', '.')); ?></td>
                                                                 <td><?php echo esc_html($pago->metodo); ?></td>
-                                                                <td><?php echo esc_html($pago->nota); ?></td>
+                                                                <td class="ctp-table-text"><?php echo esc_html($pago->nota); ?></td>
                                                             </tr>
                                                         <?php endforeach; ?>
                                                     </tbody>
