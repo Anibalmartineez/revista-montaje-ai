@@ -198,14 +198,8 @@ function ctp_ordenes_render_alerts($mensajes) {
     }
 }
 
-function ctp_ordenes_wrap_app($contenido) {
-    global $ctp_ordenes_in_dashboard;
-
-    if (!empty($ctp_ordenes_in_dashboard)) {
-        return $contenido;
-    }
-
-    return '<div class="ctp-app">' . $contenido . '</div>';
+function ctp_wrap($html) {
+    return '<div class="ctp-dashboard"><div class="ctp-dashboard-container">' . $html . '</div></div>';
 }
 
 function ctp_ordenes_recalculate_factura($factura_id) {
@@ -442,7 +436,11 @@ function ctp_cargar_orden_shortcode() {
         </form>
     </div>
     <?php
-    return ctp_ordenes_wrap_app(ob_get_clean());
+    $html = ob_get_clean();
+    if (!empty($GLOBALS['ctp_in_dashboard'])) {
+        return $html;
+    }
+    return ctp_wrap($html);
 }
 add_shortcode('ctp_cargar_orden', 'ctp_cargar_orden_shortcode');
 
@@ -505,7 +503,11 @@ function ctp_listar_ordenes_shortcode() {
         </div>
     </div>
     <?php
-    return ctp_ordenes_wrap_app(ob_get_clean());
+    $html = ob_get_clean();
+    if (!empty($GLOBALS['ctp_in_dashboard'])) {
+        return $html;
+    }
+    return ctp_wrap($html);
 }
 add_shortcode('ctp_listar_ordenes', 'ctp_listar_ordenes_shortcode');
 
@@ -757,7 +759,11 @@ function ctp_proveedores_shortcode() {
         </div>
     </div>
     <?php
-    return ctp_ordenes_wrap_app(ob_get_clean());
+    $html = ob_get_clean();
+    if (!empty($GLOBALS['ctp_in_dashboard'])) {
+        return $html;
+    }
+    return ctp_wrap($html);
 }
 add_shortcode('ctp_proveedores', 'ctp_proveedores_shortcode');
 
@@ -1217,7 +1223,11 @@ function ctp_facturas_proveedor_shortcode() {
         </div>
     </div>
     <?php
-    return ctp_ordenes_wrap_app(ob_get_clean());
+    $html = ob_get_clean();
+    if (!empty($GLOBALS['ctp_in_dashboard'])) {
+        return $html;
+    }
+    return ctp_wrap($html);
 }
 add_shortcode('ctp_facturas_proveedor', 'ctp_facturas_proveedor_shortcode');
 
@@ -1258,12 +1268,11 @@ function ctp_dashboard_shortcode() {
         'facturas' => 'Facturas',
     );
 
-    global $ctp_ordenes_in_dashboard;
-    $ctp_ordenes_in_dashboard = true;
+    $GLOBALS['ctp_in_dashboard'] = true;
 
     ob_start();
     ?>
-    <div class="ctp-app ctp-dashboard">
+    <div class="ctp-dashboard">
         <div class="ctp-dashboard-container">
             <div class="ctp-dashboard-header">
                 <h2>Sistema CTP</h2>
@@ -1327,7 +1336,7 @@ function ctp_dashboard_shortcode() {
     </div>
     <?php
     $contenido = ob_get_clean();
-    $ctp_ordenes_in_dashboard = false;
+    unset($GLOBALS['ctp_in_dashboard']);
     return $contenido;
 }
 add_shortcode('ctp_dashboard', 'ctp_dashboard_shortcode');
