@@ -9,6 +9,17 @@
     overflow-x: clip;
 }
 
+.ctp-app .ctp-container {
+    width: 100%;
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 0 1.5rem;
+}
+
+.ctp-app .ctp-content {
+    width: 100%;
+}
+
 .ctp-app *,
 .ctp-app *::before,
 .ctp-app *::after {
@@ -38,7 +49,7 @@
 
 .ctp-app .ctp-dashboard-container {
     width: 100%;
-    max-width: 1080px;
+    max-width: 1200px;
     margin-left: auto;
     margin-right: auto;
     padding: 0 1.5rem;
@@ -102,6 +113,7 @@
 .ctp-app .ctp-stack {
     display: grid;
     gap: 1.5rem;
+    width: 100%;
 }
 
 .ctp-app .ctp-card {
@@ -112,6 +124,7 @@
     box-shadow: 0 12px 30px rgba(15, 23, 42, 0.08);
     max-width: 100%;
     overflow-x: clip;
+    width: 100%;
 }
 
 .ctp-app .ctp-summary-grid {
@@ -174,10 +187,12 @@
 .ctp-app .ctp-form {
     display: grid;
     gap: 1rem;
+    width: 100%;
 }
 
 .ctp-app .ctp-form-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+    width: 100%;
 }
 
 .ctp-app .ctp-form-inline {
@@ -415,6 +430,7 @@
     margin-top: 0;
     display: grid;
     gap: 0.75rem;
+    width: 100%;
 }
 
 .ctp-app .ctp-status {
@@ -477,12 +493,22 @@
     }
 }
 
+@media (max-width: 768px) {
+    .ctp-app .ctp-form-grid {
+        grid-template-columns: 1fr;
+    }
+}
+
 @media (max-width: 767px) {
     .ctp-app .ctp-summary-grid {
         grid-template-columns: 1fr;
     }
 
     .ctp-app .ctp-dashboard-container {
+        padding: 0 1rem;
+    }
+
+    .ctp-app .ctp-container {
         padding: 0 1rem;
     }
 
