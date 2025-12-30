@@ -110,6 +110,11 @@
     gap: 1.5rem;
 }
 
+.ctp-app .ctp-dashboard-main {
+    display: grid;
+    gap: 1.5rem;
+}
+
 .ctp-app .ctp-stack {
     display: grid;
     gap: 1.5rem;
