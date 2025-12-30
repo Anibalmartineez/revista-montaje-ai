@@ -24,15 +24,15 @@
     display: block;
 }
 
-.ctp-app .ctp-dashboard {
+.ctp-app.ctp-dashboard {
     padding: 2rem 0;
     width: 100%;
     max-width: 100%;
     overflow-x: clip;
 }
 
-.ctp-app .ctp-dashboard,
-.ctp-app .ctp-dashboard * {
+.ctp-app.ctp-dashboard,
+.ctp-app.ctp-dashboard * {
     box-sizing: border-box;
 }
 
