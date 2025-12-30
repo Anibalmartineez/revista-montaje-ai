@@ -198,6 +198,10 @@ function ctp_ordenes_render_alerts($mensajes) {
     }
 }
 
+function ctp_wrap($html) {
+    return '<div class="ctp-app ctp-dashboard"><div class="ctp-dashboard-container"><div class="ctp-dashboard-content">' . $html . '</div></div></div>';
+}
+
 function ctp_ordenes_recalculate_factura($factura_id) {
     global $wpdb;
 
@@ -432,7 +436,11 @@ function ctp_cargar_orden_shortcode() {
         </form>
     </div>
     <?php
-    return ob_get_clean();
+    $html = ob_get_clean();
+    if (!empty($GLOBALS['ctp_in_dashboard'])) {
+        return $html;
+    }
+    return ctp_wrap($html);
 }
 add_shortcode('ctp_cargar_orden', 'ctp_cargar_orden_shortcode');
 
@@ -476,13 +484,13 @@ function ctp_listar_ordenes_shortcode() {
                 <?php if (!empty($ordenes)) : ?>
                     <?php foreach ($ordenes as $orden) : ?>
                         <tr>
-                            <td><?php echo esc_html($orden->fecha); ?></td>
-                            <td><?php echo esc_html($orden->numero_orden); ?></td>
-                            <td><?php echo esc_html($orden->cliente); ?></td>
-                            <td><?php echo esc_html($orden->medida_chapa); ?></td>
-                            <td><?php echo esc_html($orden->cantidad_chapas); ?></td>
-                            <td><?php echo esc_html(number_format((float) $orden->precio_unitario, 0, ',', '.')); ?></td>
-                            <td><?php echo esc_html(number_format((float) $orden->total, 0, ',', '.')); ?></td>
+                            <td data-label="Fecha"><?php echo esc_html($orden->fecha); ?></td>
+                            <td data-label="Nº Orden"><?php echo esc_html($orden->numero_orden); ?></td>
+                            <td data-label="Cliente"><?php echo esc_html($orden->cliente); ?></td>
+                            <td data-label="Medida"><?php echo esc_html($orden->medida_chapa); ?></td>
+                            <td data-label="Cantidad"><?php echo esc_html($orden->cantidad_chapas); ?></td>
+                            <td data-label="Unitario"><?php echo esc_html(number_format((float) $orden->precio_unitario, 0, ',', '.')); ?></td>
+                            <td data-label="Total"><?php echo esc_html(number_format((float) $orden->total, 0, ',', '.')); ?></td>
                         </tr>
                     <?php endforeach; ?>
                 <?php else : ?>
@@ -495,7 +503,11 @@ function ctp_listar_ordenes_shortcode() {
         </div>
     </div>
     <?php
-    return ob_get_clean();
+    $html = ob_get_clean();
+    if (!empty($GLOBALS['ctp_in_dashboard'])) {
+        return $html;
+    }
+    return ctp_wrap($html);
 }
 add_shortcode('ctp_listar_ordenes', 'ctp_listar_ordenes_shortcode');
 
@@ -688,12 +700,12 @@ function ctp_proveedores_shortcode() {
                 <?php if (!empty($proveedores)) : ?>
                     <?php foreach ($proveedores as $proveedor) : ?>
                         <tr>
-                            <td><?php echo esc_html($proveedor->nombre); ?></td>
-                            <td><?php echo esc_html($proveedor->ruc); ?></td>
-                            <td><?php echo esc_html($proveedor->telefono); ?></td>
-                            <td><?php echo esc_html($proveedor->email); ?></td>
-                            <td class="ctp-table-text"><?php echo esc_html($proveedor->notas); ?></td>
-                            <td class="ctp-actions-cell">
+                            <td data-label="Nombre"><?php echo esc_html($proveedor->nombre); ?></td>
+                            <td data-label="RUC"><?php echo esc_html($proveedor->ruc); ?></td>
+                            <td data-label="Teléfono"><?php echo esc_html($proveedor->telefono); ?></td>
+                            <td data-label="Email"><?php echo esc_html($proveedor->email); ?></td>
+                            <td class="ctp-table-text" data-label="Notas"><?php echo esc_html($proveedor->notas); ?></td>
+                            <td class="ctp-actions-cell" data-label="Acciones">
                                 <div class="ctp-actions">
                                     <details class="ctp-details">
                                         <summary class="ctp-button ctp-button-secondary">Editar</summary>
@@ -747,7 +759,11 @@ function ctp_proveedores_shortcode() {
         </div>
     </div>
     <?php
-    return ob_get_clean();
+    $html = ob_get_clean();
+    if (!empty($GLOBALS['ctp_in_dashboard'])) {
+        return $html;
+    }
+    return ctp_wrap($html);
 }
 add_shortcode('ctp_proveedores', 'ctp_proveedores_shortcode');
 
@@ -1091,18 +1107,18 @@ function ctp_facturas_proveedor_shortcode() {
                 <?php if (!empty($facturas)) : ?>
                     <?php foreach ($facturas as $factura) : ?>
                         <tr>
-                            <td><?php echo esc_html($factura->fecha_factura); ?></td>
-                            <td><?php echo esc_html($factura->proveedor_nombre ?: ''); ?></td>
-                            <td><?php echo esc_html($factura->nro_factura); ?></td>
-                            <td><?php echo esc_html(number_format((float) $factura->monto_total, 0, ',', '.')); ?></td>
-                            <td><?php echo esc_html(number_format((float) $factura->monto_pagado, 0, ',', '.')); ?></td>
-                            <td><?php echo esc_html(number_format((float) $factura->saldo, 0, ',', '.')); ?></td>
-                            <td class="ctp-actions-cell">
+                            <td data-label="Fecha"><?php echo esc_html($factura->fecha_factura); ?></td>
+                            <td data-label="Proveedor"><?php echo esc_html($factura->proveedor_nombre ?: ''); ?></td>
+                            <td data-label="Nro"><?php echo esc_html($factura->nro_factura); ?></td>
+                            <td data-label="Monto"><?php echo esc_html(number_format((float) $factura->monto_total, 0, ',', '.')); ?></td>
+                            <td data-label="Pagado"><?php echo esc_html(number_format((float) $factura->monto_pagado, 0, ',', '.')); ?></td>
+                            <td data-label="Saldo"><?php echo esc_html(number_format((float) $factura->saldo, 0, ',', '.')); ?></td>
+                            <td class="ctp-actions-cell" data-label="Estado">
                                 <span class="ctp-status ctp-status-<?php echo esc_attr($factura->estado_pago); ?>">
                                     <?php echo esc_html(ucfirst($factura->estado_pago)); ?>
                                 </span>
                             </td>
-                            <td>
+                            <td data-label="Acciones">
                                 <div class="ctp-actions">
                                     <details class="ctp-details">
                                         <summary class="ctp-button ctp-button-secondary">Registrar pago</summary>
@@ -1163,10 +1179,10 @@ function ctp_facturas_proveedor_shortcode() {
                                                     <tbody>
                                                         <?php foreach ($pagos as $pago) : ?>
                                                             <tr>
-                                                                <td><?php echo esc_html($pago->fecha_pago); ?></td>
-                                                                <td><?php echo esc_html(number_format((float) $pago->monto, 0, ',', '.')); ?></td>
-                                                                <td><?php echo esc_html($pago->metodo); ?></td>
-                                                                <td class="ctp-table-text"><?php echo esc_html($pago->nota); ?></td>
+                                                                <td data-label="Fecha"><?php echo esc_html($pago->fecha_pago); ?></td>
+                                                                <td data-label="Monto"><?php echo esc_html(number_format((float) $pago->monto, 0, ',', '.')); ?></td>
+                                                                <td data-label="Método"><?php echo esc_html($pago->metodo); ?></td>
+                                                                <td class="ctp-table-text" data-label="Nota"><?php echo esc_html($pago->nota); ?></td>
                                                             </tr>
                                                         <?php endforeach; ?>
                                                     </tbody>
@@ -1207,7 +1223,11 @@ function ctp_facturas_proveedor_shortcode() {
         </div>
     </div>
     <?php
-    return ob_get_clean();
+    $html = ob_get_clean();
+    if (!empty($GLOBALS['ctp_in_dashboard'])) {
+        return $html;
+    }
+    return ctp_wrap($html);
 }
 add_shortcode('ctp_facturas_proveedor', 'ctp_facturas_proveedor_shortcode');
 
@@ -1248,9 +1268,11 @@ function ctp_dashboard_shortcode() {
         'facturas' => 'Facturas',
     );
 
+    $GLOBALS['ctp_in_dashboard'] = true;
+
     ob_start();
     ?>
-    <div class="ctp-dashboard">
+    <div class="ctp-app ctp-dashboard">
         <div class="ctp-dashboard-container">
             <div class="ctp-dashboard-header">
                 <h2>Sistema CTP</h2>
@@ -1313,6 +1335,8 @@ function ctp_dashboard_shortcode() {
         </div>
     </div>
     <?php
-    return ob_get_clean();
+    $contenido = ob_get_clean();
+    unset($GLOBALS['ctp_in_dashboard']);
+    return $contenido;
 }
 add_shortcode('ctp_dashboard', 'ctp_dashboard_shortcode');

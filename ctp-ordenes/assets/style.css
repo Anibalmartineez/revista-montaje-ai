@@ -1,42 +1,69 @@
-.ctp-dashboard {
-    padding: 2rem 0;
+/* Base Scope */
+.ctp-app {
+    display: block;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    color: #0f172a;
+    line-height: 1.5;
     width: 100%;
     max-width: 100%;
-    overflow-x: hidden;
+    overflow-x: clip;
 }
 
-.ctp-dashboard,
-.ctp-dashboard * {
+.ctp-app *,
+.ctp-app *::before,
+.ctp-app *::after {
     box-sizing: border-box;
 }
 
-.ctp-dashboard-container {
-    max-width: 1080px;
+.ctp-app input,
+.ctp-app select,
+.ctp-app textarea {
     width: 100%;
-    margin: 0 auto !important;
+    max-width: 100%;
+    box-sizing: border-box;
+    display: block;
+}
+
+.ctp-app.ctp-dashboard {
+    padding: 2rem 0;
+    width: 100%;
+    max-width: 100%;
+    overflow-x: clip;
+}
+
+.ctp-app.ctp-dashboard,
+.ctp-app.ctp-dashboard * {
+    box-sizing: border-box;
+}
+
+.ctp-app .ctp-dashboard-container {
+    width: 100%;
+    max-width: 1080px;
+    margin-left: auto;
+    margin-right: auto;
     padding: 0 1.5rem;
 }
 
-.ctp-dashboard-header h2 {
+.ctp-app .ctp-dashboard-header h2 {
     margin: 0 0 0.25rem;
     font-size: 1.8rem;
     color: #0f172a;
 }
 
-.ctp-dashboard-subtitle {
+.ctp-app .ctp-dashboard-subtitle {
     margin: 0 0 1.75rem;
     color: #64748b;
     font-size: 0.95rem;
 }
 
-.ctp-dashboard-nav {
+.ctp-app .ctp-dashboard-nav {
     display: flex;
     flex-wrap: wrap;
     gap: 0.75rem;
     margin-bottom: 1.5rem;
 }
 
-.ctp-dashboard-button {
+.ctp-app .ctp-dashboard-button {
     display: inline-flex;
     align-items: center;
     gap: 0.5rem;
@@ -50,50 +77,51 @@
     transition: all 0.2s ease;
 }
 
-.ctp-dashboard-button:hover {
+.ctp-app .ctp-dashboard-button:hover {
     background: #e2e8f0;
 }
 
-.ctp-dashboard-button.is-active {
+.ctp-app .ctp-dashboard-button.is-active {
     background: #1a73e8;
     color: #fff;
     box-shadow: 0 6px 16px rgba(26, 115, 232, 0.25);
 }
 
-.ctp-dashboard-grid {
+.ctp-app .ctp-dashboard-grid {
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 1.5rem;
     align-items: start;
 }
 
-.ctp-dashboard-content {
+.ctp-app .ctp-dashboard-content {
     display: grid;
     gap: 1.5rem;
 }
 
-.ctp-stack {
+.ctp-app .ctp-stack {
     display: grid;
     gap: 1.5rem;
 }
 
-.ctp-card {
+.ctp-app .ctp-card {
     background: #fff;
     border: 1px solid #e2e8f0;
     border-radius: 16px;
     padding: 1.5rem;
     box-shadow: 0 12px 30px rgba(15, 23, 42, 0.08);
     max-width: 100%;
+    overflow-x: clip;
 }
 
-.ctp-summary-grid {
+.ctp-app .ctp-summary-grid {
     display: grid;
     grid-template-columns: repeat(4, minmax(0, 1fr));
     gap: 1rem;
     margin-bottom: 1.75rem;
 }
 
-.ctp-summary-card {
+.ctp-app .ctp-summary-card {
     background: #f8fafc;
     border: 1px solid #e2e8f0;
     border-radius: 16px;
@@ -103,7 +131,7 @@
     box-shadow: 0 10px 24px rgba(15, 23, 42, 0.06);
 }
 
-.ctp-summary-title {
+.ctp-app .ctp-summary-title {
     font-size: 0.85rem;
     font-weight: 700;
     color: #64748b;
@@ -111,71 +139,71 @@
     letter-spacing: 0.04em;
 }
 
-.ctp-summary-value {
+.ctp-app .ctp-summary-value {
     font-size: 1.6rem;
     font-weight: 700;
     color: #0f172a;
 }
 
-.ctp-summary-meta {
+.ctp-app .ctp-summary-meta {
     font-size: 0.85rem;
     color: #64748b;
 }
 
-.ctp-card-header {
+.ctp-app .ctp-card-header {
     margin-bottom: 1rem;
 }
 
-.ctp-card-title {
+.ctp-app .ctp-card-title {
     margin: 0;
     font-size: 1.1rem;
     font-weight: 700;
     color: #0f172a;
 }
 
-.ctp-card-subtitle {
+.ctp-app .ctp-card-subtitle {
     margin: 0.35rem 0 0;
     font-size: 0.9rem;
     color: #64748b;
 }
 
-.ctp-form-wrap {
+.ctp-app .ctp-form-wrap {
     margin: 0;
 }
 
-.ctp-form {
+.ctp-app .ctp-form {
     display: grid;
     gap: 1rem;
 }
 
-.ctp-form-grid {
+.ctp-app .ctp-form-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
-.ctp-form-inline {
+.ctp-app .ctp-form-inline {
     grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
     align-items: end;
 }
 
-.ctp-field {
+.ctp-app .ctp-field {
     display: flex;
     flex-direction: column;
     gap: 0.5rem;
 }
 
-.ctp-field-full {
+.ctp-app .ctp-field-full {
     grid-column: 1 / -1;
 }
 
-.ctp-field label {
+.ctp-app .ctp-field label {
     font-weight: 600;
     font-size: 0.88rem;
     color: #64748b;
 }
 
-.ctp-field input,
-.ctp-field select,
-.ctp-field textarea {
+.ctp-app .ctp-field input,
+.ctp-app .ctp-field select,
+.ctp-app .ctp-field textarea {
     padding: 0.65rem 0.85rem;
     border: 1px solid #cbd5e1;
     border-radius: 12px;
@@ -184,30 +212,27 @@
     transition: border-color 0.2s ease, box-shadow 0.2s ease;
 }
 
-.ctp-field input,
-.ctp-field select {
+.ctp-app .ctp-field input,
+.ctp-app .ctp-field select {
     height: 46px;
 }
 
-.ctp-field textarea {
+.ctp-app .ctp-field textarea {
     min-height: 120px;
     resize: vertical;
 }
 
-.ctp-field input:focus,
-.ctp-field select:focus,
-.ctp-field textarea:focus {
+.ctp-app .ctp-field input:focus,
+.ctp-app .ctp-field select:focus,
+.ctp-app .ctp-field textarea:focus {
     outline: none;
     border-color: #1a73e8;
     box-shadow: 0 0 0 3px rgba(26, 115, 232, 0.18);
 }
 
-.ctp-dashboard .ctp-field input,
-.ctp-dashboard .ctp-field select,
-.ctp-dashboard .ctp-field textarea {
-    width: 100% !important;
-    display: block;
-    box-sizing: border-box;
+.ctp-app .ctp-field input,
+.ctp-app .ctp-field select,
+.ctp-app .ctp-field textarea {
     background: #fff !important;
     border: 1px solid #cbd5e1 !important;
     border-radius: 12px !important;
@@ -216,7 +241,7 @@
     appearance: none;
 }
 
-.ctp-button {
+.ctp-app .ctp-button {
     background: #1a73e8;
     color: #fff;
     border: 1px solid transparent;
@@ -228,69 +253,70 @@
     transition: transform 0.2s ease, box-shadow 0.2s ease, background 0.2s ease;
 }
 
-.ctp-button:hover {
+.ctp-app .ctp-button:hover {
     background: #1558b0;
     box-shadow: 0 8px 16px rgba(26, 115, 232, 0.2);
 }
 
-.ctp-button:active {
+.ctp-app .ctp-button:active {
     transform: translateY(1px);
 }
 
-.ctp-button-secondary {
+.ctp-app .ctp-button-secondary {
     background: #f1f5f9;
     color: #334155;
     border-color: #d1d5db;
 }
 
-.ctp-button-secondary:hover {
+.ctp-app .ctp-button-secondary:hover {
     background: #e2e8f0;
     box-shadow: 0 6px 14px rgba(148, 163, 184, 0.2);
 }
 
-.ctp-button-danger {
+.ctp-app .ctp-button-danger {
     background: #ef4444;
     color: #fff;
     border-color: #ef4444;
 }
 
-.ctp-button-danger:hover {
+.ctp-app .ctp-button-danger:hover {
     background: #dc2626;
     box-shadow: 0 6px 14px rgba(239, 68, 68, 0.2);
 }
 
-.ctp-alert {
+.ctp-app .ctp-alert {
     padding: 0.85rem 1rem;
     border-radius: 12px;
     margin-bottom: 1rem;
 }
 
-.ctp-alert-success {
+.ctp-app .ctp-alert-success {
     background: #e9f6ec;
     border: 1px solid #b7e0c2;
     color: #1e6331;
 }
 
-.ctp-alert-error {
+.ctp-app .ctp-alert-error {
     background: #fdeaea;
     border: 1px solid #f0b5b5;
     color: #8a1f1f;
 }
 
-.ctp-alert-warning {
+.ctp-app .ctp-alert-warning {
     background: #fff4e5;
     border: 1px solid #f2c894;
     color: #7a4b00;
 }
 
-.ctp-table-wrap {
+.ctp-app .ctp-table-wrap {
+    width: 100%;
     max-width: 100%;
     overflow-x: auto;
     -webkit-overflow-scrolling: touch;
     margin: 0;
 }
 
-.ctp-table {
+.ctp-app .ctp-table {
     width: 100%;
     table-layout: auto;
     border-collapse: separate;
@@ -301,28 +327,28 @@
     color: #1f2937;
 }
 
-.ctp-table th,
-.ctp-table td {
+.ctp-app .ctp-table th,
+.ctp-app .ctp-table td {
     padding: 0.85rem 0.75rem;
     text-align: left;
     border-bottom: 1px solid #e2e8f0;
     white-space: nowrap;
 }
 
-.ctp-table td {
+.ctp-app .ctp-table td {
     white-space: nowrap;
 }
 
-.ctp-table th.ctp-table-text,
-.ctp-table td.ctp-table-text,
-.ctp-table th.ctp-actions-cell,
-.ctp-table td.ctp-actions-cell {
+.ctp-app .ctp-table th.ctp-table-text,
+.ctp-app .ctp-table td.ctp-table-text,
+.ctp-app .ctp-table th.ctp-actions-cell,
+.ctp-app .ctp-table td.ctp-actions-cell {
     white-space: normal;
     overflow-wrap: anywhere;
     word-break: break-word;
 }
 
-.ctp-table thead th {
+.ctp-app .ctp-table thead th {
     background: #f8fafc;
     font-weight: 700;
     font-size: 0.85rem;
@@ -331,53 +357,53 @@
     color: #64748b;
 }
 
-.ctp-table tbody tr:hover {
+.ctp-app .ctp-table tbody tr:hover {
     background: #f8fafc;
 }
 
-.ctp-table-small {
+.ctp-app .ctp-table-small {
     min-width: 480px;
     font-size: 0.9rem;
 }
 
-.ctp-actions {
+.ctp-app .ctp-actions {
     display: flex;
     flex-wrap: wrap;
     gap: 0.5rem;
 }
 
-.ctp-table td .ctp-actions {
+.ctp-app .ctp-table td .ctp-actions {
     display: flex;
     flex-wrap: wrap;
     gap: 0.5rem;
 }
 
-.ctp-table td .ctp-actions a,
-.ctp-table td .ctp-actions button {
+.ctp-app .ctp-table td .ctp-actions a,
+.ctp-app .ctp-table td .ctp-actions button {
     white-space: nowrap;
 }
 
-.ctp-details summary {
+.ctp-app .ctp-details summary {
     list-style: none;
     cursor: pointer;
 }
 
-.ctp-details summary.ctp-button {
+.ctp-app .ctp-details summary.ctp-button {
     display: inline-flex;
     align-items: center;
     justify-content: center;
 }
 
-.ctp-details summary:focus-visible {
+.ctp-app .ctp-details summary:focus-visible {
     outline: 2px solid #1a73e8;
     outline-offset: 2px;
 }
 
-.ctp-details summary::-webkit-details-marker {
+.ctp-app .ctp-details summary::-webkit-details-marker {
     display: none;
 }
 
-.ctp-details-panel {
+.ctp-app .ctp-details-panel {
     margin-top: 0.75rem;
     padding: 1rem;
     border-radius: 12px;
@@ -385,13 +411,13 @@
     background: #f8fafc;
 }
 
-.ctp-inline-form {
+.ctp-app .ctp-inline-form {
     margin-top: 0;
     display: grid;
     gap: 0.75rem;
 }
 
-.ctp-status {
+.ctp-app .ctp-status {
     display: inline-block;
     padding: 0.2rem 0.6rem;
     border-radius: 999px;
@@ -400,118 +426,177 @@
     text-transform: capitalize;
 }
 
-.ctp-status-pendiente {
+.ctp-app .ctp-status-pendiente {
     background: #fff4e5;
     color: #7a4b00;
 }
 
-.ctp-status-parcial {
+.ctp-app .ctp-status-parcial {
     background: #e5efff;
     color: #1a4fb3;
 }
 
-.ctp-status-pagado {
+.ctp-app .ctp-status-pagado {
     background: #e9f6ec;
     color: #1e6331;
 }
 
-.ctp-filters {
+.ctp-app .ctp-filters {
     margin-top: 0;
     margin-bottom: 0;
 }
 
-.ctp-payments {
+.ctp-app .ctp-payments {
     margin-top: 0;
 }
 
 @media (max-width: 980px) {
-    .ctp-dashboard-grid {
+    .ctp-app .ctp-dashboard-grid {
         grid-template-columns: 1fr;
     }
 
-    .ctp-summary-grid {
+    .ctp-app .ctp-summary-grid {
         grid-template-columns: repeat(2, minmax(0, 1fr));
     }
 
-    .ctp-form-grid {
-        grid-template-columns: 1fr;
-    }
-
-    .ctp-actions {
+    .ctp-app .ctp-actions {
         flex-direction: column;
         align-items: stretch;
     }
 
-    .ctp-actions .ctp-button {
+    .ctp-app .ctp-actions .ctp-button {
         width: 100%;
         justify-content: center;
     }
 
-    .ctp-field input,
-    .ctp-field select,
-    .ctp-field textarea {
+    .ctp-app .ctp-field input,
+    .ctp-app .ctp-field select,
+    .ctp-app .ctp-field textarea {
         width: 100%;
         max-width: 100%;
     }
 }
 
 @media (max-width: 767px) {
-    .ctp-summary-grid {
+    .ctp-app .ctp-summary-grid {
         grid-template-columns: 1fr;
     }
 
-    .ctp-dashboard-container {
+    .ctp-app .ctp-dashboard-container {
         padding: 0 1rem;
     }
 
-    .ctp-dashboard-nav {
+    .ctp-app .ctp-dashboard-nav {
         gap: 0.5rem;
     }
 
-    .ctp-dashboard-button {
+    .ctp-app .ctp-dashboard-button {
         flex: 1 1 0;
         justify-content: center;
     }
 
-    .ctp-card {
+    .ctp-app .ctp-card {
         padding: 1.2rem;
     }
 
-    .ctp-table {
+    .ctp-app .ctp-table {
         min-width: 720px;
     }
 }
 
 @media (max-width: 640px) {
-    .ctp-dashboard {
-        overflow-x: visible;
+    .ctp-app .ctp-form-grid {
+        grid-template-columns: 1fr;
     }
 
-    .ctp-table td .ctp-actions {
-        flex-direction: column;
-        align-items: stretch;
+    .ctp-app .ctp-table {
+        min-width: 0;
+        border-spacing: 0;
     }
 
-    .ctp-table td .ctp-actions .ctp-button {
+    .ctp-app .ctp-table thead {
+        display: none;
+    }
+
+    .ctp-app .ctp-table tbody,
+    .ctp-app .ctp-table tr,
+    .ctp-app .ctp-table td {
+        display: block;
         width: 100%;
+    }
+
+    .ctp-app .ctp-table tbody tr {
+        border: 1px solid #e2e8f0;
+        border-radius: 14px;
+        padding: 0.75rem 1rem;
+        background: #fff;
+        box-shadow: 0 6px 14px rgba(15, 23, 42, 0.08);
+        margin-bottom: 1rem;
+    }
+
+    .ctp-app .ctp-table tbody tr:last-child {
+        margin-bottom: 0;
+    }
+
+    .ctp-app .ctp-table td {
+        border-bottom: none;
+        padding: 0.5rem 0;
+        display: flex;
+        align-items: flex-start;
+        justify-content: space-between;
+        gap: 1rem;
+        white-space: normal;
+    }
+
+    .ctp-app .ctp-table td::before {
+        content: attr(data-label);
+        font-weight: 700;
+        font-size: 0.82rem;
+        text-transform: uppercase;
+        letter-spacing: 0.03em;
+        color: #64748b;
+    }
+
+    .ctp-app .ctp-table td.ctp-actions-cell,
+    .ctp-app .ctp-table td.ctp-table-text {
+        flex-direction: column;
+        align-items: flex-start;
+    }
+
+    .ctp-app .ctp-table td.ctp-actions-cell::before {
+        margin-bottom: 0.35rem;
+    }
+
+    .ctp-app .ctp-table td .ctp-actions {
+        flex-direction: row;
+        flex-wrap: nowrap;
+        align-items: center;
+        gap: 0.5rem;
+        overflow-x: auto;
+        padding-bottom: 0.2rem;
+    }
+
+    .ctp-app .ctp-table td .ctp-actions .ctp-button {
+        width: auto;
         justify-content: center;
+        flex: 0 0 auto;
     }
 }
 
 @media (max-width: 479px) {
-    .ctp-summary-card {
+    .ctp-app .ctp-summary-card {
         padding: 0.9rem 1rem;
     }
 
-    .ctp-summary-title {
+    .ctp-app .ctp-summary-title {
         font-size: 0.78rem;
     }
 
-    .ctp-summary-value {
+    .ctp-app .ctp-summary-value {
         font-size: 1.35rem;
     }
 
-    .ctp-summary-meta {
+    .ctp-app .ctp-summary-meta {
         font-size: 0.78rem;
     }
 }
