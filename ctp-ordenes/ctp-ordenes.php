@@ -214,6 +214,89 @@ function ctp_ordenes_format_currency($value, $decimals = 0) {
     return number_format((float) $value, $decimals, ',', '.');
 }
 
+function ctp_ordenes_is_valid_date($date, $format) {
+    if (empty($date)) {
+        return false;
+    }
+
+    $parsed = DateTime::createFromFormat($format, $date);
+    return $parsed && $parsed->format($format) === $date;
+}
+
+function ctp_ordenes_get_ordenes_periodo() {
+    $default_month = current_time('Y-m');
+    $default_start = current_time('Y-m-01');
+    $default_end = current_time('Y-m-t');
+
+    $type = isset($_GET['ctp_period']) ? sanitize_key(wp_unslash($_GET['ctp_period'])) : 'month';
+    if (!in_array($type, array('month', 'range'), true)) {
+        $type = 'month';
+    }
+
+    $month = isset($_GET['ctp_month']) ? sanitize_text_field(wp_unslash($_GET['ctp_month'])) : '';
+    $from = isset($_GET['ctp_from']) ? sanitize_text_field(wp_unslash($_GET['ctp_from'])) : '';
+    $to = isset($_GET['ctp_to']) ? sanitize_text_field(wp_unslash($_GET['ctp_to'])) : '';
+
+    $start = $default_start;
+    $end = $default_end;
+
+    if ($type === 'month') {
+        if (!ctp_ordenes_is_valid_date($month, 'Y-m')) {
+            $month = $default_month;
+        }
+        $start = $month . '-01';
+        $end = date('Y-m-t', strtotime($start));
+        $from = $start;
+        $to = $end;
+    } else {
+        $valid_from = ctp_ordenes_is_valid_date($from, 'Y-m-d');
+        $valid_to = ctp_ordenes_is_valid_date($to, 'Y-m-d');
+
+        if (!$valid_from && !$valid_to) {
+            $type = 'month';
+            $month = $default_month;
+            $start = $default_start;
+            $end = $default_end;
+            $from = $start;
+            $to = $end;
+        } else {
+            if (!$valid_from) {
+                $from = $to;
+            }
+            if (!$valid_to) {
+                $to = $from;
+            }
+
+            if (strtotime($from) > strtotime($to)) {
+                $temp = $from;
+                $from = $to;
+                $to = $temp;
+            }
+
+            $start = $from;
+            $end = $to;
+        }
+    }
+
+    $label = $type === 'month'
+        ? sprintf('Mes: %s', date_i18n('F Y', strtotime($start)))
+        : sprintf(
+            'Del %s al %s',
+            date_i18n('d/m/Y', strtotime($start)),
+            date_i18n('d/m/Y', strtotime($end))
+        );
+
+    return array(
+        'type' => $type,
+        'month' => $month ?: $default_month,
+        'from' => $from,
+        'to' => $to,
+        'start' => $start,
+        'end' => $end,
+        'label' => $label,
+    );
+}
+
 function ctp_ordenes_render_panel($title, $subtitle, $content, $extra_class = '') {
     $classes = 'ctp-panel';
     if (!empty($extra_class)) {
@@ -491,15 +574,89 @@ function ctp_listar_ordenes_shortcode() {
     global $wpdb;
     $table_name = $wpdb->prefix . 'ctp_ordenes';
 
+    $periodo = ctp_ordenes_get_ordenes_periodo();
+    $where_clause = 'fecha BETWEEN %s AND %s';
+    $where_params = array($periodo['start'], $periodo['end']);
+
     $ordenes = $wpdb->get_results(
-        "SELECT fecha, numero_orden, cliente, medida_chapa, cantidad_chapas, precio_unitario, total
-         FROM {$table_name}
-         ORDER BY fecha DESC, id DESC
-         LIMIT 50"
+        $wpdb->prepare(
+            "SELECT fecha, numero_orden, cliente, medida_chapa, cantidad_chapas, precio_unitario, total
+             FROM {$table_name}
+             WHERE {$where_clause}
+             ORDER BY fecha DESC, id DESC
+             LIMIT 50",
+            $where_params
+        )
     );
+
+    $resumen = $wpdb->get_row(
+        $wpdb->prepare(
+            "SELECT COUNT(*) AS cantidad, COALESCE(SUM(total), 0) AS total
+             FROM {$table_name}
+             WHERE {$where_clause}",
+            $where_params
+        )
+    );
+
+    $ordenes_cantidad = $resumen ? (int) $resumen->cantidad : 0;
+    $ordenes_total = $resumen ? (float) $resumen->total : 0;
+
+    $base_url = remove_query_arg(array('ctp_period', 'ctp_month', 'ctp_from', 'ctp_to'));
+    $tab = isset($_GET['tab']) ? sanitize_key(wp_unslash($_GET['tab'])) : '';
+    $from_value = $periodo['from'];
+    $to_value = $periodo['to'];
 
     ob_start();
     ?>
+    <form method="get" action="<?php echo esc_url($base_url); ?>" class="ctp-order-filter">
+        <?php if (!empty($tab)) : ?>
+            <input type="hidden" name="tab" value="<?php echo esc_attr($tab); ?>">
+        <?php endif; ?>
+        <div class="ctp-filter-fields" data-mode="<?php echo esc_attr($periodo['type']); ?>">
+            <div class="ctp-filter-type">
+                <label class="ctp-choice">
+                    <input type="radio" name="ctp_period" value="month" <?php checked($periodo['type'], 'month'); ?>>
+                    <span>Mes</span>
+                </label>
+                <label class="ctp-choice">
+                    <input type="radio" name="ctp_period" value="range" <?php checked($periodo['type'], 'range'); ?>>
+                    <span>Rango</span>
+                </label>
+            </div>
+            <div class="ctp-filter-group ctp-filter-month">
+                <div class="ctp-field">
+                    <label for="ctp-filter-month">Mes</label>
+                    <input type="month" id="ctp-filter-month" name="ctp_month" value="<?php echo esc_attr($periodo['month']); ?>">
+                </div>
+            </div>
+            <div class="ctp-filter-group ctp-filter-range">
+                <div class="ctp-field">
+                    <label for="ctp-filter-from">Desde</label>
+                    <input type="date" id="ctp-filter-from" name="ctp_from" value="<?php echo esc_attr($from_value); ?>">
+                </div>
+                <div class="ctp-field">
+                    <label for="ctp-filter-to">Hasta</label>
+                    <input type="date" id="ctp-filter-to" name="ctp_to" value="<?php echo esc_attr($to_value); ?>">
+                </div>
+            </div>
+            <div class="ctp-filter-actions">
+                <button type="submit" class="ctp-button">Aplicar</button>
+                <a class="ctp-button ctp-button-secondary" href="<?php echo esc_url($base_url); ?>">Limpiar</a>
+            </div>
+        </div>
+    </form>
+    <div class="ctp-kpi-grid">
+        <div class="ctp-kpi-card">
+            <div class="ctp-kpi-title">Total de órdenes</div>
+            <div class="ctp-kpi-value"><?php echo esc_html('Gs. ' . ctp_ordenes_format_currency($ordenes_total)); ?></div>
+            <div class="ctp-kpi-meta"><?php echo esc_html($periodo['label']); ?></div>
+        </div>
+        <div class="ctp-kpi-card">
+            <div class="ctp-kpi-title">Cantidad de órdenes</div>
+            <div class="ctp-kpi-value"><?php echo esc_html(ctp_ordenes_format_currency($ordenes_cantidad)); ?></div>
+            <div class="ctp-kpi-meta"><?php echo esc_html($periodo['label']); ?></div>
+        </div>
+    </div>
     <div class="ctp-table-wrap">
         <table class="ctp-table">
         <thead>
@@ -522,8 +679,8 @@ function ctp_listar_ordenes_shortcode() {
                         <td data-label="Cliente"><?php echo esc_html($orden->cliente); ?></td>
                         <td data-label="Medida"><?php echo esc_html($orden->medida_chapa); ?></td>
                         <td data-label="Cantidad"><?php echo esc_html($orden->cantidad_chapas); ?></td>
-                        <td data-label="Unitario"><?php echo esc_html(ctp_ordenes_format_currency($orden->precio_unitario)); ?></td>
-                        <td data-label="Total"><?php echo esc_html(ctp_ordenes_format_currency($orden->total)); ?></td>
+                        <td data-label="Unitario"><?php echo esc_html('Gs. ' . ctp_ordenes_format_currency($orden->precio_unitario)); ?></td>
+                        <td data-label="Total"><?php echo esc_html('Gs. ' . ctp_ordenes_format_currency($orden->total)); ?></td>
                     </tr>
                 <?php endforeach; ?>
             <?php else : ?>
@@ -537,8 +694,8 @@ function ctp_listar_ordenes_shortcode() {
     <?php
     $table_html = ob_get_clean();
     $html = ctp_ordenes_render_panel(
-        'Últimas órdenes',
-        'Las 50 órdenes más recientes registradas.',
+        'Órdenes del período',
+        'Listado filtrado según el período seleccionado (máximo 50 órdenes).',
         $table_html
     );
     if (!empty($GLOBALS['ctp_in_dashboard'])) {
