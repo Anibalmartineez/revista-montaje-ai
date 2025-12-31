@@ -198,8 +198,47 @@ function ctp_ordenes_render_alerts($mensajes) {
     }
 }
 
-function ctp_wrap($html) {
-    return '<div class="ctp-app ctp-dashboard"><div class="ctp-dashboard-container"><div class="ctp-dashboard-content">' . $html . '</div></div></div>';
+function ctp_ordenes_wrap($html, $class = '') {
+    $classes = 'ctp-app';
+    if (!empty($class)) {
+        $classes .= ' ' . $class;
+    }
+    return '<div class="' . esc_attr($classes) . '"><div class="ctp-shell"><div class="ctp-shell-content">' . $html . '</div></div></div>';
+}
+
+function ctp_ordenes_get_medidas_chapa() {
+    return array('510x400', '650x550', '745x605', '1030x770');
+}
+
+function ctp_ordenes_format_currency($value, $decimals = 0) {
+    return number_format((float) $value, $decimals, ',', '.');
+}
+
+function ctp_ordenes_render_panel($title, $subtitle, $content, $extra_class = '') {
+    $classes = 'ctp-panel';
+    if (!empty($extra_class)) {
+        $classes .= ' ' . $extra_class;
+    }
+
+    ob_start();
+    ?>
+    <div class="<?php echo esc_attr($classes); ?>">
+        <?php if (!empty($title) || !empty($subtitle)) : ?>
+            <div class="ctp-panel-header">
+                <?php if (!empty($title)) : ?>
+                    <h3 class="ctp-panel-title"><?php echo esc_html($title); ?></h3>
+                <?php endif; ?>
+                <?php if (!empty($subtitle)) : ?>
+                    <p class="ctp-panel-subtitle"><?php echo esc_html($subtitle); ?></p>
+                <?php endif; ?>
+            </div>
+        <?php endif; ?>
+        <div class="ctp-panel-body">
+            <?php echo $content; ?>
+        </div>
+    </div>
+    <?php
+    return ob_get_clean();
 }
 
 function ctp_ordenes_recalculate_factura($factura_id) {
@@ -294,7 +333,7 @@ function ctp_cargar_orden_shortcode() {
             if ($cantidad_chapas < 1) {
                 $cantidad_chapas = 1;
             }
-            $medidas_validas = array('510x400', '650x550', '745x605', '1030x770');
+            $medidas_validas = ctp_ordenes_get_medidas_chapa();
             if (!in_array($medida_chapa, $medidas_validas, true)) {
                 $errores[] = 'Selecciona una medida de chapa válida.';
             }
@@ -349,34 +388,14 @@ function ctp_cargar_orden_shortcode() {
     $cliente_val = !empty($_POST['cliente']) ? sanitize_text_field($_POST['cliente']) : '';
     $descripcion_val = !empty($_POST['descripcion']) ? sanitize_textarea_field($_POST['descripcion']) : '';
     $cantidad_val = !empty($_POST['cantidad_chapas']) ? absint($_POST['cantidad_chapas']) : 1;
-    $medida_val = !empty($_POST['medida_chapa']) ? sanitize_text_field($_POST['medida_chapa']) : '510x400';
+    $medidas = ctp_ordenes_get_medidas_chapa();
+    $medida_val = !empty($_POST['medida_chapa']) ? sanitize_text_field($_POST['medida_chapa']) : $medidas[0];
     $precio_val = isset($_POST['precio_unitario']) ? floatval($_POST['precio_unitario']) : 0;
     $total_val = $cantidad_val * $precio_val;
 
     ob_start();
     ?>
-    <div class="ctp-card ctp-form-wrap">
-        <div class="ctp-card-header">
-            <h3 class="ctp-card-title">Nueva orden</h3>
-            <p class="ctp-card-subtitle">Registra una orden y calcula el total automáticamente.</p>
-        </div>
-        <?php if (!empty($mensaje)) : ?>
-            <div class="ctp-alert ctp-alert-success">
-                <?php echo esc_html($mensaje); ?>
-            </div>
-        <?php endif; ?>
-
-        <?php if (!empty($errores)) : ?>
-            <div class="ctp-alert ctp-alert-error">
-                <ul>
-                    <?php foreach ($errores as $error) : ?>
-                        <li><?php echo esc_html($error); ?></li>
-                    <?php endforeach; ?>
-                </ul>
-            </div>
-        <?php endif; ?>
-
-        <form method="post" class="ctp-form ctp-form-grid">
+    <form method="post" class="ctp-form ctp-form-grid ctp-order-form">
             <?php wp_nonce_field('ctp_cargar_orden', 'ctp_cargar_orden_nonce'); ?>
             <input type="hidden" name="ctp_cargar_orden_submit" value="1">
 
@@ -409,7 +428,6 @@ function ctp_cargar_orden_shortcode() {
                 <label for="ctp-medida">Medida de chapa</label>
                 <select id="ctp-medida" name="medida_chapa" required>
                     <?php
-                    $medidas = array('510x400', '650x550', '745x605', '1030x770');
                     foreach ($medidas as $medida) :
                         $selected = $medida === $medida_val ? 'selected' : '';
                         ?>
@@ -434,13 +452,33 @@ function ctp_cargar_orden_shortcode() {
                 <button type="submit" class="ctp-button">Guardar orden</button>
             </div>
         </form>
-    </div>
     <?php
-    $html = ob_get_clean();
+    $form_html = ob_get_clean();
+
+    ob_start();
+    if (!empty($mensaje)) {
+        echo '<div class="ctp-alert ctp-alert-success">' . esc_html($mensaje) . '</div>';
+    }
+    if (!empty($errores)) {
+        echo '<div class="ctp-alert ctp-alert-error"><ul>';
+        foreach ($errores as $error) {
+            echo '<li>' . esc_html($error) . '</li>';
+        }
+        echo '</ul></div>';
+    }
+    echo $form_html;
+    $panel_body = ob_get_clean();
+
+    $html = ctp_ordenes_render_panel(
+        'Nueva orden',
+        'Registra una orden y calcula el total automáticamente.',
+        $panel_body,
+        'ctp-panel-form'
+    );
     if (!empty($GLOBALS['ctp_in_dashboard'])) {
         return $html;
     }
-    return ctp_wrap($html);
+    return ctp_ordenes_wrap($html, 'ctp-shell-page');
 }
 add_shortcode('ctp_cargar_orden', 'ctp_cargar_orden_shortcode');
 
@@ -462,52 +500,51 @@ function ctp_listar_ordenes_shortcode() {
 
     ob_start();
     ?>
-    <div class="ctp-card">
-        <div class="ctp-card-header">
-            <h3 class="ctp-card-title">Últimas órdenes</h3>
-            <p class="ctp-card-subtitle">Las 50 órdenes más recientes registradas.</p>
-        </div>
-        <div class="ctp-table-wrap">
-            <table class="ctp-table">
-            <thead>
-                <tr>
-                    <th>Fecha</th>
-                    <th>Nº Orden</th>
-                    <th>Cliente</th>
-                    <th>Medida</th>
-                    <th>Cantidad</th>
-                    <th>Unitario</th>
-                    <th>Total</th>
-                </tr>
-            </thead>
-            <tbody>
-                <?php if (!empty($ordenes)) : ?>
-                    <?php foreach ($ordenes as $orden) : ?>
-                        <tr>
-                            <td data-label="Fecha"><?php echo esc_html($orden->fecha); ?></td>
-                            <td data-label="Nº Orden"><?php echo esc_html($orden->numero_orden); ?></td>
-                            <td data-label="Cliente"><?php echo esc_html($orden->cliente); ?></td>
-                            <td data-label="Medida"><?php echo esc_html($orden->medida_chapa); ?></td>
-                            <td data-label="Cantidad"><?php echo esc_html($orden->cantidad_chapas); ?></td>
-                            <td data-label="Unitario"><?php echo esc_html(number_format((float) $orden->precio_unitario, 0, ',', '.')); ?></td>
-                            <td data-label="Total"><?php echo esc_html(number_format((float) $orden->total, 0, ',', '.')); ?></td>
-                        </tr>
-                    <?php endforeach; ?>
-                <?php else : ?>
+    <div class="ctp-table-wrap">
+        <table class="ctp-table">
+        <thead>
+            <tr>
+                <th>Fecha</th>
+                <th>Nº Orden</th>
+                <th>Cliente</th>
+                <th>Medida</th>
+                <th>Cantidad</th>
+                <th>Unitario</th>
+                <th>Total</th>
+            </tr>
+        </thead>
+        <tbody>
+            <?php if (!empty($ordenes)) : ?>
+                <?php foreach ($ordenes as $orden) : ?>
                     <tr>
-                        <td colspan="7">No hay órdenes registradas.</td>
+                        <td data-label="Fecha"><?php echo esc_html($orden->fecha); ?></td>
+                        <td data-label="Nº Orden"><?php echo esc_html($orden->numero_orden); ?></td>
+                        <td data-label="Cliente"><?php echo esc_html($orden->cliente); ?></td>
+                        <td data-label="Medida"><?php echo esc_html($orden->medida_chapa); ?></td>
+                        <td data-label="Cantidad"><?php echo esc_html($orden->cantidad_chapas); ?></td>
+                        <td data-label="Unitario"><?php echo esc_html(ctp_ordenes_format_currency($orden->precio_unitario)); ?></td>
+                        <td data-label="Total"><?php echo esc_html(ctp_ordenes_format_currency($orden->total)); ?></td>
                     </tr>
-                <?php endif; ?>
-            </tbody>
-            </table>
-        </div>
+                <?php endforeach; ?>
+            <?php else : ?>
+                <tr>
+                    <td colspan="7">No hay órdenes registradas.</td>
+                </tr>
+            <?php endif; ?>
+        </tbody>
+        </table>
     </div>
     <?php
-    $html = ob_get_clean();
+    $table_html = ob_get_clean();
+    $html = ctp_ordenes_render_panel(
+        'Últimas órdenes',
+        'Las 50 órdenes más recientes registradas.',
+        $table_html
+    );
     if (!empty($GLOBALS['ctp_in_dashboard'])) {
         return $html;
     }
-    return ctp_wrap($html);
+    return ctp_ordenes_wrap($html, 'ctp-shell-page');
 }
 add_shortcode('ctp_listar_ordenes', 'ctp_listar_ordenes_shortcode');
 
@@ -639,12 +676,10 @@ function ctp_proveedores_shortcode() {
     ?>
     <?php ctp_ordenes_render_alerts($mensajes); ?>
     <div class="ctp-stack">
-        <div class="ctp-card ctp-form-wrap">
-            <div class="ctp-card-header">
-                <h3 class="ctp-card-title">Nuevo proveedor</h3>
-                <p class="ctp-card-subtitle">Agrega un proveedor para asociarlo a facturas y pagos.</p>
-            </div>
-            <form method="post" class="ctp-form ctp-form-grid">
+        <?php
+        ob_start();
+        ?>
+        <form method="post" class="ctp-form ctp-form-grid">
             <?php wp_nonce_field('ctp_proveedor_add', 'ctp_proveedor_nonce'); ?>
             <input type="hidden" name="ctp_proveedor_action" value="add">
 
@@ -677,93 +712,107 @@ function ctp_proveedores_shortcode() {
                 <button type="submit" class="ctp-button">Agregar proveedor</button>
             </div>
         </form>
-        </div>
+        <?php
+        $form_html = ob_get_clean();
+        echo ctp_ordenes_render_panel(
+            'Nuevo proveedor',
+            'Agrega un proveedor para asociarlo a facturas y pagos.',
+            $form_html,
+            'ctp-panel-form'
+        );
 
-        <div class="ctp-card">
-            <div class="ctp-card-header">
-                <h3 class="ctp-card-title">Proveedores registrados</h3>
-                <p class="ctp-card-subtitle">Gestiona los datos principales de cada proveedor.</p>
-            </div>
-            <div class="ctp-table-wrap">
-                <table class="ctp-table">
-            <thead>
-                <tr>
-                    <th>Nombre</th>
-                    <th>RUC</th>
-                    <th>Teléfono</th>
-                    <th>Email</th>
-                    <th class="ctp-table-text">Notas</th>
-                    <th class="ctp-actions-cell">Acciones</th>
-                </tr>
-            </thead>
-            <tbody>
-                <?php if (!empty($proveedores)) : ?>
-                    <?php foreach ($proveedores as $proveedor) : ?>
-                        <tr>
-                            <td data-label="Nombre"><?php echo esc_html($proveedor->nombre); ?></td>
-                            <td data-label="RUC"><?php echo esc_html($proveedor->ruc); ?></td>
-                            <td data-label="Teléfono"><?php echo esc_html($proveedor->telefono); ?></td>
-                            <td data-label="Email"><?php echo esc_html($proveedor->email); ?></td>
-                            <td class="ctp-table-text" data-label="Notas"><?php echo esc_html($proveedor->notas); ?></td>
-                            <td class="ctp-actions-cell" data-label="Acciones">
-                                <div class="ctp-actions">
-                                    <details class="ctp-details">
-                                        <summary class="ctp-button ctp-button-secondary">Editar</summary>
-                                        <div class="ctp-details-panel">
-                                            <form method="post" class="ctp-inline-form ctp-form-grid">
-                                                <?php wp_nonce_field('ctp_proveedor_edit', 'ctp_proveedor_nonce'); ?>
-                                                <input type="hidden" name="ctp_proveedor_action" value="edit">
-                                                <input type="hidden" name="proveedor_id" value="<?php echo esc_attr($proveedor->id); ?>">
-                                                <div class="ctp-field">
-                                                    <label>Nombre</label>
-                                                    <input type="text" name="nombre" required value="<?php echo esc_attr($proveedor->nombre); ?>">
-                                                </div>
-                                                <div class="ctp-field">
-                                                    <label>RUC</label>
-                                                    <input type="text" name="ruc" value="<?php echo esc_attr($proveedor->ruc); ?>">
-                                                </div>
-                                                <div class="ctp-field">
-                                                    <label>Teléfono</label>
-                                                    <input type="text" name="telefono" value="<?php echo esc_attr($proveedor->telefono); ?>">
-                                                </div>
-                                                <div class="ctp-field">
-                                                    <label>Email</label>
-                                                    <input type="email" name="email" value="<?php echo esc_attr($proveedor->email); ?>">
-                                                </div>
-                                                <div class="ctp-field ctp-field-full">
-                                                    <label>Notas</label>
-                                                    <textarea name="notas" rows="2"><?php echo esc_textarea($proveedor->notas); ?></textarea>
-                                                </div>
-                                                <button type="submit" class="ctp-button ctp-field-full">Guardar</button>
-                                            </form>
-                                        </div>
-                                    </details>
-                                    <form method="post" class="ctp-inline-form">
-                                        <?php wp_nonce_field('ctp_proveedor_delete', 'ctp_proveedor_nonce'); ?>
-                                        <input type="hidden" name="ctp_proveedor_action" value="delete">
-                                        <input type="hidden" name="proveedor_id" value="<?php echo esc_attr($proveedor->id); ?>">
-                                        <button type="submit" class="ctp-button ctp-button-danger" onclick="return confirm('¿Seguro que deseas eliminar?')">Eliminar</button>
-                                    </form>
-                                </div>
-                            </td>
-                        </tr>
-                    <?php endforeach; ?>
-                <?php else : ?>
+        ob_start();
+        ?>
+        <div class="ctp-table-wrap">
+            <table class="ctp-table">
+                <thead>
                     <tr>
-                        <td colspan="6">No hay proveedores registrados.</td>
+                        <th>Nombre</th>
+                        <th>RUC</th>
+                        <th>Teléfono</th>
+                        <th>Email</th>
+                        <th class="ctp-table-text">Notas</th>
+                        <th class="ctp-actions-cell">Acciones</th>
                     </tr>
-                <?php endif; ?>
-            </tbody>
-                </table>
-            </div>
+                </thead>
+                <tbody>
+                    <?php if (!empty($proveedores)) : ?>
+                        <?php foreach ($proveedores as $proveedor) : ?>
+                            <?php
+                            $proveedor_id = (int) $proveedor->id;
+                            ?>
+                            <tr>
+                                <td data-label="Nombre"><?php echo esc_html($proveedor->nombre); ?></td>
+                                <td data-label="RUC"><?php echo esc_html($proveedor->ruc); ?></td>
+                                <td data-label="Teléfono"><?php echo esc_html($proveedor->telefono); ?></td>
+                                <td data-label="Email"><?php echo esc_html($proveedor->email); ?></td>
+                                <td class="ctp-table-text" data-label="Notas"><?php echo esc_html($proveedor->notas); ?></td>
+                                <td class="ctp-actions-cell" data-label="Acciones">
+                                    <div class="ctp-actions">
+                                        <details class="ctp-details">
+                                            <summary class="ctp-button ctp-button-secondary">Editar</summary>
+                                            <div class="ctp-details-panel">
+                                                <form method="post" class="ctp-inline-form ctp-form-grid">
+                                                    <?php wp_nonce_field('ctp_proveedor_edit', 'ctp_proveedor_nonce'); ?>
+                                                    <input type="hidden" name="ctp_proveedor_action" value="edit">
+                                                    <input type="hidden" name="proveedor_id" value="<?php echo esc_attr($proveedor_id); ?>">
+                                                    <div class="ctp-field">
+                                                        <label for="ctp-proveedor-nombre-<?php echo esc_attr($proveedor_id); ?>">Nombre</label>
+                                                        <input type="text" id="ctp-proveedor-nombre-<?php echo esc_attr($proveedor_id); ?>" name="nombre" required value="<?php echo esc_attr($proveedor->nombre); ?>">
+                                                    </div>
+                                                    <div class="ctp-field">
+                                                        <label for="ctp-proveedor-ruc-<?php echo esc_attr($proveedor_id); ?>">RUC</label>
+                                                        <input type="text" id="ctp-proveedor-ruc-<?php echo esc_attr($proveedor_id); ?>" name="ruc" value="<?php echo esc_attr($proveedor->ruc); ?>">
+                                                    </div>
+                                                    <div class="ctp-field">
+                                                        <label for="ctp-proveedor-telefono-<?php echo esc_attr($proveedor_id); ?>">Teléfono</label>
+                                                        <input type="text" id="ctp-proveedor-telefono-<?php echo esc_attr($proveedor_id); ?>" name="telefono" value="<?php echo esc_attr($proveedor->telefono); ?>">
+                                                    </div>
+                                                    <div class="ctp-field">
+                                                        <label for="ctp-proveedor-email-<?php echo esc_attr($proveedor_id); ?>">Email</label>
+                                                        <input type="email" id="ctp-proveedor-email-<?php echo esc_attr($proveedor_id); ?>" name="email" value="<?php echo esc_attr($proveedor->email); ?>">
+                                                    </div>
+                                                    <div class="ctp-field ctp-field-full">
+                                                        <label for="ctp-proveedor-notas-<?php echo esc_attr($proveedor_id); ?>">Notas</label>
+                                                        <textarea id="ctp-proveedor-notas-<?php echo esc_attr($proveedor_id); ?>" name="notas" rows="2"><?php echo esc_textarea($proveedor->notas); ?></textarea>
+                                                    </div>
+                                                    <button type="submit" class="ctp-button ctp-field-full">Guardar</button>
+                                                </form>
+                                            </div>
+                                        </details>
+                                        <form method="post" class="ctp-inline-form">
+                                            <?php wp_nonce_field('ctp_proveedor_delete', 'ctp_proveedor_nonce'); ?>
+                                            <input type="hidden" name="ctp_proveedor_action" value="delete">
+                                            <input type="hidden" name="proveedor_id" value="<?php echo esc_attr($proveedor_id); ?>">
+                                            <button type="submit" class="ctp-button ctp-button-danger" onclick="return confirm('¿Seguro que deseas eliminar?')">Eliminar</button>
+                                        </form>
+                                    </div>
+                                </td>
+                            </tr>
+                        <?php endforeach; ?>
+                    <?php else : ?>
+                        <tr>
+                            <td colspan="6">No hay proveedores registrados.</td>
+                        </tr>
+                    <?php endif; ?>
+                </tbody>
+            </table>
         </div>
+        <?php
+        $table_html = ob_get_clean();
+        echo ctp_ordenes_render_panel(
+            'Proveedores registrados',
+            'Gestiona los datos principales de cada proveedor.',
+            $table_html
+        );
+        ?>
     </div>
     <?php
     $html = ob_get_clean();
     if (!empty($GLOBALS['ctp_in_dashboard'])) {
         return $html;
     }
-    return ctp_wrap($html);
+    return ctp_ordenes_wrap($html, 'ctp-shell-page');
 }
 add_shortcode('ctp_proveedores', 'ctp_proveedores_shortcode');
 
@@ -1000,12 +1049,10 @@ function ctp_facturas_proveedor_shortcode() {
     ?>
     <?php ctp_ordenes_render_alerts($mensajes); ?>
     <div class="ctp-stack">
-        <div class="ctp-card ctp-form-wrap">
-            <div class="ctp-card-header">
-                <h3 class="ctp-card-title">Registrar factura</h3>
-                <p class="ctp-card-subtitle">Carga la factura y controla su estado de pago.</p>
-            </div>
-            <form method="post" class="ctp-form ctp-form-grid">
+        <?php
+        ob_start();
+        ?>
+        <form method="post" class="ctp-form ctp-form-grid">
             <?php wp_nonce_field('ctp_factura_add', 'ctp_factura_nonce'); ?>
             <input type="hidden" name="ctp_factura_action" value="add_factura">
 
@@ -1048,14 +1095,18 @@ function ctp_facturas_proveedor_shortcode() {
                 <button type="submit" class="ctp-button">Registrar factura</button>
             </div>
         </form>
-        </div>
+        <?php
+        $form_html = ob_get_clean();
+        echo ctp_ordenes_render_panel(
+            'Registrar factura',
+            'Carga la factura y controla su estado de pago.',
+            $form_html,
+            'ctp-panel-form'
+        );
 
-        <div class="ctp-card ctp-form-wrap ctp-filters">
-            <div class="ctp-card-header">
-                <h3 class="ctp-card-title">Filtrar facturas</h3>
-                <p class="ctp-card-subtitle">Aplica filtros para encontrar pagos pendientes o parciales.</p>
-            </div>
-            <form method="get" class="ctp-form ctp-form-inline">
+        ob_start();
+        ?>
+        <form method="get" class="ctp-form ctp-form-inline">
             <div class="ctp-field">
                 <label for="ctp-filter-estado">Estado</label>
                 <select id="ctp-filter-estado" name="estado">
@@ -1082,152 +1133,162 @@ function ctp_facturas_proveedor_shortcode() {
                 <button type="submit" class="ctp-button ctp-button-secondary">Filtrar</button>
             </div>
         </form>
-        </div>
+        <?php
+        $filters_html = ob_get_clean();
+        echo ctp_ordenes_render_panel(
+            'Filtrar facturas',
+            'Aplica filtros para encontrar pagos pendientes o parciales.',
+            $filters_html,
+            'ctp-panel-filters'
+        );
 
-        <div class="ctp-card">
-            <div class="ctp-card-header">
-                <h3 class="ctp-card-title">Facturas registradas</h3>
-                <p class="ctp-card-subtitle">Seguimiento de saldos y pagos por proveedor.</p>
-            </div>
-            <div class="ctp-table-wrap">
-                <table class="ctp-table">
-            <thead>
-                <tr>
-                    <th>Fecha</th>
-                    <th>Proveedor</th>
-                    <th>Nro</th>
-                    <th>Monto</th>
-                    <th>Pagado</th>
-                    <th>Saldo</th>
-                    <th>Estado</th>
-                    <th class="ctp-actions-cell">Acciones</th>
-                </tr>
-            </thead>
-            <tbody>
-                <?php if (!empty($facturas)) : ?>
-                    <?php foreach ($facturas as $factura) : ?>
-                        <tr>
-                            <td data-label="Fecha"><?php echo esc_html($factura->fecha_factura); ?></td>
-                            <td data-label="Proveedor"><?php echo esc_html($factura->proveedor_nombre ?: ''); ?></td>
-                            <td data-label="Nro"><?php echo esc_html($factura->nro_factura); ?></td>
-                            <td data-label="Monto"><?php echo esc_html(number_format((float) $factura->monto_total, 0, ',', '.')); ?></td>
-                            <td data-label="Pagado"><?php echo esc_html(number_format((float) $factura->monto_pagado, 0, ',', '.')); ?></td>
-                            <td data-label="Saldo"><?php echo esc_html(number_format((float) $factura->saldo, 0, ',', '.')); ?></td>
-                            <td class="ctp-actions-cell" data-label="Estado">
-                                <span class="ctp-status ctp-status-<?php echo esc_attr($factura->estado_pago); ?>">
-                                    <?php echo esc_html(ucfirst($factura->estado_pago)); ?>
-                                </span>
-                            </td>
-                            <td data-label="Acciones">
-                                <div class="ctp-actions">
-                                    <details class="ctp-details">
-                                        <summary class="ctp-button ctp-button-secondary">Registrar pago</summary>
-                                        <div class="ctp-details-panel">
-                                            <form method="post" class="ctp-inline-form ctp-form-grid">
-                                                <?php wp_nonce_field('ctp_pago_add', 'ctp_factura_nonce'); ?>
-                                                <input type="hidden" name="ctp_factura_action" value="add_pago">
-                                                <input type="hidden" name="factura_id" value="<?php echo esc_attr($factura->id); ?>">
-                                                <div class="ctp-field">
-                                                    <label>Fecha de pago</label>
-                                                    <input type="date" name="fecha_pago" value="<?php echo esc_attr(current_time('Y-m-d')); ?>">
-                                                </div>
-                                                <div class="ctp-field">
-                                                    <label>Monto</label>
-                                                    <input type="number" name="monto" step="0.01" min="0.01" required>
-                                                </div>
-                                                <div class="ctp-field">
-                                                    <label>Método</label>
-                                                    <select name="metodo">
-                                                        <option value="">Selecciona</option>
-                                                        <option value="efectivo">Efectivo</option>
-                                                        <option value="transferencia">Transferencia</option>
-                                                        <option value="cheque">Cheque</option>
-                                                        <option value="otro">Otro</option>
-                                                    </select>
-                                                </div>
-                                                <div class="ctp-field">
-                                                    <label>Nota</label>
-                                                    <input type="text" name="nota">
-                                                </div>
-                                                <button type="submit" class="ctp-button ctp-field-full">Guardar pago</button>
-                                            </form>
-                                        </div>
-                                    </details>
-                                    <details class="ctp-details">
-                                        <summary class="ctp-button ctp-button-secondary">Ver pagos</summary>
-                                        <?php
-                                        $pagos = $wpdb->get_results(
-                                            $wpdb->prepare(
-                                                "SELECT fecha_pago, monto, metodo, nota FROM {$table_pagos}
-                                                 WHERE factura_id = %d
-                                                 ORDER BY fecha_pago DESC, id DESC",
-                                                $factura->id
-                                            )
-                                        );
-                                        ?>
-                                        <div class="ctp-details-panel ctp-payments">
-                                            <?php if (!empty($pagos)) : ?>
-                                                <table class="ctp-table ctp-table-small">
-                                                    <thead>
-                                                        <tr>
-                                                            <th>Fecha</th>
-                                                            <th>Monto</th>
-                                                            <th>Método</th>
-                                                            <th class="ctp-table-text">Nota</th>
-                                                        </tr>
-                                                    </thead>
-                                                    <tbody>
-                                                        <?php foreach ($pagos as $pago) : ?>
-                                                            <tr>
-                                                                <td data-label="Fecha"><?php echo esc_html($pago->fecha_pago); ?></td>
-                                                                <td data-label="Monto"><?php echo esc_html(number_format((float) $pago->monto, 0, ',', '.')); ?></td>
-                                                                <td data-label="Método"><?php echo esc_html($pago->metodo); ?></td>
-                                                                <td class="ctp-table-text" data-label="Nota"><?php echo esc_html($pago->nota); ?></td>
-                                                            </tr>
-                                                        <?php endforeach; ?>
-                                                    </tbody>
-                                                </table>
-                                            <?php else : ?>
-                                                <p>No hay pagos registrados.</p>
-                                            <?php endif; ?>
-                                        </div>
-                                    </details>
-                                    <?php
-                                    $tiene_pagos = (int) $wpdb->get_var(
-                                        $wpdb->prepare(
-                                            "SELECT COUNT(*) FROM {$table_pagos} WHERE factura_id = %d",
-                                            $factura->id
-                                        )
-                                    );
-                                    ?>
-                                    <?php if ($tiene_pagos === 0) : ?>
-                                        <form method="post" class="ctp-inline-form">
-                                            <?php wp_nonce_field('ctp_factura_delete', 'ctp_factura_nonce'); ?>
-                                            <input type="hidden" name="ctp_factura_action" value="delete_factura">
-                                            <input type="hidden" name="factura_id" value="<?php echo esc_attr($factura->id); ?>">
-                                            <button type="submit" class="ctp-button ctp-button-danger" onclick="return confirm('¿Seguro que deseas eliminar?')">Eliminar</button>
-                                        </form>
-                                    <?php endif; ?>
-                                </div>
-                            </td>
-                        </tr>
-                    <?php endforeach; ?>
-                <?php else : ?>
+        ob_start();
+        ?>
+        <div class="ctp-table-wrap">
+            <table class="ctp-table">
+                <thead>
                     <tr>
-                        <td colspan="8">No hay facturas registradas.</td>
+                        <th>Fecha</th>
+                        <th>Proveedor</th>
+                        <th>Nro</th>
+                        <th>Monto</th>
+                        <th>Pagado</th>
+                        <th>Saldo</th>
+                        <th>Estado</th>
+                        <th class="ctp-actions-cell">Acciones</th>
                     </tr>
-                <?php endif; ?>
-            </tbody>
-                </table>
-            </div>
+                </thead>
+                <tbody>
+                    <?php if (!empty($facturas)) : ?>
+                        <?php foreach ($facturas as $factura) : ?>
+                            <?php
+                            $factura_id = (int) $factura->id;
+                            $pagos = $wpdb->get_results(
+                                $wpdb->prepare(
+                                    "SELECT fecha_pago, monto, metodo, nota FROM {$table_pagos}
+                                     WHERE factura_id = %d
+                                     ORDER BY fecha_pago DESC, id DESC",
+                                    $factura_id
+                                )
+                            );
+                            $tiene_pagos = (int) $wpdb->get_var(
+                                $wpdb->prepare(
+                                    "SELECT COUNT(*) FROM {$table_pagos} WHERE factura_id = %d",
+                                    $factura_id
+                                )
+                            );
+                            ?>
+                            <tr>
+                                <td data-label="Fecha"><?php echo esc_html($factura->fecha_factura); ?></td>
+                                <td data-label="Proveedor"><?php echo esc_html($factura->proveedor_nombre ?: ''); ?></td>
+                                <td data-label="Nro"><?php echo esc_html($factura->nro_factura); ?></td>
+                                <td data-label="Monto"><?php echo esc_html(ctp_ordenes_format_currency($factura->monto_total)); ?></td>
+                                <td data-label="Pagado"><?php echo esc_html(ctp_ordenes_format_currency($factura->monto_pagado)); ?></td>
+                                <td data-label="Saldo"><?php echo esc_html(ctp_ordenes_format_currency($factura->saldo)); ?></td>
+                                <td class="ctp-actions-cell" data-label="Estado">
+                                    <span class="ctp-badge ctp-badge-<?php echo esc_attr($factura->estado_pago); ?>">
+                                        <?php echo esc_html(ucfirst($factura->estado_pago)); ?>
+                                    </span>
+                                </td>
+                                <td data-label="Acciones">
+                                    <div class="ctp-actions">
+                                        <details class="ctp-details">
+                                            <summary class="ctp-button ctp-button-secondary">Registrar pago</summary>
+                                            <div class="ctp-details-panel">
+                                                <form method="post" class="ctp-inline-form ctp-form-grid">
+                                                    <?php wp_nonce_field('ctp_pago_add', 'ctp_factura_nonce'); ?>
+                                                    <input type="hidden" name="ctp_factura_action" value="add_pago">
+                                                    <input type="hidden" name="factura_id" value="<?php echo esc_attr($factura_id); ?>">
+                                                    <div class="ctp-field">
+                                                        <label for="ctp-pago-fecha-<?php echo esc_attr($factura_id); ?>">Fecha de pago</label>
+                                                        <input type="date" id="ctp-pago-fecha-<?php echo esc_attr($factura_id); ?>" name="fecha_pago" value="<?php echo esc_attr(current_time('Y-m-d')); ?>">
+                                                    </div>
+                                                    <div class="ctp-field">
+                                                        <label for="ctp-pago-monto-<?php echo esc_attr($factura_id); ?>">Monto</label>
+                                                        <input type="number" id="ctp-pago-monto-<?php echo esc_attr($factura_id); ?>" name="monto" step="0.01" min="0.01" required>
+                                                    </div>
+                                                    <div class="ctp-field">
+                                                        <label for="ctp-pago-metodo-<?php echo esc_attr($factura_id); ?>">Método</label>
+                                                        <select id="ctp-pago-metodo-<?php echo esc_attr($factura_id); ?>" name="metodo">
+                                                            <option value="">Selecciona</option>
+                                                            <option value="efectivo">Efectivo</option>
+                                                            <option value="transferencia">Transferencia</option>
+                                                            <option value="cheque">Cheque</option>
+                                                            <option value="otro">Otro</option>
+                                                        </select>
+                                                    </div>
+                                                    <div class="ctp-field">
+                                                        <label for="ctp-pago-nota-<?php echo esc_attr($factura_id); ?>">Nota</label>
+                                                        <input type="text" id="ctp-pago-nota-<?php echo esc_attr($factura_id); ?>" name="nota">
+                                                    </div>
+                                                    <button type="submit" class="ctp-button ctp-field-full">Guardar pago</button>
+                                                </form>
+                                            </div>
+                                        </details>
+                                        <details class="ctp-details">
+                                            <summary class="ctp-button ctp-button-secondary">Ver pagos</summary>
+                                            <div class="ctp-details-panel ctp-payments">
+                                                <?php if (!empty($pagos)) : ?>
+                                                    <table class="ctp-table ctp-table-small">
+                                                        <thead>
+                                                            <tr>
+                                                                <th>Fecha</th>
+                                                                <th>Monto</th>
+                                                                <th>Método</th>
+                                                                <th class="ctp-table-text">Nota</th>
+                                                            </tr>
+                                                        </thead>
+                                                        <tbody>
+                                                            <?php foreach ($pagos as $pago) : ?>
+                                                                <tr>
+                                                                    <td data-label="Fecha"><?php echo esc_html($pago->fecha_pago); ?></td>
+                                                                    <td data-label="Monto"><?php echo esc_html(ctp_ordenes_format_currency($pago->monto)); ?></td>
+                                                                    <td data-label="Método"><?php echo esc_html($pago->metodo); ?></td>
+                                                                    <td class="ctp-table-text" data-label="Nota"><?php echo esc_html($pago->nota); ?></td>
+                                                                </tr>
+                                                            <?php endforeach; ?>
+                                                        </tbody>
+                                                    </table>
+                                                <?php else : ?>
+                                                    <p>No hay pagos registrados.</p>
+                                                <?php endif; ?>
+                                            </div>
+                                        </details>
+                                        <?php if ($tiene_pagos === 0) : ?>
+                                            <form method="post" class="ctp-inline-form">
+                                                <?php wp_nonce_field('ctp_factura_delete', 'ctp_factura_nonce'); ?>
+                                                <input type="hidden" name="ctp_factura_action" value="delete_factura">
+                                                <input type="hidden" name="factura_id" value="<?php echo esc_attr($factura_id); ?>">
+                                                <button type="submit" class="ctp-button ctp-button-danger" onclick="return confirm('¿Seguro que deseas eliminar?')">Eliminar</button>
+                                            </form>
+                                        <?php endif; ?>
+                                    </div>
+                                </td>
+                            </tr>
+                        <?php endforeach; ?>
+                    <?php else : ?>
+                        <tr>
+                            <td colspan="8">No hay facturas registradas.</td>
+                        </tr>
+                    <?php endif; ?>
+                </tbody>
+            </table>
         </div>
+        <?php
+        $table_html = ob_get_clean();
+        echo ctp_ordenes_render_panel(
+            'Facturas registradas',
+            'Seguimiento de saldos y pagos por proveedor.',
+            $table_html
+        );
+        ?>
     </div>
     <?php
     $html = ob_get_clean();
     if (!empty($GLOBALS['ctp_in_dashboard'])) {
         return $html;
     }
-    return ctp_wrap($html);
+    return ctp_ordenes_wrap($html, 'ctp-shell-page');
 }
 add_shortcode('ctp_facturas_proveedor', 'ctp_facturas_proveedor_shortcode');
 
@@ -1259,7 +1320,7 @@ function ctp_dashboard_shortcode() {
     $saldo_pendiente = (float) $wpdb->get_var(
         "SELECT COALESCE(SUM(saldo), 0) FROM {$table_facturas} WHERE estado_pago IN ('pendiente','parcial')"
     );
-    $saldo_pendiente_formatted = number_format($saldo_pendiente, 0, ',', '.');
+    $saldo_pendiente_formatted = ctp_ordenes_format_currency($saldo_pendiente);
 
     $base_url = get_permalink();
     $tabs = array(
@@ -1273,27 +1334,32 @@ function ctp_dashboard_shortcode() {
     ob_start();
     ?>
     <div class="ctp-app ctp-dashboard">
-        <div class="ctp-dashboard-container">
+        <div class="ctp-shell">
             <div class="ctp-dashboard-header">
-                <h2>Sistema CTP</h2>
-                <p class="ctp-dashboard-subtitle">Panel central para órdenes, proveedores y facturación.</p>
+                <div>
+                    <h2>Panel CTP</h2>
+                    <p class="ctp-dashboard-subtitle">Centro de control para órdenes, proveedores y facturación.</p>
+                </div>
+                <div class="ctp-dashboard-actions">
+                    <span class="ctp-dashboard-label">Última actualización: <?php echo esc_html(current_time('d/m/Y')); ?></span>
+                </div>
             </div>
             <div class="ctp-summary-grid">
                 <div class="ctp-summary-card">
                     <div class="ctp-summary-title">Órdenes</div>
-                    <div class="ctp-summary-value"><?php echo esc_html(number_format($ordenes_total, 0, ',', '.')); ?></div>
+                    <div class="ctp-summary-value"><?php echo esc_html(ctp_ordenes_format_currency($ordenes_total)); ?></div>
                     <div class="ctp-summary-meta">
-                        <?php echo esc_html(sprintf('Últimos 30 días: %s', number_format($ordenes_recientes, 0, ',', '.'))); ?>
+                        <?php echo esc_html(sprintf('Últimos 30 días: %s', ctp_ordenes_format_currency($ordenes_recientes))); ?>
                     </div>
                 </div>
                 <div class="ctp-summary-card">
                     <div class="ctp-summary-title">Proveedores</div>
-                    <div class="ctp-summary-value"><?php echo esc_html(number_format($proveedores_total, 0, ',', '.')); ?></div>
+                    <div class="ctp-summary-value"><?php echo esc_html(ctp_ordenes_format_currency($proveedores_total)); ?></div>
                     <div class="ctp-summary-meta">Total registrados</div>
                 </div>
                 <div class="ctp-summary-card">
                     <div class="ctp-summary-title">Facturas pendientes</div>
-                    <div class="ctp-summary-value"><?php echo esc_html(number_format($facturas_pendientes, 0, ',', '.')); ?></div>
+                    <div class="ctp-summary-value"><?php echo esc_html(ctp_ordenes_format_currency($facturas_pendientes)); ?></div>
                     <div class="ctp-summary-meta">Pendiente o parcial</div>
                 </div>
                 <div class="ctp-summary-card">
@@ -1302,7 +1368,7 @@ function ctp_dashboard_shortcode() {
                     <div class="ctp-summary-meta">Monto por pagar</div>
                 </div>
             </div>
-            <div class="ctp-dashboard-nav">
+            <div class="ctp-dashboard-nav" role="tablist">
             <?php foreach ($tabs as $key => $label) : ?>
                 <?php
                 $url = add_query_arg('tab', $key, $base_url);
@@ -1311,7 +1377,7 @@ function ctp_dashboard_shortcode() {
                     $class .= ' is-active';
                 }
                 ?>
-                <a class="<?php echo esc_attr($class); ?>" href="<?php echo esc_url($url); ?>">
+                <a class="<?php echo esc_attr($class); ?>" href="<?php echo esc_url($url); ?>" role="tab" aria-selected="<?php echo $tab === $key ? 'true' : 'false'; ?>">
                     <?php echo esc_html($label); ?>
                 </a>
             <?php endforeach; ?>
