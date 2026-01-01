@@ -38,5 +38,27 @@
         document.querySelectorAll('.ctp-form').forEach(function (form) {
             updateTotal(form);
         });
+
+        document.querySelectorAll('.ctp-order-filter').forEach(function (form) {
+            var fields = form.querySelector('.ctp-filter-fields');
+            if (!fields) {
+                return;
+            }
+
+            var updateMode = function () {
+                var selected = form.querySelector('input[name="ctp_period"]:checked');
+                if (selected) {
+                    fields.setAttribute('data-mode', selected.value);
+                }
+            };
+
+            form.addEventListener('change', function (event) {
+                if (event.target && event.target.name === 'ctp_period') {
+                    updateMode();
+                }
+            });
+
+            updateMode();
+        });
     });
 })();
