@@ -634,7 +634,9 @@ function ctp_listar_ordenes_shortcode() {
     ctp_ordenes_enqueue_assets(true);
 
     global $wpdb;
+    $wpdb = $GLOBALS['wpdb'];
     $table_name = $wpdb->prefix . 'ctp_ordenes';
+    $table_clientes = $wpdb->prefix . 'ctp_clientes';
 
     $periodo = ctp_ordenes_get_ordenes_periodo();
     $where_clause = 'fecha BETWEEN %s AND %s';
