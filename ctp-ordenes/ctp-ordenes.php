@@ -315,6 +315,129 @@ function ctp_ordenes_get_ordenes_periodo() {
     );
 }
 
+function ctp_ordenes_get_cliente_periodo() {
+    $from = isset($_GET['ctp_cliente_from']) ? sanitize_text_field(wp_unslash($_GET['ctp_cliente_from'])) : '';
+    $to = isset($_GET['ctp_cliente_to']) ? sanitize_text_field(wp_unslash($_GET['ctp_cliente_to'])) : '';
+
+    $valid_from = ctp_ordenes_is_valid_date($from, 'Y-m-d');
+    $valid_to = ctp_ordenes_is_valid_date($to, 'Y-m-d');
+
+    if (!$valid_from) {
+        $from = '';
+    }
+    if (!$valid_to) {
+        $to = '';
+    }
+
+    if ($from && !$to) {
+        $to = $from;
+    }
+    if ($to && !$from) {
+        $from = $to;
+    }
+
+    if ($from && $to && strtotime($from) > strtotime($to)) {
+        $temp = $from;
+        $from = $to;
+        $to = $temp;
+    }
+
+    return array(
+        'from' => $from,
+        'to' => $to,
+        'has_filter' => !empty($from) && !empty($to),
+    );
+}
+
+function ctp_ordenes_get_cliente($id) {
+    if ($id <= 0) {
+        return null;
+    }
+
+    global $wpdb;
+    $table_clientes = $wpdb->prefix . 'ctp_clientes';
+
+    return $wpdb->get_row(
+        $wpdb->prepare("SELECT * FROM {$table_clientes} WHERE id = %d", $id)
+    );
+}
+
+function ctp_ordenes_get_cliente_kpis($cliente_id, $periodo = array()) {
+    if ($cliente_id <= 0) {
+        return array(
+            'cantidad' => 0,
+            'total' => 0,
+            'promedio' => 0,
+            'ultima_fecha' => null,
+        );
+    }
+
+    global $wpdb;
+    $table_ordenes = $wpdb->prefix . 'ctp_ordenes';
+
+    $where = 'cliente_id = %d';
+    $params = array($cliente_id);
+
+    if (!empty($periodo['has_filter'])) {
+        $where .= ' AND fecha BETWEEN %s AND %s';
+        $params[] = $periodo['from'];
+        $params[] = $periodo['to'];
+    }
+
+    $row = $wpdb->get_row(
+        $wpdb->prepare(
+            "SELECT COUNT(*) AS cantidad,
+                    COALESCE(SUM(total), 0) AS total,
+                    MAX(fecha) AS ultima_fecha
+             FROM {$table_ordenes}
+             WHERE {$where}",
+            $params
+        )
+    );
+
+    $cantidad = $row ? (int) $row->cantidad : 0;
+    $total = $row ? (float) $row->total : 0;
+    $promedio = $cantidad > 0 ? ($total / $cantidad) : 0;
+
+    return array(
+        'cantidad' => $cantidad,
+        'total' => $total,
+        'promedio' => $promedio,
+        'ultima_fecha' => $row ? $row->ultima_fecha : null,
+    );
+}
+
+function ctp_ordenes_get_ordenes_by_cliente($cliente_id, $periodo = array(), $limit = 50) {
+    if ($cliente_id <= 0) {
+        return array();
+    }
+
+    global $wpdb;
+    $table_ordenes = $wpdb->prefix . 'ctp_ordenes';
+
+    $where = 'cliente_id = %d';
+    $params = array($cliente_id);
+
+    if (!empty($periodo['has_filter'])) {
+        $where .= ' AND fecha BETWEEN %s AND %s';
+        $params[] = $periodo['from'];
+        $params[] = $periodo['to'];
+    }
+
+    $params[] = (int) $limit;
+
+    return $wpdb->get_results(
+        $wpdb->prepare(
+            "SELECT fecha, numero_orden, descripcion, cantidad_chapas, medida_chapa, precio_unitario, total
+             FROM {$table_ordenes}
+             WHERE {$where}
+             ORDER BY fecha DESC, id DESC
+             LIMIT %d",
+            $params
+        )
+    );
+}
+
 function ctp_ordenes_render_panel($title, $subtitle, $content, $extra_class = '') {
     $classes = 'ctp-panel';
     if (!empty($extra_class)) {
@@ -917,12 +1040,174 @@ function ctp_clientes_shortcode() {
     $clientes = $wpdb->get_results($sql);
 
     $base_url = remove_query_arg('ctp_cliente_search');
+    $current_url = remove_query_arg(array('ctp_cliente_id', 'ctp_cliente_from', 'ctp_cliente_to'));
     if (isset($_GET['ctp_tab'])) {
         $tab = sanitize_key(wp_unslash($_GET['ctp_tab']));
     } elseif (isset($_GET['tab'])) {
         $tab = sanitize_key(wp_unslash($_GET['tab']));
     } else {
         $tab = '';
+    }
+
+    $cliente_id = isset($_GET['ctp_cliente_id']) ? absint($_GET['ctp_cliente_id']) : 0;
+    if ($cliente_id > 0) {
+        $cliente = ctp_ordenes_get_cliente($cliente_id);
+        $periodo = ctp_ordenes_get_cliente_periodo();
+        $ordenes = $cliente ? ctp_ordenes_get_ordenes_by_cliente($cliente_id, $periodo, 50) : array();
+        $kpis = $cliente ? ctp_ordenes_get_cliente_kpis($cliente_id, $periodo) : array(
+            'cantidad' => 0,
+            'total' => 0,
+            'promedio' => 0,
+            'ultima_fecha' => null,
+        );
+
+        $back_url = $current_url;
+        if (!empty($tab)) {
+            $back_url = add_query_arg('ctp_tab', $tab, $back_url);
+        }
+
+        $filter_url = $current_url;
+        $filter_args = array('ctp_cliente_id' => $cliente_id);
+        if (!empty($tab)) {
+            $filter_args['ctp_tab'] = $tab;
+        }
+        $filter_url = add_query_arg($filter_args, $filter_url);
+
+        $periodo_label = 'Todas las fechas';
+        if (!empty($periodo['has_filter'])) {
+            $periodo_label = sprintf(
+                'Del %s al %s',
+                date_i18n('d/m/Y', strtotime($periodo['from'])),
+                date_i18n('d/m/Y', strtotime($periodo['to']))
+            );
+        }
+
+        ob_start();
+        if (!$cliente) {
+            echo '<div class="ctp-alert ctp-alert-error">El cliente seleccionado no existe.</div>';
+        } else {
+            ?>
+            <div class="ctp-stack">
+                <div class="ctp-panel ctp-panel-client">
+                    <div class="ctp-panel-body">
+                        <div class="ctp-client-header">
+                            <div class="ctp-client-meta">
+                                <h3 class="ctp-client-title"><?php echo esc_html($cliente->nombre); ?></h3>
+                                <div class="ctp-client-meta-list">
+                                    <?php if (!empty($cliente->ruc)) : ?>
+                                        <div class="ctp-client-meta-item"><span>RUC:</span> <?php echo esc_html($cliente->ruc); ?></div>
+                                    <?php endif; ?>
+                                    <?php if (!empty($cliente->telefono)) : ?>
+                                        <div class="ctp-client-meta-item"><span>Teléfono:</span> <?php echo esc_html($cliente->telefono); ?></div>
+                                    <?php endif; ?>
+                                    <?php if (!empty($cliente->email)) : ?>
+                                        <div class="ctp-client-meta-item"><span>Email:</span> <?php echo esc_html($cliente->email); ?></div>
+                                    <?php endif; ?>
+                                </div>
+                                <?php if (!empty($cliente->notas)) : ?>
+                                    <p class="ctp-client-notes"><?php echo esc_html($cliente->notas); ?></p>
+                                <?php endif; ?>
+                            </div>
+                            <div class="ctp-client-actions">
+                                <a class="ctp-button ctp-button-secondary" href="<?php echo esc_url($back_url); ?>">Volver a clientes</a>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="ctp-panel">
+                    <div class="ctp-panel-header">
+                        <h3 class="ctp-panel-title">Resumen del cliente</h3>
+                        <p class="ctp-panel-subtitle"><?php echo esc_html($periodo_label); ?></p>
+                    </div>
+                    <div class="ctp-panel-body">
+                        <div class="ctp-kpi-grid">
+                            <div class="ctp-kpi-card">
+                                <div class="ctp-kpi-title">Cantidad de órdenes</div>
+                                <div class="ctp-kpi-value"><?php echo esc_html(ctp_ordenes_format_currency($kpis['cantidad'])); ?></div>
+                            </div>
+                            <div class="ctp-kpi-card">
+                                <div class="ctp-kpi-title">Total Gs</div>
+                                <div class="ctp-kpi-value"><?php echo esc_html('Gs. ' . ctp_ordenes_format_currency($kpis['total'])); ?></div>
+                            </div>
+                            <div class="ctp-kpi-card">
+                                <div class="ctp-kpi-title">Promedio por orden</div>
+                                <div class="ctp-kpi-value"><?php echo esc_html('Gs. ' . ctp_ordenes_format_currency($kpis['promedio'])); ?></div>
+                            </div>
+                            <div class="ctp-kpi-card">
+                                <div class="ctp-kpi-title">Última fecha</div>
+                                <div class="ctp-kpi-value">
+                                    <?php echo esc_html($kpis['ultima_fecha'] ? date_i18n('d/m/Y', strtotime($kpis['ultima_fecha'])) : '—'); ?>
+                                </div>
+                            </div>
+                        </div>
+                        <form method="get" action="<?php echo esc_url($filter_url); ?>" class="ctp-form ctp-form-inline ctp-client-filter">
+                            <div class="ctp-field">
+                                <label for="ctp-cliente-from">Desde</label>
+                                <input type="date" id="ctp-cliente-from" name="ctp_cliente_from" value="<?php echo esc_attr($periodo['from']); ?>">
+                            </div>
+                            <div class="ctp-field">
+                                <label for="ctp-cliente-to">Hasta</label>
+                                <input type="date" id="ctp-cliente-to" name="ctp_cliente_to" value="<?php echo esc_attr($periodo['to']); ?>">
+                            </div>
+                            <div class="ctp-field">
+                                <button type="submit" class="ctp-button">Filtrar</button>
+                            </div>
+                            <div class="ctp-field">
+                                <a class="ctp-button ctp-button-secondary" href="<?php echo esc_url($filter_url); ?>">Limpiar</a>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+                <div class="ctp-panel">
+                    <div class="ctp-panel-header">
+                        <h3 class="ctp-panel-title">Órdenes del cliente</h3>
+                        <p class="ctp-panel-subtitle">Últimas 50 órdenes asociadas al cliente.</p>
+                    </div>
+                    <div class="ctp-panel-body">
+                        <div class="ctp-table-wrap">
+                            <table class="ctp-table">
+                                <thead>
+                                    <tr>
+                                        <th>Fecha</th>
+                                        <th>Nº Orden</th>
+                                        <th>Descripción</th>
+                                        <th>Cantidad</th>
+                                        <th>Medida</th>
+                                        <th>Unitario</th>
+                                        <th>Total</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <?php if (!empty($ordenes)) : ?>
+                                        <?php foreach ($ordenes as $orden) : ?>
+                                            <tr>
+                                                <td data-label="Fecha"><?php echo esc_html($orden->fecha); ?></td>
+                                                <td data-label="Nº Orden"><?php echo esc_html($orden->numero_orden); ?></td>
+                                                <td data-label="Descripción"><?php echo esc_html($orden->descripcion); ?></td>
+                                                <td data-label="Cantidad"><?php echo esc_html($orden->cantidad_chapas); ?></td>
+                                                <td data-label="Medida"><?php echo esc_html($orden->medida_chapa); ?></td>
+                                                <td data-label="Unitario"><?php echo esc_html('Gs. ' . ctp_ordenes_format_currency($orden->precio_unitario)); ?></td>
+                                                <td data-label="Total"><?php echo esc_html('Gs. ' . ctp_ordenes_format_currency($orden->total)); ?></td>
+                                            </tr>
+                                        <?php endforeach; ?>
+                                    <?php else : ?>
+                                        <tr>
+                                            <td colspan="7">No hay órdenes asociadas.</td>
+                                        </tr>
+                                    <?php endif; ?>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <?php
+        }
+        $html = ob_get_clean();
+        if (!empty($GLOBALS['ctp_in_dashboard'])) {
+            return $html;
+        }
+        return ctp_ordenes_wrap($html, 'ctp-shell-page');
     }
 
     ob_start();
@@ -1025,6 +1310,13 @@ function ctp_clientes_shortcode() {
                                 <td class="ctp-table-text" data-label="Notas"><?php echo esc_html($cliente->notas); ?></td>
                                 <td class="ctp-actions-cell" data-label="Acciones">
                                     <div class="ctp-actions">
+                                        <?php
+                                        $historial_url = add_query_arg('ctp_cliente_id', $cliente_id, $current_url);
+                                        if (!empty($tab)) {
+                                            $historial_url = add_query_arg('ctp_tab', $tab, $historial_url);
+                                        }
+                                        ?>
+                                        <a class="ctp-button ctp-button-secondary" href="<?php echo esc_url($historial_url); ?>">Ver historial</a>
                                         <details class="ctp-details">
                                             <summary class="ctp-button ctp-button-secondary">Editar</summary>
                                             <div class="ctp-details-panel">
