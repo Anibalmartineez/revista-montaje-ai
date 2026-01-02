@@ -39,6 +39,59 @@
             updateTotal(form);
         });
 
+        document.querySelectorAll('.ctp-client-select').forEach(function (select) {
+            var form = select.closest('.ctp-form');
+            if (!form) {
+                return;
+            }
+            var nameInput = form.querySelector('.ctp-client-name');
+            if (!nameInput) {
+                return;
+            }
+
+            var syncName = function () {
+                var selectedOption = select.options[select.selectedIndex];
+                if (!selectedOption) {
+                    return;
+                }
+                if (select.value && select.value !== '0') {
+                    nameInput.value = selectedOption.textContent.trim();
+                    nameInput.readOnly = true;
+                } else {
+                    nameInput.readOnly = false;
+                }
+            };
+
+            select.addEventListener('change', syncName);
+            syncName();
+        });
+
+        document.querySelectorAll('.ctp-client-search').forEach(function (input) {
+            var targetId = input.getAttribute('data-target');
+            if (!targetId) {
+                return;
+            }
+            var select = document.getElementById(targetId);
+            if (!select) {
+                return;
+            }
+
+            input.addEventListener('input', function () {
+                var term = input.value.toLowerCase();
+                Array.prototype.slice.call(select.options).forEach(function (option) {
+                    if (option.value === '0') {
+                        option.hidden = false;
+                        return;
+                    }
+                    if (!term) {
+                        option.hidden = false;
+                        return;
+                    }
+                    option.hidden = option.textContent.toLowerCase().indexOf(term) === -1;
+                });
+            });
+        });
+
         document.querySelectorAll('.ctp-order-filter').forEach(function (form) {
             var fields = form.querySelector('.ctp-filter-fields');
             if (!fields) {

@@ -319,6 +319,15 @@
     transition: border-color 0.2s ease, box-shadow 0.2s ease;
 }
 
+.ctp-client-picker .ctp-client-search {
+    background: #f8fafc;
+}
+
+.ctp-client-name[readonly] {
+    background: #f8fafc;
+    color: var(--ctp-muted);
+}
+
 .ctp-field input,
 .ctp-field select {
     height: 46px;
