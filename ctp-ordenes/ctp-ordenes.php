@@ -2,7 +2,7 @@
 /**
  * Plugin Name: CTP Órdenes
  * Description: MVP para cargar y listar órdenes de CTP mediante shortcodes.
- * Version: 0.2.0
+ * Version: 0.3.0
  * Author: Equipo Revista Montaje AI
  * Requires PHP: 8.0
  */
@@ -11,7 +11,7 @@ if (!defined('ABSPATH')) {
     exit;
 }
 
-define('CTP_ORDENES_VERSION', '0.2.0');
+define('CTP_ORDENES_VERSION', '0.3.0');
 
 /**
  * Crea la tabla necesaria al activar el plugin.
@@ -20,6 +20,8 @@ function ctp_ordenes_create_tables() {
     global $wpdb;
 
     $table_name = $wpdb->prefix . 'ctp_ordenes';
+    $table_clientes = $wpdb->prefix . 'ctp_clientes';
+    $table_clientes = $wpdb->prefix . 'ctp_clientes';
     $table_proveedores = $wpdb->prefix . 'ctp_proveedores';
     $table_facturas = $wpdb->prefix . 'ctp_facturas_proveedor';
     $table_pagos = $wpdb->prefix . 'ctp_pagos_factura';
@@ -30,6 +32,7 @@ function ctp_ordenes_create_tables() {
         fecha DATE NOT NULL,
         numero_orden VARCHAR(50) NOT NULL,
         cliente VARCHAR(150) NOT NULL,
+        cliente_id BIGINT UNSIGNED NULL,
         descripcion TEXT NULL,
         cantidad_chapas INT NOT NULL DEFAULT 1,
         medida_chapa VARCHAR(20) NOT NULL,
@@ -38,7 +41,20 @@ function ctp_ordenes_create_tables() {
         created_at DATETIME NOT NULL,
         updated_at DATETIME NOT NULL,
         PRIMARY KEY  (id),
-        UNIQUE KEY numero_orden (numero_orden)
+        UNIQUE KEY numero_orden (numero_orden),
+        KEY cliente_id (cliente_id)
+    ) {$charset_collate};";
+
+    $sql_clientes = "CREATE TABLE {$table_clientes} (
+        id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+        nombre VARCHAR(190) NOT NULL,
+        ruc VARCHAR(50) NULL,
+        telefono VARCHAR(80) NULL,
+        email VARCHAR(120) NULL,
+        notas TEXT NULL,
+        created_at DATETIME NOT NULL,
+        updated_at DATETIME NOT NULL,
+        PRIMARY KEY  (id)
     ) {$charset_collate};";
 
     $sql_proveedores = "CREATE TABLE {$table_proveedores} (
@@ -86,6 +102,7 @@ function ctp_ordenes_create_tables() {
 
     require_once ABSPATH . 'wp-admin/includes/upgrade.php';
     dbDelta($sql);
+    dbDelta($sql_clientes);
     dbDelta($sql_proveedores);
     dbDelta($sql_facturas);
     dbDelta($sql_pagos);
@@ -119,6 +136,7 @@ function ctp_ordenes_should_enqueue_assets() {
     $shortcodes = array(
         'ctp_cargar_orden',
         'ctp_listar_ordenes',
+        'ctp_clientes',
         'ctp_proveedores',
         'ctp_facturas_proveedor',
         'ctp_dashboard',
@@ -398,6 +416,7 @@ function ctp_cargar_orden_shortcode() {
         } else {
             $fecha = sanitize_text_field($_POST['fecha'] ?? '');
             $numero_orden = sanitize_text_field($_POST['numero_orden'] ?? '');
+            $cliente_id = absint($_POST['cliente_id'] ?? 0);
             $cliente = sanitize_text_field($_POST['cliente'] ?? '');
             $descripcion = sanitize_textarea_field($_POST['descripcion'] ?? '');
             $cantidad_chapas = absint($_POST['cantidad_chapas'] ?? 1);
@@ -410,7 +429,21 @@ function ctp_cargar_orden_shortcode() {
             if (empty($numero_orden)) {
                 $errores[] = 'El número de orden es obligatorio.';
             }
-            if (empty($cliente)) {
+            if ($cliente_id > 0) {
+                global $wpdb;
+                $table_clientes = $wpdb->prefix . 'ctp_clientes';
+                $cliente_obj = $wpdb->get_row(
+                    $wpdb->prepare(
+                        "SELECT id, nombre FROM {$table_clientes} WHERE id = %d",
+                        $cliente_id
+                    )
+                );
+                if (!$cliente_obj) {
+                    $errores[] = 'El cliente seleccionado no existe.';
+                } else {
+                    $cliente = $cliente_obj->nombre;
+                }
+            } elseif (empty($cliente)) {
                 $errores[] = 'El cliente es obligatorio.';
             }
             if ($cantidad_chapas < 1) {
@@ -444,6 +477,7 @@ function ctp_cargar_orden_shortcode() {
                             'fecha' => $fecha,
                             'numero_orden' => $numero_orden,
                             'cliente' => $cliente,
+                            'cliente_id' => $cliente_id > 0 ? $cliente_id : null,
                             'descripcion' => $descripcion,
                             'cantidad_chapas' => $cantidad_chapas,
                             'medida_chapa' => $medida_chapa,
@@ -452,7 +486,7 @@ function ctp_cargar_orden_shortcode() {
                             'created_at' => $now,
                             'updated_at' => $now,
                         ),
-                        array('%s', '%s', '%s', '%s', '%d', '%s', '%f', '%f', '%s', '%s')
+                        array('%s', '%s', '%s', '%d', '%s', '%d', '%s', '%f', '%f', '%s', '%s')
                     );
 
                     if ($insertado) {
@@ -466,9 +500,24 @@ function ctp_cargar_orden_shortcode() {
         }
     }
 
+    global $wpdb;
+    $table_clientes = $wpdb->prefix . 'ctp_clientes';
+    $clientes = $wpdb->get_results(
+        "SELECT id, nombre FROM {$table_clientes} ORDER BY nombre ASC"
+    );
+
     $fecha_default = !empty($_POST['fecha']) ? sanitize_text_field($_POST['fecha']) : current_time('Y-m-d');
     $numero_orden_val = !empty($_POST['numero_orden']) ? sanitize_text_field($_POST['numero_orden']) : '';
+    $cliente_id_val = !empty($_POST['cliente_id']) ? absint($_POST['cliente_id']) : 0;
     $cliente_val = !empty($_POST['cliente']) ? sanitize_text_field($_POST['cliente']) : '';
+    if ($cliente_id_val > 0 && empty($cliente_val)) {
+        foreach ($clientes as $cliente_obj) {
+            if ((int) $cliente_obj->id === $cliente_id_val) {
+                $cliente_val = $cliente_obj->nombre;
+                break;
+            }
+        }
+    }
     $descripcion_val = !empty($_POST['descripcion']) ? sanitize_textarea_field($_POST['descripcion']) : '';
     $cantidad_val = !empty($_POST['cantidad_chapas']) ? absint($_POST['cantidad_chapas']) : 1;
     $medidas = ctp_ordenes_get_medidas_chapa();
@@ -492,9 +541,22 @@ function ctp_cargar_orden_shortcode() {
                 <input type="text" id="ctp-numero-orden" name="numero_orden" required value="<?php echo esc_attr($numero_orden_val); ?>">
             </div>
 
+            <div class="ctp-field ctp-field-full ctp-client-picker">
+                <label for="ctp-cliente-select">Cliente registrado</label>
+                <input type="text" id="ctp-orden-cliente-search" class="ctp-client-search" data-target="ctp-cliente-select" placeholder="Buscar cliente...">
+                <select id="ctp-cliente-select" name="cliente_id" class="ctp-client-select">
+                    <option value="0">Ingresar manual / Sin cliente</option>
+                    <?php foreach ($clientes as $cliente_item) : ?>
+                        <option value="<?php echo esc_attr($cliente_item->id); ?>" <?php selected($cliente_id_val, (int) $cliente_item->id); ?>>
+                            <?php echo esc_html($cliente_item->nombre); ?>
+                        </option>
+                    <?php endforeach; ?>
+                </select>
+            </div>
+
             <div class="ctp-field">
-                <label for="ctp-cliente">Cliente</label>
-                <input type="text" id="ctp-cliente" name="cliente" required value="<?php echo esc_attr($cliente_val); ?>">
+                <label for="ctp-cliente">Cliente (manual)</label>
+                <input type="text" id="ctp-cliente" name="cliente" class="ctp-client-name" required value="<?php echo esc_attr($cliente_val); ?>">
             </div>
 
             <div class="ctp-field ctp-field-full">
@@ -572,7 +634,9 @@ function ctp_listar_ordenes_shortcode() {
     ctp_ordenes_enqueue_assets(true);
 
     global $wpdb;
+    $wpdb = $GLOBALS['wpdb'];
     $table_name = $wpdb->prefix . 'ctp_ordenes';
+    $table_clientes = $wpdb->prefix . 'ctp_clientes';
 
     $periodo = ctp_ordenes_get_ordenes_periodo();
     $where_clause = 'fecha BETWEEN %s AND %s';
@@ -580,10 +644,12 @@ function ctp_listar_ordenes_shortcode() {
 
     $ordenes = $wpdb->get_results(
         $wpdb->prepare(
-            "SELECT fecha, numero_orden, cliente, medida_chapa, cantidad_chapas, precio_unitario, total
-             FROM {$table_name}
+            "SELECT o.fecha, o.numero_orden, COALESCE(c.nombre, o.cliente) AS cliente_nombre,
+                    o.medida_chapa, o.cantidad_chapas, o.precio_unitario, o.total
+             FROM {$table_name} o
+             LEFT JOIN {$table_clientes} c ON o.cliente_id = c.id
              WHERE {$where_clause}
-             ORDER BY fecha DESC, id DESC
+             ORDER BY o.fecha DESC, o.id DESC
              LIMIT 50",
             $where_params
         )
@@ -676,7 +742,7 @@ function ctp_listar_ordenes_shortcode() {
                     <tr>
                         <td data-label="Fecha"><?php echo esc_html($orden->fecha); ?></td>
                         <td data-label="Nº Orden"><?php echo esc_html($orden->numero_orden); ?></td>
-                        <td data-label="Cliente"><?php echo esc_html($orden->cliente); ?></td>
+                        <td data-label="Cliente"><?php echo esc_html($orden->cliente_nombre); ?></td>
                         <td data-label="Medida"><?php echo esc_html($orden->medida_chapa); ?></td>
                         <td data-label="Cantidad"><?php echo esc_html($orden->cantidad_chapas); ?></td>
                         <td data-label="Unitario"><?php echo esc_html('Gs. ' . ctp_ordenes_format_currency($orden->precio_unitario)); ?></td>
@@ -704,6 +770,321 @@ function ctp_listar_ordenes_shortcode() {
     return ctp_ordenes_wrap($html, 'ctp-shell-page');
 }
 add_shortcode('ctp_listar_ordenes', 'ctp_listar_ordenes_shortcode');
+
+function ctp_ordenes_user_can_manage() {
+    return current_user_can('edit_posts');
+}
+
+/**
+ * Shortcode: gestión de clientes.
+ */
+function ctp_clientes_shortcode() {
+    ctp_ordenes_enqueue_assets(true);
+
+    global $wpdb;
+    $table_clientes = $wpdb->prefix . 'ctp_clientes';
+    $table_ordenes = $wpdb->prefix . 'ctp_ordenes';
+
+    $mensajes = array(
+        'success' => array(),
+        'error' => array(),
+        'warning' => array(),
+    );
+
+    $can_manage = ctp_ordenes_user_can_manage();
+
+    if (!empty($_POST['ctp_cliente_action'])) {
+        if (!$can_manage) {
+            $mensajes['error'][] = 'No tienes permisos para gestionar clientes.';
+        } else {
+            $action = sanitize_text_field(wp_unslash($_POST['ctp_cliente_action']));
+
+            if ($action === 'add') {
+                if (!isset($_POST['ctp_cliente_nonce']) || !check_admin_referer('ctp_cliente_add', 'ctp_cliente_nonce')) {
+                    $mensajes['error'][] = 'No se pudo validar la solicitud para agregar cliente.';
+                } else {
+                    $nombre = sanitize_text_field(wp_unslash($_POST['nombre'] ?? ''));
+                    $ruc = sanitize_text_field(wp_unslash($_POST['ruc'] ?? ''));
+                    $telefono = sanitize_text_field(wp_unslash($_POST['telefono'] ?? ''));
+                    $email = sanitize_email(wp_unslash($_POST['email'] ?? ''));
+                    $notas = sanitize_textarea_field(wp_unslash($_POST['notas'] ?? ''));
+
+                    if (empty($nombre)) {
+                        $mensajes['error'][] = 'El nombre del cliente es obligatorio.';
+                    } else {
+                        $now = current_time('mysql');
+                        $inserted = $wpdb->insert(
+                            $table_clientes,
+                            array(
+                                'nombre' => $nombre,
+                                'ruc' => $ruc,
+                                'telefono' => $telefono,
+                                'email' => $email,
+                                'notas' => $notas,
+                                'created_at' => $now,
+                                'updated_at' => $now,
+                            ),
+                            array('%s', '%s', '%s', '%s', '%s', '%s', '%s')
+                        );
+
+                        if ($inserted) {
+                            $mensajes['success'][] = 'Cliente agregado correctamente.';
+                        } else {
+                            $mensajes['error'][] = 'No se pudo guardar el cliente.';
+                        }
+                    }
+                }
+            } elseif ($action === 'edit') {
+                if (!isset($_POST['ctp_cliente_nonce']) || !check_admin_referer('ctp_cliente_edit', 'ctp_cliente_nonce')) {
+                    $mensajes['error'][] = 'No se pudo validar la solicitud para editar cliente.';
+                } else {
+                    $cliente_id = absint($_POST['cliente_id'] ?? 0);
+                    $nombre = sanitize_text_field(wp_unslash($_POST['nombre'] ?? ''));
+                    $ruc = sanitize_text_field(wp_unslash($_POST['ruc'] ?? ''));
+                    $telefono = sanitize_text_field(wp_unslash($_POST['telefono'] ?? ''));
+                    $email = sanitize_email(wp_unslash($_POST['email'] ?? ''));
+                    $notas = sanitize_textarea_field(wp_unslash($_POST['notas'] ?? ''));
+
+                    if ($cliente_id <= 0 || empty($nombre)) {
+                        $mensajes['error'][] = 'Datos inválidos para actualizar cliente.';
+                    } else {
+                        $actualizado = $wpdb->update(
+                            $table_clientes,
+                            array(
+                                'nombre' => $nombre,
+                                'ruc' => $ruc,
+                                'telefono' => $telefono,
+                                'email' => $email,
+                                'notas' => $notas,
+                                'updated_at' => current_time('mysql'),
+                            ),
+                            array('id' => $cliente_id),
+                            array('%s', '%s', '%s', '%s', '%s', '%s'),
+                            array('%d')
+                        );
+
+                        if ($actualizado !== false) {
+                            $mensajes['success'][] = 'Cliente actualizado correctamente.';
+                        } else {
+                            $mensajes['error'][] = 'No se pudo actualizar el cliente.';
+                        }
+                    }
+                }
+            } elseif ($action === 'delete') {
+                if (!isset($_POST['ctp_cliente_nonce']) || !check_admin_referer('ctp_cliente_delete', 'ctp_cliente_nonce')) {
+                    $mensajes['error'][] = 'No se pudo validar la solicitud para eliminar cliente.';
+                } else {
+                    $cliente_id = absint($_POST['cliente_id'] ?? 0);
+                    if ($cliente_id <= 0) {
+                        $mensajes['error'][] = 'Cliente inválido.';
+                    } else {
+                        $tiene_ordenes = (int) $wpdb->get_var(
+                            $wpdb->prepare(
+                                "SELECT COUNT(*) FROM {$table_ordenes} WHERE cliente_id = %d",
+                                $cliente_id
+                            )
+                        );
+
+                        if ($tiene_ordenes > 0) {
+                            $mensajes['error'][] = 'No se puede eliminar el cliente porque tiene órdenes asociadas.';
+                        } else {
+                            $deleted = $wpdb->delete($table_clientes, array('id' => $cliente_id), array('%d'));
+                            if ($deleted) {
+                                $mensajes['success'][] = 'Cliente eliminado correctamente.';
+                            } else {
+                                $mensajes['error'][] = 'No se pudo eliminar el cliente.';
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    $search = sanitize_text_field(wp_unslash($_GET['ctp_cliente_search'] ?? ''));
+    $where = array('1=1');
+    $params = array();
+    if (!empty($search)) {
+        $where[] = 'nombre LIKE %s';
+        $params[] = '%' . $wpdb->esc_like($search) . '%';
+    }
+
+    $sql = "SELECT * FROM {$table_clientes} WHERE " . implode(' AND ', $where) . " ORDER BY created_at DESC, id DESC LIMIT 200";
+    if (!empty($params)) {
+        $sql = $wpdb->prepare($sql, $params);
+    }
+
+    $clientes = $wpdb->get_results($sql);
+
+    $base_url = remove_query_arg('ctp_cliente_search');
+    $tab = isset($_GET['tab']) ? sanitize_key(wp_unslash($_GET['tab'])) : '';
+
+    ob_start();
+    ?>
+    <?php ctp_ordenes_render_alerts($mensajes); ?>
+    <div class="ctp-stack">
+        <?php
+        ob_start();
+        ?>
+        <form method="post" class="ctp-form ctp-form-grid">
+            <?php wp_nonce_field('ctp_cliente_add', 'ctp_cliente_nonce'); ?>
+            <input type="hidden" name="ctp_cliente_action" value="add">
+
+            <div class="ctp-field">
+                <label for="ctp-cliente-nombre">Nombre / Razón social</label>
+                <input type="text" id="ctp-cliente-nombre" name="nombre" required <?php disabled(!$can_manage); ?>>
+            </div>
+
+            <div class="ctp-field">
+                <label for="ctp-cliente-ruc">RUC</label>
+                <input type="text" id="ctp-cliente-ruc" name="ruc" <?php disabled(!$can_manage); ?>>
+            </div>
+
+            <div class="ctp-field">
+                <label for="ctp-cliente-telefono">Teléfono</label>
+                <input type="text" id="ctp-cliente-telefono" name="telefono" <?php disabled(!$can_manage); ?>>
+            </div>
+
+            <div class="ctp-field">
+                <label for="ctp-cliente-email">Email</label>
+                <input type="email" id="ctp-cliente-email" name="email" <?php disabled(!$can_manage); ?>>
+            </div>
+
+            <div class="ctp-field ctp-field-full">
+                <label for="ctp-cliente-notas">Notas</label>
+                <textarea id="ctp-cliente-notas" name="notas" rows="3" <?php disabled(!$can_manage); ?>></textarea>
+            </div>
+
+            <div class="ctp-field ctp-field-full">
+                <button type="submit" class="ctp-button" <?php disabled(!$can_manage); ?>>Agregar cliente</button>
+            </div>
+        </form>
+        <?php
+        $form_html = ob_get_clean();
+        echo ctp_ordenes_render_panel(
+            'Nuevo cliente',
+            'Agrega clientes para reutilizarlos en las órdenes.',
+            $form_html,
+            'ctp-panel-form'
+        );
+
+        ob_start();
+        ?>
+        <form method="get" action="<?php echo esc_url($base_url); ?>" class="ctp-form ctp-form-inline">
+            <?php if (!empty($tab)) : ?>
+                <input type="hidden" name="tab" value="<?php echo esc_attr($tab); ?>">
+            <?php endif; ?>
+            <div class="ctp-field">
+                <label for="ctp-cliente-search">Buscar</label>
+                <input type="text" id="ctp-cliente-search" name="ctp_cliente_search" value="<?php echo esc_attr($search); ?>" placeholder="Nombre o razón social">
+            </div>
+            <div class="ctp-field">
+                <button type="submit" class="ctp-button ctp-button-secondary">Buscar</button>
+            </div>
+        </form>
+        <?php
+        $filters_html = ob_get_clean();
+        echo ctp_ordenes_render_panel(
+            'Buscar clientes',
+            'Filtra la lista por nombre o razón social.',
+            $filters_html,
+            'ctp-panel-filters'
+        );
+
+        ob_start();
+        ?>
+        <div class="ctp-table-wrap">
+            <table class="ctp-table">
+                <thead>
+                    <tr>
+                        <th>Nombre</th>
+                        <th>RUC</th>
+                        <th>Teléfono</th>
+                        <th>Email</th>
+                        <th class="ctp-table-text">Notas</th>
+                        <th class="ctp-actions-cell">Acciones</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <?php if (!empty($clientes)) : ?>
+                        <?php foreach ($clientes as $cliente) : ?>
+                            <?php
+                            $cliente_id = (int) $cliente->id;
+                            ?>
+                            <tr>
+                                <td data-label="Nombre"><?php echo esc_html($cliente->nombre); ?></td>
+                                <td data-label="RUC"><?php echo esc_html($cliente->ruc); ?></td>
+                                <td data-label="Teléfono"><?php echo esc_html($cliente->telefono); ?></td>
+                                <td data-label="Email"><?php echo esc_html($cliente->email); ?></td>
+                                <td class="ctp-table-text" data-label="Notas"><?php echo esc_html($cliente->notas); ?></td>
+                                <td class="ctp-actions-cell" data-label="Acciones">
+                                    <div class="ctp-actions">
+                                        <details class="ctp-details">
+                                            <summary class="ctp-button ctp-button-secondary">Editar</summary>
+                                            <div class="ctp-details-panel">
+                                                <form method="post" class="ctp-inline-form ctp-form-grid">
+                                                    <?php wp_nonce_field('ctp_cliente_edit', 'ctp_cliente_nonce'); ?>
+                                                    <input type="hidden" name="ctp_cliente_action" value="edit">
+                                                    <input type="hidden" name="cliente_id" value="<?php echo esc_attr($cliente_id); ?>">
+                                                    <div class="ctp-field">
+                                                        <label for="ctp-cliente-nombre-<?php echo esc_attr($cliente_id); ?>">Nombre</label>
+                                                        <input type="text" id="ctp-cliente-nombre-<?php echo esc_attr($cliente_id); ?>" name="nombre" required value="<?php echo esc_attr($cliente->nombre); ?>" <?php disabled(!$can_manage); ?>>
+                                                    </div>
+                                                    <div class="ctp-field">
+                                                        <label for="ctp-cliente-ruc-<?php echo esc_attr($cliente_id); ?>">RUC</label>
+                                                        <input type="text" id="ctp-cliente-ruc-<?php echo esc_attr($cliente_id); ?>" name="ruc" value="<?php echo esc_attr($cliente->ruc); ?>" <?php disabled(!$can_manage); ?>>
+                                                    </div>
+                                                    <div class="ctp-field">
+                                                        <label for="ctp-cliente-telefono-<?php echo esc_attr($cliente_id); ?>">Teléfono</label>
+                                                        <input type="text" id="ctp-cliente-telefono-<?php echo esc_attr($cliente_id); ?>" name="telefono" value="<?php echo esc_attr($cliente->telefono); ?>" <?php disabled(!$can_manage); ?>>
+                                                    </div>
+                                                    <div class="ctp-field">
+                                                        <label for="ctp-cliente-email-<?php echo esc_attr($cliente_id); ?>">Email</label>
+                                                        <input type="email" id="ctp-cliente-email-<?php echo esc_attr($cliente_id); ?>" name="email" value="<?php echo esc_attr($cliente->email); ?>" <?php disabled(!$can_manage); ?>>
+                                                    </div>
+                                                    <div class="ctp-field ctp-field-full">
+                                                        <label for="ctp-cliente-notas-<?php echo esc_attr($cliente_id); ?>">Notas</label>
+                                                        <textarea id="ctp-cliente-notas-<?php echo esc_attr($cliente_id); ?>" name="notas" rows="2" <?php disabled(!$can_manage); ?>><?php echo esc_textarea($cliente->notas); ?></textarea>
+                                                    </div>
+                                                    <button type="submit" class="ctp-button ctp-field-full" <?php disabled(!$can_manage); ?>>Guardar</button>
+                                                </form>
+                                            </div>
+                                        </details>
+                                        <form method="post" class="ctp-inline-form">
+                                            <?php wp_nonce_field('ctp_cliente_delete', 'ctp_cliente_nonce'); ?>
+                                            <input type="hidden" name="ctp_cliente_action" value="delete">
+                                            <input type="hidden" name="cliente_id" value="<?php echo esc_attr($cliente_id); ?>">
+                                            <button type="submit" class="ctp-button ctp-button-danger" onclick="return confirm('¿Seguro que deseas eliminar?')" <?php disabled(!$can_manage); ?>>Eliminar</button>
+                                        </form>
+                                    </div>
+                                </td>
+                            </tr>
+                        <?php endforeach; ?>
+                    <?php else : ?>
+                        <tr>
+                            <td colspan="6">No hay clientes registrados.</td>
+                        </tr>
+                    <?php endif; ?>
+                </tbody>
+            </table>
+        </div>
+        <?php
+        $table_html = ob_get_clean();
+        echo ctp_ordenes_render_panel(
+            'Clientes registrados',
+            'Gestiona la base de clientes para reutilizarlos en órdenes.',
+            $table_html
+        );
+        ?>
+    </div>
+    <?php
+    $html = ob_get_clean();
+    if (!empty($GLOBALS['ctp_in_dashboard'])) {
+        return $html;
+    }
+    return ctp_ordenes_wrap($html, 'ctp-shell-page');
+}
+add_shortcode('ctp_clientes', 'ctp_clientes_shortcode');
 
 /**
  * Shortcode: gestión de proveedores.
