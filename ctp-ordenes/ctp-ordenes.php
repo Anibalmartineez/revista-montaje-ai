@@ -367,7 +367,6 @@ function ctp_ordenes_get_cliente_kpis($cliente_id, $periodo = array()) {
         return array(
             'cantidad' => 0,
             'total' => 0,
-            'promedio' => 0,
             'ultima_fecha' => null,
         );
     }
@@ -397,12 +396,10 @@ function ctp_ordenes_get_cliente_kpis($cliente_id, $periodo = array()) {
 
     $cantidad = $row ? (int) $row->cantidad : 0;
     $total = $row ? (float) $row->total : 0;
-    $promedio = $cantidad > 0 ? ($total / $cantidad) : 0;
 
     return array(
         'cantidad' => $cantidad,
         'total' => $total,
-        'promedio' => $promedio,
         'ultima_fecha' => $row ? $row->ultima_fecha : null,
     );
 }
@@ -1057,7 +1054,6 @@ function ctp_clientes_shortcode() {
         $kpis = $cliente ? ctp_ordenes_get_cliente_kpis($cliente_id, $periodo) : array(
             'cantidad' => 0,
             'total' => 0,
-            'promedio' => 0,
             'ultima_fecha' => null,
         );
 
@@ -1128,10 +1124,6 @@ function ctp_clientes_shortcode() {
                             <div class="ctp-kpi-card">
                                 <div class="ctp-kpi-title">Total Gs</div>
                                 <div class="ctp-kpi-value"><?php echo esc_html('Gs. ' . ctp_ordenes_format_currency($kpis['total'])); ?></div>
-                            </div>
-                            <div class="ctp-kpi-card">
-                                <div class="ctp-kpi-title">Promedio por orden</div>
-                                <div class="ctp-kpi-value"><?php echo esc_html('Gs. ' . ctp_ordenes_format_currency($kpis['promedio'])); ?></div>
                             </div>
                             <div class="ctp-kpi-card">
                                 <div class="ctp-kpi-title">Última fecha</div>
