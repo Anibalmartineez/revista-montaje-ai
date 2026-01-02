@@ -917,7 +917,13 @@ function ctp_clientes_shortcode() {
     $clientes = $wpdb->get_results($sql);
 
     $base_url = remove_query_arg('ctp_cliente_search');
-    $tab = isset($_GET['tab']) ? sanitize_key(wp_unslash($_GET['tab'])) : '';
+    if (isset($_GET['ctp_tab'])) {
+        $tab = sanitize_key(wp_unslash($_GET['ctp_tab']));
+    } elseif (isset($_GET['tab'])) {
+        $tab = sanitize_key(wp_unslash($_GET['tab']));
+    } else {
+        $tab = '';
+    }
 
     ob_start();
     ?>
@@ -972,7 +978,7 @@ function ctp_clientes_shortcode() {
         ?>
         <form method="get" action="<?php echo esc_url($base_url); ?>" class="ctp-form ctp-form-inline">
             <?php if (!empty($tab)) : ?>
-                <input type="hidden" name="tab" value="<?php echo esc_attr($tab); ?>">
+                <input type="hidden" name="ctp_tab" value="<?php echo esc_attr($tab); ?>">
             <?php endif; ?>
             <div class="ctp-field">
                 <label for="ctp-cliente-search">Buscar</label>
@@ -1833,8 +1839,15 @@ add_shortcode('ctp_facturas_proveedor', 'ctp_facturas_proveedor_shortcode');
 function ctp_dashboard_shortcode() {
     ctp_ordenes_enqueue_assets(true);
 
-    $tab = isset($_GET['tab']) ? sanitize_key(wp_unslash($_GET['tab'])) : 'ordenes';
-    if (!in_array($tab, array('ordenes', 'proveedores', 'facturas'), true)) {
+    if (isset($_GET['ctp_tab'])) {
+        $tab = sanitize_key(wp_unslash($_GET['ctp_tab']));
+    } elseif (isset($_GET['tab'])) {
+        $tab = sanitize_key(wp_unslash($_GET['tab']));
+    } else {
+        $tab = 'ordenes';
+    }
+
+    if (!in_array($tab, array('ordenes', 'proveedores', 'facturas', 'clientes'), true)) {
         $tab = 'ordenes';
     }
 
@@ -1863,6 +1876,7 @@ function ctp_dashboard_shortcode() {
     $base_url = get_permalink();
     $tabs = array(
         'ordenes' => 'Órdenes',
+        'clientes' => 'Clientes',
         'proveedores' => 'Proveedores',
         'facturas' => 'Facturas',
     );
@@ -1909,7 +1923,7 @@ function ctp_dashboard_shortcode() {
             <div class="ctp-dashboard-nav" role="tablist">
             <?php foreach ($tabs as $key => $label) : ?>
                 <?php
-                $url = add_query_arg('tab', $key, $base_url);
+                $url = add_query_arg('ctp_tab', $key, $base_url);
                 $class = 'ctp-dashboard-button';
                 if ($tab === $key) {
                     $class .= ' is-active';
@@ -1930,6 +1944,8 @@ function ctp_dashboard_shortcode() {
                             <?php echo do_shortcode('[ctp_listar_ordenes]'); ?>
                         </div>
                     </div>
+                <?php elseif ($tab === 'clientes') : ?>
+                    <?php echo do_shortcode('[ctp_clientes]'); ?>
                 <?php elseif ($tab === 'proveedores') : ?>
                     <?php echo do_shortcode('[ctp_proveedores]'); ?>
                 <?php else : ?>
