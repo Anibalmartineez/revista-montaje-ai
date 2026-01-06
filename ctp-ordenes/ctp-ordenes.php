@@ -2,7 +2,7 @@
 /**
  * Plugin Name: CTP Órdenes
  * Description: MVP para cargar y listar órdenes de CTP mediante shortcodes.
- * Version: 0.3.0
+ * Version: 0.4.1
  * Author: Equipo Revista Montaje AI
  * Requires PHP: 8.0
  */
@@ -11,7 +11,7 @@ if (!defined('ABSPATH')) {
     exit;
 }
 
-define('CTP_ORDENES_VERSION', '0.3.0');
+define('CTP_ORDENES_VERSION', '0.4.1');
 
 /**
  * Crea la tabla necesaria al activar el plugin.
@@ -21,10 +21,11 @@ function ctp_ordenes_create_tables() {
 
     $table_name = $wpdb->prefix . 'ctp_ordenes';
     $table_clientes = $wpdb->prefix . 'ctp_clientes';
-    $table_clientes = $wpdb->prefix . 'ctp_clientes';
     $table_proveedores = $wpdb->prefix . 'ctp_proveedores';
     $table_facturas = $wpdb->prefix . 'ctp_facturas_proveedor';
     $table_pagos = $wpdb->prefix . 'ctp_pagos_factura';
+    $table_liquidaciones = $wpdb->prefix . 'ctp_liquidaciones_cliente';
+    $table_liquidacion_ordenes = $wpdb->prefix . 'ctp_liquidacion_ordenes';
     $charset_collate = $wpdb->get_charset_collate();
 
     $sql = "CREATE TABLE {$table_name} (
@@ -100,12 +101,37 @@ function ctp_ordenes_create_tables() {
         KEY factura_id (factura_id)
     ) {$charset_collate};";
 
+    $sql_liquidaciones = "CREATE TABLE {$table_liquidaciones} (
+        id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+        cliente_id BIGINT UNSIGNED NOT NULL,
+        desde DATE NOT NULL,
+        hasta DATE NOT NULL,
+        total DECIMAL(14,2) NOT NULL DEFAULT 0,
+        created_at DATETIME NOT NULL,
+        estado VARCHAR(20) NOT NULL DEFAULT 'generada',
+        nota TEXT NULL,
+        PRIMARY KEY  (id),
+        KEY cliente_id (cliente_id),
+        KEY estado (estado)
+    ) {$charset_collate};";
+
+    $sql_liquidacion_ordenes = "CREATE TABLE {$table_liquidacion_ordenes} (
+        id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+        liquidacion_id BIGINT UNSIGNED NOT NULL,
+        orden_id BIGINT UNSIGNED NOT NULL,
+        PRIMARY KEY  (id),
+        UNIQUE KEY orden_id (orden_id),
+        KEY liquidacion_id (liquidacion_id)
+    ) {$charset_collate};";
+
     require_once ABSPATH . 'wp-admin/includes/upgrade.php';
     dbDelta($sql);
     dbDelta($sql_clientes);
     dbDelta($sql_proveedores);
     dbDelta($sql_facturas);
     dbDelta($sql_pagos);
+    dbDelta($sql_liquidaciones);
+    dbDelta($sql_liquidacion_ordenes);
 }
 
 function ctp_ordenes_activate() {
@@ -139,6 +165,7 @@ function ctp_ordenes_should_enqueue_assets() {
         'ctp_clientes',
         'ctp_proveedores',
         'ctp_facturas_proveedor',
+        'ctp_liquidaciones',
         'ctp_dashboard',
     );
 
@@ -518,6 +545,41 @@ function ctp_ordenes_recalculate_factura($factura_id) {
         'monto_pagado' => $monto_pagado,
         'saldo' => $saldo,
         'estado_pago' => $estado,
+    );
+}
+
+function ctp_ordenes_get_clientes_list() {
+    global $wpdb;
+    $table_clientes = $wpdb->prefix . 'ctp_clientes';
+
+    return $wpdb->get_results(
+        "SELECT id, nombre FROM {$table_clientes} ORDER BY nombre ASC"
+    );
+}
+
+function ctp_ordenes_get_ordenes_no_liquidadas($cliente_id, $from, $to) {
+    if ($cliente_id <= 0 || empty($from) || empty($to)) {
+        return array();
+    }
+
+    global $wpdb;
+    $table_ordenes = $wpdb->prefix . 'ctp_ordenes';
+    $table_liquidacion_ordenes = $wpdb->prefix . 'ctp_liquidacion_ordenes';
+
+    return $wpdb->get_results(
+        $wpdb->prepare(
+            "SELECT o.id, o.fecha, o.numero_orden, o.descripcion, o.cantidad_chapas,
+                    o.medida_chapa, o.precio_unitario, o.total
+             FROM {$table_ordenes} o
+             LEFT JOIN {$table_liquidacion_ordenes} lo ON lo.orden_id = o.id
+             WHERE o.cliente_id = %d
+               AND o.fecha BETWEEN %s AND %s
+               AND lo.id IS NULL
+             ORDER BY o.fecha ASC, o.id ASC",
+            $cliente_id,
+            $from,
+            $to
+        )
     );
 }
 
@@ -2120,6 +2182,459 @@ function ctp_facturas_proveedor_shortcode() {
 }
 add_shortcode('ctp_facturas_proveedor', 'ctp_facturas_proveedor_shortcode');
 
+function ctp_liquidaciones_shortcode() {
+    ctp_ordenes_enqueue_assets(true);
+
+    global $wpdb;
+    $table_clientes = $wpdb->prefix . 'ctp_clientes';
+    $table_liquidaciones = $wpdb->prefix . 'ctp_liquidaciones_cliente';
+    $table_liquidacion_ordenes = $wpdb->prefix . 'ctp_liquidacion_ordenes';
+    $table_ordenes = $wpdb->prefix . 'ctp_ordenes';
+
+    $mensajes = array(
+        'success' => array(),
+        'error' => array(),
+        'warning' => array(),
+    );
+
+    $can_manage = ctp_ordenes_user_can_manage();
+
+    $selected_cliente_id = 0;
+    $fecha_desde = '';
+    $fecha_hasta = '';
+    $nota = '';
+    $preview_orders = array();
+    $preview_total = 0;
+    $show_preview = false;
+    $created_liquidacion_id = 0;
+
+    if (!empty($_POST['ctp_liquidacion_action'])) {
+        if (!$can_manage) {
+            $mensajes['error'][] = 'No tienes permisos para gestionar liquidaciones.';
+        } else {
+            $action = sanitize_text_field(wp_unslash($_POST['ctp_liquidacion_action']));
+            $selected_cliente_id = absint($_POST['cliente_id'] ?? 0);
+            $fecha_desde = sanitize_text_field(wp_unslash($_POST['fecha_desde'] ?? ''));
+            $fecha_hasta = sanitize_text_field(wp_unslash($_POST['fecha_hasta'] ?? ''));
+            $nota = sanitize_textarea_field(wp_unslash($_POST['nota'] ?? ''));
+
+            $valid_from = ctp_ordenes_is_valid_date($fecha_desde, 'Y-m-d');
+            $valid_to = ctp_ordenes_is_valid_date($fecha_hasta, 'Y-m-d');
+
+            if (!$selected_cliente_id) {
+                $mensajes['error'][] = 'Selecciona un cliente para generar la liquidación.';
+            }
+            if (!$valid_from || !$valid_to) {
+                $mensajes['error'][] = 'Selecciona un rango de fechas válido.';
+            } elseif (strtotime($fecha_desde) > strtotime($fecha_hasta)) {
+                $mensajes['error'][] = 'La fecha desde no puede ser mayor que la fecha hasta.';
+            }
+
+            if (empty($mensajes['error'])) {
+                if ($action === 'buscar') {
+                    if (!isset($_POST['ctp_liquidacion_nonce']) || !check_admin_referer('ctp_liquidacion_buscar', 'ctp_liquidacion_nonce')) {
+                        $mensajes['error'][] = 'No se pudo validar la búsqueda de órdenes.';
+                    } else {
+                        $preview_orders = ctp_ordenes_get_ordenes_no_liquidadas($selected_cliente_id, $fecha_desde, $fecha_hasta);
+                        foreach ($preview_orders as $orden) {
+                            $preview_total += (float) $orden->total;
+                        }
+
+                        if (empty($preview_orders)) {
+                            $mensajes['warning'][] = 'No hay órdenes disponibles para liquidar en este rango.';
+                        } else {
+                            $show_preview = true;
+                        }
+                    }
+                } elseif ($action === 'crear') {
+                    if (!isset($_POST['ctp_liquidacion_nonce']) || !check_admin_referer('ctp_liquidacion_crear', 'ctp_liquidacion_nonce')) {
+                        $mensajes['error'][] = 'No se pudo validar la solicitud de liquidación.';
+                    } else {
+                        $preview_orders = ctp_ordenes_get_ordenes_no_liquidadas($selected_cliente_id, $fecha_desde, $fecha_hasta);
+                        foreach ($preview_orders as $orden) {
+                            $preview_total += (float) $orden->total;
+                        }
+
+                        if (empty($preview_orders)) {
+                            $mensajes['warning'][] = 'No se encontraron órdenes disponibles para crear la liquidación.';
+                        } else {
+                            $now = current_time('mysql');
+                            $inserted = $wpdb->insert(
+                                $table_liquidaciones,
+                                array(
+                                    'cliente_id' => $selected_cliente_id,
+                                    'desde' => $fecha_desde,
+                                    'hasta' => $fecha_hasta,
+                                    'total' => $preview_total,
+                                    'created_at' => $now,
+                                    'estado' => 'generada',
+                                    'nota' => $nota,
+                                ),
+                                array('%d', '%s', '%s', '%f', '%s', '%s', '%s')
+                            );
+
+                            if ($inserted) {
+                                $liquidacion_id = (int) $wpdb->insert_id;
+                                $fallos = 0;
+
+                                foreach ($preview_orders as $orden) {
+                                    $relacion = $wpdb->insert(
+                                        $table_liquidacion_ordenes,
+                                        array(
+                                            'liquidacion_id' => $liquidacion_id,
+                                            'orden_id' => $orden->id,
+                                        ),
+                                        array('%d', '%d')
+                                    );
+                                    if (!$relacion) {
+                                        $fallos++;
+                                    }
+                                }
+
+                                if ($fallos > 0) {
+                                    $mensajes['warning'][] = 'La liquidación se creó, pero algunas órdenes no pudieron asociarse.';
+                                }
+
+                                $created_liquidacion_id = $liquidacion_id;
+                                $show_preview = false;
+                                $preview_orders = array();
+                                $preview_total = 0;
+                            } else {
+                                $mensajes['error'][] = 'No se pudo crear la liquidación. Intenta nuevamente.';
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    $clientes = ctp_ordenes_get_clientes_list();
+    $tab = '';
+    if (isset($_GET['ctp_tab'])) {
+        $tab = sanitize_key(wp_unslash($_GET['ctp_tab']));
+    } elseif (isset($_GET['tab'])) {
+        $tab = sanitize_key(wp_unslash($_GET['tab']));
+    }
+
+    $liquidacion_id = isset($_GET['ctp_liquidacion_id']) ? absint($_GET['ctp_liquidacion_id']) : 0;
+    if ($liquidacion_id > 0) {
+        $liquidacion = $wpdb->get_row(
+            $wpdb->prepare(
+                "SELECT f.*, COALESCE(c.nombre, '') AS cliente_nombre
+                 FROM {$table_liquidaciones} f
+                 LEFT JOIN {$table_clientes} c ON f.cliente_id = c.id
+                 WHERE f.id = %d",
+                $liquidacion_id
+            )
+        );
+
+        $ordenes_liquidacion = array();
+        if ($liquidacion) {
+            $ordenes_liquidacion = $wpdb->get_results(
+                $wpdb->prepare(
+                    "SELECT o.fecha, o.numero_orden, o.descripcion, o.cantidad_chapas,
+                            o.medida_chapa, o.precio_unitario, o.total
+                     FROM {$table_ordenes} o
+                     INNER JOIN {$table_liquidacion_ordenes} lo ON lo.orden_id = o.id
+                     WHERE lo.liquidacion_id = %d
+                     ORDER BY o.fecha ASC, o.id ASC",
+                    $liquidacion_id
+                )
+            );
+        }
+
+        $back_url = remove_query_arg(array('ctp_liquidacion_id'));
+        if (!empty($tab)) {
+            $back_url = add_query_arg('ctp_tab', $tab, $back_url);
+        }
+
+        ob_start();
+        ctp_ordenes_render_alerts($mensajes);
+
+        if (!$liquidacion) {
+            echo '<div class="ctp-alert ctp-alert-warning">La liquidación solicitada no existe.</div>';
+        } else {
+            ?>
+            <div class="ctp-panel">
+                <div class="ctp-panel-header">
+                    <h3 class="ctp-panel-title">Detalle de liquidación</h3>
+                    <p class="ctp-panel-subtitle">Cliente: <?php echo esc_html($liquidacion->cliente_nombre ?: 'Sin cliente'); ?></p>
+                </div>
+                <div class="ctp-panel-body">
+                    <div class="ctp-kpi-grid">
+                        <div class="ctp-kpi-card">
+                            <div class="ctp-kpi-title">Período</div>
+                            <div class="ctp-kpi-value">
+                                <?php echo esc_html(date_i18n('d/m/Y', strtotime($liquidacion->desde))); ?>
+                                -
+                                <?php echo esc_html(date_i18n('d/m/Y', strtotime($liquidacion->hasta))); ?>
+                            </div>
+                            <div class="ctp-kpi-meta">Liquidación #<?php echo esc_html($liquidacion->id); ?></div>
+                        </div>
+                        <div class="ctp-kpi-card">
+                            <div class="ctp-kpi-title">Total</div>
+                            <div class="ctp-kpi-value"><?php echo esc_html('Gs. ' . ctp_ordenes_format_currency($liquidacion->total)); ?></div>
+                            <div class="ctp-kpi-meta">Creada: <?php echo esc_html(date_i18n('d/m/Y', strtotime($liquidacion->created_at))); ?></div>
+                        </div>
+                        <div class="ctp-kpi-card">
+                            <div class="ctp-kpi-title">Estado</div>
+                            <div class="ctp-kpi-value"><?php echo esc_html(ucfirst($liquidacion->estado)); ?></div>
+                            <div class="ctp-kpi-meta"><?php echo esc_html($liquidacion->nota ?: 'Sin nota'); ?></div>
+                        </div>
+                    </div>
+                    <div class="ctp-table-wrap">
+                        <table class="ctp-table">
+                            <thead>
+                                <tr>
+                                    <th>Fecha</th>
+                                    <th>Nº Orden</th>
+                                    <th>Descripción</th>
+                                    <th>Medida</th>
+                                    <th>Cantidad</th>
+                                    <th>Unitario</th>
+                                    <th>Total</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <?php if (!empty($ordenes_liquidacion)) : ?>
+                                    <?php foreach ($ordenes_liquidacion as $orden) : ?>
+                                        <tr>
+                                            <td data-label="Fecha"><?php echo esc_html($orden->fecha); ?></td>
+                                            <td data-label="Nº Orden"><?php echo esc_html($orden->numero_orden); ?></td>
+                                            <td data-label="Descripción"><?php echo esc_html($orden->descripcion); ?></td>
+                                            <td data-label="Medida"><?php echo esc_html($orden->medida_chapa); ?></td>
+                                            <td data-label="Cantidad"><?php echo esc_html($orden->cantidad_chapas); ?></td>
+                                            <td data-label="Unitario"><?php echo esc_html('Gs. ' . ctp_ordenes_format_currency($orden->precio_unitario)); ?></td>
+                                            <td data-label="Total"><?php echo esc_html('Gs. ' . ctp_ordenes_format_currency($orden->total)); ?></td>
+                                        </tr>
+                                    <?php endforeach; ?>
+                                <?php else : ?>
+                                    <tr>
+                                        <td colspan="7">No hay órdenes asociadas a esta liquidación.</td>
+                                    </tr>
+                                <?php endif; ?>
+                            </tbody>
+                        </table>
+                    </div>
+                    <div class="ctp-actions">
+                        <a class="ctp-button ctp-button-secondary" href="<?php echo esc_url($back_url); ?>">Volver</a>
+                    </div>
+                </div>
+            </div>
+            <?php
+        }
+
+        $html = ob_get_clean();
+        if (!empty($GLOBALS['ctp_in_dashboard'])) {
+            return $html;
+        }
+        return ctp_ordenes_wrap($html, 'ctp-shell-page');
+    }
+
+    $list_cliente_id = isset($_GET['ctp_liquidacion_cliente']) ? absint($_GET['ctp_liquidacion_cliente']) : 0;
+    $list_where = '';
+    $list_params = array();
+    if ($list_cliente_id > 0) {
+        $list_where = 'WHERE f.cliente_id = %d';
+        $list_params[] = $list_cliente_id;
+    }
+
+    $liquidaciones = $wpdb->get_results(
+        $list_where
+            ? $wpdb->prepare(
+                "SELECT f.id, f.created_at, f.desde, f.hasta, f.total, f.estado,
+                        COALESCE(c.nombre, '') AS cliente_nombre
+                 FROM {$table_liquidaciones} f
+                 LEFT JOIN {$table_clientes} c ON f.cliente_id = c.id
+                 {$list_where}
+                 ORDER BY f.created_at DESC, f.id DESC",
+                $list_params
+            )
+            : "SELECT f.id, f.created_at, f.desde, f.hasta, f.total, f.estado,
+                      COALESCE(c.nombre, '') AS cliente_nombre
+               FROM {$table_liquidaciones} f
+               LEFT JOIN {$table_clientes} c ON f.cliente_id = c.id
+               ORDER BY f.created_at DESC, f.id DESC"
+    );
+
+    $detail_url_base = remove_query_arg(array('ctp_liquidacion_id'));
+    if (!empty($tab)) {
+        $detail_url_base = add_query_arg('ctp_tab', $tab, $detail_url_base);
+    }
+
+    ob_start();
+    ctp_ordenes_render_alerts($mensajes);
+
+    if ($created_liquidacion_id > 0) {
+        $liquidacion_url = add_query_arg('ctp_liquidacion_id', $created_liquidacion_id, $detail_url_base);
+        echo '<div class="ctp-alert ctp-alert-success">Liquidación creada correctamente. <a href="' . esc_url($liquidacion_url) . '">Ver detalle</a></div>';
+    }
+    ?>
+    <div class="ctp-panel">
+        <div class="ctp-panel-header">
+            <h3 class="ctp-panel-title">Liquidaciones de clientes</h3>
+            <p class="ctp-panel-subtitle">Selecciona cliente y rango de fechas para buscar órdenes no liquidadas.</p>
+        </div>
+        <div class="ctp-panel-body">
+            <form method="post" class="ctp-form ctp-form-inline">
+                <?php wp_nonce_field('ctp_liquidacion_buscar', 'ctp_liquidacion_nonce'); ?>
+                <input type="hidden" name="ctp_liquidacion_action" value="buscar">
+                <div class="ctp-field">
+                    <label for="ctp-liquidacion-cliente">Cliente</label>
+                    <select id="ctp-liquidacion-cliente" name="cliente_id" required>
+                        <option value="0">Seleccionar cliente</option>
+                        <?php foreach ($clientes as $cliente_item) : ?>
+                            <option value="<?php echo esc_attr($cliente_item->id); ?>" <?php selected($selected_cliente_id, (int) $cliente_item->id); ?>>
+                                <?php echo esc_html($cliente_item->nombre); ?>
+                            </option>
+                        <?php endforeach; ?>
+                    </select>
+                </div>
+                <div class="ctp-field">
+                    <label for="ctp-liquidacion-desde">Fecha desde</label>
+                    <input type="date" id="ctp-liquidacion-desde" name="fecha_desde" value="<?php echo esc_attr($fecha_desde); ?>">
+                </div>
+                <div class="ctp-field">
+                    <label for="ctp-liquidacion-hasta">Fecha hasta</label>
+                    <input type="date" id="ctp-liquidacion-hasta" name="fecha_hasta" value="<?php echo esc_attr($fecha_hasta); ?>">
+                </div>
+                <div class="ctp-field">
+                    <button type="submit" class="ctp-button">Buscar órdenes no liquidadas</button>
+                </div>
+            </form>
+            <?php if ($show_preview) : ?>
+                <div class="ctp-table-wrap">
+                    <table class="ctp-table">
+                        <thead>
+                            <tr>
+                                <th>Fecha</th>
+                                <th>Nº Orden</th>
+                                <th>Descripción</th>
+                                <th>Medida</th>
+                                <th>Cantidad</th>
+                                <th>Unitario</th>
+                                <th>Total</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <?php foreach ($preview_orders as $orden) : ?>
+                                <tr>
+                                    <td data-label="Fecha"><?php echo esc_html($orden->fecha); ?></td>
+                                    <td data-label="Nº Orden"><?php echo esc_html($orden->numero_orden); ?></td>
+                                    <td data-label="Descripción"><?php echo esc_html($orden->descripcion); ?></td>
+                                    <td data-label="Medida"><?php echo esc_html($orden->medida_chapa); ?></td>
+                                    <td data-label="Cantidad"><?php echo esc_html($orden->cantidad_chapas); ?></td>
+                                    <td data-label="Unitario"><?php echo esc_html('Gs. ' . ctp_ordenes_format_currency($orden->precio_unitario)); ?></td>
+                                    <td data-label="Total"><?php echo esc_html('Gs. ' . ctp_ordenes_format_currency($orden->total)); ?></td>
+                                </tr>
+                            <?php endforeach; ?>
+                        </tbody>
+                    </table>
+                </div>
+                <form method="post" class="ctp-form ctp-form-inline">
+                    <?php wp_nonce_field('ctp_liquidacion_crear', 'ctp_liquidacion_nonce'); ?>
+                    <input type="hidden" name="ctp_liquidacion_action" value="crear">
+                    <input type="hidden" name="cliente_id" value="<?php echo esc_attr($selected_cliente_id); ?>">
+                    <input type="hidden" name="fecha_desde" value="<?php echo esc_attr($fecha_desde); ?>">
+                    <input type="hidden" name="fecha_hasta" value="<?php echo esc_attr($fecha_hasta); ?>">
+                    <div class="ctp-field ctp-field-full">
+                        <label for="ctp-liquidacion-nota">Nota (opcional)</label>
+                        <textarea id="ctp-liquidacion-nota" name="nota" rows="2"><?php echo esc_textarea($nota); ?></textarea>
+                    </div>
+                    <div class="ctp-field">
+                        <strong>Total:</strong> <?php echo esc_html('Gs. ' . ctp_ordenes_format_currency($preview_total)); ?>
+                    </div>
+                    <div class="ctp-field">
+                        <button type="submit" class="ctp-button">Generar liquidación</button>
+                    </div>
+                </form>
+            <?php endif; ?>
+        </div>
+    </div>
+    <?php
+
+    $list_base_url = remove_query_arg(array('ctp_liquidacion_cliente', 'ctp_liquidacion_id'));
+    if (!empty($tab)) {
+        $list_base_url = add_query_arg('ctp_tab', $tab, $list_base_url);
+    }
+    ?>
+    <div class="ctp-panel">
+        <div class="ctp-panel-header">
+            <h3 class="ctp-panel-title">Liquidaciones emitidas</h3>
+            <p class="ctp-panel-subtitle">Listado de liquidaciones por cliente.</p>
+        </div>
+        <div class="ctp-panel-body">
+            <form method="get" class="ctp-form ctp-form-inline">
+                <?php if (!empty($tab)) : ?>
+                    <input type="hidden" name="ctp_tab" value="<?php echo esc_attr($tab); ?>">
+                <?php endif; ?>
+                <div class="ctp-field">
+                    <label for="ctp-liquidacion-cliente-filter">Cliente</label>
+                    <select id="ctp-liquidacion-cliente-filter" name="ctp_liquidacion_cliente">
+                        <option value="0">Todos los clientes</option>
+                        <?php foreach ($clientes as $cliente_item) : ?>
+                            <option value="<?php echo esc_attr($cliente_item->id); ?>" <?php selected($list_cliente_id, (int) $cliente_item->id); ?>>
+                                <?php echo esc_html($cliente_item->nombre); ?>
+                            </option>
+                        <?php endforeach; ?>
+                    </select>
+                </div>
+                <div class="ctp-field">
+                    <button type="submit" class="ctp-button ctp-button-secondary">Filtrar</button>
+                    <a class="ctp-button ctp-button-secondary" href="<?php echo esc_url($list_base_url); ?>">Limpiar</a>
+                </div>
+            </form>
+            <div class="ctp-table-wrap">
+                <table class="ctp-table">
+                    <thead>
+                        <tr>
+                            <th>Fecha creación</th>
+                            <th>Cliente</th>
+                            <th>Período</th>
+                            <th>Total</th>
+                            <th>Estado</th>
+                            <th></th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <?php if (!empty($liquidaciones)) : ?>
+                            <?php foreach ($liquidaciones as $liquidacion) : ?>
+                                <?php
+                                $detalle_url = add_query_arg('ctp_liquidacion_id', $liquidacion->id, $detail_url_base);
+                                ?>
+                                <tr>
+                                    <td data-label="Fecha creación"><?php echo esc_html(date_i18n('d/m/Y', strtotime($liquidacion->created_at))); ?></td>
+                                    <td data-label="Cliente"><?php echo esc_html($liquidacion->cliente_nombre ?: 'Sin cliente'); ?></td>
+                                    <td data-label="Período">
+                                        <?php echo esc_html(date_i18n('d/m/Y', strtotime($liquidacion->desde))); ?>
+                                        -
+                                        <?php echo esc_html(date_i18n('d/m/Y', strtotime($liquidacion->hasta))); ?>
+                                    </td>
+                                    <td data-label="Total"><?php echo esc_html('Gs. ' . ctp_ordenes_format_currency($liquidacion->total)); ?></td>
+                                    <td data-label="Estado"><?php echo esc_html(ucfirst($liquidacion->estado)); ?></td>
+                                    <td><a class="ctp-button ctp-button-secondary" href="<?php echo esc_url($detalle_url); ?>">Ver detalle</a></td>
+                                </tr>
+                            <?php endforeach; ?>
+                        <?php else : ?>
+                            <tr>
+                                <td colspan="6">No hay liquidaciones emitidas.</td>
+                            </tr>
+                        <?php endif; ?>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+    <?php
+    $html = ob_get_clean();
+    if (!empty($GLOBALS['ctp_in_dashboard'])) {
+        return $html;
+    }
+    return ctp_ordenes_wrap($html, 'ctp-shell-page');
+}
+add_shortcode('ctp_liquidaciones', 'ctp_liquidaciones_shortcode');
+
 function ctp_dashboard_shortcode() {
     ctp_ordenes_enqueue_assets(true);
 
@@ -2131,7 +2646,7 @@ function ctp_dashboard_shortcode() {
         $tab = 'ordenes';
     }
 
-    if (!in_array($tab, array('ordenes', 'proveedores', 'facturas', 'clientes'), true)) {
+    if (!in_array($tab, array('ordenes', 'proveedores', 'facturas', 'liquidaciones', 'clientes'), true)) {
         $tab = 'ordenes';
     }
 
@@ -2162,7 +2677,8 @@ function ctp_dashboard_shortcode() {
         'ordenes' => 'Órdenes',
         'clientes' => 'Clientes',
         'proveedores' => 'Proveedores',
-        'facturas' => 'Facturas',
+        'liquidaciones' => 'Liquidaciones',
+        'facturas' => 'Facturas proveedor',
     );
 
     $GLOBALS['ctp_in_dashboard'] = true;
@@ -2174,7 +2690,7 @@ function ctp_dashboard_shortcode() {
             <div class="ctp-dashboard-header">
                 <div>
                     <h2>Panel CTP</h2>
-                    <p class="ctp-dashboard-subtitle">Centro de control para órdenes, proveedores y facturación.</p>
+                    <p class="ctp-dashboard-subtitle">Centro de control para órdenes, proveedores, liquidaciones y facturación.</p>
                 </div>
                 <div class="ctp-dashboard-actions">
                     <span class="ctp-dashboard-label">Última actualización: <?php echo esc_html(current_time('d/m/Y')); ?></span>
@@ -2232,6 +2748,8 @@ function ctp_dashboard_shortcode() {
                     <?php echo do_shortcode('[ctp_clientes]'); ?>
                 <?php elseif ($tab === 'proveedores') : ?>
                     <?php echo do_shortcode('[ctp_proveedores]'); ?>
+                <?php elseif ($tab === 'liquidaciones') : ?>
+                    <?php echo do_shortcode('[ctp_liquidaciones]'); ?>
                 <?php else : ?>
                     <?php echo do_shortcode('[ctp_facturas_proveedor]'); ?>
                 <?php endif; ?>
