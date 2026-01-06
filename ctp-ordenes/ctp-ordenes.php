@@ -2295,6 +2295,24 @@ function ctp_liquidaciones_shortcode() {
                                     $mensajes['warning'][] = 'La liquidación se creó, pero algunas órdenes no pudieron asociarse.';
                                 }
 
+                                $total_real = (float) $wpdb->get_var(
+                                    $wpdb->prepare(
+                                        "SELECT COALESCE(SUM(o.total), 0)
+                                         FROM {$table_ordenes} o
+                                         INNER JOIN {$table_liquidacion_ordenes} lo ON lo.orden_id = o.id
+                                         WHERE lo.liquidacion_id = %d",
+                                        $liquidacion_id
+                                    )
+                                );
+
+                                $wpdb->update(
+                                    $table_liquidaciones,
+                                    array('total' => $total_real),
+                                    array('id' => $liquidacion_id),
+                                    array('%f'),
+                                    array('%d')
+                                );
+
                                 $created_liquidacion_id = $liquidacion_id;
                                 $show_preview = false;
                                 $preview_orders = array();
