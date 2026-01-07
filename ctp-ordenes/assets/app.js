@@ -7,6 +7,28 @@
         return parsed;
     }
 
+    function updateAiStatus(container, message, status) {
+        if (!container) {
+            return;
+        }
+        var statusEl = container.querySelector('.ctp-ai-status');
+        if (!statusEl) {
+            return;
+        }
+        statusEl.textContent = message;
+        statusEl.classList.remove('is-error', 'is-success', 'is-loading');
+        if (status) {
+            statusEl.classList.add('is-' + status);
+        }
+    }
+
+    function getAjaxUrl() {
+        if (window.ctpOrdenesData && window.ctpOrdenesData.ajaxUrl) {
+            return window.ctpOrdenesData.ajaxUrl;
+        }
+        return '';
+    }
+
     function updateOrderTotals(form) {
         if (!form) {
             return;
@@ -111,6 +133,125 @@
             var parentForm = itemsContainer.closest('.ctp-order-form');
             updateOrderTotals(parentForm);
         }
+
+        if (target.classList.contains('ctp-ai-generate')) {
+            var container = target.closest('.ctp-ai-summary');
+            if (!container) {
+                return;
+            }
+            var ajaxUrl = getAjaxUrl();
+            if (!ajaxUrl) {
+                updateAiStatus(container, 'No se encontró la URL de AJAX.', 'error');
+                return;
+            }
+            var liquidacionId = container.getAttribute('data-liquidacion-id');
+            var nonce = container.getAttribute('data-generate-nonce');
+            if (!liquidacionId || !nonce) {
+                updateAiStatus(container, 'No se pudieron leer los datos de la liquidación.', 'error');
+                return;
+            }
+
+            var textarea = container.querySelector('.ctp-ai-text');
+            var saveButton = container.querySelector('.ctp-ai-save');
+
+            target.disabled = true;
+            if (saveButton) {
+                saveButton.disabled = true;
+            }
+            updateAiStatus(container, 'Generando resumen...', 'loading');
+
+            var payload = new URLSearchParams();
+            payload.append('action', 'ctp_generar_resumen_liquidacion');
+            payload.append('nonce', nonce);
+            payload.append('liquidacion_id', liquidacionId);
+
+            fetch(ajaxUrl, {
+                method: 'POST',
+                credentials: 'same-origin',
+                headers: {
+                    'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8'
+                },
+                body: payload.toString()
+            })
+                .then(function (response) {
+                    return response.json();
+                })
+                .then(function (data) {
+                    if (!data || !data.success) {
+                        var message = (data && data.data && data.data.message) ? data.data.message : 'No se pudo generar el resumen.';
+                        updateAiStatus(container, message, 'error');
+                        return;
+                    }
+                    if (textarea) {
+                        textarea.value = data.data.summary || '';
+                    }
+                    updateAiStatus(container, 'Resumen generado. Puedes editarlo antes de guardar.', 'success');
+                    if (saveButton) {
+                        saveButton.disabled = !textarea || !textarea.value.trim();
+                    }
+                })
+                .catch(function () {
+                    updateAiStatus(container, 'Ocurrió un error al generar el resumen.', 'error');
+                })
+                .finally(function () {
+                    target.disabled = false;
+                });
+        }
+
+        if (target.classList.contains('ctp-ai-save')) {
+            var saveContainer = target.closest('.ctp-ai-summary');
+            if (!saveContainer) {
+                return;
+            }
+            var saveAjaxUrl = getAjaxUrl();
+            if (!saveAjaxUrl) {
+                updateAiStatus(saveContainer, 'No se encontró la URL de AJAX.', 'error');
+                return;
+            }
+            var saveLiquidacionId = saveContainer.getAttribute('data-liquidacion-id');
+            var saveNonce = saveContainer.getAttribute('data-save-nonce');
+            var summaryField = saveContainer.querySelector('.ctp-ai-text');
+            var summaryValue = summaryField ? summaryField.value.trim() : '';
+            if (!summaryValue) {
+                updateAiStatus(saveContainer, 'El resumen está vacío.', 'error');
+                return;
+            }
+
+            target.disabled = true;
+            updateAiStatus(saveContainer, 'Guardando resumen...', 'loading');
+
+            var savePayload = new URLSearchParams();
+            savePayload.append('action', 'ctp_guardar_resumen_liquidacion');
+            savePayload.append('nonce', saveNonce);
+            savePayload.append('liquidacion_id', saveLiquidacionId);
+            savePayload.append('summary', summaryValue);
+
+            fetch(saveAjaxUrl, {
+                method: 'POST',
+                credentials: 'same-origin',
+                headers: {
+                    'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8'
+                },
+                body: savePayload.toString()
+            })
+                .then(function (response) {
+                    return response.json();
+                })
+                .then(function (data) {
+                    if (!data || !data.success) {
+                        var message = (data && data.data && data.data.message) ? data.data.message : 'No se pudo guardar el resumen.';
+                        updateAiStatus(saveContainer, message, 'error');
+                        return;
+                    }
+                    updateAiStatus(saveContainer, data.data.message || 'Resumen guardado.', 'success');
+                })
+                .catch(function () {
+                    updateAiStatus(saveContainer, 'Ocurrió un error al guardar el resumen.', 'error');
+                })
+                .finally(function () {
+                    target.disabled = false;
+                });
+        }
     });
 
     document.addEventListener('DOMContentLoaded', function () {
@@ -193,6 +334,22 @@
             });
 
             updateMode();
+        });
+
+        document.querySelectorAll('.ctp-ai-text').forEach(function (textarea) {
+            var container = textarea.closest('.ctp-ai-summary');
+            if (!container) {
+                return;
+            }
+            var saveButton = container.querySelector('.ctp-ai-save');
+            if (!saveButton) {
+                return;
+            }
+            var toggleSave = function () {
+                saveButton.disabled = !textarea.value.trim();
+            };
+            textarea.addEventListener('input', toggleSave);
+            toggleSave();
         });
     });
 })();

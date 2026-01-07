@@ -255,6 +255,14 @@ function ctp_ordenes_enqueue_assets($force = false) {
         true
     );
 
+    wp_localize_script(
+        'ctp-ordenes-app',
+        'ctpOrdenesData',
+        array(
+            'ajaxUrl' => admin_url('admin-ajax.php'),
+        )
+    );
+
     $enqueued = true;
 }
 add_action('wp_enqueue_scripts', 'ctp_ordenes_enqueue_assets');
@@ -309,6 +317,50 @@ function ctp_ordenes_format_items_count($count) {
 function ctp_ordenes_format_job_name($nombre_trabajo) {
     $nombre_trabajo = trim((string) $nombre_trabajo);
     return $nombre_trabajo !== '' ? $nombre_trabajo : '—';
+}
+
+function ctp_ordenes_build_liquidacion_ai_prompt($liquidacion, $ordenes) {
+    $cliente = $liquidacion->cliente_nombre ?: 'Sin cliente';
+    $periodo_desde = date_i18n('d/m/Y', strtotime($liquidacion->desde));
+    $periodo_hasta = date_i18n('d/m/Y', strtotime($liquidacion->hasta));
+    $total = ctp_ordenes_format_currency($liquidacion->total);
+    $cantidad_ordenes = count($ordenes);
+
+    $ordenes_lines = array();
+    foreach ($ordenes as $orden) {
+        $fecha = !empty($orden->fecha) ? date_i18n('d/m/Y', strtotime($orden->fecha)) : 'Sin fecha';
+        $trabajo = $orden->nombre_trabajo ? trim((string) $orden->nombre_trabajo) : '';
+        if ($trabajo === '') {
+            $trabajo = 'Sin nombre de trabajo';
+        }
+        $total_orden = ctp_ordenes_format_currency($orden->total);
+        $trabajos = ctp_ordenes_format_items_count((int) $orden->items_count);
+        $ordenes_lines[] = sprintf(
+            '- Orden %s | Fecha: %s | Trabajo: %s | Total: Gs. %s | %s',
+            $orden->numero_orden,
+            $fecha,
+            $trabajo,
+            $total_orden,
+            $trabajos
+        );
+    }
+
+    if (empty($ordenes_lines)) {
+        $ordenes_lines[] = '- Sin órdenes asociadas.';
+    }
+
+    $prompt = "Genera un resumen profesional en español de esta liquidación. Usa SOLO los datos entregados, no inventes fechas ni montos.\n";
+    $prompt .= "Debe incluir: nombre del cliente, período, cantidad de órdenes, total, y 3 a 5 trabajos destacados (usa nombre_trabajo si existe).\n";
+    $prompt .= "Extensión: 4 a 8 líneas. Incluye una versión lista para WhatsApp al final, precedida por \"WhatsApp:\".\n\n";
+    $prompt .= "Datos de la liquidación:\n";
+    $prompt .= sprintf("Cliente: %s\n", $cliente);
+    $prompt .= sprintf("Período: %s al %s\n", $periodo_desde, $periodo_hasta);
+    $prompt .= sprintf("Total: Gs. %s\n", $total);
+    $prompt .= sprintf("Cantidad de órdenes: %d\n", $cantidad_ordenes);
+    $prompt .= "Órdenes:\n";
+    $prompt .= implode("\n", $ordenes_lines);
+
+    return $prompt;
 }
 
 function ctp_ordenes_get_order_total($orden_id, $fallback_total = 0) {
@@ -2765,6 +2817,10 @@ function ctp_liquidaciones_shortcode() {
         if (!empty($tab)) {
             $back_url = add_query_arg('ctp_tab', $tab, $back_url);
         }
+        $has_ai_key = defined('OPENAI_API_KEY') && OPENAI_API_KEY !== '';
+        $ai_generate_nonce = wp_create_nonce('ctp_ai_resumen_liquidacion');
+        $ai_save_nonce = wp_create_nonce('ctp_ai_guardar_resumen_liquidacion');
+        $initial_summary = $liquidacion ? (string) $liquidacion->nota : '';
 
         ob_start();
         ctp_ordenes_render_alerts($mensajes);
@@ -2840,6 +2896,26 @@ function ctp_liquidaciones_shortcode() {
                                 <?php endif; ?>
                             </tbody>
                         </table>
+                    </div>
+                    <div class="ctp-panel ctp-ai-panel">
+                        <div class="ctp-panel-header">
+                            <h4 class="ctp-panel-title">Resumen IA</h4>
+                            <p class="ctp-panel-subtitle">Genera un resumen breve para compartir con el cliente o guardar como nota interna.</p>
+                        </div>
+                        <div class="ctp-panel-body ctp-ai-summary"
+                             data-liquidacion-id="<?php echo esc_attr($liquidacion->id); ?>"
+                             data-generate-nonce="<?php echo esc_attr($ai_generate_nonce); ?>"
+                             data-save-nonce="<?php echo esc_attr($ai_save_nonce); ?>">
+                            <?php if (!$has_ai_key) : ?>
+                                <div class="ctp-alert ctp-alert-warning">La API key de OpenAI no está configurada. Agrega OPENAI_API_KEY en wp-config.php.</div>
+                            <?php endif; ?>
+                            <div class="ctp-ai-actions">
+                                <button type="button" class="ctp-button ctp-button-secondary ctp-ai-generate" <?php disabled(!$has_ai_key); ?>>Generar resumen con IA</button>
+                                <button type="button" class="ctp-button ctp-ai-save" <?php disabled(trim($initial_summary) === '' || !$has_ai_key); ?>>Guardar resumen como nota</button>
+                            </div>
+                            <p class="ctp-ai-status" role="status" aria-live="polite"></p>
+                            <textarea class="ctp-ai-text" rows="6" placeholder="El resumen aparecerá aquí. Puedes editarlo antes de guardar o copiar."><?php echo esc_textarea($initial_summary); ?></textarea>
+                        </div>
                     </div>
                     <div class="ctp-actions">
                         <a class="ctp-button ctp-button-secondary" href="<?php echo esc_url($back_url); ?>">Volver</a>
@@ -3066,6 +3142,148 @@ function ctp_liquidaciones_shortcode() {
     return ctp_ordenes_wrap($html, 'ctp-shell-page');
 }
 add_shortcode('ctp_liquidaciones', 'ctp_liquidaciones_shortcode');
+
+function ctp_ordenes_ajax_generate_liquidacion_summary() {
+    if (!ctp_ordenes_user_can_manage()) {
+        wp_send_json_error(array('message' => 'No tienes permisos para generar el resumen.'), 403);
+    }
+
+    check_ajax_referer('ctp_ai_resumen_liquidacion', 'nonce');
+
+    $liquidacion_id = isset($_POST['liquidacion_id']) ? absint($_POST['liquidacion_id']) : 0;
+    if ($liquidacion_id <= 0) {
+        wp_send_json_error(array('message' => 'No se recibió una liquidación válida.'), 400);
+    }
+
+    if (!defined('OPENAI_API_KEY') || OPENAI_API_KEY === '') {
+        wp_send_json_error(array('message' => 'La API key de OpenAI no está configurada en wp-config.php.'), 400);
+    }
+
+    global $wpdb;
+    $table_liquidaciones = $wpdb->prefix . 'ctp_liquidaciones_cliente';
+    $table_liquidacion_ordenes = $wpdb->prefix . 'ctp_liquidacion_ordenes';
+    $table_ordenes = $wpdb->prefix . 'ctp_ordenes';
+    $table_items = $wpdb->prefix . 'ctp_ordenes_items';
+    $table_clientes = $wpdb->prefix . 'ctp_clientes';
+
+    $liquidacion = $wpdb->get_row(
+        $wpdb->prepare(
+            "SELECT f.*, COALESCE(c.nombre, '') AS cliente_nombre
+             FROM {$table_liquidaciones} f
+             LEFT JOIN {$table_clientes} c ON f.cliente_id = c.id
+             WHERE f.id = %d",
+            $liquidacion_id
+        )
+    );
+
+    if (!$liquidacion) {
+        wp_send_json_error(array('message' => 'La liquidación indicada no existe.'), 404);
+    }
+
+    $ordenes = $wpdb->get_results(
+        $wpdb->prepare(
+            "SELECT o.id,
+                    o.fecha,
+                    o.numero_orden,
+                    o.nombre_trabajo,
+                    COALESCE(SUM(i.total_item), o.total) AS total,
+                    CASE WHEN COUNT(i.id) > 0 THEN COUNT(i.id) ELSE 1 END AS items_count
+             FROM {$table_ordenes} o
+             INNER JOIN {$table_liquidacion_ordenes} lo ON lo.orden_id = o.id
+             LEFT JOIN {$table_items} i ON i.orden_id = o.id
+             WHERE lo.liquidacion_id = %d
+             GROUP BY o.id
+             ORDER BY o.fecha ASC, o.id ASC",
+            $liquidacion_id
+        )
+    );
+
+    $prompt = ctp_ordenes_build_liquidacion_ai_prompt($liquidacion, $ordenes);
+
+    $request_body = array(
+        'model' => 'gpt-4o-mini',
+        'messages' => array(
+            array(
+                'role' => 'system',
+                'content' => 'Eres un asistente que redacta resúmenes comerciales claros para liquidaciones.',
+            ),
+            array(
+                'role' => 'user',
+                'content' => $prompt,
+            ),
+        ),
+        'temperature' => 0.3,
+        'max_tokens' => 400,
+    );
+
+    $response = wp_remote_post(
+        'https://api.openai.com/v1/chat/completions',
+        array(
+            'headers' => array(
+                'Authorization' => 'Bearer ' . OPENAI_API_KEY,
+                'Content-Type' => 'application/json',
+            ),
+            'timeout' => 30,
+            'body' => wp_json_encode($request_body),
+        )
+    );
+
+    if (is_wp_error($response)) {
+        wp_send_json_error(array('message' => 'No se pudo contactar con OpenAI. ' . $response->get_error_message()), 500);
+    }
+
+    $status = wp_remote_retrieve_response_code($response);
+    $body = wp_remote_retrieve_body($response);
+    if ($status < 200 || $status >= 300) {
+        wp_send_json_error(array('message' => 'OpenAI devolvió un error al generar el resumen.'), $status);
+    }
+
+    $data = json_decode($body, true);
+    $summary = $data['choices'][0]['message']['content'] ?? '';
+    $summary = trim((string) $summary);
+    if ($summary === '') {
+        wp_send_json_error(array('message' => 'No se recibió un resumen válido.'), 500);
+    }
+
+    wp_send_json_success(array('summary' => $summary));
+}
+add_action('wp_ajax_ctp_generar_resumen_liquidacion', 'ctp_ordenes_ajax_generate_liquidacion_summary');
+
+function ctp_ordenes_ajax_save_liquidacion_summary() {
+    if (!ctp_ordenes_user_can_manage()) {
+        wp_send_json_error(array('message' => 'No tienes permisos para guardar la nota.'), 403);
+    }
+
+    check_ajax_referer('ctp_ai_guardar_resumen_liquidacion', 'nonce');
+
+    $liquidacion_id = isset($_POST['liquidacion_id']) ? absint($_POST['liquidacion_id']) : 0;
+    if ($liquidacion_id <= 0) {
+        wp_send_json_error(array('message' => 'No se recibió una liquidación válida.'), 400);
+    }
+
+    $summary = isset($_POST['summary']) ? sanitize_textarea_field(wp_unslash($_POST['summary'])) : '';
+    if ($summary === '') {
+        wp_send_json_error(array('message' => 'El resumen está vacío.'), 400);
+    }
+
+    global $wpdb;
+    $table_liquidaciones = $wpdb->prefix . 'ctp_liquidaciones_cliente';
+
+    $updated = $wpdb->update(
+        $table_liquidaciones,
+        array('nota' => $summary),
+        array('id' => $liquidacion_id),
+        array('%s'),
+        array('%d')
+    );
+
+    if ($updated === false) {
+        wp_send_json_error(array('message' => 'No se pudo guardar la nota.'), 500);
+    }
+
+    wp_send_json_success(array('message' => 'Resumen guardado en la nota de la liquidación.'));
+}
+add_action('wp_ajax_ctp_guardar_resumen_liquidacion', 'ctp_ordenes_ajax_save_liquidacion_summary');
 
 function ctp_dashboard_shortcode() {
     ctp_ordenes_enqueue_assets(true);
