@@ -547,6 +547,7 @@ function ctp_ordenes_get_cliente_kpis($cliente_id, $periodo = array()) {
 
     global $wpdb;
     $table_ordenes = $wpdb->prefix . 'ctp_ordenes';
+    $table_items = $wpdb->prefix . 'ctp_ordenes_items';
 
     $where = 'cliente_id = %d';
     $params = array($cliente_id);
@@ -592,6 +593,7 @@ function ctp_ordenes_get_ordenes_by_cliente($cliente_id, $periodo = array(), $li
 
     global $wpdb;
     $table_ordenes = $wpdb->prefix . 'ctp_ordenes';
+    $table_items = $wpdb->prefix . 'ctp_ordenes_items';
 
     $where = 'cliente_id = %d';
     $params = array($cliente_id);
