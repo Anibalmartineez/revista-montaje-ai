@@ -2,7 +2,7 @@
 /**
  * Plugin Name: CTP Órdenes
  * Description: MVP para cargar y listar órdenes de CTP mediante shortcodes.
- * Version: 0.4.1
+ * Version: 0.5.0
  * Author: Equipo Revista Montaje AI
  * Requires PHP: 8.0
  */
@@ -11,7 +11,7 @@ if (!defined('ABSPATH')) {
     exit;
 }
 
-define('CTP_ORDENES_VERSION', '0.4.1');
+define('CTP_ORDENES_VERSION', '0.5.0');
 
 /**
  * Crea la tabla necesaria al activar el plugin.
@@ -20,6 +20,7 @@ function ctp_ordenes_create_tables() {
     global $wpdb;
 
     $table_name = $wpdb->prefix . 'ctp_ordenes';
+    $table_items = $wpdb->prefix . 'ctp_ordenes_items';
     $table_clientes = $wpdb->prefix . 'ctp_clientes';
     $table_proveedores = $wpdb->prefix . 'ctp_proveedores';
     $table_facturas = $wpdb->prefix . 'ctp_facturas_proveedor';
@@ -44,6 +45,19 @@ function ctp_ordenes_create_tables() {
         PRIMARY KEY  (id),
         UNIQUE KEY numero_orden (numero_orden),
         KEY cliente_id (cliente_id)
+    ) {$charset_collate};";
+
+    $sql_items = "CREATE TABLE {$table_items} (
+        id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+        orden_id BIGINT UNSIGNED NOT NULL,
+        medida_chapa VARCHAR(20) NOT NULL,
+        cantidad_chapas INT NOT NULL DEFAULT 1,
+        precio_unitario DECIMAL(12,2) NOT NULL DEFAULT 0,
+        total_item DECIMAL(12,2) NOT NULL DEFAULT 0,
+        created_at DATETIME NOT NULL,
+        updated_at DATETIME NOT NULL,
+        PRIMARY KEY  (id),
+        KEY orden_id (orden_id)
     ) {$charset_collate};";
 
     $sql_clientes = "CREATE TABLE {$table_clientes} (
@@ -126,6 +140,7 @@ function ctp_ordenes_create_tables() {
 
     require_once ABSPATH . 'wp-admin/includes/upgrade.php';
     dbDelta($sql);
+    dbDelta($sql_items);
     dbDelta($sql_clientes);
     dbDelta($sql_proveedores);
     dbDelta($sql_facturas);
@@ -136,14 +151,40 @@ function ctp_ordenes_create_tables() {
 
 function ctp_ordenes_activate() {
     ctp_ordenes_create_tables();
+    ctp_ordenes_migrate_items();
     update_option('ctp_ordenes_version', CTP_ORDENES_VERSION);
 }
 register_activation_hook(__FILE__, 'ctp_ordenes_activate');
+
+function ctp_ordenes_migrate_items() {
+    global $wpdb;
+
+    $table_ordenes = $wpdb->prefix . 'ctp_ordenes';
+    $table_items = $wpdb->prefix . 'ctp_ordenes_items';
+
+    $exists = $wpdb->get_var(
+        $wpdb->prepare('SHOW TABLES LIKE %s', $table_items)
+    );
+
+    if ($exists !== $table_items) {
+        return;
+    }
+
+    $wpdb->query(
+        "INSERT INTO {$table_items}
+            (orden_id, medida_chapa, cantidad_chapas, precio_unitario, total_item, created_at, updated_at)
+         SELECT o.id, o.medida_chapa, o.cantidad_chapas, o.precio_unitario, o.total, o.created_at, o.updated_at
+         FROM {$table_ordenes} o
+         LEFT JOIN {$table_items} i ON i.orden_id = o.id
+         WHERE i.id IS NULL"
+    );
+}
 
 function ctp_ordenes_maybe_upgrade() {
     $version = get_option('ctp_ordenes_version');
     if ($version !== CTP_ORDENES_VERSION) {
         ctp_ordenes_create_tables();
+        ctp_ordenes_migrate_items();
         update_option('ctp_ordenes_version', CTP_ORDENES_VERSION);
     }
 }
@@ -257,6 +298,112 @@ function ctp_ordenes_get_medidas_chapa() {
 
 function ctp_ordenes_format_currency($value, $decimals = 0) {
     return number_format((float) $value, $decimals, ',', '.');
+}
+
+function ctp_ordenes_format_items_count($count) {
+    $formatted = ctp_ordenes_format_currency($count, 0);
+    return $count === 1 ? '1 trabajo' : sprintf('%s trabajos', $formatted);
+}
+
+function ctp_ordenes_get_order_total($orden_id, $fallback_total = 0) {
+    global $wpdb;
+    $table_items = $wpdb->prefix . 'ctp_ordenes_items';
+
+    $sum = $wpdb->get_var(
+        $wpdb->prepare(
+            "SELECT SUM(total_item) FROM {$table_items} WHERE orden_id = %d",
+            $orden_id
+        )
+    );
+
+    if ($sum === null) {
+        return (float) $fallback_total;
+    }
+
+    return (float) $sum;
+}
+
+function ctp_ordenes_get_items_map($ordenes) {
+    if (empty($ordenes)) {
+        return array();
+    }
+
+    $order_ids = array();
+    foreach ($ordenes as $orden) {
+        if (!empty($orden->id)) {
+            $order_ids[] = (int) $orden->id;
+        }
+    }
+
+    if (empty($order_ids)) {
+        return array();
+    }
+
+    global $wpdb;
+    $table_items = $wpdb->prefix . 'ctp_ordenes_items';
+
+    $placeholders = implode(',', array_fill(0, count($order_ids), '%d'));
+    $items = $wpdb->get_results(
+        $wpdb->prepare(
+            "SELECT orden_id, medida_chapa, cantidad_chapas, precio_unitario, total_item
+             FROM {$table_items}
+             WHERE orden_id IN ({$placeholders})
+             ORDER BY id ASC",
+            $order_ids
+        )
+    );
+
+    $items_map = array();
+    foreach ($items as $item) {
+        $items_map[(int) $item->orden_id][] = $item;
+    }
+
+    foreach ($ordenes as $orden) {
+        $orden_id = (int) $orden->id;
+        if (empty($items_map[$orden_id])) {
+            $items_map[$orden_id] = array(
+                (object) array(
+                    'medida_chapa' => $orden->medida_chapa ?? '',
+                    'cantidad_chapas' => $orden->cantidad_chapas ?? 0,
+                    'precio_unitario' => $orden->precio_unitario ?? 0,
+                    'total_item' => $orden->total ?? 0,
+                ),
+            );
+        }
+    }
+
+    return $items_map;
+}
+
+function ctp_ordenes_render_items_table($items) {
+    if (empty($items)) {
+        return '<p>No hay ítems cargados.</p>';
+    }
+
+    ob_start();
+    ?>
+    <table class="ctp-table ctp-table-small">
+        <thead>
+            <tr>
+                <th>Medida</th>
+                <th>Cantidad</th>
+                <th>Unitario</th>
+                <th>Total</th>
+            </tr>
+        </thead>
+        <tbody>
+            <?php foreach ($items as $item) : ?>
+                <tr>
+                    <td data-label="Medida"><?php echo esc_html($item->medida_chapa); ?></td>
+                    <td data-label="Cantidad"><?php echo esc_html($item->cantidad_chapas); ?></td>
+                    <td data-label="Unitario"><?php echo esc_html('Gs. ' . ctp_ordenes_format_currency($item->precio_unitario)); ?></td>
+                    <td data-label="Total"><?php echo esc_html('Gs. ' . ctp_ordenes_format_currency($item->total_item)); ?></td>
+                </tr>
+            <?php endforeach; ?>
+        </tbody>
+    </table>
+    <?php
+    return ob_get_clean();
 }
 
 function ctp_ordenes_is_valid_date($date, $format) {
@@ -400,6 +547,7 @@ function ctp_ordenes_get_cliente_kpis($cliente_id, $periodo = array()) {
 
     global $wpdb;
     $table_ordenes = $wpdb->prefix . 'ctp_ordenes';
+    $table_items = $wpdb->prefix . 'ctp_ordenes_items';
 
     $where = 'cliente_id = %d';
     $params = array($cliente_id);
@@ -413,10 +561,17 @@ function ctp_ordenes_get_cliente_kpis($cliente_id, $periodo = array()) {
     $row = $wpdb->get_row(
         $wpdb->prepare(
             "SELECT COUNT(*) AS cantidad,
-                    COALESCE(SUM(total), 0) AS total,
+                    COALESCE(SUM(order_total), 0) AS total,
                     MAX(fecha) AS ultima_fecha
-             FROM {$table_ordenes}
-             WHERE {$where}",
+             FROM (
+                SELECT o.id,
+                       o.fecha,
+                       COALESCE(SUM(i.total_item), o.total) AS order_total
+                FROM {$table_ordenes} o
+                LEFT JOIN {$table_items} i ON i.orden_id = o.id
+                WHERE {$where}
+                GROUP BY o.id
+             ) AS ordenes",
             $params
         )
     );
@@ -438,6 +593,7 @@ function ctp_ordenes_get_ordenes_by_cliente($cliente_id, $periodo = array(), $li
 
     global $wpdb;
     $table_ordenes = $wpdb->prefix . 'ctp_ordenes';
+    $table_items = $wpdb->prefix . 'ctp_ordenes_items';
 
     $where = 'cliente_id = %d';
     $params = array($cliente_id);
@@ -452,10 +608,20 @@ function ctp_ordenes_get_ordenes_by_cliente($cliente_id, $periodo = array(), $li
 
     return $wpdb->get_results(
         $wpdb->prepare(
-            "SELECT fecha, numero_orden, descripcion, cantidad_chapas, medida_chapa, precio_unitario, total
-             FROM {$table_ordenes}
+            "SELECT o.id,
+                    o.fecha,
+                    o.numero_orden,
+                    o.descripcion,
+                    o.cantidad_chapas,
+                    o.medida_chapa,
+                    o.precio_unitario,
+                    COALESCE(SUM(i.total_item), o.total) AS total,
+                    CASE WHEN COUNT(i.id) > 0 THEN COUNT(i.id) ELSE 1 END AS items_count
+             FROM {$table_ordenes} o
+             LEFT JOIN {$table_items} i ON i.orden_id = o.id
              WHERE {$where}
-             ORDER BY fecha DESC, id DESC
+             GROUP BY o.id
+             ORDER BY o.fecha DESC, o.id DESC
              LIMIT %d",
             $params
         )
@@ -565,16 +731,26 @@ function ctp_ordenes_get_ordenes_no_liquidadas($cliente_id, $from, $to) {
     global $wpdb;
     $table_ordenes = $wpdb->prefix . 'ctp_ordenes';
     $table_liquidacion_ordenes = $wpdb->prefix . 'ctp_liquidacion_ordenes';
+    $table_items = $wpdb->prefix . 'ctp_ordenes_items';
 
     return $wpdb->get_results(
         $wpdb->prepare(
-            "SELECT o.id, o.fecha, o.numero_orden, o.descripcion, o.cantidad_chapas,
-                    o.medida_chapa, o.precio_unitario, o.total
+            "SELECT o.id,
+                    o.fecha,
+                    o.numero_orden,
+                    o.descripcion,
+                    o.cantidad_chapas,
+                    o.medida_chapa,
+                    o.precio_unitario,
+                    COALESCE(SUM(i.total_item), o.total) AS total,
+                    CASE WHEN COUNT(i.id) > 0 THEN COUNT(i.id) ELSE 1 END AS items_count
              FROM {$table_ordenes} o
              LEFT JOIN {$table_liquidacion_ordenes} lo ON lo.orden_id = o.id
+             LEFT JOIN {$table_items} i ON i.orden_id = o.id
              WHERE o.cliente_id = %d
                AND o.fecha BETWEEN %s AND %s
                AND lo.id IS NULL
+             GROUP BY o.id
              ORDER BY o.fecha ASC, o.id ASC",
             $cliente_id,
             $from,
@@ -601,9 +777,9 @@ function ctp_cargar_orden_shortcode() {
             $cliente_id = absint($_POST['cliente_id'] ?? 0);
             $cliente = sanitize_text_field($_POST['cliente'] ?? '');
             $descripcion = sanitize_textarea_field($_POST['descripcion'] ?? '');
-            $cantidad_chapas = absint($_POST['cantidad_chapas'] ?? 1);
-            $medida_chapa = sanitize_text_field($_POST['medida_chapa'] ?? '');
-            $precio_unitario = floatval($_POST['precio_unitario'] ?? 0);
+            $cantidad_chapas_raw = isset($_POST['cantidad_chapas']) ? (array) wp_unslash($_POST['cantidad_chapas']) : array();
+            $medida_chapa_raw = isset($_POST['medida_chapa']) ? (array) wp_unslash($_POST['medida_chapa']) : array();
+            $precio_unitario_raw = isset($_POST['precio_unitario']) ? (array) wp_unslash($_POST['precio_unitario']) : array();
 
             if (empty($fecha)) {
                 $errores[] = 'La fecha es obligatoria.';
@@ -628,30 +804,69 @@ function ctp_cargar_orden_shortcode() {
             } elseif (empty($cliente)) {
                 $errores[] = 'El cliente es obligatorio.';
             }
-            if ($cantidad_chapas < 1) {
-                $cantidad_chapas = 1;
-            }
             $medidas_validas = ctp_ordenes_get_medidas_chapa();
-            if (!in_array($medida_chapa, $medidas_validas, true)) {
-                $errores[] = 'Selecciona una medida de chapa válida.';
+            $max_items = max(count($cantidad_chapas_raw), count($medida_chapa_raw), count($precio_unitario_raw), 1);
+            $items = array();
+
+            for ($i = 0; $i < $max_items; $i++) {
+                $medida_chapa = sanitize_text_field($medida_chapa_raw[$i] ?? '');
+                $cantidad_chapas = absint($cantidad_chapas_raw[$i] ?? 0);
+                $precio_unitario = floatval($precio_unitario_raw[$i] ?? 0);
+
+                if ($medida_chapa === '' && $cantidad_chapas === 0 && $precio_unitario === 0.0) {
+                    continue;
+                }
+
+                if (!in_array($medida_chapa, $medidas_validas, true)) {
+                    $errores[] = sprintf('Selecciona una medida de chapa válida para el ítem %d.', $i + 1);
+                }
+
+                if ($cantidad_chapas < 1) {
+                    $errores[] = sprintf('La cantidad del ítem %d debe ser mayor a cero.', $i + 1);
+                }
+
+                if ($precio_unitario < 0) {
+                    $errores[] = sprintf('El precio del ítem %d no puede ser negativo.', $i + 1);
+                }
+
+                if (empty($errores)) {
+                    $items[] = array(
+                        'medida_chapa' => $medida_chapa,
+                        'cantidad_chapas' => $cantidad_chapas,
+                        'precio_unitario' => $precio_unitario,
+                        'total_item' => $cantidad_chapas * $precio_unitario,
+                    );
+                }
+            }
+
+            if (empty($items) && empty($errores)) {
+                $errores[] = 'Agrega al menos un trabajo a la orden.';
             }
 
             if (empty($errores)) {
                 global $wpdb;
                 $table_name = $wpdb->prefix . 'ctp_ordenes';
+                $table_items = $wpdb->prefix . 'ctp_ordenes_items';
 
-                $existe = $wpdb->get_var(
+                $orden_existente = $wpdb->get_row(
                     $wpdb->prepare(
-                        "SELECT COUNT(*) FROM {$table_name} WHERE numero_orden = %s",
+                        "SELECT id, total FROM {$table_name} WHERE numero_orden = %s",
                         $numero_orden
                     )
                 );
 
-                if ($existe) {
-                    $errores[] = 'El número de orden ya existe. Usa uno diferente.';
+                $now = current_time('mysql');
+                $orden_id = 0;
+                $creada = false;
+
+                if ($orden_existente) {
+                    $orden_id = (int) $orden_existente->id;
                 } else {
-                    $total = $cantidad_chapas * $precio_unitario;
-                    $now = current_time('mysql');
+                    $primer_item = $items[0];
+                    $orden_total = 0;
+                    foreach ($items as $item) {
+                        $orden_total += $item['total_item'];
+                    }
 
                     $insertado = $wpdb->insert(
                         $table_name,
@@ -661,10 +876,10 @@ function ctp_cargar_orden_shortcode() {
                             'cliente' => $cliente,
                             'cliente_id' => $cliente_id > 0 ? $cliente_id : null,
                             'descripcion' => $descripcion,
-                            'cantidad_chapas' => $cantidad_chapas,
-                            'medida_chapa' => $medida_chapa,
-                            'precio_unitario' => $precio_unitario,
-                            'total' => $total,
+                            'cantidad_chapas' => $primer_item['cantidad_chapas'],
+                            'medida_chapa' => $primer_item['medida_chapa'],
+                            'precio_unitario' => $primer_item['precio_unitario'],
+                            'total' => $orden_total,
                             'created_at' => $now,
                             'updated_at' => $now,
                         ),
@@ -672,11 +887,53 @@ function ctp_cargar_orden_shortcode() {
                     );
 
                     if ($insertado) {
-                        $mensaje = 'Orden guardada correctamente.';
-                        $_POST = array();
+                        $orden_id = (int) $wpdb->insert_id;
+                        $creada = true;
                     } else {
                         $errores[] = 'No se pudo guardar la orden. Intenta nuevamente.';
                     }
+                }
+
+                if (empty($errores) && $orden_id > 0) {
+                    $insertados = 0;
+                    foreach ($items as $item) {
+                        $result = $wpdb->insert(
+                            $table_items,
+                            array(
+                                'orden_id' => $orden_id,
+                                'medida_chapa' => $item['medida_chapa'],
+                                'cantidad_chapas' => $item['cantidad_chapas'],
+                                'precio_unitario' => $item['precio_unitario'],
+                                'total_item' => $item['total_item'],
+                                'created_at' => $now,
+                                'updated_at' => $now,
+                            ),
+                            array('%d', '%s', '%d', '%f', '%f', '%s', '%s')
+                        );
+                        if ($result) {
+                            $insertados++;
+                        }
+                    }
+
+                    $orden_total = ctp_ordenes_get_order_total($orden_id, $orden_existente ? $orden_existente->total : 0);
+                    $wpdb->update(
+                        $table_name,
+                        array(
+                            'total' => $orden_total,
+                            'updated_at' => $now,
+                        ),
+                        array('id' => $orden_id),
+                        array('%f', '%s'),
+                        array('%d')
+                    );
+
+                    if ($creada) {
+                        $mensaje = 'Orden guardada correctamente.';
+                    } else {
+                        $mensaje = sprintf('Se agregaron %d trabajos a la orden existente.', $insertados);
+                    }
+
+                    $_POST = array();
                 }
             }
         }
@@ -701,11 +958,35 @@ function ctp_cargar_orden_shortcode() {
         }
     }
     $descripcion_val = !empty($_POST['descripcion']) ? sanitize_textarea_field($_POST['descripcion']) : '';
-    $cantidad_val = !empty($_POST['cantidad_chapas']) ? absint($_POST['cantidad_chapas']) : 1;
     $medidas = ctp_ordenes_get_medidas_chapa();
-    $medida_val = !empty($_POST['medida_chapa']) ? sanitize_text_field($_POST['medida_chapa']) : $medidas[0];
-    $precio_val = isset($_POST['precio_unitario']) ? floatval($_POST['precio_unitario']) : 0;
-    $total_val = $cantidad_val * $precio_val;
+    $cantidad_chapas_raw = isset($_POST['cantidad_chapas']) ? (array) wp_unslash($_POST['cantidad_chapas']) : array();
+    $medida_chapa_raw = isset($_POST['medida_chapa']) ? (array) wp_unslash($_POST['medida_chapa']) : array();
+    $precio_unitario_raw = isset($_POST['precio_unitario']) ? (array) wp_unslash($_POST['precio_unitario']) : array();
+    $items_form = array();
+
+    if (!empty($cantidad_chapas_raw) || !empty($medida_chapa_raw) || !empty($precio_unitario_raw)) {
+        $max_items = max(count($cantidad_chapas_raw), count($medida_chapa_raw), count($precio_unitario_raw), 1);
+        for ($i = 0; $i < $max_items; $i++) {
+            $items_form[] = array(
+                'cantidad_chapas' => absint($cantidad_chapas_raw[$i] ?? 1),
+                'medida_chapa' => sanitize_text_field($medida_chapa_raw[$i] ?? $medidas[0]),
+                'precio_unitario' => floatval($precio_unitario_raw[$i] ?? 0),
+            );
+        }
+    }
+
+    if (empty($items_form)) {
+        $items_form[] = array(
+            'cantidad_chapas' => 1,
+            'medida_chapa' => $medidas[0],
+            'precio_unitario' => 0,
+        );
+    }
+
+    $total_val = 0;
+    foreach ($items_form as $item) {
+        $total_val += $item['cantidad_chapas'] * $item['precio_unitario'];
+    }
 
     ob_start();
     ?>
@@ -746,33 +1027,82 @@ function ctp_cargar_orden_shortcode() {
                 <textarea id="ctp-descripcion" name="descripcion" rows="3"><?php echo esc_textarea($descripcion_val); ?></textarea>
             </div>
 
-            <div class="ctp-field">
-                <label for="ctp-cantidad">Cantidad de chapas</label>
-                <input type="number" id="ctp-cantidad" class="ctp-quantity" name="cantidad_chapas" min="1" value="<?php echo esc_attr($cantidad_val); ?>">
-            </div>
-
-            <div class="ctp-field">
-                <label for="ctp-medida">Medida de chapa</label>
-                <select id="ctp-medida" name="medida_chapa" required>
-                    <?php
-                    foreach ($medidas as $medida) :
-                        $selected = $medida === $medida_val ? 'selected' : '';
+            <div class="ctp-field ctp-field-full">
+                <div class="ctp-order-items-header">
+                    <h4>Trabajos / Ítems</h4>
+                    <p>Agrega una o más medidas para la misma orden.</p>
+                </div>
+                <div class="ctp-order-items" data-ctp-items>
+                    <?php foreach ($items_form as $index => $item) : ?>
+                        <?php
+                        $row_total = $item['cantidad_chapas'] * $item['precio_unitario'];
                         ?>
-                        <option value="<?php echo esc_attr($medida); ?>" <?php echo esc_attr($selected); ?>>
-                            <?php echo esc_html($medida); ?>
-                        </option>
+                        <div class="ctp-order-item-row" data-ctp-item>
+                            <div class="ctp-field">
+                                <label>Medida de chapa</label>
+                                <select name="medida_chapa[]" class="ctp-item-measure" required>
+                                    <?php foreach ($medidas as $medida) : ?>
+                                        <option value="<?php echo esc_attr($medida); ?>" <?php selected($medida, $item['medida_chapa']); ?>>
+                                            <?php echo esc_html($medida); ?>
+                                        </option>
+                                    <?php endforeach; ?>
+                                </select>
+                            </div>
+                            <div class="ctp-field">
+                                <label>Cantidad</label>
+                                <input type="number" class="ctp-item-quantity" name="cantidad_chapas[]" min="1" value="<?php echo esc_attr($item['cantidad_chapas']); ?>" required>
+                            </div>
+                            <div class="ctp-field">
+                                <label>Precio unitario</label>
+                                <input type="number" class="ctp-item-price" name="precio_unitario[]" step="0.01" min="0" value="<?php echo esc_attr($item['precio_unitario']); ?>" required>
+                            </div>
+                            <div class="ctp-field">
+                                <label>Total ítem</label>
+                                <input type="number" class="ctp-item-total" readonly value="<?php echo esc_attr(number_format($row_total, 2, '.', '')); ?>">
+                            </div>
+                            <div class="ctp-field ctp-order-item-remove">
+                                <button type="button" class="ctp-button ctp-button-danger ctp-remove-item" <?php disabled($index === 0); ?>>Quitar</button>
+                            </div>
+                        </div>
                     <?php endforeach; ?>
-                </select>
+                </div>
+                <div class="ctp-order-item-actions">
+                    <button type="button" class="ctp-button ctp-button-secondary ctp-add-item">+ Agregar otro trabajo</button>
+                </div>
+                <template class="ctp-order-item-template">
+                    <div class="ctp-order-item-row" data-ctp-item>
+                        <div class="ctp-field">
+                            <label>Medida de chapa</label>
+                            <select name="medida_chapa[]" class="ctp-item-measure" required>
+                                <?php foreach ($medidas as $medida) : ?>
+                                    <option value="<?php echo esc_attr($medida); ?>">
+                                        <?php echo esc_html($medida); ?>
+                                    </option>
+                                <?php endforeach; ?>
+                            </select>
+                        </div>
+                        <div class="ctp-field">
+                            <label>Cantidad</label>
+                            <input type="number" class="ctp-item-quantity" name="cantidad_chapas[]" min="1" value="1" required>
+                        </div>
+                        <div class="ctp-field">
+                            <label>Precio unitario</label>
+                            <input type="number" class="ctp-item-price" name="precio_unitario[]" step="0.01" min="0" value="0" required>
+                        </div>
+                        <div class="ctp-field">
+                            <label>Total ítem</label>
+                            <input type="number" class="ctp-item-total" readonly value="0.00">
+                        </div>
+                        <div class="ctp-field ctp-order-item-remove">
+                            <button type="button" class="ctp-button ctp-button-danger ctp-remove-item">Quitar</button>
+                        </div>
+                    </div>
+                </template>
             </div>
 
             <div class="ctp-field">
-                <label for="ctp-precio">Precio unitario</label>
-                <input type="number" id="ctp-precio" class="ctp-price" name="precio_unitario" step="0.01" min="0" value="<?php echo esc_attr($precio_val); ?>">
-            </div>
-
-            <div class="ctp-field">
-                <label for="ctp-total">Total</label>
-                <input type="number" id="ctp-total" class="ctp-total" name="total" readonly value="<?php echo esc_attr(number_format($total_val, 2, '.', '')); ?>">
+                <label for="ctp-total-orden">Total</label>
+                <input type="number" id="ctp-total-orden" class="ctp-order-total" name="total_orden" readonly value="<?php echo esc_attr(number_format($total_val, 2, '.', '')); ?>">
             </div>
 
             <div class="ctp-field ctp-field-full">
@@ -819,6 +1149,7 @@ function ctp_listar_ordenes_shortcode() {
     $wpdb = $GLOBALS['wpdb'];
     $table_name = $wpdb->prefix . 'ctp_ordenes';
     $table_clientes = $wpdb->prefix . 'ctp_clientes';
+    $table_items = $wpdb->prefix . 'ctp_ordenes_items';
 
     $periodo = ctp_ordenes_get_ordenes_periodo();
     $where_clause = 'fecha BETWEEN %s AND %s';
@@ -826,11 +1157,21 @@ function ctp_listar_ordenes_shortcode() {
 
     $ordenes = $wpdb->get_results(
         $wpdb->prepare(
-            "SELECT o.fecha, o.numero_orden, COALESCE(c.nombre, o.cliente) AS cliente_nombre,
-                    o.medida_chapa, o.cantidad_chapas, o.precio_unitario, o.total
+            "SELECT o.id,
+                    o.fecha,
+                    o.numero_orden,
+                    COALESCE(c.nombre, o.cliente) AS cliente_nombre,
+                    o.descripcion,
+                    o.cantidad_chapas,
+                    o.medida_chapa,
+                    o.precio_unitario,
+                    COALESCE(SUM(i.total_item), o.total) AS total,
+                    CASE WHEN COUNT(i.id) > 0 THEN COUNT(i.id) ELSE 1 END AS items_count
              FROM {$table_name} o
              LEFT JOIN {$table_clientes} c ON o.cliente_id = c.id
+             LEFT JOIN {$table_items} i ON i.orden_id = o.id
              WHERE {$where_clause}
+             GROUP BY o.id
              ORDER BY o.fecha DESC, o.id DESC
              LIMIT 50",
             $where_params
@@ -839,9 +1180,16 @@ function ctp_listar_ordenes_shortcode() {
 
     $resumen = $wpdb->get_row(
         $wpdb->prepare(
-            "SELECT COUNT(*) AS cantidad, COALESCE(SUM(total), 0) AS total
-             FROM {$table_name}
-             WHERE {$where_clause}",
+            "SELECT COUNT(*) AS cantidad,
+                    COALESCE(SUM(order_total), 0) AS total
+             FROM (
+                SELECT o.id,
+                       COALESCE(SUM(i.total_item), o.total) AS order_total
+                FROM {$table_name} o
+                LEFT JOIN {$table_items} i ON i.orden_id = o.id
+                WHERE {$where_clause}
+                GROUP BY o.id
+             ) AS ordenes",
             $where_params
         )
     );
@@ -850,6 +1198,7 @@ function ctp_listar_ordenes_shortcode() {
     $ordenes_total = $resumen ? (float) $resumen->total : 0;
 
     $base_url = remove_query_arg(array('ctp_period', 'ctp_month', 'ctp_from', 'ctp_to'));
+    $items_map = ctp_ordenes_get_items_map($ordenes);
     $tab = isset($_GET['tab']) ? sanitize_key(wp_unslash($_GET['tab'])) : '';
     $from_value = $periodo['from'];
     $to_value = $periodo['to'];
@@ -912,10 +1261,9 @@ function ctp_listar_ordenes_shortcode() {
                 <th>Fecha</th>
                 <th>Nº Orden</th>
                 <th>Cliente</th>
-                <th>Medida</th>
-                <th>Cantidad</th>
-                <th>Unitario</th>
+                <th>Trabajos</th>
                 <th>Total</th>
+                <th>Detalle</th>
             </tr>
         </thead>
         <tbody>
@@ -925,15 +1273,21 @@ function ctp_listar_ordenes_shortcode() {
                         <td data-label="Fecha"><?php echo esc_html($orden->fecha); ?></td>
                         <td data-label="Nº Orden"><?php echo esc_html($orden->numero_orden); ?></td>
                         <td data-label="Cliente"><?php echo esc_html($orden->cliente_nombre); ?></td>
-                        <td data-label="Medida"><?php echo esc_html($orden->medida_chapa); ?></td>
-                        <td data-label="Cantidad"><?php echo esc_html($orden->cantidad_chapas); ?></td>
-                        <td data-label="Unitario"><?php echo esc_html('Gs. ' . ctp_ordenes_format_currency($orden->precio_unitario)); ?></td>
+                        <td data-label="Trabajos"><?php echo esc_html(ctp_ordenes_format_items_count((int) $orden->items_count)); ?></td>
                         <td data-label="Total"><?php echo esc_html('Gs. ' . ctp_ordenes_format_currency($orden->total)); ?></td>
+                        <td data-label="Detalle">
+                            <details class="ctp-details">
+                                <summary class="ctp-button ctp-button-secondary">Ver ítems</summary>
+                                <div class="ctp-details-panel">
+                                    <?php echo ctp_ordenes_render_items_table($items_map[(int) $orden->id] ?? array()); ?>
+                                </div>
+                            </details>
+                        </td>
                     </tr>
                 <?php endforeach; ?>
             <?php else : ?>
                 <tr>
-                    <td colspan="7">No hay órdenes registradas.</td>
+                    <td colspan="6">No hay órdenes registradas.</td>
                 </tr>
             <?php endif; ?>
         </tbody>
@@ -1113,6 +1467,7 @@ function ctp_clientes_shortcode() {
         $cliente = ctp_ordenes_get_cliente($cliente_id);
         $periodo = ctp_ordenes_get_cliente_periodo();
         $ordenes = $cliente ? ctp_ordenes_get_ordenes_by_cliente($cliente_id, $periodo, 50) : array();
+        $items_map = ctp_ordenes_get_items_map($ordenes);
         $kpis = $cliente ? ctp_ordenes_get_cliente_kpis($cliente_id, $periodo) : array(
             'cantidad' => 0,
             'total' => 0,
@@ -1225,10 +1580,9 @@ function ctp_clientes_shortcode() {
                                         <th>Fecha</th>
                                         <th>Nº Orden</th>
                                         <th>Descripción</th>
-                                        <th>Cantidad</th>
-                                        <th>Medida</th>
-                                        <th>Unitario</th>
+                                        <th>Trabajos</th>
                                         <th>Total</th>
+                                        <th>Detalle</th>
                                     </tr>
                                 </thead>
                                 <tbody>
@@ -1238,15 +1592,21 @@ function ctp_clientes_shortcode() {
                                                 <td data-label="Fecha"><?php echo esc_html($orden->fecha); ?></td>
                                                 <td data-label="Nº Orden"><?php echo esc_html($orden->numero_orden); ?></td>
                                                 <td data-label="Descripción"><?php echo esc_html($orden->descripcion); ?></td>
-                                                <td data-label="Cantidad"><?php echo esc_html($orden->cantidad_chapas); ?></td>
-                                                <td data-label="Medida"><?php echo esc_html($orden->medida_chapa); ?></td>
-                                                <td data-label="Unitario"><?php echo esc_html('Gs. ' . ctp_ordenes_format_currency($orden->precio_unitario)); ?></td>
+                                                <td data-label="Trabajos"><?php echo esc_html(ctp_ordenes_format_items_count((int) $orden->items_count)); ?></td>
                                                 <td data-label="Total"><?php echo esc_html('Gs. ' . ctp_ordenes_format_currency($orden->total)); ?></td>
+                                                <td data-label="Detalle">
+                                                    <details class="ctp-details">
+                                                        <summary class="ctp-button ctp-button-secondary">Ver ítems</summary>
+                                                        <div class="ctp-details-panel">
+                                                            <?php echo ctp_ordenes_render_items_table($items_map[(int) $orden->id] ?? array()); ?>
+                                                        </div>
+                                                    </details>
+                                                </td>
                                             </tr>
                                         <?php endforeach; ?>
                                     <?php else : ?>
                                         <tr>
-                                            <td colspan="7">No hay órdenes asociadas.</td>
+                                            <td colspan="6">No hay órdenes asociadas.</td>
                                         </tr>
                                     <?php endif; ?>
                                 </tbody>
@@ -2190,6 +2550,7 @@ function ctp_liquidaciones_shortcode() {
     $table_liquidaciones = $wpdb->prefix . 'ctp_liquidaciones_cliente';
     $table_liquidacion_ordenes = $wpdb->prefix . 'ctp_liquidacion_ordenes';
     $table_ordenes = $wpdb->prefix . 'ctp_ordenes';
+    $table_items = $wpdb->prefix . 'ctp_ordenes_items';
 
     $mensajes = array(
         'success' => array(),
@@ -2297,10 +2658,16 @@ function ctp_liquidaciones_shortcode() {
 
                                 $total_real = (float) $wpdb->get_var(
                                     $wpdb->prepare(
-                                        "SELECT COALESCE(SUM(o.total), 0)
-                                         FROM {$table_ordenes} o
-                                         INNER JOIN {$table_liquidacion_ordenes} lo ON lo.orden_id = o.id
-                                         WHERE lo.liquidacion_id = %d",
+                                        "SELECT COALESCE(SUM(order_total), 0)
+                                         FROM (
+                                            SELECT o.id,
+                                                   COALESCE(SUM(i.total_item), o.total) AS order_total
+                                            FROM {$table_ordenes} o
+                                            INNER JOIN {$table_liquidacion_ordenes} lo ON lo.orden_id = o.id
+                                            LEFT JOIN {$table_items} i ON i.orden_id = o.id
+                                            WHERE lo.liquidacion_id = %d
+                                            GROUP BY o.id
+                                         ) AS ordenes",
                                         $liquidacion_id
                                     )
                                 );
@@ -2351,16 +2718,26 @@ function ctp_liquidaciones_shortcode() {
         if ($liquidacion) {
             $ordenes_liquidacion = $wpdb->get_results(
                 $wpdb->prepare(
-                    "SELECT o.fecha, o.numero_orden, o.descripcion, o.cantidad_chapas,
-                            o.medida_chapa, o.precio_unitario, o.total
+                    "SELECT o.id,
+                            o.fecha,
+                            o.numero_orden,
+                            o.descripcion,
+                            o.cantidad_chapas,
+                            o.medida_chapa,
+                            o.precio_unitario,
+                            COALESCE(SUM(i.total_item), o.total) AS total,
+                            CASE WHEN COUNT(i.id) > 0 THEN COUNT(i.id) ELSE 1 END AS items_count
                      FROM {$table_ordenes} o
                      INNER JOIN {$table_liquidacion_ordenes} lo ON lo.orden_id = o.id
+                     LEFT JOIN {$table_items} i ON i.orden_id = o.id
                      WHERE lo.liquidacion_id = %d
+                     GROUP BY o.id
                      ORDER BY o.fecha ASC, o.id ASC",
                     $liquidacion_id
                 )
             );
         }
+        $items_map = ctp_ordenes_get_items_map($ordenes_liquidacion);
 
         $back_url = remove_query_arg(array('ctp_liquidacion_id'));
         if (!empty($tab)) {
@@ -2408,10 +2785,9 @@ function ctp_liquidaciones_shortcode() {
                                     <th>Fecha</th>
                                     <th>Nº Orden</th>
                                     <th>Descripción</th>
-                                    <th>Medida</th>
-                                    <th>Cantidad</th>
-                                    <th>Unitario</th>
+                                    <th>Trabajos</th>
                                     <th>Total</th>
+                                    <th>Detalle</th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -2421,15 +2797,21 @@ function ctp_liquidaciones_shortcode() {
                                             <td data-label="Fecha"><?php echo esc_html($orden->fecha); ?></td>
                                             <td data-label="Nº Orden"><?php echo esc_html($orden->numero_orden); ?></td>
                                             <td data-label="Descripción"><?php echo esc_html($orden->descripcion); ?></td>
-                                            <td data-label="Medida"><?php echo esc_html($orden->medida_chapa); ?></td>
-                                            <td data-label="Cantidad"><?php echo esc_html($orden->cantidad_chapas); ?></td>
-                                            <td data-label="Unitario"><?php echo esc_html('Gs. ' . ctp_ordenes_format_currency($orden->precio_unitario)); ?></td>
+                                            <td data-label="Trabajos"><?php echo esc_html(ctp_ordenes_format_items_count((int) $orden->items_count)); ?></td>
                                             <td data-label="Total"><?php echo esc_html('Gs. ' . ctp_ordenes_format_currency($orden->total)); ?></td>
+                                            <td data-label="Detalle">
+                                                <details class="ctp-details">
+                                                    <summary class="ctp-button ctp-button-secondary">Ver ítems</summary>
+                                                    <div class="ctp-details-panel">
+                                                        <?php echo ctp_ordenes_render_items_table($items_map[(int) $orden->id] ?? array()); ?>
+                                                    </div>
+                                                </details>
+                                            </td>
                                         </tr>
                                     <?php endforeach; ?>
                                 <?php else : ?>
                                     <tr>
-                                        <td colspan="7">No hay órdenes asociadas a esta liquidación.</td>
+                                        <td colspan="6">No hay órdenes asociadas a esta liquidación.</td>
                                     </tr>
                                 <?php endif; ?>
                             </tbody>
@@ -2522,6 +2904,7 @@ function ctp_liquidaciones_shortcode() {
                 </div>
             </form>
             <?php if ($show_preview) : ?>
+                <?php $preview_items_map = ctp_ordenes_get_items_map($preview_orders); ?>
                 <div class="ctp-table-wrap">
                     <table class="ctp-table">
                         <thead>
@@ -2529,10 +2912,9 @@ function ctp_liquidaciones_shortcode() {
                                 <th>Fecha</th>
                                 <th>Nº Orden</th>
                                 <th>Descripción</th>
-                                <th>Medida</th>
-                                <th>Cantidad</th>
-                                <th>Unitario</th>
                                 <th>Total</th>
+                                <th>Trabajos</th>
+                                <th>Detalle</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -2541,10 +2923,16 @@ function ctp_liquidaciones_shortcode() {
                                     <td data-label="Fecha"><?php echo esc_html($orden->fecha); ?></td>
                                     <td data-label="Nº Orden"><?php echo esc_html($orden->numero_orden); ?></td>
                                     <td data-label="Descripción"><?php echo esc_html($orden->descripcion); ?></td>
-                                    <td data-label="Medida"><?php echo esc_html($orden->medida_chapa); ?></td>
-                                    <td data-label="Cantidad"><?php echo esc_html($orden->cantidad_chapas); ?></td>
-                                    <td data-label="Unitario"><?php echo esc_html('Gs. ' . ctp_ordenes_format_currency($orden->precio_unitario)); ?></td>
                                     <td data-label="Total"><?php echo esc_html('Gs. ' . ctp_ordenes_format_currency($orden->total)); ?></td>
+                                    <td data-label="Trabajos"><?php echo esc_html(ctp_ordenes_format_items_count((int) $orden->items_count)); ?></td>
+                                    <td data-label="Detalle">
+                                        <details class="ctp-details">
+                                            <summary class="ctp-button ctp-button-secondary">Ver ítems</summary>
+                                            <div class="ctp-details-panel">
+                                                <?php echo ctp_ordenes_render_items_table($preview_items_map[(int) $orden->id] ?? array()); ?>
+                                            </div>
+                                        </details>
+                                    </td>
                                 </tr>
                             <?php endforeach; ?>
                         </tbody>

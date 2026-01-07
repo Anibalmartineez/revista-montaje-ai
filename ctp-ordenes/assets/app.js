@@ -1,42 +1,123 @@
 (function () {
-    function updateTotal(form) {
-        var quantityInput = form.querySelector('.ctp-quantity');
-        var priceInput = form.querySelector('.ctp-price');
-        var totalInput = form.querySelector('.ctp-total');
+    function normalizeNumber(value, fallback) {
+        var parsed = parseFloat(value);
+        if (isNaN(parsed)) {
+            return fallback;
+        }
+        return parsed;
+    }
 
-        if (!quantityInput || !priceInput || !totalInput) {
+    function updateOrderTotals(form) {
+        if (!form) {
             return;
         }
 
-        var quantity = parseInt(quantityInput.value, 10);
-        var price = parseFloat(priceInput.value);
+        var rows = form.querySelectorAll('[data-ctp-item]');
+        var totalOrder = 0;
 
-        if (isNaN(quantity) || quantity < 1) {
-            quantity = 1;
+        rows.forEach(function (row) {
+            var quantityInput = row.querySelector('.ctp-item-quantity');
+            var priceInput = row.querySelector('.ctp-item-price');
+            var totalInput = row.querySelector('.ctp-item-total');
+
+            if (!quantityInput || !priceInput || !totalInput) {
+                return;
+            }
+
+            var quantity = parseInt(quantityInput.value, 10);
+            if (isNaN(quantity) || quantity < 1) {
+                quantity = 1;
+            }
+
+            var price = normalizeNumber(priceInput.value, 0);
+            if (price < 0) {
+                price = 0;
+            }
+
+            var total = quantity * price;
+            totalInput.value = total.toFixed(2);
+            totalOrder += total;
+        });
+
+        var orderTotalInput = form.querySelector('.ctp-order-total');
+        if (orderTotalInput) {
+            orderTotalInput.value = totalOrder.toFixed(2);
         }
-        if (isNaN(price) || price < 0) {
-            price = 0;
+    }
+
+    function syncRemoveButtons(container) {
+        if (!container) {
+            return;
         }
 
-        var total = quantity * price;
-        totalInput.value = total.toFixed(2);
+        var rows = container.querySelectorAll('[data-ctp-item]');
+        var disableRemove = rows.length <= 1;
+        rows.forEach(function (row) {
+            var removeButton = row.querySelector('.ctp-remove-item');
+            if (removeButton) {
+                removeButton.disabled = disableRemove;
+            }
+        });
     }
 
     document.addEventListener('input', function (event) {
         var target = event.target;
-        if (!target.classList.contains('ctp-quantity') && !target.classList.contains('ctp-price')) {
+        if (!target.classList.contains('ctp-item-quantity') && !target.classList.contains('ctp-item-price')) {
             return;
         }
 
-        var form = target.closest('.ctp-form');
+        var form = target.closest('.ctp-order-form');
         if (form) {
-            updateTotal(form);
+            updateOrderTotals(form);
+        }
+    });
+
+    document.addEventListener('click', function (event) {
+        var target = event.target;
+        if (target.classList.contains('ctp-add-item')) {
+            var form = target.closest('.ctp-order-form');
+            if (!form) {
+                return;
+            }
+
+            var container = form.querySelector('[data-ctp-items]');
+            var template = form.querySelector('.ctp-order-item-template');
+            if (!container || !template || !template.content) {
+                return;
+            }
+
+            container.appendChild(template.content.cloneNode(true));
+            syncRemoveButtons(container);
+            updateOrderTotals(form);
+        }
+
+        if (target.classList.contains('ctp-remove-item')) {
+            var row = target.closest('[data-ctp-item]');
+            if (!row) {
+                return;
+            }
+            var itemsContainer = row.closest('[data-ctp-items]');
+            if (!itemsContainer) {
+                return;
+            }
+
+            var rows = itemsContainer.querySelectorAll('[data-ctp-item]');
+            if (rows.length <= 1) {
+                return;
+            }
+
+            row.remove();
+            syncRemoveButtons(itemsContainer);
+            var parentForm = itemsContainer.closest('.ctp-order-form');
+            updateOrderTotals(parentForm);
         }
     });
 
     document.addEventListener('DOMContentLoaded', function () {
-        document.querySelectorAll('.ctp-form').forEach(function (form) {
-            updateTotal(form);
+        document.querySelectorAll('.ctp-order-form').forEach(function (form) {
+            updateOrderTotals(form);
+            var container = form.querySelector('[data-ctp-items]');
+            syncRemoveButtons(container);
         });
 
         document.querySelectorAll('.ctp-client-select').forEach(function (select) {
