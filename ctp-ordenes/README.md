@@ -26,3 +26,4 @@ Plugin WordPress para cargar y listar órdenes de CTP, con gestión básica de p
   - `{prefijo_wp}ctp_facturas_proveedor`
   - `{prefijo_wp}ctp_pagos_factura`
 - El total se calcula en vivo con JavaScript y se recalcula en el servidor antes de guardar.
+- Las órdenes ahora aceptan un campo opcional "Nombre del trabajo" para identificar mejor cada pedido.

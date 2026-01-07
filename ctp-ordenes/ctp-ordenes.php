@@ -2,7 +2,7 @@
 /**
  * Plugin Name: CTP Órdenes
  * Description: MVP para cargar y listar órdenes de CTP mediante shortcodes.
- * Version: 0.5.0
+ * Version: 0.5.1
  * Author: Equipo Revista Montaje AI
  * Requires PHP: 8.0
  */
@@ -11,7 +11,7 @@ if (!defined('ABSPATH')) {
     exit;
 }
 
-define('CTP_ORDENES_VERSION', '0.5.0');
+define('CTP_ORDENES_VERSION', '0.5.1');
 
 /**
  * Crea la tabla necesaria al activar el plugin.
@@ -35,6 +35,7 @@ function ctp_ordenes_create_tables() {
         numero_orden VARCHAR(50) NOT NULL,
         cliente VARCHAR(150) NOT NULL,
         cliente_id BIGINT UNSIGNED NULL,
+        nombre_trabajo VARCHAR(255) NULL,
         descripcion TEXT NULL,
         cantidad_chapas INT NOT NULL DEFAULT 1,
         medida_chapa VARCHAR(20) NOT NULL,
@@ -303,6 +304,11 @@ function ctp_ordenes_format_currency($value, $decimals = 0) {
 function ctp_ordenes_format_items_count($count) {
     $formatted = ctp_ordenes_format_currency($count, 0);
     return $count === 1 ? '1 trabajo' : sprintf('%s trabajos', $formatted);
+}
+
+function ctp_ordenes_format_job_name($nombre_trabajo) {
+    $nombre_trabajo = trim((string) $nombre_trabajo);
+    return $nombre_trabajo !== '' ? $nombre_trabajo : '—';
 }
 
 function ctp_ordenes_get_order_total($orden_id, $fallback_total = 0) {
@@ -611,6 +617,7 @@ function ctp_ordenes_get_ordenes_by_cliente($cliente_id, $periodo = array(), $li
             "SELECT o.id,
                     o.fecha,
                     o.numero_orden,
+                    o.nombre_trabajo,
                     o.descripcion,
                     o.cantidad_chapas,
                     o.medida_chapa,
@@ -738,6 +745,7 @@ function ctp_ordenes_get_ordenes_no_liquidadas($cliente_id, $from, $to) {
             "SELECT o.id,
                     o.fecha,
                     o.numero_orden,
+                    o.nombre_trabajo,
                     o.descripcion,
                     o.cantidad_chapas,
                     o.medida_chapa,
@@ -776,6 +784,7 @@ function ctp_cargar_orden_shortcode() {
             $numero_orden = sanitize_text_field($_POST['numero_orden'] ?? '');
             $cliente_id = absint($_POST['cliente_id'] ?? 0);
             $cliente = sanitize_text_field($_POST['cliente'] ?? '');
+            $nombre_trabajo = sanitize_text_field($_POST['nombre_trabajo'] ?? '');
             $descripcion = sanitize_textarea_field($_POST['descripcion'] ?? '');
             $cantidad_chapas_raw = isset($_POST['cantidad_chapas']) ? (array) wp_unslash($_POST['cantidad_chapas']) : array();
             $medida_chapa_raw = isset($_POST['medida_chapa']) ? (array) wp_unslash($_POST['medida_chapa']) : array();
@@ -875,6 +884,7 @@ function ctp_cargar_orden_shortcode() {
                             'numero_orden' => $numero_orden,
                             'cliente' => $cliente,
                             'cliente_id' => $cliente_id > 0 ? $cliente_id : null,
+                            'nombre_trabajo' => $nombre_trabajo,
                             'descripcion' => $descripcion,
                             'cantidad_chapas' => $primer_item['cantidad_chapas'],
                             'medida_chapa' => $primer_item['medida_chapa'],
@@ -883,7 +893,7 @@ function ctp_cargar_orden_shortcode() {
                             'created_at' => $now,
                             'updated_at' => $now,
                         ),
-                        array('%s', '%s', '%s', '%d', '%s', '%d', '%s', '%f', '%f', '%s', '%s')
+                        array('%s', '%s', '%s', '%d', '%s', '%s', '%d', '%s', '%f', '%f', '%s', '%s')
                     );
 
                     if ($insertado) {
@@ -957,6 +967,7 @@ function ctp_cargar_orden_shortcode() {
             }
         }
     }
+    $nombre_trabajo_val = !empty($_POST['nombre_trabajo']) ? sanitize_text_field($_POST['nombre_trabajo']) : '';
     $descripcion_val = !empty($_POST['descripcion']) ? sanitize_textarea_field($_POST['descripcion']) : '';
     $medidas = ctp_ordenes_get_medidas_chapa();
     $cantidad_chapas_raw = isset($_POST['cantidad_chapas']) ? (array) wp_unslash($_POST['cantidad_chapas']) : array();
@@ -1020,6 +1031,11 @@ function ctp_cargar_orden_shortcode() {
             <div class="ctp-field">
                 <label for="ctp-cliente">Cliente (manual)</label>
                 <input type="text" id="ctp-cliente" name="cliente" class="ctp-client-name" required value="<?php echo esc_attr($cliente_val); ?>">
+            </div>
+
+            <div class="ctp-field ctp-field-full">
+                <label for="ctp-nombre-trabajo">Nombre del trabajo</label>
+                <input type="text" id="ctp-nombre-trabajo" name="nombre_trabajo" value="<?php echo esc_attr($nombre_trabajo_val); ?>" maxlength="255">
             </div>
 
             <div class="ctp-field ctp-field-full">
@@ -1161,6 +1177,7 @@ function ctp_listar_ordenes_shortcode() {
                     o.fecha,
                     o.numero_orden,
                     COALESCE(c.nombre, o.cliente) AS cliente_nombre,
+                    o.nombre_trabajo,
                     o.descripcion,
                     o.cantidad_chapas,
                     o.medida_chapa,
@@ -1260,6 +1277,7 @@ function ctp_listar_ordenes_shortcode() {
             <tr>
                 <th>Fecha</th>
                 <th>Nº Orden</th>
+                <th>Nombre del trabajo</th>
                 <th>Cliente</th>
                 <th>Trabajos</th>
                 <th>Total</th>
@@ -1272,6 +1290,7 @@ function ctp_listar_ordenes_shortcode() {
                     <tr>
                         <td data-label="Fecha"><?php echo esc_html($orden->fecha); ?></td>
                         <td data-label="Nº Orden"><?php echo esc_html($orden->numero_orden); ?></td>
+                        <td data-label="Nombre del trabajo"><?php echo esc_html(ctp_ordenes_format_job_name($orden->nombre_trabajo ?? '')); ?></td>
                         <td data-label="Cliente"><?php echo esc_html($orden->cliente_nombre); ?></td>
                         <td data-label="Trabajos"><?php echo esc_html(ctp_ordenes_format_items_count((int) $orden->items_count)); ?></td>
                         <td data-label="Total"><?php echo esc_html('Gs. ' . ctp_ordenes_format_currency($orden->total)); ?></td>
@@ -1287,7 +1306,7 @@ function ctp_listar_ordenes_shortcode() {
                 <?php endforeach; ?>
             <?php else : ?>
                 <tr>
-                    <td colspan="6">No hay órdenes registradas.</td>
+                    <td colspan="7">No hay órdenes registradas.</td>
                 </tr>
             <?php endif; ?>
         </tbody>
@@ -1579,6 +1598,7 @@ function ctp_clientes_shortcode() {
                                     <tr>
                                         <th>Fecha</th>
                                         <th>Nº Orden</th>
+                                        <th>Nombre del trabajo</th>
                                         <th>Descripción</th>
                                         <th>Trabajos</th>
                                         <th>Total</th>
@@ -1591,6 +1611,7 @@ function ctp_clientes_shortcode() {
                                             <tr>
                                                 <td data-label="Fecha"><?php echo esc_html($orden->fecha); ?></td>
                                                 <td data-label="Nº Orden"><?php echo esc_html($orden->numero_orden); ?></td>
+                                                <td data-label="Nombre del trabajo"><?php echo esc_html(ctp_ordenes_format_job_name($orden->nombre_trabajo ?? '')); ?></td>
                                                 <td data-label="Descripción"><?php echo esc_html($orden->descripcion); ?></td>
                                                 <td data-label="Trabajos"><?php echo esc_html(ctp_ordenes_format_items_count((int) $orden->items_count)); ?></td>
                                                 <td data-label="Total"><?php echo esc_html('Gs. ' . ctp_ordenes_format_currency($orden->total)); ?></td>
@@ -1606,7 +1627,7 @@ function ctp_clientes_shortcode() {
                                         <?php endforeach; ?>
                                     <?php else : ?>
                                         <tr>
-                                            <td colspan="6">No hay órdenes asociadas.</td>
+                                            <td colspan="7">No hay órdenes asociadas.</td>
                                         </tr>
                                     <?php endif; ?>
                                 </tbody>
@@ -2721,6 +2742,7 @@ function ctp_liquidaciones_shortcode() {
                     "SELECT o.id,
                             o.fecha,
                             o.numero_orden,
+                            o.nombre_trabajo,
                             o.descripcion,
                             o.cantidad_chapas,
                             o.medida_chapa,
@@ -2784,6 +2806,7 @@ function ctp_liquidaciones_shortcode() {
                                 <tr>
                                     <th>Fecha</th>
                                     <th>Nº Orden</th>
+                                    <th>Nombre del trabajo</th>
                                     <th>Descripción</th>
                                     <th>Trabajos</th>
                                     <th>Total</th>
@@ -2796,6 +2819,7 @@ function ctp_liquidaciones_shortcode() {
                                         <tr>
                                             <td data-label="Fecha"><?php echo esc_html($orden->fecha); ?></td>
                                             <td data-label="Nº Orden"><?php echo esc_html($orden->numero_orden); ?></td>
+                                            <td data-label="Nombre del trabajo"><?php echo esc_html(ctp_ordenes_format_job_name($orden->nombre_trabajo ?? '')); ?></td>
                                             <td data-label="Descripción"><?php echo esc_html($orden->descripcion); ?></td>
                                             <td data-label="Trabajos"><?php echo esc_html(ctp_ordenes_format_items_count((int) $orden->items_count)); ?></td>
                                             <td data-label="Total"><?php echo esc_html('Gs. ' . ctp_ordenes_format_currency($orden->total)); ?></td>
@@ -2811,7 +2835,7 @@ function ctp_liquidaciones_shortcode() {
                                     <?php endforeach; ?>
                                 <?php else : ?>
                                     <tr>
-                                        <td colspan="6">No hay órdenes asociadas a esta liquidación.</td>
+                                        <td colspan="7">No hay órdenes asociadas a esta liquidación.</td>
                                     </tr>
                                 <?php endif; ?>
                             </tbody>
@@ -2911,6 +2935,7 @@ function ctp_liquidaciones_shortcode() {
                             <tr>
                                 <th>Fecha</th>
                                 <th>Nº Orden</th>
+                                <th>Nombre del trabajo</th>
                                 <th>Descripción</th>
                                 <th>Total</th>
                                 <th>Trabajos</th>
@@ -2922,6 +2947,7 @@ function ctp_liquidaciones_shortcode() {
                                 <tr>
                                     <td data-label="Fecha"><?php echo esc_html($orden->fecha); ?></td>
                                     <td data-label="Nº Orden"><?php echo esc_html($orden->numero_orden); ?></td>
+                                    <td data-label="Nombre del trabajo"><?php echo esc_html(ctp_ordenes_format_job_name($orden->nombre_trabajo ?? '')); ?></td>
                                     <td data-label="Descripción"><?php echo esc_html($orden->descripcion); ?></td>
                                     <td data-label="Total"><?php echo esc_html('Gs. ' . ctp_ordenes_format_currency($orden->total)); ?></td>
                                     <td data-label="Trabajos"><?php echo esc_html(ctp_ordenes_format_items_count((int) $orden->items_count)); ?></td>
