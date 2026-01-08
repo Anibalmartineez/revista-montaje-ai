@@ -331,7 +331,7 @@ function ctp_ordenes_build_liquidacion_ai_prompt($liquidacion, $ordenes) {
         $fecha = !empty($orden->fecha) ? date_i18n('d/m/Y', strtotime($orden->fecha)) : 'Sin fecha';
         $trabajo = $orden->nombre_trabajo ? trim((string) $orden->nombre_trabajo) : '';
         if ($trabajo === '') {
-            $trabajo = 'Sin nombre de trabajo';
+            $trabajo = '–';
         }
         $total_orden = ctp_ordenes_format_currency($orden->total);
         $trabajos = ctp_ordenes_format_items_count((int) $orden->items_count);
@@ -350,7 +350,7 @@ function ctp_ordenes_build_liquidacion_ai_prompt($liquidacion, $ordenes) {
     }
 
     $prompt = "Genera un resumen profesional en español de esta liquidación. Usa SOLO los datos entregados, no inventes fechas ni montos.\n";
-    $prompt .= "Debe incluir: nombre del cliente, período, cantidad de órdenes, total, y 3 a 5 trabajos destacados (usa nombre_trabajo si existe).\n";
+    $prompt .= "Debe incluir: nombre del cliente, período, cantidad de órdenes, total, y hasta 3 trabajos destacados (0 a 3) según la cantidad real de órdenes. No inventes órdenes si hay 1 o 2.\n";
     $prompt .= "Extensión: 4 a 8 líneas. Incluye una versión lista para WhatsApp al final, precedida por \"WhatsApp:\".\n\n";
     $prompt .= "Datos de la liquidación:\n";
     $prompt .= sprintf("Cliente: %s\n", $cliente);

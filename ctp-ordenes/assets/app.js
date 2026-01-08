@@ -195,6 +195,9 @@
                 })
                 .finally(function () {
                     target.disabled = false;
+                    if (saveButton) {
+                        saveButton.disabled = !textarea || !textarea.value.trim();
+                    }
                 });
         }
 
