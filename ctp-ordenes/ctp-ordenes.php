@@ -319,6 +319,116 @@ function ctp_ordenes_format_job_name($nombre_trabajo) {
     return $nombre_trabajo !== '' ? $nombre_trabajo : '—';
 }
 
+function ctp_ordenes_ai_format_text($value) {
+    if ($value === null) {
+        return '—';
+    }
+
+    $value = trim((string) $value);
+    return $value !== '' ? $value : '—';
+}
+
+function ctp_ordenes_ai_format_currency($value) {
+    if ($value === null || $value === '') {
+        return '—';
+    }
+
+    return 'Gs. ' . ctp_ordenes_format_currency($value);
+}
+
+function ctp_ordenes_ai_format_quantity($value) {
+    if ($value === null || $value === '') {
+        return '—';
+    }
+
+    return ctp_ordenes_format_currency($value, 0);
+}
+
+function ctp_ordenes_get_items_map_for_ai($ordenes) {
+    if (empty($ordenes)) {
+        return array();
+    }
+
+    $order_ids = array();
+    foreach ($ordenes as $orden) {
+        if (!empty($orden->id)) {
+            $order_ids[] = (int) $orden->id;
+        }
+    }
+
+    if (empty($order_ids)) {
+        return array();
+    }
+
+    global $wpdb;
+    $table_items = $wpdb->prefix . 'ctp_ordenes_items';
+
+    $placeholders = implode(',', array_fill(0, count($order_ids), '%d'));
+    $items = $wpdb->get_results(
+        $wpdb->prepare(
+            "SELECT orden_id, medida_chapa, cantidad_chapas, precio_unitario, total_item
+             FROM {$table_items}
+             WHERE orden_id IN ({$placeholders})
+             ORDER BY id ASC",
+            $order_ids
+        )
+    );
+
+    $items_map = array();
+    foreach ($items as $item) {
+        $items_map[(int) $item->orden_id][] = $item;
+    }
+
+    return $items_map;
+}
+
+function ctp_ordenes_build_liquidacion_ai_data($liquidacion, $ordenes, $items_map) {
+    $cliente = ctp_ordenes_ai_format_text($liquidacion->cliente_nombre ?? '');
+    $periodo_desde = !empty($liquidacion->desde) ? date_i18n('d/m/Y', strtotime($liquidacion->desde)) : '—';
+    $periodo_hasta = !empty($liquidacion->hasta) ? date_i18n('d/m/Y', strtotime($liquidacion->hasta)) : '—';
+    $total = ctp_ordenes_ai_format_currency($liquidacion->total ?? '');
+    $cantidad_ordenes = count($ordenes);
+
+    $ordenes_payload = array();
+    foreach ($ordenes as $orden) {
+        $orden_id = (int) ($orden->id ?? 0);
+        $fecha = !empty($orden->fecha) ? date_i18n('d/m/Y', strtotime($orden->fecha)) : '—';
+        $trabajo = ctp_ordenes_format_job_name($orden->nombre_trabajo ?? '');
+        $total_orden = ctp_ordenes_ai_format_currency($orden->total ?? '');
+        $items = $items_map[$orden_id] ?? array();
+
+        $items_payload = array();
+        foreach ($items as $item) {
+            $items_payload[] = array(
+                'medida' => ctp_ordenes_ai_format_text($item->medida_chapa ?? ''),
+                'cantidad' => ctp_ordenes_ai_format_quantity($item->cantidad_chapas ?? ''),
+                'unitario' => ctp_ordenes_ai_format_currency($item->precio_unitario ?? ''),
+                'total_item' => ctp_ordenes_ai_format_currency($item->total_item ?? ''),
+            );
+        }
+
+        $ordenes_payload[] = array(
+            'fecha' => $fecha,
+            'numero_orden' => ctp_ordenes_ai_format_text($orden->numero_orden ?? ''),
+            'cliente' => $cliente,
+            'nombre_trabajo' => $trabajo,
+            'total_ot' => $total_orden,
+            'items' => $items_payload,
+        );
+    }
+
+    return array(
+        'liquidacion' => array(
+            'cliente' => $cliente,
+            'desde' => $periodo_desde,
+            'hasta' => $periodo_hasta,
+            'total' => $total,
+            'cantidad_ordenes' => $cantidad_ordenes,
+        ),
+        'ordenes' => $ordenes_payload,
+    );
+}
+
 function ctp_ordenes_get_items_count_map($ordenes) {
     if (empty($ordenes)) {
         return array();
@@ -357,60 +467,30 @@ function ctp_ordenes_get_items_count_map($ordenes) {
     return $count_map;
 }
 
-function ctp_ordenes_build_liquidacion_ai_prompt($liquidacion, $ordenes) {
-    $cliente = $liquidacion->cliente_nombre ?: 'Sin cliente';
-    $periodo_desde = date_i18n('d/m/Y', strtotime($liquidacion->desde));
-    $periodo_hasta = date_i18n('d/m/Y', strtotime($liquidacion->hasta));
-    $total = ctp_ordenes_format_currency($liquidacion->total);
-    $cantidad_ordenes = count($ordenes);
-
-    $items_count_map = ctp_ordenes_get_items_count_map($ordenes);
-    $ordenes_payload = array();
-    foreach ($ordenes as $orden) {
-        $orden_id = (int) ($orden->id ?? 0);
-        $fecha = !empty($orden->fecha) ? date_i18n('d/m/Y', strtotime($orden->fecha)) : '—';
-        $trabajo = ctp_ordenes_format_job_name($orden->nombre_trabajo ?? '');
-        $total_orden = ctp_ordenes_format_currency($orden->total ?? 0);
-        $items_count = isset($orden->items_count) ? (int) $orden->items_count : ($items_count_map[$orden_id] ?? 0);
-
-        $ordenes_payload[] = array(
-            'fecha' => $fecha,
-            'numero_orden' => (string) ($orden->numero_orden ?? ''),
-            'nombre_trabajo' => $trabajo,
-            'items_count' => $items_count,
-            'total' => 'Gs. ' . $total_orden,
-        );
+function ctp_ordenes_build_liquidacion_ai_prompt($liquidacion, $ordenes, $ai_data = null) {
+    if ($ai_data === null) {
+        $items_map = ctp_ordenes_get_items_map_for_ai($ordenes);
+        $ai_data = ctp_ordenes_build_liquidacion_ai_data($liquidacion, $ordenes, $items_map);
     }
 
-    $payload = array(
-        'liquidacion' => array(
-            'cliente' => $cliente,
-            'desde' => $periodo_desde,
-            'hasta' => $periodo_hasta,
-            'total' => 'Gs. ' . $total,
-            'cantidad_ordenes' => $cantidad_ordenes,
-        ),
-        'ordenes' => $ordenes_payload,
-    );
-
-    $prompt = "Genera exclusivamente el resumen TABULAR de la liquidación con el formato exacto indicado. Usa SOLO los datos entregados, no inventes datos ni agregues texto fuera del formato.\n";
-    $prompt .= "Prohibido: WhatsApp, narrativa, texto descriptivo, órdenes destacadas, formatos alternativos.\n";
-    $prompt .= "Reglas estrictas:\n";
-    $prompt .= "- Mostrar TODAS las órdenes.\n";
-    $prompt .= "- Si falta nombre_trabajo usa \"—\".\n";
+    $prompt = "Genera un resumen en TEXTO PLANO con el formato exacto indicado. No uses Markdown ni tablas.\n";
+    $prompt .= "Usa SOLO los datos entregados. No inventes datos ni agregues texto fuera del formato. Si falta un dato, usa \"—\".\n";
+    $prompt .= "Reglas:\n";
     $prompt .= "- Fecha: dd/mm/yyyy.\n";
     $prompt .= "- Moneda: \"Gs. 603.000\".\n";
-    $prompt .= "- Ítems = cantidad real de ítems por OT.\n\n";
-    $prompt .= "FORMATO FINAL OBLIGATORIO (en este orden):\n";
-    $prompt .= "ENCABEZADO (máx 3 líneas):\n";
-    $prompt .= "Liquidación: <Cliente>\n";
-    $prompt .= "Período: <dd/mm/yyyy> a <dd/mm/yyyy> | Órdenes: <N> | Total: <Gs>\n";
-    $prompt .= "Generado: <dd/mm/yyyy HH:MM> (opcional)\n\n";
-    $prompt .= "TABLA (Markdown):\n";
-    $prompt .= "| Fecha | N° OT | Trabajo | Ítems | Total |\n";
-    $prompt .= "| ... listar TODAS las órdenes de la liquidación ... |\n\n";
+    $prompt .= "- Listar TODAS las órdenes.\n";
+    $prompt .= "- Si una OT no tiene ítems, incluye una línea de ítems con valores \"—\".\n\n";
+    $prompt .= "FORMATO EXACTO:\n";
+    $prompt .= "Liquidación: {Cliente}\n";
+    $prompt .= "Período: dd/mm/yyyy – dd/mm/yyyy\n";
+    $prompt .= "Total: Gs. X\n";
+    $prompt .= "Órdenes: N\n\n";
+    $prompt .= "Luego por cada OT:\n";
+    $prompt .= "- dd/mm/yyyy | OT 123 | Cliente: X | Trabajo: Y | Total: Gs. Z\n";
+    $prompt .= "  Ítems:\n";
+    $prompt .= "  - Medida: 510x400 | Cant: 1 | Unit: Gs. 20.000 | Total: Gs. 20.000\n\n";
     $prompt .= "Datos estructurados (JSON):\n";
-    $prompt .= wp_json_encode($payload, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+    $prompt .= wp_json_encode($ai_data, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
 
     return $prompt;
 }
@@ -2952,7 +3032,7 @@ function ctp_liquidaciones_shortcode() {
                     <div class="ctp-panel ctp-ai-panel">
                         <div class="ctp-panel-header">
                             <h4 class="ctp-panel-title">Resumen IA</h4>
-                            <p class="ctp-panel-subtitle">Genera un resumen breve para compartir con el cliente o guardar como nota interna.</p>
+                            <p class="ctp-panel-subtitle">Genera un resumen detallado con el estado real de las órdenes e ítems.</p>
                         </div>
                         <div class="ctp-panel-body ctp-ai-summary"
                              data-liquidacion-id="<?php echo esc_attr($liquidacion->id); ?>"
@@ -2963,9 +3043,10 @@ function ctp_liquidaciones_shortcode() {
                             <?php endif; ?>
                             <div class="ctp-ai-actions">
                                 <button type="button" class="ctp-button ctp-button-secondary ctp-ai-generate" <?php disabled(!$has_ai_key); ?>>Generar resumen con IA</button>
-                                <button type="button" class="ctp-button ctp-ai-save" <?php disabled(trim($initial_summary) === '' || !$has_ai_key); ?>>Guardar resumen como nota</button>
+                                <button type="button" class="ctp-button ctp-ai-save" <?php disabled(trim($initial_summary) === ''); ?>>Guardar resumen como nota</button>
                             </div>
                             <p class="ctp-ai-status" role="status" aria-live="polite"></p>
+                            <div class="ctp-ai-preview" aria-live="polite"></div>
                             <textarea class="ctp-ai-text" rows="6" placeholder="El resumen aparecerá aquí. Puedes editarlo antes de guardar o copiar."><?php echo esc_textarea($initial_summary); ?></textarea>
                         </div>
                     </div>
@@ -3250,7 +3331,9 @@ function ctp_ordenes_ajax_generate_liquidacion_summary() {
         )
     );
 
-    $prompt = ctp_ordenes_build_liquidacion_ai_prompt($liquidacion, $ordenes);
+    $items_map = ctp_ordenes_get_items_map_for_ai($ordenes);
+    $ai_data = ctp_ordenes_build_liquidacion_ai_data($liquidacion, $ordenes, $items_map);
+    $prompt = ctp_ordenes_build_liquidacion_ai_prompt($liquidacion, $ordenes, $ai_data);
 
     $request_body = array(
         'model' => 'gpt-4o-mini',
@@ -3297,7 +3380,12 @@ function ctp_ordenes_ajax_generate_liquidacion_summary() {
         wp_send_json_error(array('message' => 'No se recibió un resumen válido.'), 500);
     }
 
-    wp_send_json_success(array('summary' => $summary));
+    wp_send_json_success(
+        array(
+            'text' => $summary,
+            'data' => $ai_data,
+        )
+    );
 }
 add_action('wp_ajax_ctp_generar_resumen_liquidacion', 'ctp_ordenes_ajax_generate_liquidacion_summary');
 

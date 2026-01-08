@@ -29,6 +29,139 @@
         button.disabled = !textarea || !textarea.value.trim();
     }
 
+    function getPreviewContainer(container) {
+        if (!container) {
+            return null;
+        }
+        return container.querySelector('.ctp-ai-preview');
+    }
+
+    function normalizeAiValue(value) {
+        if (typeof value !== 'string') {
+            if (value === null || value === undefined) {
+                return '—';
+            }
+            return String(value);
+        }
+        var trimmed = value.trim();
+        return trimmed ? trimmed : '—';
+    }
+
+    function createPreviewField(label, value) {
+        var field = document.createElement('div');
+        field.className = 'ctp-ai-card-field';
+        var labelEl = document.createElement('span');
+        labelEl.className = 'ctp-ai-card-label';
+        labelEl.textContent = label;
+        var valueEl = document.createElement('span');
+        valueEl.className = 'ctp-ai-card-value';
+        valueEl.textContent = normalizeAiValue(value);
+        field.appendChild(labelEl);
+        field.appendChild(valueEl);
+        return field;
+    }
+
+    function renderAiPreview(container, data) {
+        var preview = getPreviewContainer(container);
+        if (!preview) {
+            return;
+        }
+        preview.innerHTML = '';
+        preview.classList.remove('has-data');
+
+        if (!data || !data.liquidacion) {
+            return;
+        }
+
+        preview.classList.add('has-data');
+
+        var header = document.createElement('div');
+        header.className = 'ctp-ai-preview-header';
+
+        var title = document.createElement('h5');
+        title.className = 'ctp-ai-preview-title';
+        title.textContent = 'Resumen de liquidación';
+        header.appendChild(title);
+
+        var headerGrid = document.createElement('div');
+        headerGrid.className = 'ctp-ai-preview-grid';
+        headerGrid.appendChild(createPreviewField('Cliente', data.liquidacion.cliente));
+        headerGrid.appendChild(createPreviewField('Período', normalizeAiValue(data.liquidacion.desde) + ' – ' + normalizeAiValue(data.liquidacion.hasta)));
+        headerGrid.appendChild(createPreviewField('Total', data.liquidacion.total));
+        headerGrid.appendChild(createPreviewField('Órdenes', data.liquidacion.cantidad_ordenes));
+        header.appendChild(headerGrid);
+        preview.appendChild(header);
+
+        var orders = Array.isArray(data.ordenes) ? data.ordenes : [];
+        orders.forEach(function (order) {
+            var card = document.createElement('div');
+            card.className = 'ctp-ai-card';
+
+            var cardHeader = document.createElement('div');
+            cardHeader.className = 'ctp-ai-card-header';
+            cardHeader.appendChild(createPreviewField('Fecha', order.fecha));
+            cardHeader.appendChild(createPreviewField('OT', order.numero_orden));
+            cardHeader.appendChild(createPreviewField('Cliente', order.cliente));
+            cardHeader.appendChild(createPreviewField('Trabajo', order.nombre_trabajo));
+            cardHeader.appendChild(createPreviewField('Total OT', order.total_ot));
+            card.appendChild(cardHeader);
+
+            var itemsSection = document.createElement('div');
+            itemsSection.className = 'ctp-ai-items';
+            var itemsTitle = document.createElement('div');
+            itemsTitle.className = 'ctp-ai-items-title';
+            itemsTitle.textContent = 'Ítems';
+            itemsSection.appendChild(itemsTitle);
+
+            var tableWrap = document.createElement('div');
+            tableWrap.className = 'ctp-ai-items-table';
+            var table = document.createElement('table');
+            var thead = document.createElement('thead');
+            var headRow = document.createElement('tr');
+            ['Medida', 'Cantidad', 'Unitario', 'Total'].forEach(function (label) {
+                var th = document.createElement('th');
+                th.textContent = label;
+                headRow.appendChild(th);
+            });
+            thead.appendChild(headRow);
+            table.appendChild(thead);
+
+            var tbody = document.createElement('tbody');
+            var items = Array.isArray(order.items) ? order.items : [];
+            if (!items.length) {
+                items = [
+                    {
+                        medida: '—',
+                        cantidad: '—',
+                        unitario: '—',
+                        total_item: '—'
+                    }
+                ];
+            }
+            items.forEach(function (item) {
+                var row = document.createElement('tr');
+                var medida = document.createElement('td');
+                medida.textContent = normalizeAiValue(item.medida);
+                var cantidad = document.createElement('td');
+                cantidad.textContent = normalizeAiValue(item.cantidad);
+                var unitario = document.createElement('td');
+                unitario.textContent = normalizeAiValue(item.unitario);
+                var totalItem = document.createElement('td');
+                totalItem.textContent = normalizeAiValue(item.total_item);
+                row.appendChild(medida);
+                row.appendChild(cantidad);
+                row.appendChild(unitario);
+                row.appendChild(totalItem);
+                tbody.appendChild(row);
+            });
+            table.appendChild(tbody);
+            tableWrap.appendChild(table);
+            itemsSection.appendChild(tableWrap);
+            card.appendChild(itemsSection);
+            preview.appendChild(card);
+        });
+    }
+
     function getAjaxUrl() {
         if (window.ctpOrdenesData && window.ctpOrdenesData.ajaxUrl) {
             return window.ctpOrdenesData.ajaxUrl;
@@ -166,6 +299,7 @@
                 saveButton.disabled = true;
             }
             updateAiStatus(container, 'Generando resumen...', 'loading');
+            renderAiPreview(container, null);
 
             var payload = new URLSearchParams();
             payload.append('action', 'ctp_generar_resumen_liquidacion');
@@ -187,17 +321,20 @@
                     if (!data || !data.success) {
                         var message = (data && data.data && data.data.message) ? data.data.message : 'No se pudo generar el resumen.';
                         updateAiStatus(container, message, 'error');
+                        renderAiPreview(container, null);
                         syncSaveButtonState(saveButton, textarea);
                         return;
                     }
                     if (textarea) {
-                        textarea.value = data.data.summary || '';
+                        textarea.value = data.data.text || '';
                     }
+                    renderAiPreview(container, data.data.data || null);
                     updateAiStatus(container, 'Resumen generado. Puedes editarlo antes de guardar.', 'success');
                     syncSaveButtonState(saveButton, textarea);
                 })
                 .catch(function () {
                     updateAiStatus(container, 'Ocurrió un error al generar el resumen.', 'error');
+                    renderAiPreview(container, null);
                     syncSaveButtonState(saveButton, textarea);
                 })
                 .finally(function () {
