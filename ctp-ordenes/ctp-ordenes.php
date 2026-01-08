@@ -2,7 +2,7 @@
 /**
  * Plugin Name: CTP Órdenes
  * Description: MVP para cargar y listar órdenes de CTP mediante shortcodes.
- * Version: 0.5.1
+ * Version: 0.6.0
  * Author: Equipo Revista Montaje AI
  * Requires PHP: 8.0
  */
@@ -11,7 +11,7 @@ if (!defined('ABSPATH')) {
     exit;
 }
 
-define('CTP_ORDENES_VERSION', '0.5.1');
+define('CTP_ORDENES_VERSION', '0.6.0');
 
 /**
  * Crea la tabla necesaria al activar el plugin.
@@ -27,6 +27,8 @@ function ctp_ordenes_create_tables() {
     $table_pagos = $wpdb->prefix . 'ctp_pagos_factura';
     $table_liquidaciones = $wpdb->prefix . 'ctp_liquidaciones_cliente';
     $table_liquidacion_ordenes = $wpdb->prefix . 'ctp_liquidacion_ordenes';
+    $table_deudas = $wpdb->prefix . 'ctp_deudas_empresa';
+    $table_deudas_pagos = $wpdb->prefix . 'ctp_deudas_empresa_pagos';
     $charset_collate = $wpdb->get_charset_collate();
 
     $sql = "CREATE TABLE {$table_name} (
@@ -139,6 +141,42 @@ function ctp_ordenes_create_tables() {
         KEY liquidacion_id (liquidacion_id)
     ) {$charset_collate};";
 
+    $sql_deudas = "CREATE TABLE {$table_deudas} (
+        id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+        categoria VARCHAR(30) NOT NULL,
+        tipo VARCHAR(20) NOT NULL,
+        descripcion TEXT NULL,
+        proveedor_id BIGINT UNSIGNED NULL,
+        monto_total DECIMAL(14,2) NOT NULL DEFAULT 0,
+        monto_mensual DECIMAL(14,2) NOT NULL DEFAULT 0,
+        cuotas_total INT UNSIGNED NULL,
+        fecha_inicio DATE NOT NULL,
+        fecha_fin DATE NULL,
+        dia_vencimiento TINYINT UNSIGNED NULL,
+        estado VARCHAR(20) NOT NULL DEFAULT 'activa',
+        created_at DATETIME NOT NULL,
+        updated_at DATETIME NOT NULL,
+        PRIMARY KEY  (id),
+        KEY proveedor_id (proveedor_id),
+        KEY tipo (tipo),
+        KEY categoria (categoria),
+        KEY estado (estado)
+    ) {$charset_collate};";
+
+    $sql_deudas_pagos = "CREATE TABLE {$table_deudas_pagos} (
+        id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+        deuda_id BIGINT UNSIGNED NOT NULL,
+        periodo CHAR(7) NOT NULL,
+        fecha_pago DATE NULL,
+        monto DECIMAL(14,2) NOT NULL DEFAULT 0,
+        notas VARCHAR(255) NULL,
+        created_at DATETIME NOT NULL,
+        PRIMARY KEY  (id),
+        UNIQUE KEY deuda_periodo (deuda_id, periodo),
+        KEY deuda_id (deuda_id),
+        KEY periodo (periodo)
+    ) {$charset_collate};";
+
     require_once ABSPATH . 'wp-admin/includes/upgrade.php';
     dbDelta($sql);
     dbDelta($sql_items);
@@ -148,6 +186,8 @@ function ctp_ordenes_create_tables() {
     dbDelta($sql_pagos);
     dbDelta($sql_liquidaciones);
     dbDelta($sql_liquidacion_ordenes);
+    dbDelta($sql_deudas);
+    dbDelta($sql_deudas_pagos);
 }
 
 function ctp_ordenes_activate() {
@@ -209,6 +249,7 @@ function ctp_ordenes_should_enqueue_assets() {
         'ctp_facturas_proveedor',
         'ctp_liquidaciones',
         'ctp_dashboard',
+        'ctp_deudas_empresa',
     );
 
     foreach ($shortcodes as $shortcode) {
@@ -307,6 +348,91 @@ function ctp_ordenes_get_medidas_chapa() {
 
 function ctp_ordenes_format_currency($value, $decimals = 0) {
     return number_format((float) $value, $decimals, ',', '.');
+}
+
+function ctp_ordenes_format_currency_i18n($value, $decimals = 0) {
+    return number_format_i18n((float) $value, $decimals);
+}
+
+function ctp_ordenes_get_deudas_periodo($period = '') {
+    $default_period = current_time('Y-m');
+    $period = $period !== '' ? $period : (isset($_GET['ctp_period']) ? sanitize_text_field(wp_unslash($_GET['ctp_period'])) : '');
+
+    if (!ctp_ordenes_is_valid_date($period, 'Y-m')) {
+        $period = $default_period;
+    }
+
+    $label = date_i18n('F Y', strtotime($period . '-01'));
+
+    return array(
+        'period' => $period,
+        'label' => $label,
+    );
+}
+
+function ctp_ordenes_month_diff($from, $to) {
+    if (!ctp_ordenes_is_valid_date($from, 'Y-m') || !ctp_ordenes_is_valid_date($to, 'Y-m')) {
+        return null;
+    }
+
+    $from_parts = array_map('intval', explode('-', $from));
+    $to_parts = array_map('intval', explode('-', $to));
+
+    return ($to_parts[0] - $from_parts[0]) * 12 + ($to_parts[1] - $from_parts[1]);
+}
+
+function ctp_ordenes_deuda_aplica_periodo($deuda, $periodo) {
+    if (!ctp_ordenes_is_valid_date($periodo, 'Y-m') || empty($deuda->fecha_inicio)) {
+        return false;
+    }
+
+    $inicio = date('Y-m', strtotime($deuda->fecha_inicio));
+    $tipo = $deuda->tipo ?? '';
+
+    if ($tipo === 'mensual') {
+        if ($periodo < $inicio) {
+            return false;
+        }
+
+        if (!empty($deuda->fecha_fin)) {
+            $fin = date('Y-m', strtotime($deuda->fecha_fin));
+            if ($periodo > $fin) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    if ($tipo === 'unico') {
+        return $periodo === $inicio;
+    }
+
+    if ($tipo === 'cuotas') {
+        $cuotas_total = (int) ($deuda->cuotas_total ?? 0);
+        if ($cuotas_total <= 0) {
+            return false;
+        }
+
+        $diff = ctp_ordenes_month_diff($inicio, $periodo);
+        return $diff !== null && $diff >= 0 && $diff < $cuotas_total;
+    }
+
+    return false;
+}
+
+function ctp_ordenes_deuda_get_monto_periodo($deuda, $periodo) {
+    if (!ctp_ordenes_deuda_aplica_periodo($deuda, $periodo)) {
+        return 0;
+    }
+
+    $tipo = $deuda->tipo ?? '';
+
+    if ($tipo === 'unico') {
+        return (float) ($deuda->monto_total ?? 0);
+    }
+
+    return (float) ($deuda->monto_mensual ?? 0);
 }
 
 function ctp_ordenes_format_items_count($count) {
@@ -2747,6 +2873,497 @@ function ctp_facturas_proveedor_shortcode() {
 }
 add_shortcode('ctp_facturas_proveedor', 'ctp_facturas_proveedor_shortcode');
 
+function ctp_deudas_empresa_shortcode() {
+    ctp_ordenes_enqueue_assets(true);
+
+    global $wpdb;
+    $table_deudas = $wpdb->prefix . 'ctp_deudas_empresa';
+    $table_pagos = $wpdb->prefix . 'ctp_deudas_empresa_pagos';
+    $table_proveedores = $wpdb->prefix . 'ctp_proveedores';
+
+    $mensajes = array(
+        'success' => array(),
+        'error' => array(),
+        'warning' => array(),
+    );
+
+    $can_manage = ctp_ordenes_user_can_manage();
+
+    $periodo_data = ctp_ordenes_get_deudas_periodo();
+    if (isset($_POST['ctp_period'])) {
+        $periodo_post = sanitize_text_field(wp_unslash($_POST['ctp_period']));
+        if (ctp_ordenes_is_valid_date($periodo_post, 'Y-m')) {
+            $periodo_data = ctp_ordenes_get_deudas_periodo($periodo_post);
+        }
+    }
+
+    $periodo = $periodo_data['period'];
+    $periodo_label = $periodo_data['label'];
+    $tab = isset($_GET['ctp_tab']) ? sanitize_key(wp_unslash($_GET['ctp_tab'])) : '';
+
+    $categorias = array(
+        'prestamo' => 'Préstamo',
+        'alquiler' => 'Alquiler',
+        'servicios' => 'Servicios',
+        'sueldos' => 'Sueldos',
+        'proveedores' => 'Proveedores',
+        'otros' => 'Otros',
+    );
+
+    $tipos = array(
+        'mensual' => 'Mensual',
+        'unico' => 'Único',
+        'cuotas' => 'Cuotas',
+    );
+
+    if (!empty($_POST['ctp_deuda_action'])) {
+        if (!$can_manage) {
+            $mensajes['error'][] = 'No tienes permisos para gestionar deudas.';
+        } else {
+            $action = sanitize_text_field(wp_unslash($_POST['ctp_deuda_action']));
+
+            if ($action === 'add') {
+                if (!isset($_POST['ctp_deuda_nonce']) || !check_admin_referer('ctp_deuda_add', 'ctp_deuda_nonce')) {
+                    $mensajes['error'][] = 'No se pudo validar la solicitud para agregar la deuda.';
+                } else {
+                    $categoria = sanitize_text_field(wp_unslash($_POST['categoria'] ?? ''));
+                    $tipo = sanitize_text_field(wp_unslash($_POST['tipo'] ?? ''));
+                    $descripcion = sanitize_textarea_field(wp_unslash($_POST['descripcion'] ?? ''));
+                    $proveedor_id = absint($_POST['proveedor_id'] ?? 0);
+                    $monto_total = isset($_POST['monto_total']) ? floatval(str_replace(',', '.', sanitize_text_field(wp_unslash($_POST['monto_total'])))) : 0;
+                    $monto_mensual = isset($_POST['monto_mensual']) ? floatval(str_replace(',', '.', sanitize_text_field(wp_unslash($_POST['monto_mensual'])))) : 0;
+                    $cuotas_total = absint($_POST['cuotas_total'] ?? 0);
+                    $fecha_inicio = sanitize_text_field(wp_unslash($_POST['fecha_inicio'] ?? ''));
+                    $fecha_fin = sanitize_text_field(wp_unslash($_POST['fecha_fin'] ?? ''));
+                    $dia_vencimiento = absint($_POST['dia_vencimiento'] ?? 0);
+
+                    if (!array_key_exists($categoria, $categorias)) {
+                        $mensajes['error'][] = 'Selecciona una categoría válida.';
+                    }
+
+                    if (!array_key_exists($tipo, $tipos)) {
+                        $mensajes['error'][] = 'Selecciona un tipo válido.';
+                    }
+
+                    if (!ctp_ordenes_is_valid_date($fecha_inicio, 'Y-m-d')) {
+                        $mensajes['error'][] = 'La fecha de inicio es obligatoria.';
+                    }
+
+                    if ($fecha_fin !== '' && !ctp_ordenes_is_valid_date($fecha_fin, 'Y-m-d')) {
+                        $mensajes['error'][] = 'La fecha de fin no es válida.';
+                    }
+
+                    if ($fecha_fin !== '' && $fecha_inicio !== '' && strtotime($fecha_fin) < strtotime($fecha_inicio)) {
+                        $mensajes['error'][] = 'La fecha de fin no puede ser anterior a la fecha de inicio.';
+                    }
+
+                    if ($dia_vencimiento > 31) {
+                        $mensajes['error'][] = 'El día de vencimiento debe estar entre 1 y 31.';
+                    }
+
+                    if ($proveedor_id > 0) {
+                        $proveedor_exists = $wpdb->get_var(
+                            $wpdb->prepare(
+                                "SELECT id FROM {$table_proveedores} WHERE id = %d",
+                                $proveedor_id
+                            )
+                        );
+                        if (!$proveedor_exists) {
+                            $mensajes['error'][] = 'El proveedor seleccionado no existe.';
+                        }
+                    }
+
+                    if ($tipo === 'mensual') {
+                        if ($monto_mensual <= 0 && $monto_total > 0) {
+                            $monto_mensual = $monto_total;
+                        }
+                        if ($monto_mensual <= 0) {
+                            $mensajes['error'][] = 'Ingresa un monto mensual válido.';
+                        }
+                        if ($monto_total <= 0) {
+                            $monto_total = $monto_mensual;
+                        }
+                        $cuotas_total = 0;
+                    } elseif ($tipo === 'unico') {
+                        if ($monto_total <= 0 && $monto_mensual > 0) {
+                            $monto_total = $monto_mensual;
+                        }
+                        if ($monto_total <= 0) {
+                            $mensajes['error'][] = 'Ingresa un monto total válido.';
+                        }
+                        $monto_mensual = 0;
+                        $cuotas_total = 0;
+                    } elseif ($tipo === 'cuotas') {
+                        if ($cuotas_total <= 0) {
+                            $mensajes['error'][] = 'Ingresa la cantidad de cuotas.';
+                        }
+                        if ($monto_mensual <= 0 && $monto_total > 0 && $cuotas_total > 0) {
+                            $monto_mensual = $monto_total / $cuotas_total;
+                        }
+                        if ($monto_total <= 0 && $monto_mensual > 0 && $cuotas_total > 0) {
+                            $monto_total = $monto_mensual * $cuotas_total;
+                        }
+                        if ($monto_mensual <= 0 || $monto_total <= 0) {
+                            $mensajes['error'][] = 'Ingresa montos válidos para la deuda en cuotas.';
+                        }
+                    }
+
+                    if (empty($mensajes['error'])) {
+                        $now = current_time('mysql');
+                        $inserted = $wpdb->insert(
+                            $table_deudas,
+                            array(
+                                'categoria' => $categoria,
+                                'tipo' => $tipo,
+                                'descripcion' => $descripcion,
+                                'proveedor_id' => $proveedor_id > 0 ? $proveedor_id : null,
+                                'monto_total' => $monto_total,
+                                'monto_mensual' => $monto_mensual,
+                                'cuotas_total' => $cuotas_total > 0 ? $cuotas_total : null,
+                                'fecha_inicio' => $fecha_inicio,
+                                'fecha_fin' => $fecha_fin !== '' ? $fecha_fin : null,
+                                'dia_vencimiento' => $dia_vencimiento > 0 ? $dia_vencimiento : null,
+                                'estado' => 'activa',
+                                'created_at' => $now,
+                                'updated_at' => $now,
+                            ),
+                            array('%s', '%s', '%s', '%d', '%f', '%f', '%d', '%s', '%s', '%d', '%s', '%s', '%s')
+                        );
+
+                        if ($inserted) {
+                            $mensajes['success'][] = 'Deuda agregada correctamente.';
+                        } else {
+                            $mensajes['error'][] = 'No se pudo guardar la deuda.';
+                        }
+                    }
+                }
+            } elseif ($action === 'delete') {
+                if (!isset($_POST['ctp_deuda_nonce']) || !check_admin_referer('ctp_deuda_delete', 'ctp_deuda_nonce')) {
+                    $mensajes['error'][] = 'No se pudo validar la solicitud para eliminar la deuda.';
+                } else {
+                    $deuda_id = absint($_POST['deuda_id'] ?? 0);
+                    if ($deuda_id <= 0) {
+                        $mensajes['error'][] = 'No se recibió una deuda válida.';
+                    } else {
+                        $wpdb->delete($table_pagos, array('deuda_id' => $deuda_id), array('%d'));
+                        $deleted = $wpdb->delete($table_deudas, array('id' => $deuda_id), array('%d'));
+                        if ($deleted) {
+                            $mensajes['success'][] = 'Deuda eliminada correctamente.';
+                        } else {
+                            $mensajes['error'][] = 'No se pudo eliminar la deuda.';
+                        }
+                    }
+                }
+            } elseif ($action === 'toggle_pago') {
+                if (!isset($_POST['ctp_deuda_nonce']) || !check_admin_referer('ctp_deuda_toggle_pago', 'ctp_deuda_nonce')) {
+                    $mensajes['error'][] = 'No se pudo validar la solicitud de pago.';
+                } else {
+                    $deuda_id = absint($_POST['deuda_id'] ?? 0);
+                    if ($deuda_id <= 0) {
+                        $mensajes['error'][] = 'No se recibió una deuda válida.';
+                    } else {
+                        $deuda = $wpdb->get_row(
+                            $wpdb->prepare(
+                                "SELECT * FROM {$table_deudas} WHERE id = %d",
+                                $deuda_id
+                            )
+                        );
+                        if (!$deuda) {
+                            $mensajes['error'][] = 'La deuda seleccionada no existe.';
+                        } elseif (!ctp_ordenes_deuda_aplica_periodo($deuda, $periodo)) {
+                            $mensajes['warning'][] = 'La deuda no aplica al período seleccionado.';
+                        } else {
+                            $pago = $wpdb->get_row(
+                                $wpdb->prepare(
+                                    "SELECT id FROM {$table_pagos} WHERE deuda_id = %d AND periodo = %s",
+                                    $deuda_id,
+                                    $periodo
+                                )
+                            );
+
+                            if ($pago) {
+                                $deleted = $wpdb->delete($table_pagos, array('id' => $pago->id), array('%d'));
+                                if ($deleted) {
+                                    $mensajes['success'][] = 'Pago desmarcado correctamente.';
+                                } else {
+                                    $mensajes['error'][] = 'No se pudo desmarcar el pago.';
+                                }
+                            } else {
+                                $monto_mes = ctp_ordenes_deuda_get_monto_periodo($deuda, $periodo);
+                                if ($monto_mes <= 0) {
+                                    $mensajes['error'][] = 'No se pudo determinar el monto del período.';
+                                } else {
+                                    $inserted = $wpdb->insert(
+                                        $table_pagos,
+                                        array(
+                                            'deuda_id' => $deuda_id,
+                                            'periodo' => $periodo,
+                                            'fecha_pago' => current_time('Y-m-d'),
+                                            'monto' => $monto_mes,
+                                            'notas' => '',
+                                            'created_at' => current_time('mysql'),
+                                        ),
+                                        array('%d', '%s', '%s', '%f', '%s', '%s')
+                                    );
+                                    if ($inserted) {
+                                        $mensajes['success'][] = 'Pago registrado correctamente.';
+                                    } else {
+                                        $mensajes['error'][] = 'No se pudo registrar el pago.';
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    $proveedores = $wpdb->get_results(
+        "SELECT id, nombre FROM {$table_proveedores} ORDER BY nombre ASC"
+    );
+
+    $deudas = $wpdb->get_results(
+        $wpdb->prepare(
+            "SELECT d.*, p.id AS pago_id, p.monto AS pago_monto, p.fecha_pago
+             FROM {$table_deudas} d
+             LEFT JOIN {$table_pagos} p
+                ON p.deuda_id = d.id
+               AND p.periodo = %s
+             ORDER BY d.created_at DESC, d.id DESC",
+            $periodo
+        )
+    );
+
+    $total_estimado = 0;
+    $total_pagado = 0;
+    foreach ($deudas as $deuda) {
+        $monto_mes = ctp_ordenes_deuda_get_monto_periodo($deuda, $periodo);
+        if ($monto_mes > 0) {
+            $total_estimado += $monto_mes;
+            if (!empty($deuda->pago_id)) {
+                $total_pagado += (float) $deuda->pago_monto;
+            }
+        }
+    }
+    $total_pendiente = max($total_estimado - $total_pagado, 0);
+
+    ob_start();
+    ?>
+    <?php ctp_ordenes_render_alerts($mensajes); ?>
+    <div class="ctp-stack">
+        <form method="get" action="<?php echo esc_url(remove_query_arg('ctp_period')); ?>" class="ctp-order-filter">
+            <?php if (!empty($tab)) : ?>
+                <input type="hidden" name="ctp_tab" value="<?php echo esc_attr($tab); ?>">
+            <?php endif; ?>
+            <div class="ctp-filter-group">
+                <div class="ctp-field">
+                    <label for="ctp-deudas-periodo">Periodo</label>
+                    <input type="month" id="ctp-deudas-periodo" name="ctp_period" value="<?php echo esc_attr($periodo); ?>">
+                </div>
+                <div class="ctp-field">
+                    <label>&nbsp;</label>
+                    <button type="submit" class="ctp-button">Ver</button>
+                </div>
+            </div>
+        </form>
+        <div class="ctp-kpi-grid">
+            <div class="ctp-kpi-card">
+                <div class="ctp-kpi-title">Total estimado</div>
+                <div class="ctp-kpi-value"><?php echo esc_html('Gs. ' . ctp_ordenes_format_currency_i18n($total_estimado, 0)); ?></div>
+                <div class="ctp-kpi-meta"><?php echo esc_html($periodo_label); ?></div>
+            </div>
+            <div class="ctp-kpi-card">
+                <div class="ctp-kpi-title">Total pagado</div>
+                <div class="ctp-kpi-value"><?php echo esc_html('Gs. ' . ctp_ordenes_format_currency_i18n($total_pagado, 0)); ?></div>
+                <div class="ctp-kpi-meta"><?php echo esc_html($periodo_label); ?></div>
+            </div>
+            <div class="ctp-kpi-card">
+                <div class="ctp-kpi-title">Total pendiente</div>
+                <div class="ctp-kpi-value"><?php echo esc_html('Gs. ' . ctp_ordenes_format_currency_i18n($total_pendiente, 0)); ?></div>
+                <div class="ctp-kpi-meta"><?php echo esc_html($periodo_label); ?></div>
+            </div>
+        </div>
+        <?php
+        ob_start();
+        ?>
+        <form method="post" class="ctp-form ctp-form-grid">
+            <?php wp_nonce_field('ctp_deuda_add', 'ctp_deuda_nonce'); ?>
+            <input type="hidden" name="ctp_deuda_action" value="add">
+            <input type="hidden" name="ctp_period" value="<?php echo esc_attr($periodo); ?>">
+            <?php if (!empty($tab)) : ?>
+                <input type="hidden" name="ctp_tab" value="<?php echo esc_attr($tab); ?>">
+            <?php endif; ?>
+
+            <div class="ctp-field">
+                <label for="ctp-deuda-categoria">Categoría</label>
+                <select id="ctp-deuda-categoria" name="categoria" required <?php disabled(!$can_manage); ?>>
+                    <?php foreach ($categorias as $value => $label) : ?>
+                        <option value="<?php echo esc_attr($value); ?>"><?php echo esc_html($label); ?></option>
+                    <?php endforeach; ?>
+                </select>
+            </div>
+
+            <div class="ctp-field">
+                <label for="ctp-deuda-tipo">Tipo</label>
+                <select id="ctp-deuda-tipo" name="tipo" required <?php disabled(!$can_manage); ?>>
+                    <?php foreach ($tipos as $value => $label) : ?>
+                        <option value="<?php echo esc_attr($value); ?>"><?php echo esc_html($label); ?></option>
+                    <?php endforeach; ?>
+                </select>
+            </div>
+
+            <div class="ctp-field ctp-field-full">
+                <label for="ctp-deuda-descripcion">Descripción</label>
+                <textarea id="ctp-deuda-descripcion" name="descripcion" rows="3" <?php disabled(!$can_manage); ?>></textarea>
+            </div>
+
+            <div class="ctp-field">
+                <label for="ctp-deuda-proveedor">Proveedor (opcional)</label>
+                <select id="ctp-deuda-proveedor" name="proveedor_id" <?php disabled(!$can_manage); ?>>
+                    <option value="0">Sin proveedor</option>
+                    <?php foreach ($proveedores as $proveedor) : ?>
+                        <option value="<?php echo esc_attr($proveedor->id); ?>"><?php echo esc_html($proveedor->nombre); ?></option>
+                    <?php endforeach; ?>
+                </select>
+            </div>
+
+            <div class="ctp-field">
+                <label for="ctp-deuda-fecha-inicio">Fecha inicio</label>
+                <input type="date" id="ctp-deuda-fecha-inicio" name="fecha_inicio" required <?php disabled(!$can_manage); ?>>
+            </div>
+
+            <div class="ctp-field">
+                <label for="ctp-deuda-monto-total">Monto total</label>
+                <input type="number" id="ctp-deuda-monto-total" name="monto_total" step="0.01" min="0" <?php disabled(!$can_manage); ?>>
+            </div>
+
+            <div class="ctp-field">
+                <label for="ctp-deuda-monto-mensual">Monto mensual</label>
+                <input type="number" id="ctp-deuda-monto-mensual" name="monto_mensual" step="0.01" min="0" <?php disabled(!$can_manage); ?>>
+            </div>
+
+            <div class="ctp-field">
+                <label for="ctp-deuda-cuotas">Cantidad de cuotas</label>
+                <input type="number" id="ctp-deuda-cuotas" name="cuotas_total" min="0" <?php disabled(!$can_manage); ?>>
+            </div>
+
+            <div class="ctp-field">
+                <label for="ctp-deuda-vencimiento">Día de vencimiento</label>
+                <input type="number" id="ctp-deuda-vencimiento" name="dia_vencimiento" min="1" max="31" <?php disabled(!$can_manage); ?>>
+            </div>
+
+            <div class="ctp-field">
+                <label for="ctp-deuda-fecha-fin">Fecha fin (opcional)</label>
+                <input type="date" id="ctp-deuda-fecha-fin" name="fecha_fin" <?php disabled(!$can_manage); ?>>
+            </div>
+
+            <div class="ctp-field ctp-field-full">
+                <button type="submit" class="ctp-button" <?php disabled(!$can_manage); ?>>Guardar deuda</button>
+            </div>
+        </form>
+        <?php
+        $form_html = ob_get_clean();
+        echo ctp_ordenes_render_panel(
+            'Agregar deuda',
+            'Registra préstamos, gastos mensuales y compromisos únicos.',
+            $form_html,
+            'ctp-panel-form'
+        );
+        ?>
+
+        <?php
+        ob_start();
+        ?>
+        <div class="ctp-table-wrap">
+            <table class="ctp-table">
+                <thead>
+                    <tr>
+                        <th>ID</th>
+                        <th>Categoría</th>
+                        <th>Tipo</th>
+                        <th class="ctp-table-text">Descripción</th>
+                        <th>Monto del mes</th>
+                        <th>Aplica</th>
+                        <th>Estado pago</th>
+                        <th class="ctp-actions-cell">Acciones</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <?php if (!empty($deudas)) : ?>
+                        <?php foreach ($deudas as $deuda) : ?>
+                            <?php
+                            $deuda_id = (int) $deuda->id;
+                            $aplica = ctp_ordenes_deuda_aplica_periodo($deuda, $periodo);
+                            $monto_mes = ctp_ordenes_deuda_get_monto_periodo($deuda, $periodo);
+                            $estado_pago = $aplica ? (!empty($deuda->pago_id) ? 'Pagado' : 'Pendiente') : 'No aplica';
+                            ?>
+                            <tr>
+                                <td data-label="ID"><?php echo esc_html($deuda_id); ?></td>
+                                <td data-label="Categoría"><?php echo esc_html($categorias[$deuda->categoria] ?? $deuda->categoria); ?></td>
+                                <td data-label="Tipo"><?php echo esc_html($tipos[$deuda->tipo] ?? $deuda->tipo); ?></td>
+                                <td class="ctp-table-text" data-label="Descripción"><?php echo esc_html($deuda->descripcion); ?></td>
+                                <td data-label="Monto del mes">
+                                    <?php echo esc_html($aplica ? 'Gs. ' . ctp_ordenes_format_currency_i18n($monto_mes, 0) : '—'); ?>
+                                </td>
+                                <td data-label="Aplica"><?php echo esc_html($aplica ? 'Sí' : 'No'); ?></td>
+                                <td data-label="Estado pago"><?php echo esc_html($estado_pago); ?></td>
+                                <td class="ctp-actions-cell" data-label="Acciones">
+                                    <div class="ctp-actions">
+                                        <?php if ($aplica) : ?>
+                                            <form method="post" class="ctp-inline-form">
+                                                <?php wp_nonce_field('ctp_deuda_toggle_pago', 'ctp_deuda_nonce'); ?>
+                                                <input type="hidden" name="ctp_deuda_action" value="toggle_pago">
+                                                <input type="hidden" name="deuda_id" value="<?php echo esc_attr($deuda_id); ?>">
+                                                <input type="hidden" name="ctp_period" value="<?php echo esc_attr($periodo); ?>">
+                                                <?php if (!empty($tab)) : ?>
+                                                    <input type="hidden" name="ctp_tab" value="<?php echo esc_attr($tab); ?>">
+                                                <?php endif; ?>
+                                                <button type="submit" class="ctp-button ctp-button-secondary" <?php disabled(!$can_manage); ?>>
+                                                    <?php echo esc_html(!empty($deuda->pago_id) ? 'Desmarcar' : 'Marcar pagado'); ?>
+                                                </button>
+                                            </form>
+                                        <?php endif; ?>
+                                        <form method="post" class="ctp-inline-form">
+                                            <?php wp_nonce_field('ctp_deuda_delete', 'ctp_deuda_nonce'); ?>
+                                            <input type="hidden" name="ctp_deuda_action" value="delete">
+                                            <input type="hidden" name="deuda_id" value="<?php echo esc_attr($deuda_id); ?>">
+                                            <input type="hidden" name="ctp_period" value="<?php echo esc_attr($periodo); ?>">
+                                            <?php if (!empty($tab)) : ?>
+                                                <input type="hidden" name="ctp_tab" value="<?php echo esc_attr($tab); ?>">
+                                            <?php endif; ?>
+                                            <button type="submit" class="ctp-button ctp-button-danger" onclick="return confirm('¿Seguro que deseas eliminar?')" <?php disabled(!$can_manage); ?>>Eliminar</button>
+                                        </form>
+                                    </div>
+                                </td>
+                            </tr>
+                        <?php endforeach; ?>
+                    <?php else : ?>
+                        <tr>
+                            <td colspan="8">No hay deudas registradas.</td>
+                        </tr>
+                    <?php endif; ?>
+                </tbody>
+            </table>
+        </div>
+        <?php
+        $table_html = ob_get_clean();
+        echo ctp_ordenes_render_panel(
+            'Deudas registradas',
+            'Controla lo que aplica al período seleccionado y registra pagos mensuales.',
+            $table_html
+        );
+        ?>
+    </div>
+    <?php
+    $html = ob_get_clean();
+    if (!empty($GLOBALS['ctp_in_dashboard'])) {
+        return $html;
+    }
+    return ctp_ordenes_wrap($html, 'ctp-shell-page');
+}
+add_shortcode('ctp_deudas_empresa', 'ctp_deudas_empresa_shortcode');
+
 function ctp_liquidaciones_shortcode() {
     ctp_ordenes_enqueue_assets(true);
 
@@ -3436,7 +4053,7 @@ function ctp_dashboard_shortcode() {
         $tab = 'ordenes';
     }
 
-    if (!in_array($tab, array('ordenes', 'proveedores', 'facturas', 'liquidaciones', 'clientes'), true)) {
+    if (!in_array($tab, array('ordenes', 'proveedores', 'facturas', 'liquidaciones', 'clientes', 'deudas'), true)) {
         $tab = 'ordenes';
     }
 
@@ -3469,6 +4086,7 @@ function ctp_dashboard_shortcode() {
         'proveedores' => 'Proveedores',
         'liquidaciones' => 'Liquidaciones',
         'facturas' => 'Facturas proveedor',
+        'deudas' => 'Deudas empresa',
     );
 
     $GLOBALS['ctp_in_dashboard'] = true;
@@ -3540,6 +4158,8 @@ function ctp_dashboard_shortcode() {
                     <?php echo do_shortcode('[ctp_proveedores]'); ?>
                 <?php elseif ($tab === 'liquidaciones') : ?>
                     <?php echo do_shortcode('[ctp_liquidaciones]'); ?>
+                <?php elseif ($tab === 'deudas') : ?>
+                    <?php echo do_shortcode('[ctp_deudas_empresa]'); ?>
                 <?php else : ?>
                     <?php echo do_shortcode('[ctp_facturas_proveedor]'); ?>
                 <?php endif; ?>
