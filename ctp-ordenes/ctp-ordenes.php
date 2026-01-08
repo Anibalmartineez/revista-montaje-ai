@@ -319,6 +319,44 @@ function ctp_ordenes_format_job_name($nombre_trabajo) {
     return $nombre_trabajo !== '' ? $nombre_trabajo : '—';
 }
 
+function ctp_ordenes_get_items_count_map($ordenes) {
+    if (empty($ordenes)) {
+        return array();
+    }
+
+    $order_ids = array();
+    foreach ($ordenes as $orden) {
+        if (!empty($orden->id)) {
+            $order_ids[] = (int) $orden->id;
+        }
+    }
+
+    if (empty($order_ids)) {
+        return array();
+    }
+
+    global $wpdb;
+    $table_items = $wpdb->prefix . 'ctp_ordenes_items';
+    $placeholders = implode(',', array_fill(0, count($order_ids), '%d'));
+
+    $counts = $wpdb->get_results(
+        $wpdb->prepare(
+            "SELECT orden_id, COUNT(*) AS items_count
+             FROM {$table_items}
+             WHERE orden_id IN ({$placeholders})
+             GROUP BY orden_id",
+            $order_ids
+        )
+    );
+
+    $count_map = array();
+    foreach ($counts as $row) {
+        $count_map[(int) $row->orden_id] = (int) $row->items_count;
+    }
+
+    return $count_map;
+}
+
 function ctp_ordenes_build_liquidacion_ai_prompt($liquidacion, $ordenes) {
     $cliente = $liquidacion->cliente_nombre ?: 'Sin cliente';
     $periodo_desde = date_i18n('d/m/Y', strtotime($liquidacion->desde));
@@ -326,39 +364,53 @@ function ctp_ordenes_build_liquidacion_ai_prompt($liquidacion, $ordenes) {
     $total = ctp_ordenes_format_currency($liquidacion->total);
     $cantidad_ordenes = count($ordenes);
 
-    $ordenes_lines = array();
+    $items_count_map = ctp_ordenes_get_items_count_map($ordenes);
+    $ordenes_payload = array();
     foreach ($ordenes as $orden) {
-        $fecha = !empty($orden->fecha) ? date_i18n('d/m/Y', strtotime($orden->fecha)) : 'Sin fecha';
-        $trabajo = $orden->nombre_trabajo ? trim((string) $orden->nombre_trabajo) : '';
-        if ($trabajo === '') {
-            $trabajo = '–';
-        }
-        $total_orden = ctp_ordenes_format_currency($orden->total);
-        $trabajos = ctp_ordenes_format_items_count((int) $orden->items_count);
-        $ordenes_lines[] = sprintf(
-            '- Orden %s | Fecha: %s | Trabajo: %s | Total: Gs. %s | %s',
-            $orden->numero_orden,
-            $fecha,
-            $trabajo,
-            $total_orden,
-            $trabajos
+        $orden_id = (int) ($orden->id ?? 0);
+        $fecha = !empty($orden->fecha) ? date_i18n('d/m/Y', strtotime($orden->fecha)) : '—';
+        $trabajo = ctp_ordenes_format_job_name($orden->nombre_trabajo ?? '');
+        $total_orden = ctp_ordenes_format_currency($orden->total ?? 0);
+        $items_count = isset($orden->items_count) ? (int) $orden->items_count : ($items_count_map[$orden_id] ?? 0);
+
+        $ordenes_payload[] = array(
+            'fecha' => $fecha,
+            'numero_orden' => (string) ($orden->numero_orden ?? ''),
+            'nombre_trabajo' => $trabajo,
+            'items_count' => $items_count,
+            'total' => 'Gs. ' . $total_orden,
         );
     }
 
-    if (empty($ordenes_lines)) {
-        $ordenes_lines[] = '- Sin órdenes asociadas.';
-    }
+    $payload = array(
+        'liquidacion' => array(
+            'cliente' => $cliente,
+            'desde' => $periodo_desde,
+            'hasta' => $periodo_hasta,
+            'total' => 'Gs. ' . $total,
+            'cantidad_ordenes' => $cantidad_ordenes,
+        ),
+        'ordenes' => $ordenes_payload,
+    );
 
-    $prompt = "Genera un resumen profesional en español de esta liquidación. Usa SOLO los datos entregados, no inventes fechas ni montos.\n";
-    $prompt .= "Debe incluir: nombre del cliente, período, cantidad de órdenes, total, y hasta 3 trabajos destacados (0 a 3) según la cantidad real de órdenes. No inventes órdenes si hay 1 o 2.\n";
-    $prompt .= "Extensión: 4 a 8 líneas. Incluye una versión lista para WhatsApp al final, precedida por \"WhatsApp:\".\n\n";
-    $prompt .= "Datos de la liquidación:\n";
-    $prompt .= sprintf("Cliente: %s\n", $cliente);
-    $prompt .= sprintf("Período: %s al %s\n", $periodo_desde, $periodo_hasta);
-    $prompt .= sprintf("Total: Gs. %s\n", $total);
-    $prompt .= sprintf("Cantidad de órdenes: %d\n", $cantidad_ordenes);
-    $prompt .= "Órdenes:\n";
-    $prompt .= implode("\n", $ordenes_lines);
+    $prompt = "Genera exclusivamente el resumen TABULAR de la liquidación con el formato exacto indicado. Usa SOLO los datos entregados, no inventes datos ni agregues texto fuera del formato.\n";
+    $prompt .= "Prohibido: WhatsApp, narrativa, texto descriptivo, órdenes destacadas, formatos alternativos.\n";
+    $prompt .= "Reglas estrictas:\n";
+    $prompt .= "- Mostrar TODAS las órdenes.\n";
+    $prompt .= "- Si falta nombre_trabajo usa \"—\".\n";
+    $prompt .= "- Fecha: dd/mm/yyyy.\n";
+    $prompt .= "- Moneda: \"Gs. 603.000\".\n";
+    $prompt .= "- Ítems = cantidad real de ítems por OT.\n\n";
+    $prompt .= "FORMATO FINAL OBLIGATORIO (en este orden):\n";
+    $prompt .= "ENCABEZADO (máx 3 líneas):\n";
+    $prompt .= "Liquidación: <Cliente>\n";
+    $prompt .= "Período: <dd/mm/yyyy> a <dd/mm/yyyy> | Órdenes: <N> | Total: <Gs>\n";
+    $prompt .= "Generado: <dd/mm/yyyy HH:MM> (opcional)\n\n";
+    $prompt .= "TABLA (Markdown):\n";
+    $prompt .= "| Fecha | N° OT | Trabajo | Ítems | Total |\n";
+    $prompt .= "| ... listar TODAS las órdenes de la liquidación ... |\n\n";
+    $prompt .= "Datos estructurados (JSON):\n";
+    $prompt .= wp_json_encode($payload, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
 
     return $prompt;
 }
@@ -3187,7 +3239,7 @@ function ctp_ordenes_ajax_generate_liquidacion_summary() {
                     o.numero_orden,
                     o.nombre_trabajo,
                     COALESCE(SUM(i.total_item), o.total) AS total,
-                    CASE WHEN COUNT(i.id) > 0 THEN COUNT(i.id) ELSE 1 END AS items_count
+                    COUNT(i.id) AS items_count
              FROM {$table_ordenes} o
              INNER JOIN {$table_liquidacion_ordenes} lo ON lo.orden_id = o.id
              LEFT JOIN {$table_items} i ON i.orden_id = o.id

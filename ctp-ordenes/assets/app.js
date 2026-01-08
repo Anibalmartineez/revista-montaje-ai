@@ -22,6 +22,13 @@
         }
     }
 
+    function syncSaveButtonState(button, textarea) {
+        if (!button) {
+            return;
+        }
+        button.disabled = !textarea || !textarea.value.trim();
+    }
+
     function getAjaxUrl() {
         if (window.ctpOrdenesData && window.ctpOrdenesData.ajaxUrl) {
             return window.ctpOrdenesData.ajaxUrl;
@@ -180,24 +187,22 @@
                     if (!data || !data.success) {
                         var message = (data && data.data && data.data.message) ? data.data.message : 'No se pudo generar el resumen.';
                         updateAiStatus(container, message, 'error');
+                        syncSaveButtonState(saveButton, textarea);
                         return;
                     }
                     if (textarea) {
                         textarea.value = data.data.summary || '';
                     }
                     updateAiStatus(container, 'Resumen generado. Puedes editarlo antes de guardar.', 'success');
-                    if (saveButton) {
-                        saveButton.disabled = !textarea || !textarea.value.trim();
-                    }
+                    syncSaveButtonState(saveButton, textarea);
                 })
                 .catch(function () {
                     updateAiStatus(container, 'Ocurrió un error al generar el resumen.', 'error');
+                    syncSaveButtonState(saveButton, textarea);
                 })
                 .finally(function () {
                     target.disabled = false;
-                    if (saveButton) {
-                        saveButton.disabled = !textarea || !textarea.value.trim();
-                    }
+                    syncSaveButtonState(saveButton, textarea);
                 });
         }
 
