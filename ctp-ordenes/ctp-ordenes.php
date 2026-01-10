@@ -3187,7 +3187,7 @@ function ctp_deudas_empresa_shortcode() {
         <?php
         ob_start();
         ?>
-        <form method="post" class="ctp-form ctp-form-grid">
+        <form method="post" class="ctp-form ctp-form-grid" id="ctp-deuda-form">
             <?php wp_nonce_field('ctp_deuda_add', 'ctp_deuda_nonce'); ?>
             <input type="hidden" name="ctp_deuda_action" value="add">
             <input type="hidden" name="ctp_period" value="<?php echo esc_attr($periodo); ?>">
@@ -3211,6 +3211,7 @@ function ctp_deudas_empresa_shortcode() {
                         <option value="<?php echo esc_attr($value); ?>"><?php echo esc_html($label); ?></option>
                     <?php endforeach; ?>
                 </select>
+                <p class="ctp-helper-text" id="ctp-deuda-tipo-helper">Mensual: se repite cada mes desde inicio hasta fin (si se define).</p>
             </div>
 
             <div class="ctp-field ctp-field-full">
@@ -3233,17 +3234,17 @@ function ctp_deudas_empresa_shortcode() {
                 <input type="date" id="ctp-deuda-fecha-inicio" name="fecha_inicio" required <?php disabled(!$can_manage); ?>>
             </div>
 
-            <div class="ctp-field">
+            <div class="ctp-field ctp-deuda-field ctp-deuda-field-total">
                 <label for="ctp-deuda-monto-total">Monto total</label>
                 <input type="number" id="ctp-deuda-monto-total" name="monto_total" step="0.01" min="0" <?php disabled(!$can_manage); ?>>
             </div>
 
-            <div class="ctp-field">
+            <div class="ctp-field ctp-deuda-field ctp-deuda-field-mensual">
                 <label for="ctp-deuda-monto-mensual">Monto mensual</label>
                 <input type="number" id="ctp-deuda-monto-mensual" name="monto_mensual" step="0.01" min="0" <?php disabled(!$can_manage); ?>>
             </div>
 
-            <div class="ctp-field">
+            <div class="ctp-field ctp-deuda-field ctp-deuda-field-cuotas">
                 <label for="ctp-deuda-cuotas">Cantidad de cuotas</label>
                 <input type="number" id="ctp-deuda-cuotas" name="cuotas_total" min="0" <?php disabled(!$can_manage); ?>>
             </div>
@@ -3261,6 +3262,9 @@ function ctp_deudas_empresa_shortcode() {
             <div class="ctp-field ctp-field-full">
                 <button type="submit" class="ctp-button" <?php disabled(!$can_manage); ?>>Guardar deuda</button>
             </div>
+            <div class="ctp-field ctp-field-full">
+                <p class="ctp-form-error" id="ctp-deuda-form-error" role="alert" aria-live="polite"></p>
+            </div>
         </form>
         <?php
         $form_html = ob_get_clean();
@@ -3271,6 +3275,123 @@ function ctp_deudas_empresa_shortcode() {
             'ctp-panel-form'
         );
         ?>
+        <script>
+            document.addEventListener('DOMContentLoaded', function () {
+                var form = document.getElementById('ctp-deuda-form');
+                if (!form) {
+                    return;
+                }
+                var tipoSelect = document.getElementById('ctp-deuda-tipo');
+                var helper = document.getElementById('ctp-deuda-tipo-helper');
+                var errorEl = document.getElementById('ctp-deuda-form-error');
+                var fields = {
+                    total: {
+                        wrapper: form.querySelector('.ctp-deuda-field-total'),
+                        input: document.getElementById('ctp-deuda-monto-total'),
+                        required: false,
+                    },
+                    mensual: {
+                        wrapper: form.querySelector('.ctp-deuda-field-mensual'),
+                        input: document.getElementById('ctp-deuda-monto-mensual'),
+                        required: false,
+                    },
+                    cuotas: {
+                        wrapper: form.querySelector('.ctp-deuda-field-cuotas'),
+                        input: document.getElementById('ctp-deuda-cuotas'),
+                        required: false,
+                    },
+                };
+
+                Object.keys(fields).forEach(function (key) {
+                    var input = fields[key].input;
+                    if (input) {
+                        input.dataset.ctpInitialDisabled = input.disabled ? 'true' : 'false';
+                    }
+                });
+
+                var helperMessages = {
+                    unico: 'Único: se registra solo para el mes de la fecha de inicio.',
+                    mensual: 'Mensual: se repite cada mes desde inicio hasta fin (si se define).',
+                    cuotas: 'Cuotas: se repite por N cuotas desde el mes de inicio.',
+                };
+
+                var setFieldState = function (field, visible, required) {
+                    if (!field || !field.wrapper || !field.input) {
+                        return;
+                    }
+                    field.wrapper.style.display = visible ? '' : 'none';
+                    if (!visible) {
+                        field.input.value = '';
+                    }
+                    if (field.input.dataset.ctpInitialDisabled !== 'true') {
+                        field.input.disabled = !visible;
+                    }
+                    field.input.required = visible && required;
+                };
+
+                var applyTipo = function (tipo) {
+                    if (!tipoSelect) {
+                        return;
+                    }
+                    if (helper && helperMessages[tipo]) {
+                        helper.textContent = helperMessages[tipo];
+                    }
+                    if (errorEl) {
+                        errorEl.textContent = '';
+                    }
+                    if (tipo === 'unico') {
+                        setFieldState(fields.total, true, true);
+                        setFieldState(fields.mensual, false, false);
+                        setFieldState(fields.cuotas, false, false);
+                    } else if (tipo === 'mensual') {
+                        setFieldState(fields.total, true, false);
+                        setFieldState(fields.mensual, true, true);
+                        setFieldState(fields.cuotas, false, false);
+                    } else if (tipo === 'cuotas') {
+                        setFieldState(fields.total, true, false);
+                        setFieldState(fields.mensual, true, true);
+                        setFieldState(fields.cuotas, true, true);
+                    }
+                };
+
+                if (tipoSelect) {
+                    tipoSelect.addEventListener('change', function (event) {
+                        applyTipo(event.target.value);
+                    });
+                    applyTipo(tipoSelect.value);
+                }
+
+                form.addEventListener('submit', function (event) {
+                    if (!tipoSelect) {
+                        return;
+                    }
+                    var tipo = tipoSelect.value;
+                    var mensajes = [];
+                    var totalValue = fields.total.input ? fields.total.input.value.trim() : '';
+                    var mensualValue = fields.mensual.input ? fields.mensual.input.value.trim() : '';
+                    var cuotasValue = fields.cuotas.input ? fields.cuotas.input.value.trim() : '';
+
+                    if (tipo === 'unico' && totalValue === '') {
+                        mensajes.push('Ingresa el monto total para una deuda única.');
+                    }
+                    if (tipo === 'mensual' && mensualValue === '') {
+                        mensajes.push('Ingresa el monto mensual para una deuda mensual.');
+                    }
+                    if (tipo === 'cuotas' && (mensualValue === '' || cuotasValue === '')) {
+                        mensajes.push('Ingresa el monto mensual y la cantidad de cuotas.');
+                    }
+
+                    if (mensajes.length > 0) {
+                        event.preventDefault();
+                        if (errorEl) {
+                            errorEl.textContent = mensajes.join(' ');
+                        }
+                    } else if (errorEl) {
+                        errorEl.textContent = '';
+                    }
+                });
+            });
+        </script>
 
         <?php
         ob_start();
