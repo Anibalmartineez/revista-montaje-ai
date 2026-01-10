@@ -1148,10 +1148,22 @@ function ctp_register_deuda_pago_from_factura($factura, $deuda_id) {
         $fecha_pago = current_time('Y-m-d');
     }
 
-    $periodo = ctp_period_from_date($fecha_pago);
-
     global $wpdb;
+    $table_deudas = $wpdb->prefix . 'ctp_deudas_empresa';
     $table_pagos = $wpdb->prefix . 'ctp_deudas_empresa_pagos';
+
+    $periodo = ctp_period_from_date($fecha_pago);
+    $deuda = $wpdb->get_row(
+        $wpdb->prepare(
+            "SELECT tipo, source_type, fecha_inicio FROM {$table_deudas} WHERE id = %d",
+            $deuda_id
+        )
+    );
+    if ($deuda && $deuda->source_type === 'factura_proveedor' && $deuda->tipo === 'unico') {
+        if (ctp_ordenes_is_valid_date($deuda->fecha_inicio, 'Y-m-d')) {
+            $periodo = ctp_period_from_date($deuda->fecha_inicio);
+        }
+    }
 
     $existing = $wpdb->get_row(
         $wpdb->prepare(
