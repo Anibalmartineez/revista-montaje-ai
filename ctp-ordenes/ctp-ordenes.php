@@ -2,7 +2,7 @@
 /**
  * Plugin Name: CTP Órdenes
  * Description: MVP para cargar y listar órdenes de CTP mediante shortcodes.
- * Version: 0.6.0
+ * Version: 0.6.1
  * Author: Equipo Revista Montaje AI
  * Requires PHP: 8.0
  */
@@ -11,7 +11,7 @@ if (!defined('ABSPATH')) {
     exit;
 }
 
-define('CTP_ORDENES_VERSION', '0.6.0');
+define('CTP_ORDENES_VERSION', '0.6.1');
 
 /**
  * Crea la tabla necesaria al activar el plugin.
@@ -154,13 +154,16 @@ function ctp_ordenes_create_tables() {
         fecha_fin DATE NULL,
         dia_vencimiento TINYINT UNSIGNED NULL,
         estado VARCHAR(20) NOT NULL DEFAULT 'activa',
+        source_type VARCHAR(50) NULL,
+        source_id BIGINT UNSIGNED NULL,
         created_at DATETIME NOT NULL,
         updated_at DATETIME NOT NULL,
         PRIMARY KEY  (id),
         KEY proveedor_id (proveedor_id),
         KEY tipo (tipo),
         KEY categoria (categoria),
-        KEY estado (estado)
+        KEY estado (estado),
+        KEY source_ref (source_type, source_id)
     ) {$charset_collate};";
 
     $sql_deudas_pagos = "CREATE TABLE {$table_deudas_pagos} (
@@ -731,6 +734,14 @@ function ctp_ordenes_is_valid_date($date, $format) {
     return $parsed && $parsed->format($format) === $date;
 }
 
+function ctp_period_from_date($date) {
+    if (ctp_ordenes_is_valid_date($date, 'Y-m-d')) {
+        return date('Y-m', strtotime($date));
+    }
+
+    return current_time('Y-m');
+}
+
 function ctp_ordenes_get_ordenes_periodo() {
     $default_month = current_time('Y-m');
     $default_start = current_time('Y-m-01');
@@ -1028,6 +1039,165 @@ function ctp_ordenes_recalculate_factura($factura_id) {
         'monto_pagado' => $monto_pagado,
         'saldo' => $saldo,
         'estado_pago' => $estado,
+    );
+}
+
+function ctp_upsert_deuda_from_factura_proveedor($factura_id) {
+    global $wpdb;
+
+    $table_facturas = $wpdb->prefix . 'ctp_facturas_proveedor';
+    $table_proveedores = $wpdb->prefix . 'ctp_proveedores';
+    $table_deudas = $wpdb->prefix . 'ctp_deudas_empresa';
+
+    $factura = $wpdb->get_row(
+        $wpdb->prepare(
+            "SELECT f.*, p.nombre AS proveedor_nombre
+             FROM {$table_facturas} f
+             LEFT JOIN {$table_proveedores} p ON f.proveedor_id = p.id
+             WHERE f.id = %d",
+            $factura_id
+        )
+    );
+
+    if (!$factura) {
+        return false;
+    }
+
+    $fecha_inicio = $factura->vencimiento && ctp_ordenes_is_valid_date($factura->vencimiento, 'Y-m-d')
+        ? $factura->vencimiento
+        : $factura->fecha_factura;
+
+    if (!ctp_ordenes_is_valid_date($fecha_inicio, 'Y-m-d')) {
+        $fecha_inicio = current_time('Y-m-d');
+    }
+
+    $descripcion = 'Factura proveedor';
+    if (!empty($factura->nro_factura)) {
+        $descripcion .= ' #' . $factura->nro_factura;
+    }
+    $proveedor_nombre = trim((string) ($factura->proveedor_nombre ?? ''));
+    if ($proveedor_nombre !== '') {
+        $descripcion .= ' - ' . $proveedor_nombre;
+    }
+
+    $data = array(
+        'categoria' => 'proveedores',
+        'tipo' => 'unico',
+        'descripcion' => $descripcion,
+        'proveedor_id' => (int) $factura->proveedor_id,
+        'monto_total' => (float) $factura->monto_total,
+        'monto_mensual' => 0,
+        'cuotas_total' => 0,
+        'fecha_inicio' => $fecha_inicio,
+        'fecha_fin' => null,
+        'dia_vencimiento' => 0,
+        'estado' => 'activa',
+        'source_type' => 'factura_proveedor',
+        'source_id' => (int) $factura->id,
+        'updated_at' => current_time('mysql'),
+    );
+
+    $existing_id = (int) $wpdb->get_var(
+        $wpdb->prepare(
+            "SELECT id FROM {$table_deudas} WHERE source_type = %s AND source_id = %d",
+            'factura_proveedor',
+            $factura->id
+        )
+    );
+
+    $formats = array('%s', '%s', '%s', '%d', '%f', '%f', '%d', '%s', '%s', '%d', '%s', '%s', '%d', '%s');
+
+    if ($existing_id > 0) {
+        $updated = $wpdb->update(
+            $table_deudas,
+            $data,
+            array('id' => $existing_id),
+            $formats,
+            array('%d')
+        );
+        return $updated !== false ? $existing_id : false;
+    }
+
+    $data['created_at'] = current_time('mysql');
+    $formats[] = '%s';
+
+    $inserted = $wpdb->insert($table_deudas, $data, $formats);
+    return $inserted ? (int) $wpdb->insert_id : false;
+}
+
+function ctp_register_deuda_pago_from_factura($factura, $deuda_id) {
+    if (!$factura || $deuda_id <= 0) {
+        return false;
+    }
+
+    $monto = isset($factura->pago_monto) ? (float) $factura->pago_monto : 0;
+    if ($monto <= 0) {
+        return false;
+    }
+
+    $fecha_pago = '';
+    if (!empty($factura->pago_fecha)) {
+        $fecha_pago = $factura->pago_fecha;
+    } elseif (!empty($factura->vencimiento)) {
+        $fecha_pago = $factura->vencimiento;
+    } elseif (!empty($factura->fecha_factura)) {
+        $fecha_pago = $factura->fecha_factura;
+    }
+
+    if (!ctp_ordenes_is_valid_date($fecha_pago, 'Y-m-d')) {
+        $fecha_pago = current_time('Y-m-d');
+    }
+
+    global $wpdb;
+    $table_deudas = $wpdb->prefix . 'ctp_deudas_empresa';
+    $table_pagos = $wpdb->prefix . 'ctp_deudas_empresa_pagos';
+
+    $periodo = ctp_period_from_date($fecha_pago);
+    $deuda = $wpdb->get_row(
+        $wpdb->prepare(
+            "SELECT tipo, source_type, fecha_inicio FROM {$table_deudas} WHERE id = %d",
+            $deuda_id
+        )
+    );
+    if ($deuda && $deuda->source_type === 'factura_proveedor' && $deuda->tipo === 'unico') {
+        if (ctp_ordenes_is_valid_date($deuda->fecha_inicio, 'Y-m-d')) {
+            $periodo = ctp_period_from_date($deuda->fecha_inicio);
+        }
+    }
+
+    $existing = $wpdb->get_row(
+        $wpdb->prepare(
+            "SELECT id, monto FROM {$table_pagos} WHERE deuda_id = %d AND periodo = %s",
+            $deuda_id,
+            $periodo
+        )
+    );
+
+    if ($existing) {
+        $nuevo_monto = (float) $existing->monto + $monto;
+        return $wpdb->update(
+            $table_pagos,
+            array(
+                'monto' => $nuevo_monto,
+                'fecha_pago' => $fecha_pago,
+            ),
+            array('id' => $existing->id),
+            array('%f', '%s'),
+            array('%d')
+        );
+    }
+
+    return $wpdb->insert(
+        $table_pagos,
+        array(
+            'deuda_id' => $deuda_id,
+            'periodo' => $periodo,
+            'fecha_pago' => $fecha_pago,
+            'monto' => $monto,
+            'notas' => !empty($factura->nro_factura) ? 'Pago factura proveedor #' . $factura->nro_factura : '',
+            'created_at' => current_time('mysql'),
+        ),
+        array('%d', '%s', '%s', '%f', '%s', '%s')
     );
 }
 
@@ -2482,6 +2652,10 @@ function ctp_facturas_proveedor_shortcode() {
                     );
 
                     if ($inserted) {
+                        $deuda_id = ctp_upsert_deuda_from_factura_proveedor((int) $wpdb->insert_id);
+                        if (!$deuda_id) {
+                            $mensajes['warning'][] = 'La factura se guardó, pero no se pudo sincronizar la deuda.';
+                        }
                         $mensajes['success'][] = 'Factura registrada correctamente.';
                     } else {
                         $mensajes['error'][] = 'No se pudo registrar la factura.';
@@ -2555,6 +2729,14 @@ function ctp_facturas_proveedor_shortcode() {
 
                     if ($inserted) {
                         ctp_ordenes_recalculate_factura($factura_id);
+                        $deuda_id = ctp_upsert_deuda_from_factura_proveedor($factura_id);
+                        if ($deuda_id) {
+                            $factura->pago_monto = $monto;
+                            $factura->pago_fecha = $fecha_pago;
+                            ctp_register_deuda_pago_from_factura($factura, $deuda_id);
+                        } else {
+                            $mensajes['warning'][] = 'El pago se registró, pero no se pudo sincronizar la deuda.';
+                        }
                         $mensajes['success'][] = 'Pago registrado correctamente.';
                     } else {
                         $mensajes['error'][] = 'No se pudo registrar el pago.';
@@ -2578,6 +2760,17 @@ function ctp_facturas_proveedor_shortcode() {
                     if ($tiene_pagos > 0) {
                         $mensajes['error'][] = 'No se puede eliminar la factura porque tiene pagos registrados.';
                     } else {
+                        $deuda_id = (int) $wpdb->get_var(
+                            $wpdb->prepare(
+                                "SELECT id FROM {$wpdb->prefix}ctp_deudas_empresa WHERE source_type = %s AND source_id = %d",
+                                'factura_proveedor',
+                                $factura_id
+                            )
+                        );
+                        if ($deuda_id > 0) {
+                            $wpdb->delete($wpdb->prefix . 'ctp_deudas_empresa_pagos', array('deuda_id' => $deuda_id), array('%d'));
+                            $wpdb->delete($wpdb->prefix . 'ctp_deudas_empresa', array('id' => $deuda_id), array('%d'));
+                        }
                         $deleted = $wpdb->delete($table_facturas, array('id' => $factura_id), array('%d'));
                         if ($deleted) {
                             $mensajes['success'][] = 'Factura eliminada correctamente.';
@@ -3421,12 +3614,20 @@ function ctp_deudas_empresa_shortcode() {
                             $aplica = ctp_ordenes_deuda_aplica_periodo($deuda, $periodo);
                             $monto_mes = ctp_ordenes_deuda_get_monto_periodo($deuda, $periodo);
                             $estado_pago = $aplica ? (!empty($deuda->pago_id) ? 'Pagado' : 'Pendiente') : 'No aplica';
+                            $is_factura_sync = !empty($deuda->source_type) && $deuda->source_type === 'factura_proveedor';
                             ?>
                             <tr>
                                 <td data-label="ID"><?php echo esc_html($deuda_id); ?></td>
                                 <td data-label="Categoría"><?php echo esc_html($categorias[$deuda->categoria] ?? $deuda->categoria); ?></td>
                                 <td data-label="Tipo"><?php echo esc_html($tipos[$deuda->tipo] ?? $deuda->tipo); ?></td>
-                                <td class="ctp-table-text" data-label="Descripción"><?php echo esc_html($deuda->descripcion); ?></td>
+                                <td class="ctp-table-text" data-label="Descripción">
+                                    <div class="ctp-deuda-desc">
+                                        <span><?php echo esc_html($deuda->descripcion); ?></span>
+                                        <?php if ($is_factura_sync) : ?>
+                                            <span class="ctp-badge ctp-badge-sync">Factura proveedor</span>
+                                        <?php endif; ?>
+                                    </div>
+                                </td>
                                 <td data-label="Monto del mes">
                                     <?php echo esc_html($aplica ? 'Gs. ' . ctp_ordenes_format_currency_i18n($monto_mes, 0) : '—'); ?>
                                 </td>
