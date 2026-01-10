@@ -350,6 +350,18 @@
     grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
+.ctp-helper-text {
+    margin: 0.35rem 0 0;
+    font-size: 0.85rem;
+    color: var(--ctp-muted);
+}
+
+.ctp-form-error {
+    margin: 0;
+    font-size: 0.9rem;
+    color: #b91c1c;
+}
+
 .ctp-order-items-header h4 {
     margin: 0 0 0.25rem;
     font-size: 1rem;
