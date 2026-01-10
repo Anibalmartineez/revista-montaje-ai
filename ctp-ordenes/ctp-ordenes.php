@@ -3345,11 +3345,11 @@ function ctp_deudas_empresa_shortcode() {
                         setFieldState(fields.cuotas, false, false);
                     } else if (tipo === 'mensual') {
                         setFieldState(fields.total, true, false);
-                        setFieldState(fields.mensual, true, true);
+                        setFieldState(fields.mensual, true, false);
                         setFieldState(fields.cuotas, false, false);
                     } else if (tipo === 'cuotas') {
                         setFieldState(fields.total, true, false);
-                        setFieldState(fields.mensual, true, true);
+                        setFieldState(fields.mensual, true, false);
                         setFieldState(fields.cuotas, true, true);
                     }
                 };
@@ -3374,11 +3374,14 @@ function ctp_deudas_empresa_shortcode() {
                     if (tipo === 'unico' && totalValue === '') {
                         mensajes.push('Ingresa el monto total para una deuda única.');
                     }
-                    if (tipo === 'mensual' && mensualValue === '') {
-                        mensajes.push('Ingresa el monto mensual para una deuda mensual.');
+                    if (tipo === 'mensual' && mensualValue === '' && totalValue === '') {
+                        mensajes.push('Ingresa el monto mensual o el monto total para una deuda mensual.');
                     }
-                    if (tipo === 'cuotas' && (mensualValue === '' || cuotasValue === '')) {
-                        mensajes.push('Ingresa el monto mensual y la cantidad de cuotas.');
+                    if (tipo === 'cuotas' && cuotasValue === '') {
+                        mensajes.push('Ingresa la cantidad de cuotas.');
+                    }
+                    if (tipo === 'cuotas' && mensualValue === '' && totalValue === '') {
+                        mensajes.push('Ingresa el monto mensual o el monto total para una deuda en cuotas.');
                     }
 
                     if (mensajes.length > 0) {
