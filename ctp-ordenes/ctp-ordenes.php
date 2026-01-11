@@ -1338,6 +1338,114 @@ function ctp_ordenes_recalculate_factura($factura_id) {
     );
 }
 
+function ctp_ordenes_sync_factura_from_deuda_pago($deuda_id) {
+    if ($deuda_id <= 0) {
+        return false;
+    }
+
+    global $wpdb;
+
+    $table_deudas = $wpdb->prefix . 'ctp_deudas_empresa';
+    $table_deudas_pagos = $wpdb->prefix . 'ctp_deudas_empresa_pagos';
+    $table_facturas = $wpdb->prefix . 'ctp_facturas_proveedor';
+
+    $deuda = $wpdb->get_row(
+        $wpdb->prepare(
+            "SELECT id, source_type, source_id FROM {$table_deudas} WHERE id = %d",
+            $deuda_id
+        )
+    );
+
+    if (!$deuda || $deuda->source_type !== 'factura_proveedor' || (int) $deuda->source_id <= 0) {
+        return false;
+    }
+
+    $factura = $wpdb->get_row(
+        $wpdb->prepare(
+            "SELECT id, monto_total, monto_pagado, saldo, estado_pago FROM {$table_facturas} WHERE id = %d",
+            $deuda->source_id
+        )
+    );
+
+    if (!$factura) {
+        return false;
+    }
+
+    $monto_total = (float) $factura->monto_total;
+    $monto_pagado = (float) $wpdb->get_var(
+        $wpdb->prepare(
+            "SELECT COALESCE(SUM(monto), 0) FROM {$table_deudas_pagos} WHERE deuda_id = %d",
+            $deuda->id
+        )
+    );
+
+    if ($monto_pagado > $monto_total) {
+        $monto_pagado = $monto_total;
+    }
+
+    $saldo = $monto_total - $monto_pagado;
+    if ($saldo < 0) {
+        $saldo = 0;
+    }
+
+    if ($monto_pagado <= 0) {
+        $estado = 'pendiente';
+    } elseif ($monto_pagado < $monto_total) {
+        $estado = 'parcial';
+    } else {
+        $estado = 'pagado';
+    }
+
+    $updates = array(
+        'monto_pagado' => $monto_pagado,
+        'saldo' => $saldo,
+        'estado_pago' => $estado,
+        'updated_at' => current_time('mysql'),
+    );
+    $formats = array('%f', '%f', '%s', '%s');
+
+    static $factura_has_fecha_pago = null;
+    if ($factura_has_fecha_pago === null) {
+        $factura_has_fecha_pago = (bool) $wpdb->get_var(
+            $wpdb->prepare(
+                "SHOW COLUMNS FROM {$table_facturas} LIKE %s",
+                'fecha_pago'
+            )
+        );
+    }
+
+    if ($factura_has_fecha_pago && $monto_pagado > 0) {
+        $fecha_pago = $wpdb->get_var(
+            $wpdb->prepare(
+                "SELECT MAX(fecha_pago) FROM {$table_deudas_pagos} WHERE deuda_id = %d",
+                $deuda->id
+            )
+        );
+        if (!ctp_ordenes_is_valid_date($fecha_pago, 'Y-m-d')) {
+            $fecha_pago = current_time('Y-m-d');
+        }
+        $updates['fecha_pago'] = $fecha_pago;
+        $formats[] = '%s';
+    }
+
+    $float_threshold = 0.01;
+    $needs_update = abs(((float) $factura->monto_pagado) - $monto_pagado) >= $float_threshold
+        || abs(((float) $factura->saldo) - $saldo) >= $float_threshold
+        || (string) $factura->estado_pago !== (string) $estado;
+
+    if (!$needs_update && !isset($updates['fecha_pago'])) {
+        return true;
+    }
+
+    return $wpdb->update(
+        $table_facturas,
+        $updates,
+        array('id' => $factura->id),
+        $formats,
+        array('%d')
+    );
+}
+
 function ctp_upsert_deuda_from_factura_proveedor($factura_id) {
     global $wpdb;
 
@@ -3573,6 +3681,7 @@ function ctp_deudas_empresa_shortcode() {
                             if ($pago) {
                                 $deleted = $wpdb->delete($table_pagos, array('id' => $pago->id), array('%d'));
                                 if ($deleted) {
+                                    ctp_ordenes_sync_factura_from_deuda_pago($deuda_id);
                                     $mensajes['success'][] = 'Pago desmarcado correctamente.';
                                 } else {
                                     $mensajes['error'][] = 'No se pudo desmarcar el pago.';
@@ -3595,6 +3704,7 @@ function ctp_deudas_empresa_shortcode() {
                                         array('%d', '%s', '%s', '%f', '%s', '%s')
                                     );
                                     if ($inserted) {
+                                        ctp_ordenes_sync_factura_from_deuda_pago($deuda_id);
                                         $mensajes['success'][] = 'Pago registrado correctamente.';
                                     } else {
                                         $mensajes['error'][] = 'No se pudo registrar el pago.';
