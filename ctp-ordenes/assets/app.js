@@ -504,6 +504,7 @@
             var montoInput = cobroForm.querySelector('#ctp-cobro-monto');
             var referenciaInput = cobroForm.querySelector('#ctp-cobro-referencia');
             var ignoreMontoInput = false;
+            var referenciaAuto = false;
 
             if (montoInput) {
                 montoInput.addEventListener('input', function () {
@@ -512,6 +513,11 @@
                         return;
                     }
                     montoInput.dataset.userEdited = 'true';
+                });
+            }
+            if (referenciaInput) {
+                referenciaInput.addEventListener('input', function () {
+                    referenciaAuto = false;
                 });
             }
 
@@ -554,9 +560,10 @@
                     ignoreMontoInput = true;
                     montoInput.value = total;
                 }
-                if (referenciaInput && (!referenciaInput.value || !referenciaInput.value.trim())) {
+                if (referenciaInput && (!referenciaInput.value || !referenciaInput.value.trim() || referenciaAuto)) {
                     if (selectedOption.value && selectedOption.value !== '0') {
                         referenciaInput.value = 'Liquidación #' + selectedOption.value;
+                        referenciaAuto = true;
                     }
                 }
             };
