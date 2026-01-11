@@ -2,7 +2,7 @@
 /**
  * Plugin Name: CTP Órdenes
  * Description: MVP para cargar y listar órdenes de CTP mediante shortcodes.
- * Version: 0.6.2
+ * Version: 0.6.3
  * Author: Equipo Revista Montaje AI
  * Requires PHP: 8.0
  */
@@ -11,7 +11,7 @@ if (!defined('ABSPATH')) {
     exit;
 }
 
-define('CTP_ORDENES_VERSION', '0.6.2');
+define('CTP_ORDENES_VERSION', '0.6.3');
 
 /**
  * Crea la tabla necesaria al activar el plugin.
@@ -881,6 +881,160 @@ function ctp_sum_ordenes_by_cliente_period($cliente_id, $periodo) {
             $start,
             $end
         )
+    );
+}
+
+function ctp_sum_deudas_estimadas_by_period($periodo) {
+    if (!ctp_ordenes_is_valid_date($periodo, 'Y-m')) {
+        return 0;
+    }
+
+    global $wpdb;
+    $table_deudas = $wpdb->prefix . 'ctp_deudas_empresa';
+
+    $deudas = $wpdb->get_results(
+        "SELECT id, tipo, monto_total, monto_mensual, cuotas_total, fecha_inicio, fecha_fin
+         FROM {$table_deudas}"
+    );
+
+    $total = 0;
+    foreach ($deudas as $deuda) {
+        $total += ctp_ordenes_deuda_get_monto_periodo($deuda, $periodo);
+    }
+
+    return (float) $total;
+}
+
+function ctp_sum_deudas_pagadas_by_period($periodo) {
+    if (!ctp_ordenes_is_valid_date($periodo, 'Y-m')) {
+        return 0;
+    }
+
+    global $wpdb;
+    $table_pagos = $wpdb->prefix . 'ctp_deudas_empresa_pagos';
+
+    return (float) $wpdb->get_var(
+        $wpdb->prepare(
+            "SELECT COALESCE(SUM(monto), 0) FROM {$table_pagos} WHERE periodo = %s",
+            $periodo
+        )
+    );
+}
+
+function ctp_get_ar_by_cliente($periodo = '') {
+    global $wpdb;
+    $table_ordenes = $wpdb->prefix . 'ctp_ordenes';
+    $table_items = $wpdb->prefix . 'ctp_ordenes_items';
+    $table_cobros = $wpdb->prefix . 'ctp_cobros_clientes';
+
+    $filter_period = ctp_ordenes_is_valid_date($periodo, 'Y-m');
+    $order_where = '';
+    $order_params = array();
+    if ($filter_period) {
+        $start = $periodo . '-01';
+        $end = date('Y-m-t', strtotime($start));
+        $order_where = 'WHERE o.fecha BETWEEN %s AND %s';
+        $order_params = array($start, $end);
+    }
+
+    $order_sql = "
+        SELECT cliente_id, COALESCE(SUM(order_total), 0) AS total
+        FROM (
+            SELECT o.id,
+                   o.cliente_id,
+                   COALESCE(SUM(i.total_item), o.total) AS order_total
+            FROM {$table_ordenes} o
+            LEFT JOIN {$table_items} i ON i.orden_id = o.id
+            {$order_where}
+            GROUP BY o.id
+        ) AS ordenes
+        GROUP BY cliente_id";
+
+    $ordenes = $order_params
+        ? $wpdb->get_results($wpdb->prepare($order_sql, $order_params))
+        : $wpdb->get_results($order_sql);
+
+    $cobros_where = '';
+    $cobros_params = array();
+    if ($filter_period) {
+        $cobros_where = 'WHERE periodo = %s';
+        $cobros_params = array($periodo);
+    }
+
+    $cobros_sql = "SELECT cliente_id, COALESCE(SUM(monto), 0) AS total
+        FROM {$table_cobros}
+        {$cobros_where}
+        GROUP BY cliente_id";
+
+    $cobros = $cobros_params
+        ? $wpdb->get_results($wpdb->prepare($cobros_sql, $cobros_params))
+        : $wpdb->get_results($cobros_sql);
+
+    $clientes = ctp_ordenes_get_clientes_list();
+    $map = array();
+    foreach ($clientes as $cliente) {
+        $map[(int) $cliente->id] = array(
+            'cliente_id' => (int) $cliente->id,
+            'cliente' => $cliente->nombre,
+            'ventas' => 0,
+            'cobrado' => 0,
+            'saldo' => 0,
+        );
+    }
+
+    foreach ($ordenes as $row) {
+        $cliente_id = (int) $row->cliente_id;
+        if (!isset($map[$cliente_id])) {
+            $map[$cliente_id] = array(
+                'cliente_id' => $cliente_id,
+                'cliente' => sprintf('Cliente #%d', $cliente_id),
+                'ventas' => 0,
+                'cobrado' => 0,
+                'saldo' => 0,
+            );
+        }
+        $map[$cliente_id]['ventas'] = (float) $row->total;
+    }
+
+    foreach ($cobros as $row) {
+        $cliente_id = (int) $row->cliente_id;
+        if (!isset($map[$cliente_id])) {
+            $map[$cliente_id] = array(
+                'cliente_id' => $cliente_id,
+                'cliente' => sprintf('Cliente #%d', $cliente_id),
+                'ventas' => 0,
+                'cobrado' => 0,
+                'saldo' => 0,
+            );
+        }
+        $map[$cliente_id]['cobrado'] = (float) $row->total;
+    }
+
+    foreach ($map as &$cliente) {
+        $cliente['saldo'] = $cliente['ventas'] - $cliente['cobrado'];
+    }
+    unset($cliente);
+
+    return array_values($map);
+}
+
+function ctp_get_ap_pendiente($periodo) {
+    if (!ctp_ordenes_is_valid_date($periodo, 'Y-m')) {
+        return array(
+            'estimado' => 0,
+            'pagado' => 0,
+            'pendiente' => 0,
+        );
+    }
+
+    $estimado = ctp_sum_deudas_estimadas_by_period($periodo);
+    $pagado = ctp_sum_deudas_pagadas_by_period($periodo);
+    $pendiente = max($estimado - $pagado, 0);
+
+    return array(
+        'estimado' => $estimado,
+        'pagado' => $pagado,
+        'pendiente' => $pendiente,
     );
 }
 
@@ -4385,6 +4539,255 @@ function ctp_por_cobrar_shortcode() {
 }
 add_shortcode('ctp_por_cobrar', 'ctp_por_cobrar_shortcode');
 
+function ctp_balance_shortcode() {
+    ctp_ordenes_enqueue_assets(true);
+
+    global $wpdb;
+    $table_deudas = $wpdb->prefix . 'ctp_deudas_empresa';
+    $table_pagos = $wpdb->prefix . 'ctp_deudas_empresa_pagos';
+
+    $periodo = ctp_get_period_from_request();
+    $periodo_label = date_i18n('F Y', strtotime($periodo . '-01'));
+    $tab = isset($_GET['ctp_tab']) ? sanitize_key(wp_unslash($_GET['ctp_tab'])) : '';
+
+    $ventas_periodo = ctp_sum_ordenes_by_period($periodo);
+    $cobros_periodo = ctp_sum_cobros_by_period($periodo);
+    $gastos_estimados = ctp_sum_deudas_estimadas_by_period($periodo);
+    $gastos_pagados = ctp_sum_deudas_pagadas_by_period($periodo);
+    $resultado_devengado = $ventas_periodo - $gastos_estimados;
+    $resultado_real = $cobros_periodo - $gastos_pagados;
+
+    $ar_clientes = ctp_get_ar_by_cliente();
+    $ar_total = 0;
+    foreach ($ar_clientes as $cliente) {
+        $ar_total += $cliente['saldo'];
+    }
+
+    $ar_clientes = array_filter(
+        $ar_clientes,
+        function ($cliente) {
+            return $cliente['ventas'] > 0 || $cliente['cobrado'] > 0;
+        }
+    );
+    usort(
+        $ar_clientes,
+        function ($a, $b) {
+            return $b['saldo'] <=> $a['saldo'];
+        }
+    );
+    $top_clientes = array_slice($ar_clientes, 0, 5);
+
+    $ap_data = ctp_get_ap_pendiente($periodo);
+
+    $deudas = $wpdb->get_results(
+        $wpdb->prepare(
+            "SELECT d.*, p.id AS pago_id, p.monto AS pago_monto
+             FROM {$table_deudas} d
+             LEFT JOIN {$table_pagos} p
+                ON p.deuda_id = d.id
+               AND p.periodo = %s
+             ORDER BY d.created_at DESC, d.id DESC",
+            $periodo
+        )
+    );
+
+    $deudas_pendientes = array();
+    foreach ($deudas as $deuda) {
+        $aplica = ctp_ordenes_deuda_aplica_periodo($deuda, $periodo);
+        if (!$aplica) {
+            continue;
+        }
+        $monto_mes = ctp_ordenes_deuda_get_monto_periodo($deuda, $periodo);
+        if ($monto_mes <= 0) {
+            continue;
+        }
+        $pagado = !empty($deuda->pago_id) ? (float) $deuda->pago_monto : 0;
+        $pendiente = max($monto_mes - $pagado, 0);
+        if ($pendiente <= 0) {
+            continue;
+        }
+        $deudas_pendientes[] = array(
+            'descripcion' => $deuda->descripcion,
+            'categoria' => $deuda->categoria,
+            'estimado' => $monto_mes,
+            'pagado' => $pagado,
+            'pendiente' => $pendiente,
+        );
+    }
+
+    usort(
+        $deudas_pendientes,
+        function ($a, $b) {
+            return $b['pendiente'] <=> $a['pendiente'];
+        }
+    );
+    $top_deudas = array_slice($deudas_pendientes, 0, 5);
+
+    $categorias = array(
+        'prestamo' => 'Préstamo',
+        'alquiler' => 'Alquiler',
+        'servicios' => 'Servicios',
+        'sueldos' => 'Sueldos',
+        'proveedores' => 'Proveedores',
+        'otros' => 'Otros',
+    );
+
+    ob_start();
+    ?>
+    <div class="ctp-stack">
+        <form method="get" action="<?php echo esc_url(remove_query_arg('ctp_period')); ?>" class="ctp-order-filter">
+            <?php if (!empty($tab)) : ?>
+                <input type="hidden" name="ctp_tab" value="<?php echo esc_attr($tab); ?>">
+            <?php endif; ?>
+            <div class="ctp-filter-group">
+                <div class="ctp-field">
+                    <label for="ctp-balance-periodo">Periodo</label>
+                    <input type="month" id="ctp-balance-periodo" name="ctp_period" value="<?php echo esc_attr($periodo); ?>">
+                </div>
+                <div class="ctp-field">
+                    <label>&nbsp;</label>
+                    <button type="submit" class="ctp-button">Ver</button>
+                </div>
+            </div>
+        </form>
+
+        <div class="ctp-kpi-grid">
+            <div class="ctp-kpi-card">
+                <div class="ctp-kpi-title">Ingresos devengados</div>
+                <div class="ctp-kpi-value"><?php echo esc_html('Gs. ' . ctp_ordenes_format_currency_i18n($ventas_periodo, 0)); ?></div>
+                <div class="ctp-kpi-meta"><?php echo esc_html($periodo_label); ?></div>
+            </div>
+            <div class="ctp-kpi-card">
+                <div class="ctp-kpi-title">Ingresos cobrados</div>
+                <div class="ctp-kpi-value"><?php echo esc_html('Gs. ' . ctp_ordenes_format_currency_i18n($cobros_periodo, 0)); ?></div>
+                <div class="ctp-kpi-meta"><?php echo esc_html($periodo_label); ?></div>
+            </div>
+            <div class="ctp-kpi-card">
+                <div class="ctp-kpi-title">Gastos estimados</div>
+                <div class="ctp-kpi-value"><?php echo esc_html('Gs. ' . ctp_ordenes_format_currency_i18n($gastos_estimados, 0)); ?></div>
+                <div class="ctp-kpi-meta"><?php echo esc_html($periodo_label); ?></div>
+            </div>
+            <div class="ctp-kpi-card">
+                <div class="ctp-kpi-title">Gastos pagados</div>
+                <div class="ctp-kpi-value"><?php echo esc_html('Gs. ' . ctp_ordenes_format_currency_i18n($gastos_pagados, 0)); ?></div>
+                <div class="ctp-kpi-meta"><?php echo esc_html($periodo_label); ?></div>
+            </div>
+            <div class="ctp-kpi-card">
+                <div class="ctp-kpi-title">Resultado devengado</div>
+                <div class="ctp-kpi-value"><?php echo esc_html('Gs. ' . ctp_ordenes_format_currency_i18n($resultado_devengado, 0)); ?></div>
+                <div class="ctp-kpi-meta"><?php echo esc_html($periodo_label); ?></div>
+            </div>
+            <div class="ctp-kpi-card">
+                <div class="ctp-kpi-title">Resultado real (caja)</div>
+                <div class="ctp-kpi-value"><?php echo esc_html('Gs. ' . ctp_ordenes_format_currency_i18n($resultado_real, 0)); ?></div>
+                <div class="ctp-kpi-meta"><?php echo esc_html($periodo_label); ?></div>
+            </div>
+        </div>
+
+        <div class="ctp-kpi-grid">
+            <div class="ctp-kpi-card">
+                <div class="ctp-kpi-title">Por cobrar total</div>
+                <div class="ctp-kpi-value"><?php echo esc_html('Gs. ' . ctp_ordenes_format_currency_i18n($ar_total, 0)); ?></div>
+                <div class="ctp-kpi-meta">Acumulado histórico</div>
+            </div>
+            <div class="ctp-kpi-card">
+                <div class="ctp-kpi-title">Por pagar del período</div>
+                <div class="ctp-kpi-value"><?php echo esc_html('Gs. ' . ctp_ordenes_format_currency_i18n($ap_data['pendiente'], 0)); ?></div>
+                <div class="ctp-kpi-meta"><?php echo esc_html($periodo_label); ?></div>
+            </div>
+        </div>
+
+        <?php
+        ob_start();
+        ?>
+        <div class="ctp-table-wrap">
+            <table class="ctp-table">
+                <thead>
+                    <tr>
+                        <th>Cliente</th>
+                        <th>Ventas</th>
+                        <th>Cobrado</th>
+                        <th>Saldo</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <?php if (!empty($top_clientes)) : ?>
+                        <?php foreach ($top_clientes as $cliente) : ?>
+                            <tr>
+                                <td data-label="Cliente"><?php echo esc_html($cliente['cliente']); ?></td>
+                                <td data-label="Ventas"><?php echo esc_html('Gs. ' . ctp_ordenes_format_currency_i18n($cliente['ventas'], 0)); ?></td>
+                                <td data-label="Cobrado"><?php echo esc_html('Gs. ' . ctp_ordenes_format_currency_i18n($cliente['cobrado'], 0)); ?></td>
+                                <td data-label="Saldo"><?php echo esc_html('Gs. ' . ctp_ordenes_format_currency_i18n($cliente['saldo'], 0)); ?></td>
+                            </tr>
+                        <?php endforeach; ?>
+                    <?php else : ?>
+                        <tr>
+                            <td colspan="4">No hay clientes con saldo pendiente.</td>
+                        </tr>
+                    <?php endif; ?>
+                </tbody>
+            </table>
+        </div>
+        <?php
+        $tabla_clientes = ob_get_clean();
+        echo ctp_ordenes_render_panel(
+            'Top clientes por cobrar',
+            'Acumulado histórico de ventas y cobros por cliente.',
+            $tabla_clientes
+        );
+        ?>
+
+        <?php
+        ob_start();
+        ?>
+        <div class="ctp-table-wrap">
+            <table class="ctp-table">
+                <thead>
+                    <tr>
+                        <th>Descripción</th>
+                        <th>Categoría</th>
+                        <th>Estimado</th>
+                        <th>Pagado</th>
+                        <th>Pendiente</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <?php if (!empty($top_deudas)) : ?>
+                        <?php foreach ($top_deudas as $deuda) : ?>
+                            <tr>
+                                <td data-label="Descripción"><?php echo esc_html($deuda['descripcion']); ?></td>
+                                <td data-label="Categoría"><?php echo esc_html($categorias[$deuda['categoria']] ?? $deuda['categoria']); ?></td>
+                                <td data-label="Estimado"><?php echo esc_html('Gs. ' . ctp_ordenes_format_currency_i18n($deuda['estimado'], 0)); ?></td>
+                                <td data-label="Pagado"><?php echo esc_html('Gs. ' . ctp_ordenes_format_currency_i18n($deuda['pagado'], 0)); ?></td>
+                                <td data-label="Pendiente"><?php echo esc_html('Gs. ' . ctp_ordenes_format_currency_i18n($deuda['pendiente'], 0)); ?></td>
+                            </tr>
+                        <?php endforeach; ?>
+                    <?php else : ?>
+                        <tr>
+                            <td colspan="5">No hay deudas pendientes en este período.</td>
+                        </tr>
+                    <?php endif; ?>
+                </tbody>
+            </table>
+        </div>
+        <?php
+        $tabla_deudas = ob_get_clean();
+        echo ctp_ordenes_render_panel(
+            'Top deudas pendientes del período',
+            'Resumen de deudas activas aplicables al mes.',
+            $tabla_deudas
+        );
+        ?>
+    </div>
+    <?php
+    $html = ob_get_clean();
+    if (!empty($GLOBALS['ctp_in_dashboard'])) {
+        return $html;
+    }
+    return ctp_ordenes_wrap($html, 'ctp-shell-page');
+}
+add_shortcode('ctp_balance', 'ctp_balance_shortcode');
+
 function ctp_liquidaciones_shortcode() {
     ctp_ordenes_enqueue_assets(true);
 
@@ -5074,7 +5477,7 @@ function ctp_dashboard_shortcode() {
         $tab = 'ordenes';
     }
 
-    if (!in_array($tab, array('ordenes', 'proveedores', 'facturas', 'liquidaciones', 'clientes', 'deudas', 'cobros', 'por_cobrar'), true)) {
+    if (!in_array($tab, array('ordenes', 'proveedores', 'facturas', 'liquidaciones', 'clientes', 'deudas', 'cobros', 'por_cobrar', 'balance'), true)) {
         $tab = 'ordenes';
     }
 
@@ -5108,6 +5511,7 @@ function ctp_dashboard_shortcode() {
         'liquidaciones' => 'Liquidaciones',
         'cobros' => 'Cobros',
         'por_cobrar' => 'Cuentas por cobrar',
+        'balance' => 'Balance',
         'facturas' => 'Facturas proveedor',
         'deudas' => 'Deudas empresa',
     );
@@ -5185,6 +5589,8 @@ function ctp_dashboard_shortcode() {
                     <?php echo do_shortcode('[ctp_cobros_clientes]'); ?>
                 <?php elseif ($tab === 'por_cobrar') : ?>
                     <?php echo do_shortcode('[ctp_por_cobrar]'); ?>
+                <?php elseif ($tab === 'balance') : ?>
+                    <?php echo do_shortcode('[ctp_balance]'); ?>
                 <?php elseif ($tab === 'deudas') : ?>
                     <?php echo do_shortcode('[ctp_deudas_empresa]'); ?>
                 <?php else : ?>
