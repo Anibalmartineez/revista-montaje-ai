@@ -5655,25 +5655,51 @@ function ctp_dashboard_shortcode() {
 
     global $wpdb;
     $table_ordenes = $wpdb->prefix . 'ctp_ordenes';
-    $table_proveedores = $wpdb->prefix . 'ctp_proveedores';
-    $table_facturas = $wpdb->prefix . 'ctp_facturas_proveedor';
-    $recent_date = date('Y-m-d', strtotime('-30 days', current_time('timestamp')));
+    $table_cobros = $wpdb->prefix . 'ctp_cobros_clientes';
+    $table_deudas_pagos = $wpdb->prefix . 'ctp_deudas_empresa_pagos';
 
-    $ordenes_total = (int) $wpdb->get_var("SELECT COUNT(*) FROM {$table_ordenes}");
-    $ordenes_recientes = (int) $wpdb->get_var(
-        $wpdb->prepare(
-            "SELECT COUNT(*) FROM {$table_ordenes} WHERE fecha >= %s",
-            $recent_date
-        )
-    );
-    $proveedores_total = (int) $wpdb->get_var("SELECT COUNT(*) FROM {$table_proveedores}");
-    $facturas_pendientes = (int) $wpdb->get_var(
-        "SELECT COUNT(*) FROM {$table_facturas} WHERE estado_pago IN ('pendiente','parcial')"
-    );
-    $saldo_pendiente = (float) $wpdb->get_var(
-        "SELECT COALESCE(SUM(saldo), 0) FROM {$table_facturas} WHERE estado_pago IN ('pendiente','parcial')"
-    );
-    $saldo_pendiente_formatted = ctp_ordenes_format_currency($saldo_pendiente);
+    $periodo = ctp_get_period_from_request();
+    $periodo_label = date_i18n('F Y', strtotime($periodo . '-01'));
+    $period_start = $periodo . '-01';
+    $period_end = date('Y-m-01', strtotime($period_start . ' +1 month'));
+
+    $ordenes_periodo = 0;
+    if (ctp_ordenes_table_exists($table_ordenes)) {
+        $ordenes_periodo = (int) $wpdb->get_var(
+            $wpdb->prepare(
+                "SELECT COUNT(*) FROM {$table_ordenes} WHERE fecha >= %s AND fecha < %s",
+                $period_start,
+                $period_end
+            )
+        );
+    }
+
+    $ingresos_cobrados = 0.0;
+    if (ctp_ordenes_table_exists($table_cobros)) {
+        $ingresos_cobrados = (float) $wpdb->get_var(
+            $wpdb->prepare(
+                "SELECT COALESCE(SUM(monto), 0) FROM {$table_cobros} WHERE fecha_cobro >= %s AND fecha_cobro < %s",
+                $period_start,
+                $period_end
+            )
+        );
+    }
+
+    $gastos_pagados = 0.0;
+    if (ctp_ordenes_table_exists($table_deudas_pagos)) {
+        $gastos_pagados = (float) $wpdb->get_var(
+            $wpdb->prepare(
+                "SELECT COALESCE(SUM(monto), 0)
+                 FROM {$table_deudas_pagos}
+                 WHERE COALESCE(fecha_pago, DATE(created_at)) >= %s
+                   AND COALESCE(fecha_pago, DATE(created_at)) < %s",
+                $period_start,
+                $period_end
+            )
+        );
+    }
+
+    $resultado_periodo = $ingresos_cobrados - $gastos_pagados;
 
     $base_url = get_permalink();
     $tabs = array(
@@ -5700,31 +5726,45 @@ function ctp_dashboard_shortcode() {
                     <p class="ctp-dashboard-subtitle">Centro de control para órdenes, proveedores, liquidaciones y facturación.</p>
                 </div>
                 <div class="ctp-dashboard-actions">
+                    <span class="ctp-dashboard-label">Periodo: <?php echo esc_html($periodo_label); ?></span>
                     <span class="ctp-dashboard-label">Última actualización: <?php echo esc_html(current_time('d/m/Y')); ?></span>
                 </div>
             </div>
-            <div class="ctp-summary-grid">
-                <div class="ctp-summary-card">
-                    <div class="ctp-summary-title">Órdenes</div>
-                    <div class="ctp-summary-value"><?php echo esc_html(ctp_ordenes_format_currency($ordenes_total)); ?></div>
-                    <div class="ctp-summary-meta">
-                        <?php echo esc_html(sprintf('Últimos 30 días: %s', ctp_ordenes_format_currency($ordenes_recientes))); ?>
+            <form method="get" action="<?php echo esc_url(remove_query_arg('ctp_period')); ?>" class="ctp-order-filter">
+                <?php if (!empty($tab)) : ?>
+                    <input type="hidden" name="ctp_tab" value="<?php echo esc_attr($tab); ?>">
+                <?php endif; ?>
+                <div class="ctp-filter-group">
+                    <div class="ctp-field">
+                        <label for="ctp-dashboard-periodo">Periodo</label>
+                        <input type="month" id="ctp-dashboard-periodo" name="ctp_period" value="<?php echo esc_attr($periodo); ?>">
+                    </div>
+                    <div class="ctp-field">
+                        <label>&nbsp;</label>
+                        <button type="submit" class="ctp-button">Ver</button>
                     </div>
                 </div>
+            </form>
+            <div class="ctp-summary-grid">
                 <div class="ctp-summary-card">
-                    <div class="ctp-summary-title">Proveedores</div>
-                    <div class="ctp-summary-value"><?php echo esc_html(ctp_ordenes_format_currency($proveedores_total)); ?></div>
-                    <div class="ctp-summary-meta">Total registrados</div>
+                    <div class="ctp-summary-title">Órdenes del período</div>
+                    <div class="ctp-summary-value"><?php echo esc_html(ctp_ordenes_format_currency_i18n($ordenes_periodo, 0)); ?></div>
+                    <div class="ctp-summary-meta"><?php echo esc_html($periodo_label); ?></div>
                 </div>
                 <div class="ctp-summary-card">
-                    <div class="ctp-summary-title">Facturas pendientes</div>
-                    <div class="ctp-summary-value"><?php echo esc_html(ctp_ordenes_format_currency($facturas_pendientes)); ?></div>
-                    <div class="ctp-summary-meta">Pendiente o parcial</div>
+                    <div class="ctp-summary-title">Ingresos cobrados</div>
+                    <div class="ctp-summary-value"><?php echo esc_html('Gs. ' . ctp_ordenes_format_currency_i18n($ingresos_cobrados, 0)); ?></div>
+                    <div class="ctp-summary-meta"><?php echo esc_html($periodo_label); ?></div>
                 </div>
                 <div class="ctp-summary-card">
-                    <div class="ctp-summary-title">Saldo pendiente</div>
-                    <div class="ctp-summary-value"><?php echo esc_html('Gs. ' . $saldo_pendiente_formatted); ?></div>
-                    <div class="ctp-summary-meta">Monto por pagar</div>
+                    <div class="ctp-summary-title">Gastos pagados</div>
+                    <div class="ctp-summary-value"><?php echo esc_html('Gs. ' . ctp_ordenes_format_currency_i18n($gastos_pagados, 0)); ?></div>
+                    <div class="ctp-summary-meta"><?php echo esc_html($periodo_label); ?></div>
+                </div>
+                <div class="ctp-summary-card">
+                    <div class="ctp-summary-title">Resultado</div>
+                    <div class="ctp-summary-value"><?php echo esc_html('Gs. ' . ctp_ordenes_format_currency_i18n($resultado_periodo, 0)); ?></div>
+                    <div class="ctp-summary-meta">Ingresos - gastos</div>
                 </div>
             </div>
             <div class="ctp-dashboard-nav" role="tablist">
