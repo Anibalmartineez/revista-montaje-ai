@@ -1360,9 +1360,24 @@ function ctp_ordenes_sync_factura_from_deuda_pago($deuda_id) {
         return false;
     }
 
+    static $factura_has_fecha_pago = null;
+    if ($factura_has_fecha_pago === null) {
+        $factura_has_fecha_pago = (bool) $wpdb->get_var(
+            $wpdb->prepare(
+                "SHOW COLUMNS FROM {$table_facturas} LIKE %s",
+                'fecha_pago'
+            )
+        );
+    }
+
+    $factura_fields = 'id, monto_total, monto_pagado, saldo, estado_pago';
+    if ($factura_has_fecha_pago) {
+        $factura_fields .= ', fecha_pago';
+    }
+
     $factura = $wpdb->get_row(
         $wpdb->prepare(
-            "SELECT id, monto_total, monto_pagado, saldo, estado_pago FROM {$table_facturas} WHERE id = %d",
+            "SELECT {$factura_fields} FROM {$table_facturas} WHERE id = %d",
             $deuda->source_id
         )
     );
@@ -1404,36 +1419,42 @@ function ctp_ordenes_sync_factura_from_deuda_pago($deuda_id) {
     );
     $formats = array('%f', '%f', '%s', '%s');
 
-    static $factura_has_fecha_pago = null;
-    if ($factura_has_fecha_pago === null) {
-        $factura_has_fecha_pago = (bool) $wpdb->get_var(
-            $wpdb->prepare(
-                "SHOW COLUMNS FROM {$table_facturas} LIKE %s",
-                'fecha_pago'
-            )
-        );
-    }
-
-    if ($factura_has_fecha_pago && $monto_pagado > 0) {
-        $fecha_pago = $wpdb->get_var(
-            $wpdb->prepare(
-                "SELECT MAX(fecha_pago) FROM {$table_deudas_pagos} WHERE deuda_id = %d",
-                $deuda->id
-            )
-        );
-        if (!ctp_ordenes_is_valid_date($fecha_pago, 'Y-m-d')) {
-            $fecha_pago = current_time('Y-m-d');
+    if ($factura_has_fecha_pago) {
+        if ($monto_pagado > 0) {
+            $fecha_pago = $wpdb->get_var(
+                $wpdb->prepare(
+                    "SELECT MAX(fecha_pago) FROM {$table_deudas_pagos} WHERE deuda_id = %d",
+                    $deuda->id
+                )
+            );
+            if (!ctp_ordenes_is_valid_date($fecha_pago, 'Y-m-d')) {
+                $fecha_pago = current_time('Y-m-d');
+            }
+            $updates['fecha_pago'] = $fecha_pago;
+        } else {
+            $updates['fecha_pago'] = null;
         }
-        $updates['fecha_pago'] = $fecha_pago;
         $formats[] = '%s';
     }
 
     $float_threshold = 0.01;
+    $needs_fecha_pago_update = false;
+    if (array_key_exists('fecha_pago', $updates)) {
+        $current_fecha_pago = $factura->fecha_pago ?? null;
+        $next_fecha_pago = $updates['fecha_pago'];
+        if ($next_fecha_pago === null) {
+            $needs_fecha_pago_update = $current_fecha_pago !== null && $current_fecha_pago !== '';
+        } else {
+            $needs_fecha_pago_update = (string) $current_fecha_pago !== (string) $next_fecha_pago;
+        }
+    }
+
     $needs_update = abs(((float) $factura->monto_pagado) - $monto_pagado) >= $float_threshold
         || abs(((float) $factura->saldo) - $saldo) >= $float_threshold
-        || (string) $factura->estado_pago !== (string) $estado;
+        || (string) $factura->estado_pago !== (string) $estado
+        || $needs_fecha_pago_update;
 
-    if (!$needs_update && !isset($updates['fecha_pago'])) {
+    if (!$needs_update) {
         return true;
     }
 
