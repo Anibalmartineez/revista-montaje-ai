@@ -496,5 +496,81 @@
             textarea.addEventListener('input', toggleSave);
             toggleSave();
         });
+
+        var cobroForm = document.getElementById('ctp-cobro-form');
+        if (cobroForm) {
+            var clienteSelect = cobroForm.querySelector('#ctp-cobro-cliente');
+            var liquidacionSelect = cobroForm.querySelector('#ctp-cobro-liquidacion');
+            var montoInput = cobroForm.querySelector('#ctp-cobro-monto');
+            var referenciaInput = cobroForm.querySelector('#ctp-cobro-referencia');
+            var ignoreMontoInput = false;
+
+            if (montoInput) {
+                montoInput.addEventListener('input', function () {
+                    if (ignoreMontoInput) {
+                        ignoreMontoInput = false;
+                        return;
+                    }
+                    montoInput.dataset.userEdited = 'true';
+                });
+            }
+
+            var syncLiquidacionOptions = function () {
+                if (!clienteSelect || !liquidacionSelect) {
+                    return;
+                }
+                var clienteId = clienteSelect.value;
+                Array.prototype.slice.call(liquidacionSelect.options).forEach(function (option) {
+                    if (option.value === '0') {
+                        option.hidden = false;
+                        return;
+                    }
+                    var optionCliente = option.getAttribute('data-cliente');
+                    if (!clienteId || clienteId === '0') {
+                        option.hidden = false;
+                        return;
+                    }
+                    option.hidden = optionCliente !== clienteId;
+                });
+
+                if (liquidacionSelect.value && liquidacionSelect.value !== '0') {
+                    var selectedOption = liquidacionSelect.options[liquidacionSelect.selectedIndex];
+                    if (selectedOption && selectedOption.hidden) {
+                        liquidacionSelect.value = '0';
+                    }
+                }
+            };
+
+            var syncLiquidacionSelection = function () {
+                if (!liquidacionSelect) {
+                    return;
+                }
+                var selectedOption = liquidacionSelect.options[liquidacionSelect.selectedIndex];
+                if (!selectedOption) {
+                    return;
+                }
+                var total = selectedOption.getAttribute('data-total');
+                if (montoInput && total && !montoInput.dataset.userEdited) {
+                    ignoreMontoInput = true;
+                    montoInput.value = total;
+                }
+                if (referenciaInput && (!referenciaInput.value || !referenciaInput.value.trim())) {
+                    if (selectedOption.value && selectedOption.value !== '0') {
+                        referenciaInput.value = 'Liquidación #' + selectedOption.value;
+                    }
+                }
+            };
+
+            if (clienteSelect) {
+                clienteSelect.addEventListener('change', function () {
+                    syncLiquidacionOptions();
+                    syncLiquidacionSelection();
+                });
+            }
+            if (liquidacionSelect) {
+                liquidacionSelect.addEventListener('change', syncLiquidacionSelection);
+            }
+            syncLiquidacionOptions();
+        }
     });
 })();
