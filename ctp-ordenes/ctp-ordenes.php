@@ -791,6 +791,43 @@ function ctp_ordenes_table_exists($table_name) {
     return $exists === $table_name;
 }
 
+function ctp_ordenes_get_liquidaciones_disponibles($cliente_id = 0) {
+    global $wpdb;
+    $table_liquidaciones = $wpdb->prefix . 'ctp_liquidaciones_cliente';
+    $table_clientes = $wpdb->prefix . 'ctp_clientes';
+    $table_cobros = $wpdb->prefix . 'ctp_cobros_clientes';
+
+    if (!ctp_ordenes_table_exists($table_liquidaciones) || !ctp_ordenes_table_exists($table_cobros)) {
+        return array();
+    }
+
+    $where = "WHERE NOT EXISTS (
+        SELECT 1 FROM {$table_cobros} c WHERE c.liquidacion_id = f.id
+    )";
+    $params = array();
+
+    if ($cliente_id > 0) {
+        $where .= ' AND f.cliente_id = %d';
+        $params[] = $cliente_id;
+    }
+
+    $sql = "SELECT f.id,
+                   f.cliente_id,
+                   f.desde,
+                   f.hasta,
+                   f.total,
+                   c.nombre AS cliente_nombre
+            FROM {$table_liquidaciones} f
+            LEFT JOIN {$table_clientes} c ON f.cliente_id = c.id
+            {$where}
+            ORDER BY f.created_at DESC
+            LIMIT 200";
+
+    return $params
+        ? $wpdb->get_results($wpdb->prepare($sql, $params))
+        : $wpdb->get_results($sql);
+}
+
 function ctp_sum_cobros_by_period($periodo) {
     if (!ctp_ordenes_is_valid_date($periodo, 'Y-m')) {
         return 0;
@@ -4138,13 +4175,7 @@ function ctp_cobros_clientes_shortcode() {
     $has_liquidaciones = ctp_ordenes_table_exists($table_liquidaciones);
     $liquidaciones = array();
     if ($has_liquidaciones) {
-        $liquidaciones = $wpdb->get_results(
-            "SELECT f.id, f.cliente_id, f.desde, f.hasta, f.total, c.nombre AS cliente_nombre
-             FROM {$table_liquidaciones} f
-             LEFT JOIN {$table_clientes} c ON f.cliente_id = c.id
-             ORDER BY f.created_at DESC
-             LIMIT 200"
-        );
+        $liquidaciones = ctp_ordenes_get_liquidaciones_disponibles();
     }
 
     if (!empty($_POST['ctp_cobro_action'])) {
@@ -4187,6 +4218,16 @@ function ctp_cobros_clientes_shortcode() {
                         if (!$has_liquidaciones) {
                             $mensajes['error'][] = 'No hay liquidaciones disponibles para asociar.';
                         } else {
+                            $liquidacion_cobrada = (int) $wpdb->get_var(
+                                $wpdb->prepare(
+                                    "SELECT COUNT(*) FROM {$table_cobros} WHERE liquidacion_id = %d",
+                                    $liquidacion_id
+                                )
+                            );
+                            if ($liquidacion_cobrada > 0) {
+                                // MVP: cualquier cobro previo marca la liquidación como cobrada (sin pagos parciales).
+                                $mensajes['error'][] = 'La liquidación seleccionada ya fue cobrada.';
+                            }
                             $liquidacion_cliente = $wpdb->get_row(
                                 $wpdb->prepare(
                                     "SELECT id, cliente_id FROM {$table_liquidaciones} WHERE id = %d",
@@ -4360,7 +4401,7 @@ function ctp_cobros_clientes_shortcode() {
                     <select id="ctp-cobro-liquidacion" name="liquidacion_id" <?php disabled(!$can_manage); ?>>
                         <option value="0">Sin liquidación</option>
                         <?php foreach ($liquidaciones as $liquidacion) : ?>
-                            <option value="<?php echo esc_attr($liquidacion->id); ?>">
+                            <option value="<?php echo esc_attr($liquidacion->id); ?>" data-total="<?php echo esc_attr((float) $liquidacion->total); ?>" data-cliente="<?php echo esc_attr((int) $liquidacion->cliente_id); ?>">
                                 <?php
                                 $label = sprintf(
                                     '#%d - %s (%s a %s) - Gs. %s',
