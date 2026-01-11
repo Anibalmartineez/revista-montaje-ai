@@ -5687,16 +5687,7 @@ function ctp_dashboard_shortcode() {
 
     $gastos_pagados = 0.0;
     if (ctp_ordenes_table_exists($table_deudas_pagos)) {
-        $gastos_pagados = (float) $wpdb->get_var(
-            $wpdb->prepare(
-                "SELECT COALESCE(SUM(monto), 0)
-                 FROM {$table_deudas_pagos}
-                 WHERE COALESCE(fecha_pago, DATE(created_at)) >= %s
-                   AND COALESCE(fecha_pago, DATE(created_at)) < %s",
-                $period_start,
-                $period_end
-            )
-        );
+        $gastos_pagados = ctp_sum_deudas_pagadas_by_period($periodo);
     }
 
     $resultado_periodo = $ingresos_cobrados - $gastos_pagados;
