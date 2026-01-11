@@ -2,7 +2,7 @@
 /**
  * Plugin Name: CTP Órdenes
  * Description: MVP para cargar y listar órdenes de CTP mediante shortcodes.
- * Version: 0.6.1
+ * Version: 0.6.2
  * Author: Equipo Revista Montaje AI
  * Requires PHP: 8.0
  */
@@ -11,7 +11,7 @@ if (!defined('ABSPATH')) {
     exit;
 }
 
-define('CTP_ORDENES_VERSION', '0.6.1');
+define('CTP_ORDENES_VERSION', '0.6.2');
 
 /**
  * Crea la tabla necesaria al activar el plugin.
@@ -29,6 +29,7 @@ function ctp_ordenes_create_tables() {
     $table_liquidacion_ordenes = $wpdb->prefix . 'ctp_liquidacion_ordenes';
     $table_deudas = $wpdb->prefix . 'ctp_deudas_empresa';
     $table_deudas_pagos = $wpdb->prefix . 'ctp_deudas_empresa_pagos';
+    $table_cobros = $wpdb->prefix . 'ctp_cobros_clientes';
     $charset_collate = $wpdb->get_charset_collate();
 
     $sql = "CREATE TABLE {$table_name} (
@@ -180,6 +181,23 @@ function ctp_ordenes_create_tables() {
         KEY periodo (periodo)
     ) {$charset_collate};";
 
+    $sql_cobros = "CREATE TABLE {$table_cobros} (
+        id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+        cliente_id BIGINT UNSIGNED NOT NULL,
+        fecha_cobro DATE NOT NULL,
+        periodo VARCHAR(7) NOT NULL,
+        monto DECIMAL(14,2) NOT NULL DEFAULT 0,
+        metodo VARCHAR(30) NULL,
+        referencia VARCHAR(100) NULL,
+        nota TEXT NULL,
+        liquidacion_id BIGINT UNSIGNED NULL,
+        created_at DATETIME NOT NULL,
+        PRIMARY KEY  (id),
+        KEY cliente_id (cliente_id),
+        KEY periodo (periodo),
+        KEY liquidacion_id (liquidacion_id)
+    ) {$charset_collate};";
+
     require_once ABSPATH . 'wp-admin/includes/upgrade.php';
     dbDelta($sql);
     dbDelta($sql_items);
@@ -191,6 +209,7 @@ function ctp_ordenes_create_tables() {
     dbDelta($sql_liquidacion_ordenes);
     dbDelta($sql_deudas);
     dbDelta($sql_deudas_pagos);
+    dbDelta($sql_cobros);
 }
 
 function ctp_ordenes_activate() {
@@ -251,6 +270,8 @@ function ctp_ordenes_should_enqueue_assets() {
         'ctp_proveedores',
         'ctp_facturas_proveedor',
         'ctp_liquidaciones',
+        'ctp_cobros_clientes',
+        'ctp_por_cobrar',
         'ctp_dashboard',
         'ctp_deudas_empresa',
     );
@@ -740,6 +761,127 @@ function ctp_period_from_date($date) {
     }
 
     return current_time('Y-m');
+}
+
+function ctp_get_period_from_request() {
+    $period = '';
+    if (isset($_GET['ctp_period'])) {
+        $period = sanitize_text_field(wp_unslash($_GET['ctp_period']));
+    } elseif (isset($_POST['ctp_period'])) {
+        $period = sanitize_text_field(wp_unslash($_POST['ctp_period']));
+    }
+
+    if (!ctp_ordenes_is_valid_date($period, 'Y-m')) {
+        $period = current_time('Y-m');
+    }
+
+    return $period;
+}
+
+function ctp_ordenes_table_exists($table_name) {
+    if (empty($table_name)) {
+        return false;
+    }
+
+    global $wpdb;
+    $exists = $wpdb->get_var(
+        $wpdb->prepare('SHOW TABLES LIKE %s', $table_name)
+    );
+
+    return $exists === $table_name;
+}
+
+function ctp_sum_cobros_by_period($periodo) {
+    if (!ctp_ordenes_is_valid_date($periodo, 'Y-m')) {
+        return 0;
+    }
+
+    global $wpdb;
+    $table_cobros = $wpdb->prefix . 'ctp_cobros_clientes';
+
+    return (float) $wpdb->get_var(
+        $wpdb->prepare(
+            "SELECT COALESCE(SUM(monto), 0) FROM {$table_cobros} WHERE periodo = %s",
+            $periodo
+        )
+    );
+}
+
+function ctp_sum_cobros_by_cliente_period($cliente_id, $periodo) {
+    if ($cliente_id <= 0 || !ctp_ordenes_is_valid_date($periodo, 'Y-m')) {
+        return 0;
+    }
+
+    global $wpdb;
+    $table_cobros = $wpdb->prefix . 'ctp_cobros_clientes';
+
+    return (float) $wpdb->get_var(
+        $wpdb->prepare(
+            "SELECT COALESCE(SUM(monto), 0) FROM {$table_cobros} WHERE cliente_id = %d AND periodo = %s",
+            $cliente_id,
+            $periodo
+        )
+    );
+}
+
+function ctp_sum_ordenes_by_period($periodo) {
+    if (!ctp_ordenes_is_valid_date($periodo, 'Y-m')) {
+        return 0;
+    }
+
+    $start = $periodo . '-01';
+    $end = date('Y-m-t', strtotime($start));
+
+    global $wpdb;
+    $table_ordenes = $wpdb->prefix . 'ctp_ordenes';
+    $table_items = $wpdb->prefix . 'ctp_ordenes_items';
+
+    return (float) $wpdb->get_var(
+        $wpdb->prepare(
+            "SELECT COALESCE(SUM(order_total), 0)
+             FROM (
+                SELECT o.id,
+                       COALESCE(SUM(i.total_item), o.total) AS order_total
+                FROM {$table_ordenes} o
+                LEFT JOIN {$table_items} i ON i.orden_id = o.id
+                WHERE o.fecha BETWEEN %s AND %s
+                GROUP BY o.id
+             ) AS ordenes",
+            $start,
+            $end
+        )
+    );
+}
+
+function ctp_sum_ordenes_by_cliente_period($cliente_id, $periodo) {
+    if ($cliente_id <= 0 || !ctp_ordenes_is_valid_date($periodo, 'Y-m')) {
+        return 0;
+    }
+
+    $start = $periodo . '-01';
+    $end = date('Y-m-t', strtotime($start));
+
+    global $wpdb;
+    $table_ordenes = $wpdb->prefix . 'ctp_ordenes';
+    $table_items = $wpdb->prefix . 'ctp_ordenes_items';
+
+    return (float) $wpdb->get_var(
+        $wpdb->prepare(
+            "SELECT COALESCE(SUM(order_total), 0)
+             FROM (
+                SELECT o.id,
+                       COALESCE(SUM(i.total_item), o.total) AS order_total
+                FROM {$table_ordenes} o
+                LEFT JOIN {$table_items} i ON i.orden_id = o.id
+                WHERE o.cliente_id = %d
+                  AND o.fecha BETWEEN %s AND %s
+                GROUP BY o.id
+             ) AS ordenes",
+            $cliente_id,
+            $start,
+            $end
+        )
+    );
 }
 
 function ctp_ordenes_get_ordenes_periodo() {
@@ -3689,6 +3831,560 @@ function ctp_deudas_empresa_shortcode() {
 }
 add_shortcode('ctp_deudas_empresa', 'ctp_deudas_empresa_shortcode');
 
+function ctp_cobros_clientes_shortcode() {
+    ctp_ordenes_enqueue_assets(true);
+
+    global $wpdb;
+    $table_cobros = $wpdb->prefix . 'ctp_cobros_clientes';
+    $table_clientes = $wpdb->prefix . 'ctp_clientes';
+    $table_liquidaciones = $wpdb->prefix . 'ctp_liquidaciones_cliente';
+
+    $mensajes = array(
+        'success' => array(),
+        'error' => array(),
+        'warning' => array(),
+    );
+
+    $can_manage = ctp_ordenes_user_can_manage();
+    $periodo = ctp_get_period_from_request();
+    $periodo_label = date_i18n('F Y', strtotime($periodo . '-01'));
+    $tab = isset($_GET['ctp_tab']) ? sanitize_key(wp_unslash($_GET['ctp_tab'])) : '';
+
+    $has_liquidaciones = ctp_ordenes_table_exists($table_liquidaciones);
+    $liquidaciones = array();
+    if ($has_liquidaciones) {
+        $liquidaciones = $wpdb->get_results(
+            "SELECT f.id, f.cliente_id, f.desde, f.hasta, f.total, c.nombre AS cliente_nombre
+             FROM {$table_liquidaciones} f
+             LEFT JOIN {$table_clientes} c ON f.cliente_id = c.id
+             ORDER BY f.created_at DESC
+             LIMIT 200"
+        );
+    }
+
+    if (!empty($_POST['ctp_cobro_action'])) {
+        if (!$can_manage) {
+            $mensajes['error'][] = 'No tienes permisos para registrar cobros.';
+        } else {
+            $action = sanitize_text_field(wp_unslash($_POST['ctp_cobro_action']));
+            if ($action === 'add') {
+                if (!isset($_POST['ctp_cobro_nonce']) || !check_admin_referer('ctp_cobro_add', 'ctp_cobro_nonce')) {
+                    $mensajes['error'][] = 'No se pudo validar el registro del cobro.';
+                } else {
+                    $cliente_id = absint($_POST['cliente_id'] ?? 0);
+                    $fecha_cobro = sanitize_text_field(wp_unslash($_POST['fecha_cobro'] ?? ''));
+                    $monto = isset($_POST['monto']) ? floatval(str_replace(',', '.', sanitize_text_field(wp_unslash($_POST['monto'])))) : 0;
+                    $metodo = sanitize_text_field(wp_unslash($_POST['metodo'] ?? ''));
+                    $referencia = sanitize_text_field(wp_unslash($_POST['referencia'] ?? ''));
+                    $nota = sanitize_textarea_field(wp_unslash($_POST['nota'] ?? ''));
+                    $liquidacion_id = absint($_POST['liquidacion_id'] ?? 0);
+
+                    if ($cliente_id <= 0) {
+                        $mensajes['error'][] = 'Selecciona un cliente válido.';
+                    } else {
+                        $cliente_exists = $wpdb->get_var(
+                            $wpdb->prepare("SELECT id FROM {$table_clientes} WHERE id = %d", $cliente_id)
+                        );
+                        if (!$cliente_exists) {
+                            $mensajes['error'][] = 'El cliente seleccionado no existe.';
+                        }
+                    }
+
+                    if (!ctp_ordenes_is_valid_date($fecha_cobro, 'Y-m-d')) {
+                        $mensajes['error'][] = 'La fecha de cobro es obligatoria.';
+                    }
+
+                    if ($monto <= 0) {
+                        $mensajes['error'][] = 'Ingresa un monto válido.';
+                    }
+
+                    if ($liquidacion_id > 0) {
+                        if (!$has_liquidaciones) {
+                            $mensajes['error'][] = 'No hay liquidaciones disponibles para asociar.';
+                        } else {
+                            $liquidacion_cliente = $wpdb->get_row(
+                                $wpdb->prepare(
+                                    "SELECT id, cliente_id FROM {$table_liquidaciones} WHERE id = %d",
+                                    $liquidacion_id
+                                )
+                            );
+                            if (!$liquidacion_cliente) {
+                                $mensajes['error'][] = 'La liquidación seleccionada no existe.';
+                            } elseif (!empty($liquidacion_cliente->cliente_id) && (int) $liquidacion_cliente->cliente_id !== $cliente_id) {
+                                $mensajes['error'][] = 'La liquidación no pertenece al cliente seleccionado.';
+                            }
+                        }
+                    }
+
+                    if (empty($mensajes['error'])) {
+                        $periodo_cobro = ctp_period_from_date($fecha_cobro);
+                        $inserted = $wpdb->insert(
+                            $table_cobros,
+                            array(
+                                'cliente_id' => $cliente_id,
+                                'fecha_cobro' => $fecha_cobro,
+                                'periodo' => $periodo_cobro,
+                                'monto' => $monto,
+                                'metodo' => $metodo !== '' ? $metodo : null,
+                                'referencia' => $referencia !== '' ? $referencia : null,
+                                'nota' => $nota !== '' ? $nota : null,
+                                'liquidacion_id' => $liquidacion_id > 0 ? $liquidacion_id : null,
+                                'created_at' => current_time('mysql'),
+                            ),
+                            array('%d', '%s', '%s', '%f', '%s', '%s', '%s', '%d', '%s')
+                        );
+
+                        if ($inserted) {
+                            $mensajes['success'][] = 'Cobro registrado correctamente.';
+                        } else {
+                            $mensajes['error'][] = 'No se pudo guardar el cobro.';
+                        }
+                    }
+                }
+            } elseif ($action === 'delete') {
+                if (!isset($_POST['ctp_cobro_nonce']) || !check_admin_referer('ctp_cobro_delete', 'ctp_cobro_nonce')) {
+                    $mensajes['error'][] = 'No se pudo validar la eliminación del cobro.';
+                } else {
+                    $cobro_id = absint($_POST['cobro_id'] ?? 0);
+                    if ($cobro_id <= 0) {
+                        $mensajes['error'][] = 'No se recibió un cobro válido.';
+                    } else {
+                        $deleted = $wpdb->delete($table_cobros, array('id' => $cobro_id), array('%d'));
+                        if ($deleted) {
+                            $mensajes['success'][] = 'Cobro eliminado correctamente.';
+                        } else {
+                            $mensajes['error'][] = 'No se pudo eliminar el cobro.';
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    $clientes = ctp_ordenes_get_clientes_list();
+    $select_liquidacion = $has_liquidaciones
+        ? 'l.id AS liquidacion_id, l.total AS liquidacion_total'
+        : 'NULL AS liquidacion_id, NULL AS liquidacion_total';
+    $join_liquidacion = $has_liquidaciones
+        ? "LEFT JOIN {$table_liquidaciones} l ON c.liquidacion_id = l.id"
+        : '';
+
+    $cobros = $wpdb->get_results(
+        $wpdb->prepare(
+            "SELECT c.*,
+                    cl.nombre AS cliente_nombre,
+                    {$select_liquidacion}
+             FROM {$table_cobros} c
+             LEFT JOIN {$table_clientes} cl ON c.cliente_id = cl.id
+             {$join_liquidacion}
+             WHERE c.periodo = %s
+             ORDER BY c.fecha_cobro DESC, c.id DESC",
+            $periodo
+        )
+    );
+
+    $total_cobrado = ctp_sum_cobros_by_period($periodo);
+    $cantidad_cobros = (int) $wpdb->get_var(
+        $wpdb->prepare(
+            "SELECT COUNT(*) FROM {$table_cobros} WHERE periodo = %s",
+            $periodo
+        )
+    );
+
+    ob_start();
+    ?>
+    <?php ctp_ordenes_render_alerts($mensajes); ?>
+    <div class="ctp-stack">
+        <form method="get" action="<?php echo esc_url(remove_query_arg('ctp_period')); ?>" class="ctp-order-filter">
+            <?php if (!empty($tab)) : ?>
+                <input type="hidden" name="ctp_tab" value="<?php echo esc_attr($tab); ?>">
+            <?php endif; ?>
+            <div class="ctp-filter-group">
+                <div class="ctp-field">
+                    <label for="ctp-cobros-periodo">Periodo</label>
+                    <input type="month" id="ctp-cobros-periodo" name="ctp_period" value="<?php echo esc_attr($periodo); ?>">
+                </div>
+                <div class="ctp-field">
+                    <label>&nbsp;</label>
+                    <button type="submit" class="ctp-button">Ver</button>
+                </div>
+            </div>
+        </form>
+
+        <div class="ctp-kpi-grid">
+            <div class="ctp-kpi-card">
+                <div class="ctp-kpi-title">Total cobrado</div>
+                <div class="ctp-kpi-value"><?php echo esc_html('Gs. ' . ctp_ordenes_format_currency_i18n($total_cobrado, 0)); ?></div>
+                <div class="ctp-kpi-meta"><?php echo esc_html($periodo_label); ?></div>
+            </div>
+            <div class="ctp-kpi-card">
+                <div class="ctp-kpi-title">Cantidad de cobros</div>
+                <div class="ctp-kpi-value"><?php echo esc_html(ctp_ordenes_format_currency_i18n($cantidad_cobros, 0)); ?></div>
+                <div class="ctp-kpi-meta"><?php echo esc_html($periodo_label); ?></div>
+            </div>
+        </div>
+
+        <?php
+        ob_start();
+        ?>
+        <form method="post" class="ctp-form ctp-form-grid" id="ctp-cobro-form">
+            <?php wp_nonce_field('ctp_cobro_add', 'ctp_cobro_nonce'); ?>
+            <input type="hidden" name="ctp_cobro_action" value="add">
+            <input type="hidden" name="ctp_period" value="<?php echo esc_attr($periodo); ?>">
+            <?php if (!empty($tab)) : ?>
+                <input type="hidden" name="ctp_tab" value="<?php echo esc_attr($tab); ?>">
+            <?php endif; ?>
+
+            <div class="ctp-field">
+                <label for="ctp-cobro-cliente">Cliente</label>
+                <select id="ctp-cobro-cliente" name="cliente_id" required <?php disabled(!$can_manage); ?>>
+                    <option value="">Seleccionar cliente</option>
+                    <?php foreach ($clientes as $cliente) : ?>
+                        <option value="<?php echo esc_attr($cliente->id); ?>">
+                            <?php echo esc_html($cliente->nombre); ?>
+                        </option>
+                    <?php endforeach; ?>
+                </select>
+            </div>
+
+            <div class="ctp-field">
+                <label for="ctp-cobro-fecha">Fecha de cobro</label>
+                <input type="date" id="ctp-cobro-fecha" name="fecha_cobro" value="<?php echo esc_attr(current_time('Y-m-d')); ?>" required <?php disabled(!$can_manage); ?>>
+            </div>
+
+            <div class="ctp-field">
+                <label for="ctp-cobro-monto">Monto</label>
+                <input type="number" id="ctp-cobro-monto" name="monto" step="0.01" min="0" required <?php disabled(!$can_manage); ?>>
+            </div>
+
+            <div class="ctp-field">
+                <label for="ctp-cobro-metodo">Método</label>
+                <select id="ctp-cobro-metodo" name="metodo" <?php disabled(!$can_manage); ?>>
+                    <option value="">Seleccionar método</option>
+                    <option value="efectivo">Efectivo</option>
+                    <option value="transferencia">Transferencia</option>
+                    <option value="tarjeta">Tarjeta</option>
+                    <option value="cheque">Cheque</option>
+                    <option value="otro">Otro</option>
+                </select>
+            </div>
+
+            <?php if ($has_liquidaciones) : ?>
+                <div class="ctp-field">
+                    <label for="ctp-cobro-liquidacion">Liquidación (opcional)</label>
+                    <select id="ctp-cobro-liquidacion" name="liquidacion_id" <?php disabled(!$can_manage); ?>>
+                        <option value="0">Sin liquidación</option>
+                        <?php foreach ($liquidaciones as $liquidacion) : ?>
+                            <option value="<?php echo esc_attr($liquidacion->id); ?>">
+                                <?php
+                                $label = sprintf(
+                                    '#%d - %s (%s a %s) - Gs. %s',
+                                    $liquidacion->id,
+                                    $liquidacion->cliente_nombre ?: 'Sin cliente',
+                                    date_i18n('d/m/Y', strtotime($liquidacion->desde)),
+                                    date_i18n('d/m/Y', strtotime($liquidacion->hasta)),
+                                    ctp_ordenes_format_currency($liquidacion->total)
+                                );
+                                echo esc_html($label);
+                                ?>
+                            </option>
+                        <?php endforeach; ?>
+                    </select>
+                </div>
+            <?php endif; ?>
+
+            <div class="ctp-field ctp-field-full">
+                <label for="ctp-cobro-referencia">Referencia</label>
+                <input type="text" id="ctp-cobro-referencia" name="referencia" <?php disabled(!$can_manage); ?>>
+            </div>
+
+            <div class="ctp-field ctp-field-full">
+                <label for="ctp-cobro-nota">Nota</label>
+                <textarea id="ctp-cobro-nota" name="nota" rows="3" <?php disabled(!$can_manage); ?>></textarea>
+            </div>
+
+            <div class="ctp-field ctp-field-full">
+                <button type="submit" class="ctp-button" <?php disabled(!$can_manage); ?>>Registrar cobro</button>
+            </div>
+        </form>
+        <?php
+        $form_html = ob_get_clean();
+        echo ctp_ordenes_render_panel(
+            'Registrar cobro',
+            'Registra el ingreso real sin recargar ventas.',
+            $form_html,
+            'ctp-panel-form'
+        );
+        ?>
+
+        <?php
+        ob_start();
+        ?>
+        <div class="ctp-table-wrap">
+            <table class="ctp-table">
+                <thead>
+                    <tr>
+                        <th>Fecha</th>
+                        <th>Cliente</th>
+                        <th>Monto</th>
+                        <th>Método</th>
+                        <th class="ctp-table-text">Referencia</th>
+                        <?php if ($has_liquidaciones) : ?>
+                            <th>Liquidación</th>
+                        <?php endif; ?>
+                        <th class="ctp-actions-cell">Acciones</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <?php if (!empty($cobros)) : ?>
+                        <?php foreach ($cobros as $cobro) : ?>
+                            <tr>
+                                <td data-label="Fecha"><?php echo esc_html(date_i18n('d/m/Y', strtotime($cobro->fecha_cobro))); ?></td>
+                                <td data-label="Cliente"><?php echo esc_html($cobro->cliente_nombre ?: 'Sin cliente'); ?></td>
+                                <td data-label="Monto"><?php echo esc_html('Gs. ' . ctp_ordenes_format_currency_i18n($cobro->monto, 0)); ?></td>
+                                <td data-label="Método"><?php echo esc_html($cobro->metodo ?: '—'); ?></td>
+                                <td class="ctp-table-text" data-label="Referencia"><?php echo esc_html($cobro->referencia ?: '—'); ?></td>
+                                <?php if ($has_liquidaciones) : ?>
+                                    <td data-label="Liquidación">
+                                        <?php if (!empty($cobro->liquidacion_id)) : ?>
+                                            <?php echo esc_html(sprintf('#%d', $cobro->liquidacion_id)); ?>
+                                        <?php else : ?>
+                                            —
+                                        <?php endif; ?>
+                                    </td>
+                                <?php endif; ?>
+                                <td class="ctp-actions-cell" data-label="Acciones">
+                                    <div class="ctp-actions">
+                                        <form method="post" class="ctp-inline-form">
+                                            <?php wp_nonce_field('ctp_cobro_delete', 'ctp_cobro_nonce'); ?>
+                                            <input type="hidden" name="ctp_cobro_action" value="delete">
+                                            <input type="hidden" name="cobro_id" value="<?php echo esc_attr($cobro->id); ?>">
+                                            <input type="hidden" name="ctp_period" value="<?php echo esc_attr($periodo); ?>">
+                                            <?php if (!empty($tab)) : ?>
+                                                <input type="hidden" name="ctp_tab" value="<?php echo esc_attr($tab); ?>">
+                                            <?php endif; ?>
+                                            <button type="submit" class="ctp-button ctp-button-danger" onclick="return confirm('¿Seguro que deseas eliminar?')" <?php disabled(!$can_manage); ?>>Eliminar</button>
+                                        </form>
+                                    </div>
+                                </td>
+                            </tr>
+                        <?php endforeach; ?>
+                    <?php else : ?>
+                        <tr>
+                            <td colspan="<?php echo esc_attr($has_liquidaciones ? 7 : 6); ?>">No hay cobros registrados para este período.</td>
+                        </tr>
+                    <?php endif; ?>
+                </tbody>
+            </table>
+        </div>
+        <?php
+        $table_html = ob_get_clean();
+        echo ctp_ordenes_render_panel(
+            'Cobros del período',
+            'Listado de ingresos registrados en el mes seleccionado.',
+            $table_html
+        );
+        ?>
+    </div>
+    <?php
+    $html = ob_get_clean();
+    if (!empty($GLOBALS['ctp_in_dashboard'])) {
+        return $html;
+    }
+    return ctp_ordenes_wrap($html, 'ctp-shell-page');
+}
+add_shortcode('ctp_cobros_clientes', 'ctp_cobros_clientes_shortcode');
+
+function ctp_por_cobrar_shortcode() {
+    ctp_ordenes_enqueue_assets(true);
+
+    global $wpdb;
+    $table_cobros = $wpdb->prefix . 'ctp_cobros_clientes';
+    $table_ordenes = $wpdb->prefix . 'ctp_ordenes';
+    $table_items = $wpdb->prefix . 'ctp_ordenes_items';
+    $table_liquidaciones = $wpdb->prefix . 'ctp_liquidaciones_cliente';
+    $table_liquidacion_ordenes = $wpdb->prefix . 'ctp_liquidacion_ordenes';
+
+    $periodo = ctp_get_period_from_request();
+    $periodo_label = date_i18n('F Y', strtotime($periodo . '-01'));
+    $tab = isset($_GET['ctp_tab']) ? sanitize_key(wp_unslash($_GET['ctp_tab'])) : '';
+
+    $ordenes_periodo = ctp_sum_ordenes_by_period($periodo);
+    $cobros_periodo = ctp_sum_cobros_by_period($periodo);
+    $por_cobrar_periodo = $ordenes_periodo - $cobros_periodo;
+
+    $ordenes_total = (float) $wpdb->get_var(
+        "SELECT COALESCE(SUM(order_total), 0)
+         FROM (
+            SELECT o.id,
+                   COALESCE(SUM(i.total_item), o.total) AS order_total
+            FROM {$table_ordenes} o
+            LEFT JOIN {$table_items} i ON i.orden_id = o.id
+            GROUP BY o.id
+         ) AS ordenes"
+    );
+    $cobros_total = (float) $wpdb->get_var("SELECT COALESCE(SUM(monto), 0) FROM {$table_cobros}");
+    $por_cobrar_total = $ordenes_total - $cobros_total;
+
+    $clientes = ctp_ordenes_get_clientes_list();
+
+    $period_start = $periodo . '-01';
+    $period_end = date('Y-m-t', strtotime($period_start));
+    $has_liquidaciones = ctp_ordenes_table_exists($table_liquidaciones) && ctp_ordenes_table_exists($table_liquidacion_ordenes);
+
+    $ordenes_no_liquidadas = 0;
+    $liquidaciones_sin_cobro = 0;
+    if ($has_liquidaciones) {
+        $ordenes_no_liquidadas = (float) $wpdb->get_var(
+            $wpdb->prepare(
+                "SELECT COALESCE(SUM(order_total), 0)
+                 FROM (
+                    SELECT o.id,
+                           COALESCE(SUM(i.total_item), o.total) AS order_total
+                    FROM {$table_ordenes} o
+                    LEFT JOIN {$table_items} i ON i.orden_id = o.id
+                    LEFT JOIN {$table_liquidacion_ordenes} lo ON lo.orden_id = o.id
+                    WHERE o.fecha BETWEEN %s AND %s
+                      AND lo.id IS NULL
+                    GROUP BY o.id
+                 ) AS ordenes",
+                $period_start,
+                $period_end
+            )
+        );
+
+        $liquidaciones_sin_cobro = (float) $wpdb->get_var(
+            $wpdb->prepare(
+                "SELECT COALESCE(SUM(GREATEST(l.total - COALESCE(p.pagado, 0), 0)), 0)
+                 FROM {$table_liquidaciones} l
+                 LEFT JOIN (
+                    SELECT liquidacion_id, SUM(monto) AS pagado
+                    FROM {$table_cobros}
+                    WHERE liquidacion_id IS NOT NULL
+                    GROUP BY liquidacion_id
+                 ) p ON l.id = p.liquidacion_id
+                 WHERE DATE(l.created_at) BETWEEN %s AND %s",
+                $period_start,
+                $period_end
+            )
+        );
+    }
+
+    ob_start();
+    ?>
+    <div class="ctp-stack">
+        <form method="get" action="<?php echo esc_url(remove_query_arg('ctp_period')); ?>" class="ctp-order-filter">
+            <?php if (!empty($tab)) : ?>
+                <input type="hidden" name="ctp_tab" value="<?php echo esc_attr($tab); ?>">
+            <?php endif; ?>
+            <div class="ctp-filter-group">
+                <div class="ctp-field">
+                    <label for="ctp-por-cobrar-periodo">Periodo</label>
+                    <input type="month" id="ctp-por-cobrar-periodo" name="ctp_period" value="<?php echo esc_attr($periodo); ?>">
+                </div>
+                <div class="ctp-field">
+                    <label>&nbsp;</label>
+                    <button type="submit" class="ctp-button">Ver</button>
+                </div>
+            </div>
+        </form>
+
+        <div class="ctp-kpi-grid">
+            <div class="ctp-kpi-card">
+                <div class="ctp-kpi-title">Ventas devengadas</div>
+                <div class="ctp-kpi-value"><?php echo esc_html('Gs. ' . ctp_ordenes_format_currency_i18n($ordenes_periodo, 0)); ?></div>
+                <div class="ctp-kpi-meta"><?php echo esc_html($periodo_label); ?></div>
+            </div>
+            <div class="ctp-kpi-card">
+                <div class="ctp-kpi-title">Cobrado</div>
+                <div class="ctp-kpi-value"><?php echo esc_html('Gs. ' . ctp_ordenes_format_currency_i18n($cobros_periodo, 0)); ?></div>
+                <div class="ctp-kpi-meta"><?php echo esc_html($periodo_label); ?></div>
+            </div>
+            <div class="ctp-kpi-card">
+                <div class="ctp-kpi-title">Por cobrar estimado</div>
+                <div class="ctp-kpi-value"><?php echo esc_html('Gs. ' . ctp_ordenes_format_currency_i18n($por_cobrar_periodo, 0)); ?></div>
+                <div class="ctp-kpi-meta"><?php echo esc_html($periodo_label); ?></div>
+            </div>
+            <div class="ctp-kpi-card">
+                <div class="ctp-kpi-title">Por cobrar acumulado</div>
+                <div class="ctp-kpi-value"><?php echo esc_html('Gs. ' . ctp_ordenes_format_currency_i18n($por_cobrar_total, 0)); ?></div>
+                <div class="ctp-kpi-meta">Acumulado histórico</div>
+            </div>
+        </div>
+
+        <?php if ($has_liquidaciones) : ?>
+            <div class="ctp-kpi-grid">
+                <div class="ctp-kpi-card">
+                    <div class="ctp-kpi-title">No facturado</div>
+                    <div class="ctp-kpi-value"><?php echo esc_html('Gs. ' . ctp_ordenes_format_currency_i18n($ordenes_no_liquidadas, 0)); ?></div>
+                    <div class="ctp-kpi-meta"><?php echo esc_html($periodo_label); ?></div>
+                </div>
+                <div class="ctp-kpi-card">
+                    <div class="ctp-kpi-title">Facturado sin cobrar</div>
+                    <div class="ctp-kpi-value"><?php echo esc_html('Gs. ' . ctp_ordenes_format_currency_i18n($liquidaciones_sin_cobro, 0)); ?></div>
+                    <div class="ctp-kpi-meta"><?php echo esc_html($periodo_label); ?></div>
+                </div>
+            </div>
+        <?php endif; ?>
+
+        <?php
+        ob_start();
+        ?>
+        <div class="ctp-table-wrap">
+            <table class="ctp-table">
+                <thead>
+                    <tr>
+                        <th>Cliente</th>
+                        <th>Ventas devengadas</th>
+                        <th>Cobrado</th>
+                        <th>Por cobrar</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <?php
+                    $rows = 0;
+                    foreach ($clientes as $cliente) :
+                        $ordenes_cliente = ctp_sum_ordenes_by_cliente_period((int) $cliente->id, $periodo);
+                        $cobros_cliente = ctp_sum_cobros_by_cliente_period((int) $cliente->id, $periodo);
+                        if ($ordenes_cliente <= 0 && $cobros_cliente <= 0) {
+                            continue;
+                        }
+                        $rows++;
+                        $por_cobrar_cliente = $ordenes_cliente - $cobros_cliente;
+                        ?>
+                        <tr>
+                            <td data-label="Cliente"><?php echo esc_html($cliente->nombre); ?></td>
+                            <td data-label="Ventas devengadas"><?php echo esc_html('Gs. ' . ctp_ordenes_format_currency_i18n($ordenes_cliente, 0)); ?></td>
+                            <td data-label="Cobrado"><?php echo esc_html('Gs. ' . ctp_ordenes_format_currency_i18n($cobros_cliente, 0)); ?></td>
+                            <td data-label="Por cobrar"><?php echo esc_html('Gs. ' . ctp_ordenes_format_currency_i18n($por_cobrar_cliente, 0)); ?></td>
+                        </tr>
+                    <?php endforeach; ?>
+                    <?php if ($rows === 0) : ?>
+                        <tr>
+                            <td colspan="4">No hay movimientos por cliente en este período.</td>
+                        </tr>
+                    <?php endif; ?>
+                </tbody>
+            </table>
+        </div>
+        <?php
+        $tabla_clientes = ob_get_clean();
+        echo ctp_ordenes_render_panel(
+            'Por cobrar por cliente',
+            'Comparativo de ventas devengadas y cobros por cliente.',
+            $tabla_clientes
+        );
+        ?>
+    </div>
+    <?php
+    $html = ob_get_clean();
+    if (!empty($GLOBALS['ctp_in_dashboard'])) {
+        return $html;
+    }
+    return ctp_ordenes_wrap($html, 'ctp-shell-page');
+}
+add_shortcode('ctp_por_cobrar', 'ctp_por_cobrar_shortcode');
+
 function ctp_liquidaciones_shortcode() {
     ctp_ordenes_enqueue_assets(true);
 
@@ -4378,7 +5074,7 @@ function ctp_dashboard_shortcode() {
         $tab = 'ordenes';
     }
 
-    if (!in_array($tab, array('ordenes', 'proveedores', 'facturas', 'liquidaciones', 'clientes', 'deudas'), true)) {
+    if (!in_array($tab, array('ordenes', 'proveedores', 'facturas', 'liquidaciones', 'clientes', 'deudas', 'cobros', 'por_cobrar'), true)) {
         $tab = 'ordenes';
     }
 
@@ -4410,6 +5106,8 @@ function ctp_dashboard_shortcode() {
         'clientes' => 'Clientes',
         'proveedores' => 'Proveedores',
         'liquidaciones' => 'Liquidaciones',
+        'cobros' => 'Cobros',
+        'por_cobrar' => 'Cuentas por cobrar',
         'facturas' => 'Facturas proveedor',
         'deudas' => 'Deudas empresa',
     );
@@ -4483,6 +5181,10 @@ function ctp_dashboard_shortcode() {
                     <?php echo do_shortcode('[ctp_proveedores]'); ?>
                 <?php elseif ($tab === 'liquidaciones') : ?>
                     <?php echo do_shortcode('[ctp_liquidaciones]'); ?>
+                <?php elseif ($tab === 'cobros') : ?>
+                    <?php echo do_shortcode('[ctp_cobros_clientes]'); ?>
+                <?php elseif ($tab === 'por_cobrar') : ?>
+                    <?php echo do_shortcode('[ctp_por_cobrar]'); ?>
                 <?php elseif ($tab === 'deudas') : ?>
                     <?php echo do_shortcode('[ctp_deudas_empresa]'); ?>
                 <?php else : ?>
