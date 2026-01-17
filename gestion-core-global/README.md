@@ -64,5 +64,11 @@ gestion-core-global/
 3. Crear un movimiento desde **Movimientos** vinculando el documento y confirmar que:
    - Se registra un pago en el documento sin duplicar movimientos.
    - El estado del documento se recalcula con el nuevo pago.
-4. Crear una deuda y registrar un egreso desde **Movimientos** usando "Vincular a deuda".
-5. Confirmar que el pago queda en `gc_deuda_pagos` y que el saldo/estado de la deuda se actualiza.
+4. Crear una deuda única por 100.000 y pagarla desde **Movimientos**:
+   - La deuda queda en estado pagada y se auto-inactiva.
+5. Crear una deuda recurrente mensual (alquiler 500.000, día 5):
+   - Al pagar enero, la instancia de enero queda pagada.
+   - Al avanzar al siguiente mes, la instancia de febrero aparece pendiente.
+6. Crear un préstamo de 12 cuotas x 800.000 desde hoy:
+   - Se crean 12 instancias mensuales.
+   - Al pagar la cuota del mes, el movimiento queda como egreso mensual y el saldo global baja.

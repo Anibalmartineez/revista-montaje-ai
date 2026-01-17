@@ -194,8 +194,20 @@ function gc_recalculate_deuda_estado(int $deuda_id): void {
     $deudas_table = gc_get_table('gc_deudas');
     $pagos_table = gc_get_table('gc_deuda_pagos');
 
-    $deuda = $wpdb->get_row($wpdb->prepare("SELECT id, monto FROM {$deudas_table} WHERE id = %d", $deuda_id), ARRAY_A);
+    $deuda = $wpdb->get_row(
+        $wpdb->prepare("SELECT id, monto, tipo_deuda, total_calculado FROM {$deudas_table} WHERE id = %d", $deuda_id),
+        ARRAY_A
+    );
     if (!$deuda) {
+        return;
+    }
+
+    $tipo_deuda = gc_get_deuda_tipo($deuda);
+    if ($tipo_deuda === 'prestamo') {
+        gc_recalculate_prestamo_estado($deuda_id);
+        return;
+    }
+    if ($tipo_deuda !== 'unica') {
         return;
     }
 
@@ -214,6 +226,248 @@ function gc_recalculate_deuda_estado(int $deuda_id): void {
         array('id' => $deuda_id),
         array('%f', '%f', '%s', '%s'),
         array('%d')
+    );
+}
+
+function gc_get_deuda_tipo(array $deuda): string {
+    if (!empty($deuda['tipo_deuda'])) {
+        return $deuda['tipo_deuda'];
+    }
+    $frecuencia = $deuda['frecuencia'] ?? '';
+    if ($frecuencia === 'unico') {
+        return 'unica';
+    }
+    return 'recurrente';
+}
+
+function gc_get_periodo_actual(): string {
+    return wp_date('Y-m', current_time('timestamp'));
+}
+
+function gc_calculate_vencimiento_recurrente(array $deuda, string $periodo): string {
+    $parts = explode('-', $periodo);
+    $year = (int) ($parts[0] ?? wp_date('Y'));
+    $month = (int) ($parts[1] ?? wp_date('m'));
+    $month = max(1, min(12, $month));
+    $max_day = (int) wp_date('t', strtotime(sprintf('%04d-%02d-01', $year, $month)));
+    $frecuencia = $deuda['frecuencia'] ?? 'mensual';
+
+    if ($frecuencia === 'semanal') {
+        $day_week = isset($deuda['dia_semana']) ? (int) $deuda['dia_semana'] : 0;
+        $period_start = new DateTimeImmutable(sprintf('%04d-%02d-01', $year, $month));
+        $period_end = new DateTimeImmutable(sprintf('%04d-%02d-%02d', $year, $month, $max_day));
+        $reference = new DateTimeImmutable(wp_date('Y-m-d', current_time('timestamp')));
+        if ($reference < $period_start || $reference > $period_end) {
+            $reference = $period_start;
+        }
+        $current_dow = (int) $reference->format('w');
+        $days_ahead = ($day_week - $current_dow + 7) % 7;
+        $target = $reference->modify('+' . $days_ahead . ' days');
+        if ($target > $period_end) {
+            $target = $period_end;
+            while ((int) $target->format('w') !== $day_week) {
+                $target = $target->modify('-1 day');
+            }
+        }
+        return $target->format('Y-m-d');
+    }
+
+    $day = isset($deuda['dia_vencimiento']) ? (int) $deuda['dia_vencimiento'] : 1;
+    $day = max(1, min($day, $max_day));
+
+    return sprintf('%04d-%02d-%02d', $year, $month, $day);
+}
+
+function gc_get_deuda_instancia(int $deuda_id, string $periodo): ?array {
+    global $wpdb;
+    $instancias_table = gc_get_table('gc_deuda_instancias');
+    $instancia = $wpdb->get_row(
+        $wpdb->prepare("SELECT * FROM {$instancias_table} WHERE deuda_id = %d AND periodo = %s", $deuda_id, $periodo),
+        ARRAY_A
+    );
+    return $instancia ?: null;
+}
+
+function gc_ensure_recurrente_instancia(array $deuda, ?string $periodo = null): array {
+    global $wpdb;
+    $instancias_table = gc_get_table('gc_deuda_instancias');
+    $periodo = $periodo ?: gc_get_periodo_actual();
+
+    $instancia = gc_get_deuda_instancia((int) $deuda['id'], $periodo);
+    if ($instancia) {
+        return $instancia;
+    }
+
+    $vencimiento = gc_calculate_vencimiento_recurrente($deuda, $periodo);
+    $monto = isset($deuda['monto']) ? (float) $deuda['monto'] : 0;
+    $wpdb->insert(
+        $instancias_table,
+        array(
+            'deuda_id' => (int) $deuda['id'],
+            'periodo' => $periodo,
+            'vencimiento' => $vencimiento,
+            'monto' => $monto,
+            'monto_pagado' => 0,
+            'saldo' => $monto,
+            'estado' => 'pendiente',
+            'created_at' => gc_now(),
+        ),
+        array('%d', '%s', '%s', '%f', '%f', '%f', '%s', '%s')
+    );
+
+    return gc_get_deuda_instancia((int) $deuda['id'], $periodo) ?: array();
+}
+
+function gc_generate_prestamo_instancias(array $deuda): void {
+    global $wpdb;
+    $instancias_table = gc_get_table('gc_deuda_instancias');
+
+    $cuotas_total = isset($deuda['cuotas_total']) ? (int) $deuda['cuotas_total'] : 0;
+    $cuota_monto = isset($deuda['cuota_monto']) ? (float) $deuda['cuota_monto'] : 0;
+    if ($cuotas_total <= 0 || $cuota_monto <= 0) {
+        return;
+    }
+
+    $fecha_inicio = !empty($deuda['fecha_inicio']) ? $deuda['fecha_inicio'] : wp_date('Y-m-d', current_time('timestamp'));
+    $start_date = new DateTimeImmutable($fecha_inicio);
+    $start_day = (int) $start_date->format('d');
+
+    $existing = $wpdb->get_col(
+        $wpdb->prepare("SELECT periodo FROM {$instancias_table} WHERE deuda_id = %d", (int) $deuda['id'])
+    );
+    $existing_map = array_fill_keys($existing, true);
+
+    for ($i = 0; $i < $cuotas_total; $i++) {
+        $current = $start_date->modify('+' . $i . ' months');
+        $year = (int) $current->format('Y');
+        $month = (int) $current->format('m');
+        $max_day = (int) wp_date('t', strtotime(sprintf('%04d-%02d-01', $year, $month)));
+        $day = min($start_day, $max_day);
+        $vencimiento = sprintf('%04d-%02d-%02d', $year, $month, $day);
+        $periodo = $current->format('Y-m');
+
+        if (isset($existing_map[$periodo])) {
+            continue;
+        }
+
+        $wpdb->insert(
+            $instancias_table,
+            array(
+                'deuda_id' => (int) $deuda['id'],
+                'periodo' => $periodo,
+                'vencimiento' => $vencimiento,
+                'monto' => $cuota_monto,
+                'monto_pagado' => 0,
+                'saldo' => $cuota_monto,
+                'estado' => 'pendiente',
+                'created_at' => gc_now(),
+            ),
+            array('%d', '%s', '%s', '%f', '%f', '%f', '%s', '%s')
+        );
+    }
+}
+
+function gc_get_prestamo_instancia_actual(array $deuda): ?array {
+    global $wpdb;
+    $instancias_table = gc_get_table('gc_deuda_instancias');
+    $periodo = gc_get_periodo_actual();
+
+    $instancia = $wpdb->get_row(
+        $wpdb->prepare(
+            "SELECT * FROM {$instancias_table} WHERE deuda_id = %d AND periodo = %s",
+            (int) $deuda['id'],
+            $periodo
+        ),
+        ARRAY_A
+    );
+    if ($instancia && $instancia['estado'] !== 'pagada') {
+        return $instancia;
+    }
+
+    $instancia = $wpdb->get_row(
+        $wpdb->prepare(
+            "SELECT * FROM {$instancias_table} WHERE deuda_id = %d AND estado != 'pagada' ORDER BY vencimiento ASC LIMIT 1",
+            (int) $deuda['id']
+        ),
+        ARRAY_A
+    );
+
+    return $instancia ?: null;
+}
+
+function gc_apply_pago_a_instancia(array $instancia, float $monto): void {
+    global $wpdb;
+    $instancias_table = gc_get_table('gc_deuda_instancias');
+    $monto = max(0, $monto);
+    $nuevo_pagado = (float) $instancia['monto_pagado'] + $monto;
+    $saldo = max(0, (float) $instancia['monto'] - $nuevo_pagado);
+    $estado = 'pendiente';
+    if ($nuevo_pagado > 0 && $saldo > 0) {
+        $estado = 'parcial';
+    } elseif ($saldo <= 0) {
+        $estado = 'pagada';
+    }
+
+    $wpdb->update(
+        $instancias_table,
+        array(
+            'monto_pagado' => $nuevo_pagado,
+            'saldo' => $saldo,
+            'estado' => $estado,
+        ),
+        array('id' => (int) $instancia['id']),
+        array('%f', '%f', '%s'),
+        array('%d')
+    );
+}
+
+function gc_recalculate_prestamo_estado(int $deuda_id): array {
+    global $wpdb;
+    $deudas_table = gc_get_table('gc_deudas');
+    $instancias_table = gc_get_table('gc_deuda_instancias');
+
+    $deuda = $wpdb->get_row(
+        $wpdb->prepare("SELECT id, total_calculado, cuotas_total, cuota_monto FROM {$deudas_table} WHERE id = %d", $deuda_id),
+        ARRAY_A
+    );
+    if (!$deuda) {
+        return array();
+    }
+
+    $total_calculado = isset($deuda['total_calculado']) && $deuda['total_calculado'] !== null
+        ? (float) $deuda['total_calculado']
+        : max(0, (int) $deuda['cuotas_total'] * (float) $deuda['cuota_monto']);
+
+    $pagado = (float) $wpdb->get_var(
+        $wpdb->prepare("SELECT COALESCE(SUM(monto_pagado), 0) FROM {$instancias_table} WHERE deuda_id = %d", $deuda_id)
+    );
+    $saldo = max(0, $total_calculado - $pagado);
+    $estado = 'pendiente';
+    if ($pagado > 0 && $saldo > 0) {
+        $estado = 'parcial';
+    } elseif ($saldo <= 0 && $total_calculado > 0) {
+        $estado = 'pagada';
+    }
+
+    $wpdb->update(
+        $deudas_table,
+        array(
+            'monto_pagado' => $pagado,
+            'saldo' => $saldo,
+            'estado' => $estado,
+            'total_calculado' => $total_calculado,
+            'updated_at' => gc_now(),
+        ),
+        array('id' => $deuda_id),
+        array('%f', '%f', '%s', '%f', '%s'),
+        array('%d')
+    );
+
+    return array(
+        'total_calculado' => $total_calculado,
+        'monto_pagado' => $pagado,
+        'saldo' => $saldo,
+        'estado' => $estado,
     );
 }
 

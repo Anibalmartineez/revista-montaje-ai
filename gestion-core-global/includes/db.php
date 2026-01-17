@@ -95,12 +95,21 @@ function gc_core_global_install(): void {
     $tables[] = "CREATE TABLE {$wpdb->prefix}gc_deudas (
         id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
         nombre VARCHAR(190) NOT NULL,
+        categoria VARCHAR(80) NULL,
         monto DECIMAL(14,2) NOT NULL DEFAULT 0,
         estado VARCHAR(20) NOT NULL DEFAULT 'pendiente',
         monto_pagado DECIMAL(14,2) NOT NULL DEFAULT 0,
         saldo DECIMAL(14,2) NOT NULL DEFAULT 0,
-        frecuencia VARCHAR(20) NOT NULL DEFAULT 'mensual',
+        tipo_deuda ENUM('unica','recurrente','prestamo') NOT NULL DEFAULT 'recurrente',
+        frecuencia ENUM('semanal','mensual','anual') NULL,
         dia_sugerido TINYINT UNSIGNED NULL,
+        vencimiento DATE NULL,
+        dia_vencimiento INT NULL,
+        dia_semana INT NULL,
+        cuotas_total INT NULL,
+        cuota_monto DECIMAL(14,2) NULL,
+        fecha_inicio DATE NULL,
+        total_calculado DECIMAL(14,2) NULL,
         activo TINYINT UNSIGNED NOT NULL DEFAULT 1,
         notas TEXT NULL,
         created_at DATETIME NOT NULL,
@@ -108,6 +117,21 @@ function gc_core_global_install(): void {
         PRIMARY KEY (id),
         KEY frecuencia (frecuencia),
         KEY activo (activo)
+    ) {$charset_collate};";
+
+    $tables[] = "CREATE TABLE {$wpdb->prefix}gc_deuda_instancias (
+        id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+        deuda_id BIGINT UNSIGNED NOT NULL,
+        periodo VARCHAR(7) NOT NULL,
+        vencimiento DATE NOT NULL,
+        monto DECIMAL(14,2) NOT NULL DEFAULT 0,
+        monto_pagado DECIMAL(14,2) NOT NULL DEFAULT 0,
+        saldo DECIMAL(14,2) NOT NULL DEFAULT 0,
+        estado ENUM('pendiente','parcial','pagada') NOT NULL DEFAULT 'pendiente',
+        created_at DATETIME NOT NULL,
+        PRIMARY KEY (id),
+        UNIQUE KEY deuda_periodo (deuda_id, periodo),
+        KEY deuda_id (deuda_id)
     ) {$charset_collate};";
 
     $tables[] = "CREATE TABLE {$wpdb->prefix}gc_deuda_pagos (
@@ -142,9 +166,22 @@ function gc_core_global_install(): void {
     gc_core_global_maybe_add_column(gc_get_table('gc_documento_pagos'), 'movimiento_id', 'BIGINT UNSIGNED NULL');
     gc_core_global_maybe_add_column(gc_get_table('gc_deuda_pagos'), 'movimiento_id', 'BIGINT UNSIGNED NULL');
     gc_core_global_maybe_add_column(gc_get_table('gc_deuda_pagos'), 'metodo', 'VARCHAR(40) NULL');
+    gc_core_global_maybe_add_column(gc_get_table('gc_deuda_pagos'), 'instancia_id', 'BIGINT UNSIGNED NULL');
     gc_core_global_maybe_add_column(gc_get_table('gc_deudas'), 'estado', "VARCHAR(20) NOT NULL DEFAULT 'pendiente'");
     gc_core_global_maybe_add_column(gc_get_table('gc_deudas'), 'monto_pagado', 'DECIMAL(14,2) NOT NULL DEFAULT 0');
     gc_core_global_maybe_add_column(gc_get_table('gc_deudas'), 'saldo', 'DECIMAL(14,2) NOT NULL DEFAULT 0');
+    gc_core_global_maybe_add_column(gc_get_table('gc_deudas'), 'tipo_deuda', "ENUM('unica','recurrente','prestamo') NOT NULL DEFAULT 'recurrente'");
+    gc_core_global_maybe_add_column(gc_get_table('gc_deudas'), 'categoria', 'VARCHAR(80) NULL');
+    gc_core_global_maybe_add_column(gc_get_table('gc_deudas'), 'vencimiento', 'DATE NULL');
+    gc_core_global_maybe_add_column(gc_get_table('gc_deudas'), 'frecuencia', "ENUM('semanal','mensual','anual') NULL");
+    gc_core_global_maybe_add_column(gc_get_table('gc_deudas'), 'dia_vencimiento', 'INT NULL');
+    gc_core_global_maybe_add_column(gc_get_table('gc_deudas'), 'dia_semana', 'INT NULL');
+    gc_core_global_maybe_add_column(gc_get_table('gc_deudas'), 'cuotas_total', 'INT NULL');
+    gc_core_global_maybe_add_column(gc_get_table('gc_deudas'), 'cuota_monto', 'DECIMAL(14,2) NULL');
+    gc_core_global_maybe_add_column(gc_get_table('gc_deudas'), 'fecha_inicio', 'DATE NULL');
+    gc_core_global_maybe_add_column(gc_get_table('gc_deudas'), 'total_calculado', 'DECIMAL(14,2) NULL');
+
+    gc_core_global_migrate_deudas();
 }
 
 function gc_core_global_maybe_add_column(string $table, string $column, string $definition): void {
@@ -154,4 +191,25 @@ function gc_core_global_maybe_add_column(string $table, string $column, string $
         return;
     }
     $wpdb->query("ALTER TABLE {$table} ADD COLUMN {$column} {$definition}");
+}
+
+function gc_core_global_migrate_deudas(): void {
+    global $wpdb;
+    $table = gc_get_table('gc_deudas');
+
+    $wpdb->query(
+        "UPDATE {$table}
+        SET tipo_deuda = CASE
+            WHEN frecuencia = 'unico' THEN 'unica'
+            WHEN frecuencia IN ('semanal','mensual','anual') THEN 'recurrente'
+            ELSE tipo_deuda
+        END
+        WHERE tipo_deuda IS NULL OR tipo_deuda = ''"
+    );
+
+    $wpdb->query(
+        "UPDATE {$table}
+        SET dia_vencimiento = dia_sugerido
+        WHERE dia_vencimiento IS NULL AND dia_sugerido IS NOT NULL AND frecuencia IN ('mensual','anual')"
+    );
 }
