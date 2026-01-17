@@ -139,7 +139,11 @@ function gc_handle_add_documento_pago(): void {
 
     gc_recalculate_documento_estado($documento_id);
 
-    gc_redirect_with_notice('Pago/cobro registrado y movimiento generado.', 'success');
+    $notice_message = ($documento['tipo'] === 'factura_compra')
+        ? 'Pago registrado y factura de compra actualizada.'
+        : 'Cobro registrado y factura de venta actualizada.';
+
+    gc_redirect_with_notice($notice_message, 'success');
 }
 
 function gc_insert_movimiento_from_documento_pago(array $documento, float $monto, string $fecha, string $metodo): int {

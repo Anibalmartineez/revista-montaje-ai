@@ -72,7 +72,7 @@ function gc_render_movimientos_shortcode(): string {
         }
     }
 
-    $form = '<form class="gc-form" method="post" action="' . esc_url(admin_url('admin-post.php')) . '">';
+    $form = '<form class="gc-form gc-form-movimientos" method="post" action="' . esc_url(admin_url('admin-post.php')) . '">';
     $form .= wp_nonce_field('gc_save_movimiento', '_wpnonce', true, false);
     $form .= '<input type="hidden" name="action" value="gc_save_movimiento">';
     if ($edit_id) {

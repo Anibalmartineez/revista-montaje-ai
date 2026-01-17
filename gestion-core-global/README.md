@@ -53,6 +53,7 @@ gestion-core-global/
 - Los pagos de deudas generan movimientos automáticos en caja con origen `deuda_pago`.
 - El balance se calcula con base en la tabla `gc_movimientos`.
 - El export CSV aplica endurecimiento básico para prevenir inyección de fórmulas.
+- En Movimientos, al seleccionar un documento o deuda pendiente, el monto se autocompleta con el saldo actual (editable para pagos parciales).
 
 ## Pruebas manuales rápidas
 

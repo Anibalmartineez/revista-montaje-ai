@@ -54,6 +54,14 @@ function gc_core_global_enqueue_assets(): void {
     if (gc_core_global_is_frontend_panel()) {
         wp_enqueue_style('gc-core-global-style');
         wp_enqueue_script('gc-core-global-app');
+        wp_localize_script(
+            'gc-core-global-app',
+            'gcCoreGlobal',
+            array(
+                'ajaxUrl' => admin_url('admin-ajax.php'),
+                'pendingAmountNonce' => wp_create_nonce('gc_pending_amount'),
+            )
+        );
     }
 }
 

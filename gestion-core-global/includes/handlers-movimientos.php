@@ -6,6 +6,7 @@ if (!defined('ABSPATH')) {
 
 add_action('admin_post_gc_save_movimiento', 'gc_handle_save_movimiento');
 add_action('admin_post_gc_delete_movimiento', 'gc_handle_delete_movimiento');
+add_action('wp_ajax_gc_get_pending_amount', 'gc_handle_get_pending_amount');
 
 function gc_handle_save_movimiento(): void {
     gc_guard_manage_access();
@@ -65,7 +66,7 @@ function gc_handle_save_movimiento(): void {
 
             if ($critical_changed) {
                 gc_redirect_with_notice(
-                    'Este movimiento está vinculado a un pago. Para corregir, elimine el pago y regístrelo nuevamente.',
+                    'Este movimiento está vinculado a un pago. Para editarlo, elimina el pago asociado y vuelve a registrarlo.',
                     'error'
                 );
             }
@@ -145,6 +146,8 @@ function gc_handle_save_movimiento(): void {
 
     $movimiento_id = (int) $wpdb->insert_id;
 
+    $notice_message = 'Movimiento registrado.';
+
     if ($movimiento_id && $data['documento_id']) {
         $pagos_table = gc_get_table('gc_documento_pagos');
         $wpdb->insert(
@@ -161,6 +164,7 @@ function gc_handle_save_movimiento(): void {
             array('%d', '%d', '%s', '%f', '%s', '%s', '%s')
         );
         gc_recalculate_documento_estado((int) $data['documento_id']);
+        $notice_message = 'Movimiento registrado y documento actualizado.';
     }
 
     if ($movimiento_id && $deuda_id) {
@@ -179,9 +183,10 @@ function gc_handle_save_movimiento(): void {
             array('%d', '%d', '%s', '%f', '%s', '%s', '%s')
         );
         gc_recalculate_deuda_estado((int) $deuda_id);
+        $notice_message = 'Movimiento registrado y deuda actualizada.';
     }
 
-    gc_redirect_with_notice('Movimiento creado.', 'success');
+    gc_redirect_with_notice($notice_message, 'success');
 }
 
 function gc_handle_delete_movimiento(): void {
@@ -199,4 +204,80 @@ function gc_handle_delete_movimiento(): void {
     }
 
     gc_redirect_with_notice('Movimiento no encontrado.', 'error');
+}
+
+function gc_handle_get_pending_amount(): void {
+    gc_guard_manage_access();
+    check_ajax_referer('gc_pending_amount', '_ajax_nonce');
+
+    $entity_type = sanitize_text_field(wp_unslash($_POST['entity_type'] ?? ''));
+    $entity_id = absint($_POST['entity_id'] ?? 0);
+
+    if (!$entity_id || !in_array($entity_type, array('documento', 'deuda'), true)) {
+        wp_send_json(
+            array(
+                'ok' => false,
+                'message' => 'Datos inválidos.',
+            )
+        );
+    }
+
+    global $wpdb;
+
+    if ($entity_type === 'documento') {
+        $table = gc_get_table('gc_documentos');
+        $documento = $wpdb->get_row(
+            $wpdb->prepare("SELECT id, total, monto_pagado, saldo, estado FROM {$table} WHERE id = %d", $entity_id),
+            ARRAY_A
+        );
+        if (!$documento) {
+            wp_send_json(
+                array(
+                    'ok' => false,
+                    'message' => 'Documento no encontrado.',
+                )
+            );
+        }
+
+        $total = (float) $documento['total'];
+        $pagado = (float) $documento['monto_pagado'];
+        $saldo = isset($documento['saldo']) ? (float) $documento['saldo'] : max(0, $total - $pagado);
+        $estado = $documento['estado'] ?: gc_calculate_estado_documento($total, $pagado);
+
+        wp_send_json(
+            array(
+                'ok' => true,
+                'saldo' => max(0, round($saldo, 2)),
+                'estado' => $estado,
+            )
+        );
+    }
+
+    $table = gc_get_table('gc_deudas');
+    $deuda = $wpdb->get_row(
+        $wpdb->prepare("SELECT id, monto, monto_pagado, saldo, estado FROM {$table} WHERE id = %d", $entity_id),
+        ARRAY_A
+    );
+
+    if (!$deuda) {
+        wp_send_json(
+            array(
+                'ok' => false,
+                'message' => 'Deuda no encontrada.',
+            )
+        );
+    }
+
+    $total = (float) $deuda['monto'];
+    $pagado = isset($deuda['monto_pagado']) ? (float) $deuda['monto_pagado'] : 0;
+    $saldo = isset($deuda['saldo']) ? (float) $deuda['saldo'] : max(0, $total - $pagado);
+    $estado = $deuda['estado'] ?: (($pagado + 0.01 >= $total) ? 'pagada' : 'pendiente');
+
+    wp_send_json(
+        array(
+            'ok' => true,
+            'saldo' => max(0, round($saldo, 2)),
+            'estado' => $estado,
+        )
+    );
 }
