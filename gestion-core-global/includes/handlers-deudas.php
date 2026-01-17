@@ -32,11 +32,15 @@ function gc_handle_save_deuda(): void {
     $id = absint($_POST['deuda_id'] ?? 0);
     if ($id) {
         $wpdb->update($table, $data, array('id' => $id), array('%s', '%f', '%s', '%d', '%d', '%s', '%s'), array('%d'));
+        gc_recalculate_deuda_estado($id);
         gc_redirect_with_notice('Deuda actualizada.', 'success');
     }
 
+    $data['estado'] = 'pendiente';
+    $data['monto_pagado'] = 0;
+    $data['saldo'] = $data['monto'];
     $data['created_at'] = gc_now();
-    $wpdb->insert($table, $data, array('%s', '%f', '%s', '%d', '%d', '%s', '%s', '%s'));
+    $wpdb->insert($table, $data, array('%s', '%f', '%s', '%d', '%d', '%s', '%s', '%s', '%f', '%f', '%s'));
     gc_redirect_with_notice('Deuda creada.', 'success');
 }
 
@@ -78,23 +82,30 @@ function gc_handle_add_deuda_pago(): void {
         gc_redirect_with_notice('Deuda no encontrada.', 'error');
     }
 
-    $wpdb->insert(
-        $pagos_table,
-        array(
-            'deuda_id' => $deuda_id,
-            'fecha_pago' => $fecha,
-            'monto' => $monto,
-            'notas' => $notas,
-            'created_at' => gc_now(),
-        ),
-        array('%d', '%s', '%f', '%s', '%s')
-    );
+    $metodo = 'transferencia';
+    $movimiento_id = gc_insert_movimiento_from_deuda_pago($deuda, $monto, $fecha, $metodo);
 
-    gc_insert_movimiento_from_deuda_pago($deuda, $monto, $fecha);
+    if ($movimiento_id) {
+        $wpdb->insert(
+            $pagos_table,
+            array(
+                'deuda_id' => $deuda_id,
+                'movimiento_id' => $movimiento_id,
+                'fecha_pago' => $fecha,
+                'monto' => $monto,
+                'metodo' => $metodo,
+                'notas' => $notas,
+                'created_at' => gc_now(),
+            ),
+            array('%d', '%d', '%s', '%f', '%s', '%s', '%s')
+        );
+    }
+
+    gc_recalculate_deuda_estado($deuda_id);
     gc_redirect_with_notice('Pago registrado y movimiento generado.', 'success');
 }
 
-function gc_insert_movimiento_from_deuda_pago(array $deuda, float $monto, string $fecha): void {
+function gc_insert_movimiento_from_deuda_pago(array $deuda, float $monto, string $fecha, string $metodo): int {
     global $wpdb;
     $tabla = gc_get_table('gc_movimientos');
 
@@ -104,7 +115,7 @@ function gc_insert_movimiento_from_deuda_pago(array $deuda, float $monto, string
             'fecha' => $fecha,
             'tipo' => 'egreso',
             'monto' => $monto,
-            'metodo' => 'transferencia',
+            'metodo' => $metodo,
             'categoria' => 'Deudas',
             'descripcion' => 'Pago deuda: ' . $deuda['nombre'],
             'cliente_id' => null,
@@ -117,4 +128,6 @@ function gc_insert_movimiento_from_deuda_pago(array $deuda, float $monto, string
         ),
         array('%s', '%s', '%f', '%s', '%s', '%s', '%d', '%d', '%d', '%s', '%d', '%s', '%s')
     );
+
+    return (int) $wpdb->insert_id;
 }

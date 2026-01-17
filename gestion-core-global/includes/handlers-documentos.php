@@ -111,52 +111,38 @@ function gc_handle_add_documento_pago(): void {
         gc_redirect_with_notice('Documento no encontrado.', 'error');
     }
 
-    $wpdb->insert(
-        $pagos_table,
-        array(
-            'documento_id' => $documento_id,
-            'fecha_pago' => $fecha,
-            'monto' => $monto,
-            'metodo' => $metodo,
-            'notas' => $notas,
-            'created_at' => gc_now(),
-        ),
-        array('%d', '%s', '%f', '%s', '%s', '%s')
-    );
+    $movimiento_id = gc_insert_movimiento_from_documento_pago($documento, $monto, $fecha, $metodo);
+    if ($movimiento_id) {
+        $exists = $wpdb->get_var(
+            $wpdb->prepare(
+                "SELECT id FROM {$pagos_table} WHERE documento_id = %d AND movimiento_id = %d",
+                $documento_id,
+                $movimiento_id
+            )
+        );
+        if (!$exists) {
+            $wpdb->insert(
+                $pagos_table,
+                array(
+                    'documento_id' => $documento_id,
+                    'movimiento_id' => $movimiento_id,
+                    'fecha_pago' => $fecha,
+                    'monto' => $monto,
+                    'metodo' => $metodo,
+                    'notas' => $notas,
+                    'created_at' => gc_now(),
+                ),
+                array('%d', '%d', '%s', '%f', '%s', '%s', '%s')
+            );
+        }
+    }
 
-    $nuevo_pagado = (float) $documento['monto_pagado'] + $monto;
-    $saldo = max(0, (float) $documento['total'] - $nuevo_pagado);
-    $estado = gc_calculate_estado_documento((float) $documento['total'], $nuevo_pagado);
-
-    $wpdb->update(
-        $documentos_table,
-        array(
-            'monto_pagado' => $nuevo_pagado,
-            'saldo' => $saldo,
-            'estado' => $estado,
-            'updated_at' => gc_now(),
-        ),
-        array('id' => $documento_id),
-        array('%f', '%f', '%s', '%s'),
-        array('%d')
-    );
-
-    gc_insert_movimiento_from_documento_pago($documento, $monto, $fecha, $metodo);
+    gc_recalculate_documento_estado($documento_id);
 
     gc_redirect_with_notice('Pago/cobro registrado y movimiento generado.', 'success');
 }
 
-function gc_calculate_estado_documento(float $total, float $pagado): string {
-    if ($pagado <= 0) {
-        return 'pendiente';
-    }
-    if ($pagado + 0.01 >= $total) {
-        return 'pagado';
-    }
-    return 'parcial';
-}
-
-function gc_insert_movimiento_from_documento_pago(array $documento, float $monto, string $fecha, string $metodo): void {
+function gc_insert_movimiento_from_documento_pago(array $documento, float $monto, string $fecha, string $metodo): int {
     global $wpdb;
     $tabla = gc_get_table('gc_movimientos');
     $tipo = ($documento['tipo'] === 'factura_compra') ? 'egreso' : 'ingreso';
@@ -180,4 +166,6 @@ function gc_insert_movimiento_from_documento_pago(array $documento, float $monto
         ),
         array('%s', '%s', '%f', '%s', '%s', '%s', '%d', '%d', '%d', '%s', '%d', '%s', '%s')
     );
+
+    return (int) $wpdb->insert_id;
 }

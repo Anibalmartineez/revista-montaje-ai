@@ -53,3 +53,15 @@ gestion-core-global/
 - Los pagos de deudas generan movimientos automáticos en caja con origen `deuda_pago`.
 - El balance se calcula con base en la tabla `gc_movimientos`.
 - El export CSV aplica endurecimiento básico para prevenir inyección de fórmulas.
+
+## Pruebas manuales rápidas
+
+1. Crear una factura de venta desde **Facturas de venta**.
+2. Registrar un cobro desde la factura y validar que:
+   - Se crea un movimiento en **Movimientos** con el mismo monto.
+   - El documento recalcula su estado/saldo.
+3. Crear un movimiento desde **Movimientos** vinculando el documento y confirmar que:
+   - Se registra un pago en el documento sin duplicar movimientos.
+   - El estado del documento se recalcula con el nuevo pago.
+4. Crear una deuda y registrar un egreso desde **Movimientos** usando "Vincular a deuda".
+5. Confirmar que el pago queda en `gc_deuda_pagos` y que el saldo/estado de la deuda se actualiza.

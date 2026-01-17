@@ -81,19 +81,24 @@ function gc_core_global_install(): void {
     $tables[] = "CREATE TABLE {$wpdb->prefix}gc_documento_pagos (
         id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
         documento_id BIGINT UNSIGNED NOT NULL,
+        movimiento_id BIGINT UNSIGNED NULL,
         fecha_pago DATE NOT NULL,
         monto DECIMAL(14,2) NOT NULL DEFAULT 0,
         metodo VARCHAR(40) NULL,
         notas TEXT NULL,
         created_at DATETIME NOT NULL,
         PRIMARY KEY (id),
-        KEY documento_id (documento_id)
+        KEY documento_id (documento_id),
+        KEY movimiento_id (movimiento_id)
     ) {$charset_collate};";
 
     $tables[] = "CREATE TABLE {$wpdb->prefix}gc_deudas (
         id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
         nombre VARCHAR(190) NOT NULL,
         monto DECIMAL(14,2) NOT NULL DEFAULT 0,
+        estado VARCHAR(20) NOT NULL DEFAULT 'pendiente',
+        monto_pagado DECIMAL(14,2) NOT NULL DEFAULT 0,
+        saldo DECIMAL(14,2) NOT NULL DEFAULT 0,
         frecuencia VARCHAR(20) NOT NULL DEFAULT 'mensual',
         dia_sugerido TINYINT UNSIGNED NULL,
         activo TINYINT UNSIGNED NOT NULL DEFAULT 1,
@@ -108,12 +113,15 @@ function gc_core_global_install(): void {
     $tables[] = "CREATE TABLE {$wpdb->prefix}gc_deuda_pagos (
         id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
         deuda_id BIGINT UNSIGNED NOT NULL,
+        movimiento_id BIGINT UNSIGNED NULL,
         fecha_pago DATE NOT NULL,
         monto DECIMAL(14,2) NOT NULL DEFAULT 0,
+        metodo VARCHAR(40) NULL,
         notas TEXT NULL,
         created_at DATETIME NOT NULL,
         PRIMARY KEY (id),
-        KEY deuda_id (deuda_id)
+        KEY deuda_id (deuda_id),
+        KEY movimiento_id (movimiento_id)
     ) {$charset_collate};";
 
     $tables[] = "CREATE TABLE {$wpdb->prefix}gc_categorias (
@@ -130,4 +138,20 @@ function gc_core_global_install(): void {
     foreach ($tables as $sql) {
         dbDelta($sql);
     }
+
+    gc_core_global_maybe_add_column(gc_get_table('gc_documento_pagos'), 'movimiento_id', 'BIGINT UNSIGNED NULL');
+    gc_core_global_maybe_add_column(gc_get_table('gc_deuda_pagos'), 'movimiento_id', 'BIGINT UNSIGNED NULL');
+    gc_core_global_maybe_add_column(gc_get_table('gc_deuda_pagos'), 'metodo', 'VARCHAR(40) NULL');
+    gc_core_global_maybe_add_column(gc_get_table('gc_deudas'), 'estado', "VARCHAR(20) NOT NULL DEFAULT 'pendiente'");
+    gc_core_global_maybe_add_column(gc_get_table('gc_deudas'), 'monto_pagado', 'DECIMAL(14,2) NOT NULL DEFAULT 0');
+    gc_core_global_maybe_add_column(gc_get_table('gc_deudas'), 'saldo', 'DECIMAL(14,2) NOT NULL DEFAULT 0');
+}
+
+function gc_core_global_maybe_add_column(string $table, string $column, string $definition): void {
+    global $wpdb;
+    $exists = $wpdb->get_var($wpdb->prepare("SHOW COLUMNS FROM {$table} LIKE %s", $column));
+    if ($exists) {
+        return;
+    }
+    $wpdb->query("ALTER TABLE {$table} ADD COLUMN {$column} {$definition}");
 }
