@@ -32,7 +32,7 @@ function gc_handle_export_movimientos(): void {
     fputcsv($output, array('ID', 'Fecha', 'Tipo', 'Monto', 'Metodo', 'Categoria', 'Descripcion', 'Cliente ID', 'Proveedor ID', 'Documento ID', 'Origen'));
 
     foreach ($rows as $row) {
-        fputcsv($output, array(
+        $fields = array(
             $row['id'],
             $row['fecha'],
             $row['tipo'],
@@ -44,7 +44,9 @@ function gc_handle_export_movimientos(): void {
             $row['proveedor_id'],
             $row['documento_id'],
             $row['origen'],
-        ));
+        );
+        $safe_fields = array_map('gc_csv_safe', $fields);
+        fputcsv($output, $safe_fields);
     }
 
     fclose($output);

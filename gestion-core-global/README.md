@@ -52,3 +52,4 @@ gestion-core-global/
 - Los pagos/cobros parciales de documentos generan movimientos automáticos en caja con origen `documento_pago`.
 - Los pagos de deudas generan movimientos automáticos en caja con origen `deuda_pago`.
 - El balance se calcula con base en la tabla `gc_movimientos`.
+- El export CSV aplica endurecimiento básico para prevenir inyección de fórmulas.

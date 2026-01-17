@@ -31,13 +31,22 @@ function gc_format_currency($amount): string {
 function gc_parse_date(?string $value): string {
     $value = $value ? sanitize_text_field($value) : '';
     if (!$value) {
-        return current_time('Y-m-d');
+        return wp_date('Y-m-d', current_time('timestamp'));
     }
     $timestamp = strtotime($value);
     if (!$timestamp) {
-        return current_time('Y-m-d');
+        return wp_date('Y-m-d', current_time('timestamp'));
     }
-    return gmdate('Y-m-d', $timestamp);
+    return wp_date('Y-m-d', $timestamp);
+}
+
+function gc_csv_safe($value): string {
+    $string = (string) $value;
+    $string = str_replace(array("\r\n", "\r", "\n"), ' ', $string);
+    if ($string !== '' && in_array($string[0], array('=', '+', '-', '@'), true)) {
+        $string = "'" . $string;
+    }
+    return $string;
 }
 
 function gc_get_notice(): array {
