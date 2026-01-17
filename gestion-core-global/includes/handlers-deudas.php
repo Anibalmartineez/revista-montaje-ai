@@ -40,7 +40,7 @@ function gc_handle_save_deuda(): void {
     $data['monto_pagado'] = 0;
     $data['saldo'] = $data['monto'];
     $data['created_at'] = gc_now();
-    $wpdb->insert($table, $data, array('%s', '%f', '%s', '%d', '%d', '%s', '%s', '%s', '%s', '%f', '%f'));
+    $wpdb->insert($table, $data, array('%s', '%f', '%s', '%d', '%d', '%s', '%s', '%s', '%f', '%f', '%s'));
     gc_redirect_with_notice('Deuda creada.', 'success');
 }
 
