@@ -51,6 +51,7 @@ gestion-core-global/
 - Todos los vínculos a clientes/proveedores/documentos son opcionales.
 - Los pagos/cobros parciales de documentos generan movimientos automáticos en caja con origen `documento_pago`.
 - Los pagos de deudas generan movimientos automáticos en caja con origen `deuda_pago`.
+- Pagos de deudas recurrentes y préstamos se aplican al período de la fecha de pago.
 - El balance se calcula con base en la tabla `gc_movimientos`.
 - El export CSV aplica endurecimiento básico para prevenir inyección de fórmulas.
 - En Movimientos, al seleccionar un documento o deuda pendiente, el monto se autocompleta con el saldo actual (editable para pagos parciales).

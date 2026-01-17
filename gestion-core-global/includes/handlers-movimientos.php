@@ -127,13 +127,11 @@ function gc_handle_save_movimiento(): void {
         }
         $tipo_deuda = gc_get_deuda_tipo($deuda);
         $data['tipo'] = 'egreso';
-        if ($tipo_deuda === 'recurrente') {
-            $instancia = gc_ensure_recurrente_instancia($deuda);
-        } elseif ($tipo_deuda === 'prestamo') {
-            gc_generate_prestamo_instancias($deuda);
-            $instancia = gc_get_prestamo_instancia_actual($deuda);
+        if ($tipo_deuda === 'recurrente' || $tipo_deuda === 'prestamo') {
+            $periodo = $data['fecha'] ? wp_date('Y-m', strtotime($data['fecha'])) : gc_get_periodo_actual();
+            $instancia = gc_get_or_create_instancia_para_periodo($deuda, $periodo, $data['fecha']);
             if (!$instancia) {
-                gc_redirect_with_notice('No se encontró una cuota pendiente para el préstamo.', 'error');
+                gc_redirect_with_notice('No se encontró una cuota pendiente para la deuda.', 'error');
             }
         }
         $data['origen'] = 'deuda_pago';

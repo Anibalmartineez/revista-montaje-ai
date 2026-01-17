@@ -52,7 +52,7 @@ function gc_handle_save_deuda(): void {
     if ($tipo_deuda === 'unica') {
         $vencimiento_input = sanitize_text_field(wp_unslash($_POST['vencimiento'] ?? ''));
         $data['vencimiento'] = $vencimiento_input ? gc_parse_date($vencimiento_input) : null;
-        $data['frecuencia'] = 'unico';
+        $data['frecuencia'] = null;
         $data['dia_sugerido'] = null;
         $data['dia_vencimiento'] = null;
         $data['dia_semana'] = null;
@@ -172,13 +172,11 @@ function gc_handle_add_deuda_pago(): void {
     $metodo = 'transferencia';
     $instancia = null;
 
-    if ($tipo_deuda === 'recurrente') {
-        $instancia = gc_ensure_recurrente_instancia($deuda);
-    } elseif ($tipo_deuda === 'prestamo') {
-        gc_generate_prestamo_instancias($deuda);
-        $instancia = gc_get_prestamo_instancia_actual($deuda);
+    if ($tipo_deuda === 'recurrente' || $tipo_deuda === 'prestamo') {
+        $periodo = $fecha ? wp_date('Y-m', strtotime($fecha)) : gc_get_periodo_actual();
+        $instancia = gc_get_or_create_instancia_para_periodo($deuda, $periodo, $fecha);
         if (!$instancia) {
-            gc_redirect_with_notice('No se encontró una cuota pendiente para el préstamo.', 'error');
+            gc_redirect_with_notice('No se encontró una cuota pendiente para la deuda.', 'error');
         }
     }
 

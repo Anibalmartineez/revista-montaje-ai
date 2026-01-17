@@ -318,6 +318,52 @@ function gc_ensure_recurrente_instancia(array $deuda, ?string $periodo = null): 
     return gc_get_deuda_instancia((int) $deuda['id'], $periodo) ?: array();
 }
 
+function gc_get_or_create_instancia_para_periodo(array $deuda, string $periodo, string $fecha_pago): ?array {
+    global $wpdb;
+    $tipo_deuda = gc_get_deuda_tipo($deuda);
+    if (!$periodo && $fecha_pago) {
+        $periodo = wp_date('Y-m', strtotime($fecha_pago));
+    }
+
+    if ($tipo_deuda === 'recurrente') {
+        return gc_ensure_recurrente_instancia($deuda, $periodo);
+    }
+
+    if ($tipo_deuda !== 'prestamo') {
+        return null;
+    }
+
+    gc_generate_prestamo_instancias($deuda);
+    $instancia = gc_get_deuda_instancia((int) $deuda['id'], $periodo);
+    if ($instancia && $instancia['estado'] !== 'pagada') {
+        return $instancia;
+    }
+
+    $instancias_table = gc_get_table('gc_deuda_instancias');
+    $instancia = $wpdb->get_row(
+        $wpdb->prepare(
+            "SELECT * FROM {$instancias_table} WHERE deuda_id = %d AND estado != 'pagada' AND periodo >= %s ORDER BY periodo ASC LIMIT 1",
+            (int) $deuda['id'],
+            $periodo
+        ),
+        ARRAY_A
+    );
+
+    if ($instancia) {
+        return $instancia;
+    }
+
+    $instancia = $wpdb->get_row(
+        $wpdb->prepare(
+            "SELECT * FROM {$instancias_table} WHERE deuda_id = %d AND estado != 'pagada' ORDER BY periodo ASC LIMIT 1",
+            (int) $deuda['id']
+        ),
+        ARRAY_A
+    );
+
+    return $instancia ?: null;
+}
+
 function gc_generate_prestamo_instancias(array $deuda): void {
     global $wpdb;
     $instancias_table = gc_get_table('gc_deuda_instancias');
