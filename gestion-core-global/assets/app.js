@@ -22,8 +22,30 @@
         setActiveNav(target);
     }
 
+    function toggleConditionalFields(scope) {
+        var selects = (scope || document).querySelectorAll('select[name="tipo"]');
+        selects.forEach(function (select) {
+            var form = select.closest('form');
+            if (!form) {
+                return;
+            }
+            var update = function () {
+                var value = select.value;
+                var fields = form.querySelectorAll('[data-gc-show]');
+                fields.forEach(function (field) {
+                    var expected = field.getAttribute('data-gc-show');
+                    var shouldShow = expected === value;
+                    field.style.display = shouldShow ? '' : 'none';
+                });
+            };
+            select.addEventListener('change', update);
+            update();
+        });
+    }
+
     function init() {
         document.addEventListener('click', handleNavClick);
+        toggleConditionalFields(document);
         if (window.location.hash) {
             var initial = document.querySelector('.gc-dashboard-button[href="' + window.location.hash + '"]');
             if (initial) {

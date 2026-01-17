@@ -151,6 +151,72 @@ function gc_get_movimientos_totals(string $start, string $end): array {
     );
 }
 
+function gc_calculate_estado_documento(float $total, float $pagado): string {
+    if ($pagado <= 0) {
+        return 'pendiente';
+    }
+    if ($pagado + 0.01 >= $total) {
+        return 'pagado';
+    }
+    return 'parcial';
+}
+
+function gc_recalculate_documento_estado(int $documento_id): void {
+    global $wpdb;
+    $documentos_table = gc_get_table('gc_documentos');
+    $pagos_table = gc_get_table('gc_documento_pagos');
+
+    $documento = $wpdb->get_row($wpdb->prepare("SELECT id, total FROM {$documentos_table} WHERE id = %d", $documento_id), ARRAY_A);
+    if (!$documento) {
+        return;
+    }
+
+    $pagado = (float) $wpdb->get_var($wpdb->prepare("SELECT COALESCE(SUM(monto), 0) FROM {$pagos_table} WHERE documento_id = %d", $documento_id));
+    $saldo = max(0, (float) $documento['total'] - $pagado);
+    $estado = gc_calculate_estado_documento((float) $documento['total'], $pagado);
+
+    $wpdb->update(
+        $documentos_table,
+        array(
+            'monto_pagado' => $pagado,
+            'saldo' => $saldo,
+            'estado' => $estado,
+            'updated_at' => gc_now(),
+        ),
+        array('id' => $documento_id),
+        array('%f', '%f', '%s', '%s'),
+        array('%d')
+    );
+}
+
+function gc_recalculate_deuda_estado(int $deuda_id): void {
+    global $wpdb;
+    $deudas_table = gc_get_table('gc_deudas');
+    $pagos_table = gc_get_table('gc_deuda_pagos');
+
+    $deuda = $wpdb->get_row($wpdb->prepare("SELECT id, monto FROM {$deudas_table} WHERE id = %d", $deuda_id), ARRAY_A);
+    if (!$deuda) {
+        return;
+    }
+
+    $pagado = (float) $wpdb->get_var($wpdb->prepare("SELECT COALESCE(SUM(monto), 0) FROM {$pagos_table} WHERE deuda_id = %d", $deuda_id));
+    $saldo = max(0, (float) $deuda['monto'] - $pagado);
+    $estado = ($pagado + 0.01 >= (float) $deuda['monto']) ? 'pagada' : 'pendiente';
+
+    $wpdb->update(
+        $deudas_table,
+        array(
+            'monto_pagado' => $pagado,
+            'saldo' => $saldo,
+            'estado' => $estado,
+            'updated_at' => gc_now(),
+        ),
+        array('id' => $deuda_id),
+        array('%f', '%f', '%s', '%s'),
+        array('%d')
+    );
+}
+
 function gc_get_clientes_options(): array {
     global $wpdb;
     $table = gc_get_table('gc_clientes');
@@ -184,6 +250,21 @@ function gc_get_documentos_options(string $tipo = ''): array {
     $options = array('' => 'Sin documento');
     foreach ($rows as $row) {
         $options[$row['id']] = $row['numero'];
+    }
+    return $options;
+}
+
+function gc_get_deudas_options(bool $solo_activas = false): array {
+    global $wpdb;
+    $table = gc_get_table('gc_deudas');
+    if ($solo_activas) {
+        $rows = $wpdb->get_results("SELECT id, nombre FROM {$table} WHERE activo = 1 ORDER BY nombre ASC", ARRAY_A);
+    } else {
+        $rows = $wpdb->get_results("SELECT id, nombre FROM {$table} ORDER BY activo DESC, nombre ASC", ARRAY_A);
+    }
+    $options = array('' => 'Sin deuda');
+    foreach ($rows as $row) {
+        $options[$row['id']] = $row['nombre'];
     }
     return $options;
 }
