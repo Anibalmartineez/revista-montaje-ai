@@ -5,10 +5,6 @@ if (!defined('ABSPATH')) {
 }
 
 function ctp_modulo_install(): void {
-    if (!function_exists('gc_get_table')) {
-        return;
-    }
-
     global $wpdb;
     $charset_collate = $wpdb->get_charset_collate();
 
@@ -51,6 +47,17 @@ function ctp_modulo_install(): void {
 
     ctp_modulo_maybe_add_column($ordenes_table, 'documento_id', 'BIGINT UNSIGNED NULL');
     ctp_modulo_maybe_add_column($ordenes_table, 'estado', "ENUM('pendiente','liquidada','anulada') NOT NULL DEFAULT 'pendiente'");
+}
+
+function ctp_modulo_tables_exist(): bool {
+    global $wpdb;
+    $ordenes_table = $wpdb->prefix . 'ctp_ordenes';
+    $items_table = $wpdb->prefix . 'ctp_orden_items';
+
+    $ordenes_exists = $wpdb->get_var($wpdb->prepare('SHOW TABLES LIKE %s', $ordenes_table));
+    $items_exists = $wpdb->get_var($wpdb->prepare('SHOW TABLES LIKE %s', $items_table));
+
+    return !empty($ordenes_exists) && !empty($items_exists);
 }
 
 function ctp_modulo_maybe_add_column(string $table, string $column, string $definition): void {
