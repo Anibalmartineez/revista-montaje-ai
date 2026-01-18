@@ -20,7 +20,7 @@ require_once CTP_MODULO_PATH . 'includes/db.php';
 register_activation_hook(__FILE__, 'ctp_modulo_install');
 
 function ctp_modulo_is_core_active(): bool {
-    return function_exists('gc_get_table') && function_exists('gc_user_can_manage');
+    return function_exists('gc_get_table') && function_exists('gc_now');
 }
 
 function ctp_modulo_admin_notice_missing_core(): void {
