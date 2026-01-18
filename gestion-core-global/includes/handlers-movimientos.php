@@ -34,6 +34,8 @@ function gc_handle_save_movimiento(): void {
     $id = absint($_POST['movimiento_id'] ?? 0);
     $deuda_id = absint($_POST['deuda_id'] ?? 0) ?: null;
     $documento = null;
+    $deuda = null;
+    $instancia = null;
 
     if ($id) {
         $existing_movimiento = $wpdb->get_row($wpdb->prepare("SELECT * FROM {$table} WHERE id = %d", $id), ARRAY_A);
@@ -85,6 +87,10 @@ function gc_handle_save_movimiento(): void {
         }
     }
 
+    if ($deuda_id) {
+        $data['tipo'] = 'egreso';
+    }
+
     if (!$data['tipo'] || !in_array($data['tipo'], array('ingreso', 'egreso'), true)) {
         gc_redirect_with_notice('Selecciona un tipo válido para el movimiento.', 'error');
     }
@@ -114,13 +120,19 @@ function gc_handle_save_movimiento(): void {
     }
 
     if ($deuda_id) {
-        if ($data['tipo'] !== 'egreso') {
-            gc_redirect_with_notice('Las deudas solo se pueden vincular a egresos.', 'error');
-        }
         $deudas_table = gc_get_table('gc_deudas');
         $deuda = $wpdb->get_row($wpdb->prepare("SELECT * FROM {$deudas_table} WHERE id = %d", $deuda_id), ARRAY_A);
         if (!$deuda) {
             gc_redirect_with_notice('Deuda no encontrada.', 'error');
+        }
+        $tipo_deuda = gc_get_deuda_tipo($deuda);
+        $data['tipo'] = 'egreso';
+        if ($tipo_deuda === 'recurrente' || $tipo_deuda === 'prestamo') {
+            $periodo = $data['fecha'] ? wp_date('Y-m', strtotime($data['fecha'])) : gc_get_periodo_actual();
+            $instancia = gc_get_or_create_instancia_para_periodo($deuda, $periodo, $data['fecha']);
+            if (!$instancia) {
+                gc_redirect_with_notice('No se encontró una cuota pendiente para la deuda.', 'error');
+            }
         }
         $data['origen'] = 'deuda_pago';
         $data['ref_id'] = (int) $deuda['id'];
@@ -173,6 +185,7 @@ function gc_handle_save_movimiento(): void {
             $pagos_table,
             array(
                 'deuda_id' => (int) $deuda_id,
+                'instancia_id' => $instancia['id'] ?? null,
                 'movimiento_id' => $movimiento_id,
                 'fecha_pago' => $data['fecha'],
                 'monto' => $data['monto'],
@@ -180,9 +193,24 @@ function gc_handle_save_movimiento(): void {
                 'notas' => $data['descripcion'],
                 'created_at' => gc_now(),
             ),
-            array('%d', '%d', '%s', '%f', '%s', '%s', '%s')
+            array('%d', '%d', '%d', '%s', '%f', '%s', '%s', '%s')
         );
-        gc_recalculate_deuda_estado((int) $deuda_id);
+        if ($instancia) {
+            gc_apply_pago_a_instancia($instancia, (float) $data['monto']);
+        }
+        $tipo_deuda = $deuda ? gc_get_deuda_tipo($deuda) : 'unica';
+        if ($tipo_deuda === 'prestamo') {
+            gc_recalculate_prestamo_estado((int) $deuda_id);
+        } else {
+            gc_recalculate_deuda_estado((int) $deuda_id);
+        }
+        if ($tipo_deuda === 'unica') {
+            $deudas_table = gc_get_table('gc_deudas');
+            $updated = $wpdb->get_row($wpdb->prepare("SELECT saldo FROM {$deudas_table} WHERE id = %d", (int) $deuda_id), ARRAY_A);
+            if ($updated && isset($updated['saldo']) && (float) $updated['saldo'] <= 0) {
+                $wpdb->update($deudas_table, array('activo' => 0), array('id' => (int) $deuda_id), array('%d'), array('%d'));
+            }
+        }
         $notice_message = 'Movimiento registrado y deuda actualizada.';
     }
 
@@ -255,7 +283,7 @@ function gc_handle_get_pending_amount(): void {
 
     $table = gc_get_table('gc_deudas');
     $deuda = $wpdb->get_row(
-        $wpdb->prepare("SELECT id, monto, monto_pagado, saldo, estado FROM {$table} WHERE id = %d", $entity_id),
+        $wpdb->prepare("SELECT * FROM {$table} WHERE id = %d", $entity_id),
         ARRAY_A
     );
 
@@ -268,10 +296,26 @@ function gc_handle_get_pending_amount(): void {
         );
     }
 
-    $total = (float) $deuda['monto'];
-    $pagado = isset($deuda['monto_pagado']) ? (float) $deuda['monto_pagado'] : 0;
-    $saldo = isset($deuda['saldo']) ? (float) $deuda['saldo'] : max(0, $total - $pagado);
-    $estado = $deuda['estado'] ?: (($pagado + 0.01 >= $total) ? 'pagada' : 'pendiente');
+    $tipo_deuda = gc_get_deuda_tipo($deuda);
+    $saldo = 0;
+    $estado = 'pendiente';
+    if ($tipo_deuda === 'recurrente') {
+        $instancia = gc_ensure_recurrente_instancia($deuda);
+        $saldo = isset($instancia['saldo']) ? (float) $instancia['saldo'] : 0;
+        $estado = $instancia['estado'] ?? 'pendiente';
+    } elseif ($tipo_deuda === 'prestamo') {
+        gc_generate_prestamo_instancias($deuda);
+        $instancia = gc_get_prestamo_instancia_actual($deuda);
+        if ($instancia) {
+            $saldo = isset($instancia['saldo']) ? (float) $instancia['saldo'] : 0;
+            $estado = $instancia['estado'] ?? 'pendiente';
+        }
+    } else {
+        $total = (float) $deuda['monto'];
+        $pagado = isset($deuda['monto_pagado']) ? (float) $deuda['monto_pagado'] : 0;
+        $saldo = isset($deuda['saldo']) ? (float) $deuda['saldo'] : max(0, $total - $pagado);
+        $estado = $deuda['estado'] ?: (($pagado + 0.01 >= $total) ? 'pagada' : 'pendiente');
+    }
 
     wp_send_json(
         array(

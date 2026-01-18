@@ -43,6 +43,54 @@
         });
     }
 
+    function toggleDeudaFields(scope) {
+        var selects = (scope || document).querySelectorAll('select[name="tipo_deuda"]');
+        selects.forEach(function (select) {
+            var form = select.closest('form');
+            if (!form) {
+                return;
+            }
+            var update = function () {
+                var value = select.value;
+                var fields = form.querySelectorAll('[data-gc-show-deuda]');
+                fields.forEach(function (field) {
+                    var expected = field.getAttribute('data-gc-show-deuda') || '';
+                    var allowed = expected.split(',').map(function (item) {
+                        return item.trim();
+                    }).filter(Boolean);
+                    var shouldShow = allowed.indexOf(value) !== -1;
+                    field.style.display = shouldShow ? '' : 'none';
+                });
+            };
+            select.addEventListener('change', update);
+            update();
+        });
+    }
+
+    function toggleFrecuenciaFields(scope) {
+        var selects = (scope || document).querySelectorAll('select[name="frecuencia"]');
+        selects.forEach(function (select) {
+            var form = select.closest('form');
+            if (!form) {
+                return;
+            }
+            var update = function () {
+                var value = select.value;
+                var fields = form.querySelectorAll('[data-gc-show-frecuencia]');
+                fields.forEach(function (field) {
+                    var expected = field.getAttribute('data-gc-show-frecuencia') || '';
+                    var allowed = expected.split(',').map(function (item) {
+                        return item.trim();
+                    }).filter(Boolean);
+                    var shouldShow = allowed.indexOf(value) !== -1;
+                    field.style.display = shouldShow ? '' : 'none';
+                });
+            };
+            select.addEventListener('change', update);
+            update();
+        });
+    }
+
     function initPendingAmountAutofill() {
         if (!window.gcCoreGlobal || !window.gcCoreGlobal.ajaxUrl) {
             return;
@@ -132,6 +180,8 @@
     function init() {
         document.addEventListener('click', handleNavClick);
         toggleConditionalFields(document);
+        toggleDeudaFields(document);
+        toggleFrecuenciaFields(document);
         initPendingAmountAutofill();
         if (window.location.hash) {
             var initial = document.querySelector('.gc-dashboard-button[href="' + window.location.hash + '"]');
