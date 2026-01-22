@@ -1,0 +1,47 @@
+.ctp-form .ctp-items {
+    display: grid;
+    gap: 1rem;
+    margin: 1rem 0;
+}
+
+.ctp-form .ctp-item-row {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+    gap: 1rem;
+    align-items: end;
+}
+
+.ctp-form .ctp-item-row label {
+    display: flex;
+    flex-direction: column;
+    gap: 0.35rem;
+}
+
+.ctp-add-item {
+    margin-bottom: 1rem;
+}
+
+.ctp-total-general {
+    margin: 0.5rem 0 1rem;
+    font-weight: 600;
+}
+
+.ctp-items-list {
+    margin: 0.5rem 0 0;
+    padding-left: 1.25rem;
+}
+
+.ctp-divider {
+    margin: 2rem 0;
+    border: 0;
+    border-top: 1px solid #e2e2e2;
+}
+
+.ctp-filters {
+    margin-bottom: 1rem;
+    flex-wrap: wrap;
+}
+
+.ctp-filters label {
+    min-width: 180px;
+}
