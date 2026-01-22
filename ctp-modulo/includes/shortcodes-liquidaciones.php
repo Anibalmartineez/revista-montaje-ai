@@ -9,9 +9,10 @@ function ctp_render_liquidaciones_shortcode(): string {
         return '';
     }
 
+    ctp_modulo_enqueue_assets();
+
     global $wpdb;
     $ordenes_table = ctp_get_table('ctp_ordenes');
-    $clientes_table = gc_get_table('gc_clientes');
 
     $cliente_id = absint($_GET['ctp_liq_cliente'] ?? 0);
     list($start_date, $end_date) = ctp_get_date_range_from_request('ctp_liq_start', 'ctp_liq_end');
@@ -69,10 +70,15 @@ function ctp_render_liquidaciones_shortcode(): string {
         . '<thead><tr><th></th><th>Fecha</th><th>N° Orden</th><th>Trabajo</th><th>Total</th></tr></thead>'
         . '<tbody>' . $rows_html . '</tbody></table></div>';
     $table_html .= '<div class="ctp-total-general">Total general: <strong data-ctp-total-liquidacion>' . esc_html(ctp_format_currency($total_general)) . '</strong></div>';
-    $table_html .= '<button class="gc-button" type="submit">Generar liquidación (Factura Venta)</button>';
+    if (ctp_core_api_ready()) {
+        $table_html .= '<button class="gc-button" type="submit">Generar liquidación (Factura Venta)</button>';
+    } else {
+        $table_html .= '<button class="gc-button" type="button" disabled>API del core no disponible</button>';
+    }
     $table_html .= '</form>';
 
     $panel_content = gc_render_notice();
+    $panel_content .= ctp_render_core_api_notice();
     $panel_content .= $filter_form;
     $panel_content .= $table_html;
 

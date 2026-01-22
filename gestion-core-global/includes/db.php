@@ -71,11 +71,15 @@ function gc_core_global_install(): void {
         monto_pagado DECIMAL(14,2) NOT NULL DEFAULT 0,
         saldo DECIMAL(14,2) NOT NULL DEFAULT 0,
         notas TEXT NULL,
+        origen VARCHAR(40) NULL,
+        ref_id BIGINT UNSIGNED NULL,
         created_at DATETIME NOT NULL,
         updated_at DATETIME NOT NULL,
         PRIMARY KEY (id),
         KEY tipo (tipo),
-        KEY estado (estado)
+        KEY estado (estado),
+        KEY origen (origen),
+        KEY ref_id (ref_id)
     ) {$charset_collate};";
 
     $tables[] = "CREATE TABLE {$wpdb->prefix}gc_documento_pagos (
@@ -180,6 +184,8 @@ function gc_core_global_install(): void {
     gc_core_global_maybe_add_column(gc_get_table('gc_deudas'), 'cuota_monto', 'DECIMAL(14,2) NULL');
     gc_core_global_maybe_add_column(gc_get_table('gc_deudas'), 'fecha_inicio', 'DATE NULL');
     gc_core_global_maybe_add_column(gc_get_table('gc_deudas'), 'total_calculado', 'DECIMAL(14,2) NULL');
+    gc_core_global_maybe_add_column(gc_get_table('gc_documentos'), 'origen', 'VARCHAR(40) NULL');
+    gc_core_global_maybe_add_column(gc_get_table('gc_documentos'), 'ref_id', 'BIGINT UNSIGNED NULL');
 
     gc_core_global_migrate_deudas();
 }

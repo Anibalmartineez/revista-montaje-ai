@@ -10,6 +10,13 @@ function ctp_get_table(string $name): string {
 }
 
 function ctp_get_clientes_options(): array {
+    if (function_exists('gc_api_get_client_options')) {
+        $options = gc_api_get_client_options();
+        if ($options) {
+            return array('' => 'Seleccionar...') + $options;
+        }
+    }
+
     if (!function_exists('gc_get_table')) {
         return array();
     }
@@ -24,6 +31,21 @@ function ctp_get_clientes_options(): array {
     }
 
     return $options;
+}
+
+function ctp_core_api_ready(): bool {
+    return defined('GC_CORE_GLOBAL_API_VERSION')
+        && function_exists('gc_api_is_ready')
+        && gc_api_is_ready()
+        && version_compare(GC_CORE_GLOBAL_API_VERSION, '1.0.0', '>=');
+}
+
+function ctp_render_core_api_notice(): string {
+    if (ctp_core_api_ready()) {
+        return '';
+    }
+
+    return '<div class="ctp-alert is-warning">Core Global activo pero la API mínima no está disponible. Actualiza el core.</div>';
 }
 
 function ctp_get_order_items(int $orden_id): array {

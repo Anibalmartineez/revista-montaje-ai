@@ -10,14 +10,20 @@ Módulo para gestionar el copiado de chapas CTP integrado con el core **Gestión
    - `[ctp_ordenes]`
    - `[ctp_liquidaciones]`
 
+## Requisitos
+
+- **Gestión Core Global** activo y actualizado (API mínima disponible).
+- PHP 8.0 o superior.
+
 ## Flujo recomendado
 
 1. Cargar órdenes desde **[ctp_ordenes]**.
-2. Seleccionar órdenes pendientes desde **[ctp_liquidaciones]**.
-3. Generar la liquidación (factura de venta) para el cliente.
+2. Seleccionar órdenes pendientes desde **[ctp_liquidaciones]** por cliente y rango de fechas.
+3. Generar la liquidación para crear un documento tipo **factura_venta** en el core.
 4. Registrar cobros en el core si aplica.
 
 ## Notas
 
 - Si el core no está activo, el módulo muestra un aviso en el admin y no carga sus shortcodes.
-- Las liquidaciones crean documentos en `gc_documentos` con tipo `venta`.
+- Si el core está activo pero la API no está disponible, el módulo muestra un aviso para actualizar el core.
+- Las liquidaciones crean documentos en `gc_documentos` con tipo `factura_venta`.

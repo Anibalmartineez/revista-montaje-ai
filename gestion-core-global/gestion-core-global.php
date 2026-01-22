@@ -12,6 +12,7 @@ if (!defined('ABSPATH')) {
 }
 
 define('GC_CORE_GLOBAL_VERSION', '0.1.0');
+define('GC_CORE_GLOBAL_API_VERSION', '1.0.0');
 define('GC_CORE_GLOBAL_PATH', plugin_dir_path(__FILE__));
 define('GC_CORE_GLOBAL_URL', plugin_dir_url(__FILE__));
 
@@ -23,6 +24,7 @@ require_once GC_CORE_GLOBAL_PATH . 'includes/handlers-proveedores.php';
 require_once GC_CORE_GLOBAL_PATH . 'includes/handlers-documentos.php';
 require_once GC_CORE_GLOBAL_PATH . 'includes/handlers-deudas.php';
 require_once GC_CORE_GLOBAL_PATH . 'includes/handlers-reportes.php';
+require_once GC_CORE_GLOBAL_PATH . 'includes/api.php';
 require_once GC_CORE_GLOBAL_PATH . 'includes/shortcodes-dashboard.php';
 require_once GC_CORE_GLOBAL_PATH . 'includes/shortcodes-movimientos.php';
 require_once GC_CORE_GLOBAL_PATH . 'includes/shortcodes-clientes.php';

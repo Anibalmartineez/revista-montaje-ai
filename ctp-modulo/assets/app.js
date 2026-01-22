@@ -34,22 +34,6 @@
             totalGeneralEl.textContent = total.toFixed(2);
         };
 
-        const handleMedidaToggle = (row) => {
-            const select = row.querySelector('.ctp-medida');
-            const otherInput = row.querySelector('.ctp-medida-otro');
-            if (!select || !otherInput) {
-                return;
-            }
-            if (select.value === 'otra') {
-                otherInput.style.display = 'block';
-                otherInput.required = true;
-            } else {
-                otherInput.style.display = 'none';
-                otherInput.required = false;
-                otherInput.value = '';
-            }
-        };
-
         const bindRow = (row) => {
             row.querySelectorAll('.ctp-cantidad, .ctp-precio').forEach((input) => {
                 input.addEventListener('input', () => {
@@ -57,14 +41,6 @@
                     updateGeneralTotal();
                 });
             });
-
-            const select = row.querySelector('.ctp-medida');
-            if (select) {
-                select.addEventListener('change', () => {
-                    handleMedidaToggle(row);
-                });
-                handleMedidaToggle(row);
-            }
         };
 
         container.querySelectorAll('[data-ctp-item]').forEach((row) => bindRow(row));
