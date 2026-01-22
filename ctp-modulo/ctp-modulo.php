@@ -100,6 +100,9 @@ function ctp_modulo_admin_notice_missing_api(): void {
         return;
     }
     $diagnostics = ctp_modulo_get_core_api_diagnostics();
+    if ($diagnostics['ready']) {
+        return;
+    }
     $message = esc_html__('Core Global activo pero la API mínima no está disponible. Actualiza el core para usar CTP Módulo.', 'ctp-modulo');
     $details = '';
     if (!empty($diagnostics['issues'])) {
@@ -122,12 +125,12 @@ function ctp_modulo_maybe_install_tables(): void {
 
 add_action('admin_init', 'ctp_modulo_maybe_install_tables');
 add_action('wp_enqueue_scripts', 'ctp_modulo_register_assets');
+add_action('plugins_loaded', 'ctp_modulo_bootstrap');
 
-if (!ctp_modulo_is_core_active()) {
-    add_action('admin_notices', 'ctp_modulo_admin_notice_missing_core');
-} else {
-    if (!ctp_modulo_is_core_api_ready()) {
-        add_action('admin_notices', 'ctp_modulo_admin_notice_missing_api');
+function ctp_modulo_bootstrap(): void {
+    if (!ctp_modulo_is_core_active()) {
+        add_action('admin_notices', 'ctp_modulo_admin_notice_missing_core');
+        return;
     }
 
     require_once CTP_MODULO_PATH . 'includes/helpers.php';
@@ -136,6 +139,7 @@ if (!ctp_modulo_is_core_active()) {
     require_once CTP_MODULO_PATH . 'includes/shortcodes-ordenes.php';
     require_once CTP_MODULO_PATH . 'includes/shortcodes-liquidaciones.php';
 
+    add_action('admin_notices', 'ctp_modulo_admin_notice_missing_api');
     add_action('init', 'ctp_modulo_register_shortcodes');
 }
 
