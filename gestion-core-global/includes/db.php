@@ -188,6 +188,19 @@ function gc_core_global_install(): void {
     gc_core_global_maybe_add_column(gc_get_table('gc_documentos'), 'ref_id', 'BIGINT UNSIGNED NULL');
 
     gc_core_global_migrate_deudas();
+
+    update_option('gc_core_global_db_version', GC_CORE_GLOBAL_DB_VERSION);
+}
+
+function gc_core_global_maybe_upgrade(): void {
+    $installed_version = get_option('gc_core_global_db_version', '');
+
+    if ($installed_version && version_compare($installed_version, GC_CORE_GLOBAL_DB_VERSION, '>=')) {
+        return;
+    }
+
+    gc_core_global_install();
+    update_option('gc_core_global_db_version', GC_CORE_GLOBAL_DB_VERSION);
 }
 
 function gc_core_global_maybe_add_column(string $table, string $column, string $definition): void {

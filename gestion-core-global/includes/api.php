@@ -5,7 +5,26 @@ if (!defined('ABSPATH')) {
 }
 
 function gc_api_is_ready(): bool {
-    return defined('GC_CORE_GLOBAL_VERSION') && function_exists('gc_get_table');
+    if (!defined('GC_CORE_GLOBAL_VERSION') || !function_exists('gc_get_table')) {
+        return false;
+    }
+
+    global $wpdb;
+    $table = gc_get_table('gc_documentos');
+    $table_exists = $wpdb->get_var($wpdb->prepare('SHOW TABLES LIKE %s', $table));
+    if (!$table_exists) {
+        return false;
+    }
+
+    $required_columns = array('origen', 'ref_id');
+    foreach ($required_columns as $column) {
+        $exists = $wpdb->get_var($wpdb->prepare("SHOW COLUMNS FROM {$table} LIKE %s", $column));
+        if (!$exists) {
+            return false;
+        }
+    }
+
+    return true;
 }
 
 function gc_api_get_client_options(): array {
