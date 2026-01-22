@@ -12,7 +12,13 @@ if (!defined('ABSPATH')) {
 }
 
 define('GC_CORE_GLOBAL_VERSION', '0.1.0');
-define('GC_CORE_GLOBAL_API_VERSION', '1.0.0');
+if (!defined('GC_CORE_GLOBAL_API_VERSION')) {
+    if (defined('GC_CORE_GLOBAL_API_MIN_VERSION')) {
+        define('GC_CORE_GLOBAL_API_VERSION', GC_CORE_GLOBAL_API_MIN_VERSION);
+    } else {
+        define('GC_CORE_GLOBAL_API_VERSION', '1.0.0');
+    }
+}
 define('GC_CORE_GLOBAL_DB_VERSION', '1.0.0');
 define('GC_CORE_GLOBAL_PATH', plugin_dir_path(__FILE__));
 define('GC_CORE_GLOBAL_URL', plugin_dir_url(__FILE__));
@@ -38,6 +44,7 @@ register_activation_hook(__FILE__, 'gc_core_global_install');
 
 add_action('wp_enqueue_scripts', 'gc_core_global_enqueue_assets');
 add_action('init', 'gc_core_global_maybe_upgrade');
+add_action('admin_init', 'gc_core_global_maybe_upgrade');
 add_action('init', 'gc_core_global_register_shortcodes');
 
 function gc_core_global_enqueue_assets(): void {

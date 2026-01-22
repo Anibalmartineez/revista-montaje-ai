@@ -34,15 +34,55 @@ function ctp_modulo_is_core_active(): bool {
 }
 
 function ctp_modulo_is_core_api_ready(): bool {
+    $diagnostics = ctp_modulo_get_core_api_diagnostics();
+    return $diagnostics['ready'];
+}
+
+function ctp_modulo_get_core_api_diagnostics(): array {
+    $issues = array();
+    $required_version = '1.0.0';
+    $found_version = defined('GC_CORE_GLOBAL_API_VERSION') ? GC_CORE_GLOBAL_API_VERSION : null;
+
     if (!defined('GC_CORE_GLOBAL_API_VERSION')) {
-        return false;
+        $issues[] = 'Falta la constante GC_CORE_GLOBAL_API_VERSION en el core.';
     }
 
-    if (!function_exists('gc_api_is_ready')) {
-        return false;
+    $required_functions = array(
+        'gc_api_is_ready',
+        'gc_api_get_client_options',
+        'gc_api_create_documento_venta',
+        'gc_api_add_documento_item',
+        'gc_api_link_external_ref',
+    );
+
+    $missing_functions = array();
+    foreach ($required_functions as $function_name) {
+        if (!function_exists($function_name)) {
+            $missing_functions[] = $function_name;
+        }
+    }
+    if ($missing_functions) {
+        $issues[] = 'Faltan funciones de la API del core: ' . implode(', ', $missing_functions) . '.';
     }
 
-    return gc_api_is_ready() && version_compare(GC_CORE_GLOBAL_API_VERSION, '1.0.0', '>=');
+    if (function_exists('gc_api_is_ready') && !gc_api_is_ready()) {
+        $issues[] = 'La API del core existe pero no está lista (gc_api_is_ready devolvió false).';
+    }
+
+    if ($found_version !== null && version_compare($found_version, $required_version, '<')) {
+        $issues[] = sprintf(
+            'Versión de API incompatible. Requerida %s, encontrada %s.',
+            $required_version,
+            $found_version
+        );
+    }
+
+    return array(
+        'ready' => empty($issues),
+        'issues' => $issues,
+        'required_version' => $required_version,
+        'found_version' => $found_version,
+    );
 }
 
 
@@ -59,9 +99,17 @@ function ctp_modulo_admin_notice_missing_api(): void {
     if (!current_user_can('activate_plugins')) {
         return;
     }
-    echo '<div class="notice notice-warning"><p>'
-        . esc_html__('Core Global activo pero la API mínima no está disponible. Actualiza el core para usar CTP Módulo.', 'ctp-modulo')
-        . '</p></div>';
+    $diagnostics = ctp_modulo_get_core_api_diagnostics();
+    $message = esc_html__('Core Global activo pero la API mínima no está disponible. Actualiza el core para usar CTP Módulo.', 'ctp-modulo');
+    $details = '';
+    if (!empty($diagnostics['issues'])) {
+        $items = '';
+        foreach ($diagnostics['issues'] as $issue) {
+            $items .= '<li>' . esc_html($issue) . '</li>';
+        }
+        $details = '<ul class="ctp-api-details">' . $items . '</ul>';
+    }
+    echo '<div class="notice notice-warning"><p>' . $message . '</p>' . $details . '</div>';
 }
 
 function ctp_modulo_maybe_install_tables(): void {

@@ -120,6 +120,10 @@ function gc_api_add_documento_item(int $documento_id, array $item) {
 }
 
 function gc_api_link_external_ref(int $documento_id, string $origin, $ref_id): void {
+    if (!gc_api_is_ready()) {
+        return;
+    }
+
     global $wpdb;
     $table = gc_get_table('gc_documentos');
     $origin = sanitize_text_field($origin);
