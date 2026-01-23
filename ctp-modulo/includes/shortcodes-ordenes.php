@@ -9,6 +9,8 @@ function ctp_render_ordenes_shortcode(): string {
         return '';
     }
 
+    ctp_modulo_enqueue_assets();
+
     global $wpdb;
     $ordenes_table = ctp_get_table('ctp_ordenes');
     $clientes_table = gc_get_table('gc_clientes');
@@ -65,7 +67,6 @@ function ctp_render_ordenes_shortcode(): string {
         '745x605' => '745x605',
         '1030x770' => '1030x770',
         '1030x790' => '1030x790',
-        'otra' => 'Otra…',
     );
 
     $form = '<form class="gc-form ctp-form" method="post" action="' . esc_url(admin_url('admin-post.php')) . '">';
@@ -83,7 +84,6 @@ function ctp_render_ordenes_shortcode(): string {
         <div class="ctp-item-row" data-ctp-item>
             <label>Medida
                 <select name="item_medida[]" class="ctp-medida" required>' . gc_select_options($medidas, '') . '</select>
-                <input type="text" name="item_medida_otro[]" class="ctp-medida-otro" placeholder="Medida" style="display:none;">
             </label>
             <label>Cantidad<input type="number" min="1" name="item_cantidad[]" class="ctp-cantidad" required></label>
             <label>Precio unitario<input type="number" step="0.01" min="0" name="item_precio_unit[]" class="ctp-precio" required></label>

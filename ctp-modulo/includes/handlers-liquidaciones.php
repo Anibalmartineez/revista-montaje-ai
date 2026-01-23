@@ -10,9 +10,12 @@ function ctp_handle_generar_liquidacion(): void {
     gc_guard_manage_access();
     check_admin_referer('ctp_generar_liquidacion');
 
+    if (!ctp_core_api_ready()) {
+        ctp_redirect_with_notice('Core Global activo pero la API mínima no está disponible. Actualiza el core.', 'error');
+    }
+
     global $wpdb;
     $ordenes_table = ctp_get_table('ctp_ordenes');
-    $documentos_table = gc_get_table('gc_documentos');
 
     $cliente_id = absint($_POST['cliente_id'] ?? 0);
     $ordenes_ids = isset($_POST['orden_ids']) ? array_map('absint', (array) wp_unslash($_POST['orden_ids'])) : array();
@@ -51,39 +54,30 @@ function ctp_handle_generar_liquidacion(): void {
     }
 
     $prefix = 'LIQ-CTP-' . gmdate('Ym') . '-' . $cliente_id . '-';
-    $count = (int) $wpdb->get_var(
-        $wpdb->prepare("SELECT COUNT(*) FROM {$documentos_table} WHERE numero LIKE %s", $prefix . '%')
-    );
-    $numero = $prefix . ($count + 1);
+    $numero = $prefix . wp_generate_password(6, false, false);
 
     $notas = 'Liquidación CTP. Órdenes: #' . implode(', #', $nros);
 
-    $wpdb->insert(
-        $documentos_table,
+    $documento_id = gc_api_create_documento_venta(
         array(
             'numero' => $numero,
             'fecha' => current_time('Y-m-d'),
-            'tipo' => 'venta',
             'cliente_id' => $cliente_id,
             'total' => $total,
-            'estado' => 'pendiente',
-            'monto_pagado' => 0,
-            'saldo' => $total,
             'notas' => $notas,
-            'created_at' => gc_now(),
-            'updated_at' => gc_now(),
-        ),
-        array('%s', '%s', '%s', '%d', '%f', '%s', '%f', '%f', '%s', '%s', '%s')
+        )
     );
 
-    $documento_id = (int) $wpdb->insert_id;
+    if (is_wp_error($documento_id)) {
+        ctp_redirect_with_notice($documento_id->get_error_message(), 'error');
+    }
 
     foreach ($ordenes as $orden) {
         $wpdb->update(
             $ordenes_table,
             array(
                 'estado' => 'liquidada',
-                'documento_id' => $documento_id,
+                'documento_id' => (int) $documento_id,
                 'updated_at' => gc_now(),
             ),
             array('id' => (int) $orden['id']),
@@ -91,6 +85,9 @@ function ctp_handle_generar_liquidacion(): void {
             array('%d')
         );
     }
+
+    $ref_id = isset($ordenes[0]['id']) ? (int) $ordenes[0]['id'] : 0;
+    gc_api_link_external_ref((int) $documento_id, 'ctp_liquidacion', $ref_id);
 
     ctp_redirect_with_notice('Liquidación generada correctamente.', 'success');
 }

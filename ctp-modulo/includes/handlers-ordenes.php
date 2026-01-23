@@ -33,19 +33,18 @@ function ctp_handle_save_orden(): void {
     }
 
     $medidas = isset($_POST['item_medida']) ? (array) wp_unslash($_POST['item_medida']) : array();
-    $medidas_otro = isset($_POST['item_medida_otro']) ? (array) wp_unslash($_POST['item_medida_otro']) : array();
     $cantidades = isset($_POST['item_cantidad']) ? (array) wp_unslash($_POST['item_cantidad']) : array();
     $precios = isset($_POST['item_precio_unit']) ? (array) wp_unslash($_POST['item_precio_unit']) : array();
 
+    $medidas_validas = array('510x400', '650x550', '745x605', '1030x770', '1030x790');
+
     $items = array();
     foreach ($medidas as $index => $medida_raw) {
-        $medida_raw = sanitize_text_field($medida_raw);
-        $medida_otro = isset($medidas_otro[$index]) ? sanitize_text_field($medidas_otro[$index]) : '';
-        $medida = ($medida_raw === 'otra') ? $medida_otro : $medida_raw;
+        $medida = sanitize_text_field($medida_raw);
         $cantidad = isset($cantidades[$index]) ? (int) $cantidades[$index] : 0;
         $precio = isset($precios[$index]) ? (float) str_replace(',', '.', $precios[$index]) : 0;
 
-        if (!$medida || $cantidad <= 0 || $precio <= 0) {
+        if (!$medida || !in_array($medida, $medidas_validas, true) || $cantidad <= 0 || $precio <= 0) {
             continue;
         }
 

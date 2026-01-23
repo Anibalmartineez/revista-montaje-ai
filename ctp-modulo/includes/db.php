@@ -25,7 +25,9 @@ function ctp_modulo_install(): void {
         PRIMARY KEY (id),
         UNIQUE KEY nro_orden (nro_orden),
         KEY cliente_id (cliente_id),
-        KEY fecha (fecha)
+        KEY fecha (fecha),
+        KEY estado (estado),
+        KEY documento_id (documento_id)
     ) {$charset_collate};";
 
     $sql_items = "CREATE TABLE {$items_table} (
@@ -47,6 +49,8 @@ function ctp_modulo_install(): void {
 
     ctp_modulo_maybe_add_column($ordenes_table, 'documento_id', 'BIGINT UNSIGNED NULL');
     ctp_modulo_maybe_add_column($ordenes_table, 'estado', "ENUM('pendiente','liquidada','anulada') NOT NULL DEFAULT 'pendiente'");
+    ctp_modulo_maybe_add_index($ordenes_table, 'estado');
+    ctp_modulo_maybe_add_index($ordenes_table, 'documento_id');
 }
 
 function ctp_modulo_tables_exist(): bool {
@@ -69,4 +73,15 @@ function ctp_modulo_maybe_add_column(string $table, string $column, string $defi
     }
 
     $wpdb->query("ALTER TABLE {$table} ADD COLUMN {$column} {$definition}");
+}
+
+function ctp_modulo_maybe_add_index(string $table, string $column): void {
+    global $wpdb;
+
+    $index = $wpdb->get_var($wpdb->prepare("SHOW INDEX FROM {$table} WHERE Column_name = %s", $column));
+    if ($index) {
+        return;
+    }
+
+    $wpdb->query("ALTER TABLE {$table} ADD KEY {$column} ({$column})");
 }

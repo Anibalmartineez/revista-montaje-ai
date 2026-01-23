@@ -10,6 +10,13 @@ function ctp_get_table(string $name): string {
 }
 
 function ctp_get_clientes_options(): array {
+    if (function_exists('gc_api_get_client_options')) {
+        $options = gc_api_get_client_options();
+        if ($options) {
+            return array('' => 'Seleccionar...') + $options;
+        }
+    }
+
     if (!function_exists('gc_get_table')) {
         return array();
     }
@@ -24,6 +31,36 @@ function ctp_get_clientes_options(): array {
     }
 
     return $options;
+}
+
+function ctp_core_api_ready(): bool {
+    if (!function_exists('ctp_modulo_get_core_api_diagnostics')) {
+        return false;
+    }
+    $diagnostics = ctp_modulo_get_core_api_diagnostics();
+    return $diagnostics['ready'];
+}
+
+function ctp_render_core_api_notice(): string {
+    if (ctp_core_api_ready()) {
+        return '';
+    }
+
+    $message = esc_html__('Core Global activo pero la API mínima no está disponible. Actualiza el core.', 'ctp-modulo');
+    $details = '';
+
+    if (current_user_can('activate_plugins') && function_exists('ctp_modulo_get_core_api_diagnostics')) {
+        $diagnostics = ctp_modulo_get_core_api_diagnostics();
+        if (!empty($diagnostics['issues'])) {
+            $items = '';
+            foreach ($diagnostics['issues'] as $issue) {
+                $items .= '<li>' . esc_html($issue) . '</li>';
+            }
+            $details = '<ul class="ctp-api-details">' . $items . '</ul>';
+        }
+    }
+
+    return '<div class="ctp-alert is-warning"><p>' . $message . '</p>' . $details . '</div>';
 }
 
 function ctp_get_order_items(int $orden_id): array {
