@@ -1,0 +1,20 @@
+.cpo-cards {
+    display: flex;
+    gap: 16px;
+    flex-wrap: wrap;
+}
+
+.cpo-card {
+    background: #fff;
+    border: 1px solid #ccd0d4;
+    border-radius: 4px;
+    padding: 16px;
+    min-width: 160px;
+    box-shadow: 0 1px 1px rgba(0, 0, 0, 0.04);
+}
+
+.cpo-form input[type="text"],
+.cpo-form input[type="number"],
+.cpo-form select {
+    min-width: 280px;
+}
