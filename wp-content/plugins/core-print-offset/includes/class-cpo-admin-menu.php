@@ -7,11 +7,13 @@ if ( ! defined( 'ABSPATH' ) ) {
 class CPO_Admin_Menu {
     private $core_bridge;
     private $core_active;
+    private $core_api_available;
     private $notices = array();
 
     public function __construct() {
         $this->core_bridge = new CPO_Core_Bridge();
         $this->core_active = $this->core_bridge->check_core_active();
+        $this->core_api_available = $this->core_bridge->has_core_api();
 
         add_action( 'admin_notices', array( $this, 'maybe_show_core_notice' ) );
     }
@@ -47,7 +49,12 @@ class CPO_Admin_Menu {
 
     public function maybe_show_core_notice() {
         if ( ! $this->core_active ) {
-            echo '<div class="notice notice-warning"><p>' . esc_html__( 'Core Global no está activo. Las pantallas de Offset están deshabilitadas.', 'core-print-offset' ) . '</p></div>';
+            echo '<div class="notice notice-warning"><p>' . esc_html__( 'Core Global no está activo. Activa el plugin Gestión Core Global para habilitar las pantallas de Offset.', 'core-print-offset' ) . '</p></div>';
+            return;
+        }
+
+        if ( ! $this->core_api_available ) {
+            echo '<div class="notice notice-warning"><p>' . esc_html__( 'Core Global está activo, pero no se encontró la API requerida (core_global_create_document / core_global_get_clients).', 'core-print-offset' ) . '</p></div>';
         }
     }
 

@@ -6,11 +6,29 @@ if ( ! defined( 'ABSPATH' ) ) {
 
 class CPO_Core_Bridge {
     public function check_core_active() {
-        if ( function_exists( 'core_global_init' ) || defined( 'CORE_GLOBAL_VERSION' ) ) {
+        if ( apply_filters( 'cpo_core_is_active', false ) ) {
+            return true;
+        }
+
+        if ( defined( 'CORE_GLOBAL_ACTIVE' ) || defined( 'CORE_GLOBAL_VERSION' ) ) {
+            return true;
+        }
+
+        if ( function_exists( 'core_global_init' ) ) {
             return true;
         }
 
         return false;
+    }
+
+    public function has_core_api() {
+        $create_callback  = apply_filters( 'cpo_core_create_document_callback', 'core_global_create_document' );
+        $clients_callback = apply_filters( 'cpo_core_get_clients_callback', 'core_global_get_clients' );
+
+        $create_available  = is_string( $create_callback ) && function_exists( $create_callback );
+        $clients_available = is_string( $clients_callback ) && function_exists( $clients_callback );
+
+        return $create_available && $clients_available;
     }
 
     public function create_core_document( $args ) {
