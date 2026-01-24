@@ -111,6 +111,7 @@ class CPO_Activator {
             created_at datetime NOT NULL,
             updated_at datetime NOT NULL,
             PRIMARY KEY  (id),
+            UNIQUE KEY presupuesto_id_unique (presupuesto_id),
             KEY presupuesto_id (presupuesto_id)
         ) $charset_collate;";
 

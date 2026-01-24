@@ -402,6 +402,11 @@ class CPO_Admin_Menu {
                     ARRAY_A
                 );
                 $precio_material = $precio_info ? (float) $precio_info['precio'] : 0;
+                $precio_snapshot = array(
+                    'precio'            => $precio_material,
+                    'vigente_desde'     => $precio_info['vigente_desde'] ?? null,
+                    'formas_por_pliego' => $formas_por_pliego,
+                );
                 $costo_papel = $precio_material * $pliegos_estimados;
                 $costo_total += $costo_papel;
                 $material_nombre = $wpdb->get_var( $wpdb->prepare( "SELECT nombre FROM {$wpdb->prefix}cpo_materiales WHERE id = %d", $material_id ) );
@@ -413,11 +418,7 @@ class CPO_Admin_Menu {
                     'cantidad'    => $pliegos_estimados,
                     'unitario'    => $precio_material,
                     'subtotal'    => $costo_papel,
-                    'snapshot'    => array(
-                        'precio'        => $precio_material,
-                        'vigente_desde' => $precio_info['vigente_desde'] ?? null,
-                        'formas_por_pliego' => $formas_por_pliego,
-                    ),
+                    'snapshot'    => $precio_snapshot,
                 );
             }
 
@@ -540,6 +541,24 @@ class CPO_Admin_Menu {
                 $id = intval( $_GET['presupuesto_id'] );
                 $presupuesto = $wpdb->get_row( $wpdb->prepare( "SELECT * FROM {$wpdb->prefix}cpo_presupuestos WHERE id = %d", $id ), ARRAY_A );
                 if ( $presupuesto && $presupuesto['estado'] === 'aceptado' ) {
+                    $existing_order_id = $wpdb->get_var(
+                        $wpdb->prepare(
+                            "SELECT id FROM {$wpdb->prefix}cpo_ordenes WHERE presupuesto_id = %d LIMIT 1",
+                            $id
+                        )
+                    );
+                    if ( $existing_order_id ) {
+                        $redirect_url = add_query_arg(
+                            array(
+                                'page'       => 'cpo-ordenes',
+                                'cpo_notice' => 'orden_exists',
+                                'orden_id'   => (int) $existing_order_id,
+                            ),
+                            admin_url( 'admin.php' )
+                        );
+                        wp_safe_redirect( $redirect_url );
+                        exit;
+                    }
                     $wpdb->insert(
                         $wpdb->prefix . 'cpo_ordenes',
                         array(
@@ -568,6 +587,10 @@ class CPO_Admin_Menu {
             'ordenes'     => array(),
             'core_active' => $this->core_active,
         );
+
+        if ( isset( $_GET['cpo_notice'] ) && sanitize_text_field( wp_unslash( $_GET['cpo_notice'] ) ) === 'orden_exists' ) {
+            $this->add_notice( __( 'OT ya creada para este presupuesto', 'core-print-offset' ), 'warning' );
+        }
 
         if ( $this->core_active && isset( $_GET['cpo_action'], $_GET['orden_id'], $_GET['_wpnonce'] ) && $_GET['cpo_action'] === 'update_orden_status' ) {
             if ( wp_verify_nonce( sanitize_text_field( wp_unslash( $_GET['_wpnonce'] ) ), 'cpo_update_orden' ) ) {
