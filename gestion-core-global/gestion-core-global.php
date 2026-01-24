@@ -12,6 +12,12 @@ if (!defined('ABSPATH')) {
 }
 
 define('GC_CORE_GLOBAL_VERSION', '0.1.0');
+if (!defined('CORE_GLOBAL_ACTIVE')) {
+    define('CORE_GLOBAL_ACTIVE', true);
+}
+if (!defined('CORE_GLOBAL_VERSION')) {
+    define('CORE_GLOBAL_VERSION', GC_CORE_GLOBAL_VERSION);
+}
 if (!defined('GC_CORE_GLOBAL_API_VERSION')) {
     if (defined('GC_CORE_GLOBAL_API_MIN_VERSION')) {
         define('GC_CORE_GLOBAL_API_VERSION', GC_CORE_GLOBAL_API_MIN_VERSION);

@@ -27,6 +27,10 @@ function gc_api_is_ready(): bool {
     return true;
 }
 
+function core_global_is_active(): bool {
+    return true;
+}
+
 function gc_api_get_client_options(): array {
     global $wpdb;
     $table = gc_get_table('gc_clientes');
@@ -140,4 +144,58 @@ function gc_api_link_external_ref(int $documento_id, string $origin, $ref_id): v
         array('%s', '%d', '%s'),
         array('%d')
     );
+}
+
+function gc_api_get_documento(int $documento_id) {
+    if (!gc_api_is_ready()) {
+        return new WP_Error('gc_api_not_ready', 'El core no está listo para consultar documentos.');
+    }
+
+    global $wpdb;
+    $table = gc_get_table('gc_documentos');
+    $documento = $wpdb->get_row(
+        $wpdb->prepare("SELECT * FROM {$table} WHERE id = %d", $documento_id),
+        ARRAY_A
+    );
+
+    if (!$documento) {
+        return new WP_Error('gc_api_documento_not_found', 'Documento no encontrado.');
+    }
+
+    return $documento;
+}
+
+function core_global_get_clients($args = array()) {
+    $callback = apply_filters('core_global_get_clients_callback', 'gc_api_get_client_options');
+
+    if (is_string($callback) && function_exists($callback)) {
+        if (empty($args)) {
+            return call_user_func($callback);
+        }
+        return call_user_func($callback, $args);
+    }
+
+    return new WP_Error('core_global_missing_clients', 'Core Global activo pero sin callback de clientes.');
+}
+
+function core_global_create_document($args) {
+    $callback = apply_filters('core_global_create_document_callback', 'gc_api_create_documento_venta');
+
+    if (is_string($callback) && function_exists($callback)) {
+        return call_user_func($callback, $args);
+    }
+
+    return new WP_Error('core_global_missing_create_document', 'Core Global activo pero sin callback para crear documentos.');
+}
+
+function core_global_get_document($id) {
+    if (!is_numeric($id)) {
+        return new WP_Error('core_global_invalid_document', 'ID de documento inválido.');
+    }
+
+    if (function_exists('gc_api_get_documento')) {
+        return gc_api_get_documento((int) $id);
+    }
+
+    return new WP_Error('core_global_missing_get_document', 'Core Global activo pero sin callback para obtener documentos.');
 }

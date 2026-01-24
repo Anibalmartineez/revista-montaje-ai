@@ -10,7 +10,11 @@ class CPO_Core_Bridge {
             return true;
         }
 
-        if ( defined( 'CORE_GLOBAL_ACTIVE' ) || defined( 'CORE_GLOBAL_VERSION' ) ) {
+        if ( function_exists( 'core_global_is_active' ) && core_global_is_active() ) {
+            return true;
+        }
+
+        if ( defined( 'CORE_GLOBAL_ACTIVE' ) && CORE_GLOBAL_ACTIVE ) {
             return true;
         }
 
