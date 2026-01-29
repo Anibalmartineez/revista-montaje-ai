@@ -24,6 +24,7 @@ require_once CPO_PLUGIN_DIR . 'includes/class-cpo-activator.php';
 require_once CPO_PLUGIN_DIR . 'includes/class-cpo-deactivator.php';
 require_once CPO_PLUGIN_DIR . 'includes/class-cpo-core-bridge.php';
 require_once CPO_PLUGIN_DIR . 'includes/class-cpo-admin-menu.php';
+require_once CPO_PLUGIN_DIR . 'includes/class-cpo-public.php';
 require_once CPO_PLUGIN_DIR . 'includes/class-cpo-loader.php';
 
 register_activation_hook( __FILE__, array( 'CPO_Activator', 'activate' ) );
