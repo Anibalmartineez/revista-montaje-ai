@@ -141,11 +141,29 @@ function ctp_modulo_bootstrap(): void {
 
     add_action('admin_notices', 'ctp_modulo_admin_notice_missing_api');
     add_action('init', 'ctp_modulo_register_shortcodes');
+    add_filter('gc_dashboard_sections', 'ctp_modulo_register_dashboard_sections');
 }
 
 function ctp_modulo_register_shortcodes(): void {
     add_shortcode('ctp_ordenes', 'ctp_render_ordenes_shortcode');
     add_shortcode('ctp_liquidaciones', 'ctp_render_liquidaciones_shortcode');
+}
+
+function ctp_modulo_register_dashboard_sections(array $sections): array {
+    $sections[] = array(
+        'id' => 'ctp-ordenes',
+        'label' => 'Órdenes CTP',
+        'shortcode' => '[ctp_ordenes]',
+        'order' => 80,
+    );
+    $sections[] = array(
+        'id' => 'ctp-liquidaciones',
+        'label' => 'Liquidaciones CTP',
+        'shortcode' => '[ctp_liquidaciones]',
+        'order' => 90,
+    );
+
+    return $sections;
 }
 
 function ctp_modulo_register_assets(): void {

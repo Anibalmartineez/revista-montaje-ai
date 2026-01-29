@@ -15,6 +15,21 @@ class CPO_Public {
         add_action( 'wp_ajax_cpo_offset_calculate', array( $this, 'handle_calculate' ) );
         add_action( 'wp_ajax_nopriv_cpo_offset_calculate', array( $this, 'handle_calculate' ) );
         add_action( 'wp_ajax_cpo_offset_save_presupuesto', array( $this, 'handle_save_presupuesto' ) );
+
+        if ( $this->core_bridge->check_core_active() ) {
+            add_filter( 'gc_dashboard_sections', array( $this, 'register_dashboard_sections' ) );
+        }
+    }
+
+    public function register_dashboard_sections( array $sections ): array {
+        $sections[] = array(
+            'id' => 'cpo-presupuesto',
+            'label' => __( 'Presupuesto Offset', 'core-print-offset' ),
+            'shortcode' => '[cpo_offset_presupuesto]',
+            'order' => 100,
+        );
+
+        return $sections;
     }
 
     public function render_presupuesto_shortcode() {
