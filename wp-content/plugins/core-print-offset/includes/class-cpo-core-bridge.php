@@ -6,22 +6,19 @@ if ( ! defined( 'ABSPATH' ) ) {
 
 class CPO_Core_Bridge {
     public function get_core_status() {
-        $filter_active = apply_filters( 'cpo_core_is_active', false );
-        if ( $filter_active ) {
-            return array(
-                'active' => true,
-                'filter_active' => true,
-                'source' => 'filter',
-            );
-        }
-
-        $function_exists = function_exists( 'core_global_is_active' );
-        $function_active = $function_exists ? core_global_is_active() : false;
-        if ( $function_active ) {
+        if ( defined( 'GC_CORE_GLOBAL_ACTIVE' ) && GC_CORE_GLOBAL_ACTIVE ) {
             return array(
                 'active' => true,
                 'filter_active' => false,
-                'source' => 'core_global_is_active',
+                'source' => 'GC_CORE_GLOBAL_ACTIVE',
+            );
+        }
+
+        if ( defined( 'GC_CORE_GLOBAL_VERSION' ) ) {
+            return array(
+                'active' => true,
+                'filter_active' => false,
+                'source' => 'GC_CORE_GLOBAL_VERSION',
             );
         }
 
@@ -41,19 +38,22 @@ class CPO_Core_Bridge {
             );
         }
 
-        if ( defined( 'GC_CORE_GLOBAL_VERSION' ) ) {
+        $function_exists = function_exists( 'core_global_is_active' );
+        $function_active = $function_exists ? core_global_is_active() : false;
+        if ( $function_active ) {
             return array(
                 'active' => true,
                 'filter_active' => false,
-                'source' => 'GC_CORE_GLOBAL_VERSION',
+                'source' => 'core_global_is_active',
             );
         }
 
-        if ( function_exists( 'gc_api_is_ready' ) ) {
+        $filter_active = apply_filters( 'cpo_core_is_active', false );
+        if ( $filter_active ) {
             return array(
                 'active' => true,
-                'filter_active' => false,
-                'source' => 'gc_api_is_ready',
+                'filter_active' => true,
+                'source' => 'filter',
             );
         }
 
@@ -98,6 +98,8 @@ class CPO_Core_Bridge {
             'filter_active' => $status['filter_active'],
             'function_exists' => function_exists( 'core_global_is_active' ),
             'function_active' => function_exists( 'core_global_is_active' ) ? core_global_is_active() : false,
+            'gc_core_global_active_defined' => defined( 'GC_CORE_GLOBAL_ACTIVE' ),
+            'gc_core_global_active_value' => defined( 'GC_CORE_GLOBAL_ACTIVE' ) ? GC_CORE_GLOBAL_ACTIVE : null,
             'core_global_active_defined' => defined( 'CORE_GLOBAL_ACTIVE' ),
             'core_global_active_value' => defined( 'CORE_GLOBAL_ACTIVE' ) ? CORE_GLOBAL_ACTIVE : null,
             'core_global_version_defined' => defined( 'CORE_GLOBAL_VERSION' ),

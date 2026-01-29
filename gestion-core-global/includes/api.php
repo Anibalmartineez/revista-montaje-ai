@@ -27,10 +27,6 @@ function gc_api_is_ready(): bool {
     return true;
 }
 
-function core_global_is_active(): bool {
-    return true;
-}
-
 function gc_api_get_client_options(): array {
     global $wpdb;
     $table = gc_get_table('gc_clientes');

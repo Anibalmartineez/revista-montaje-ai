@@ -85,6 +85,10 @@ class CPO_Admin_Menu {
                 $details['function_exists'] ? ( $details['function_active'] ? 'true' : 'false' ) : 'missing'
             ),
             sprintf(
+                'GC_CORE_GLOBAL_ACTIVE: %s',
+                $details['gc_core_global_active_defined'] ? ( $details['gc_core_global_active_value'] ? 'true' : 'false' ) : 'undefined'
+            ),
+            sprintf(
                 'CORE_GLOBAL_ACTIVE: %s',
                 $details['core_global_active_defined'] ? ( $details['core_global_active_value'] ? 'true' : 'false' ) : 'undefined'
             ),
