@@ -7,13 +7,21 @@ if ( ! defined( 'ABSPATH' ) ) {
 class CPO_Admin_Menu {
     private $core_bridge;
     private $core_active;
+    private $core_api_available;
     private $notices = array();
 
     public function __construct() {
         $this->core_bridge = new CPO_Core_Bridge();
-        $this->core_active = $this->core_bridge->check_core_active();
+        $this->core_active = false;
+        $this->core_api_available = false;
 
+        add_action( 'plugins_loaded', array( $this, 'refresh_core_status' ), 20 );
         add_action( 'admin_notices', array( $this, 'maybe_show_core_notice' ) );
+    }
+
+    public function refresh_core_status() {
+        $this->core_active = $this->core_bridge->check_core_active();
+        $this->core_api_available = $this->core_active && $this->core_bridge->has_core_api();
     }
 
     public function register_menu() {
@@ -46,9 +54,64 @@ class CPO_Admin_Menu {
     }
 
     public function maybe_show_core_notice() {
+        $this->refresh_core_status();
+
         if ( ! $this->core_active ) {
-            echo '<div class="notice notice-warning"><p>' . esc_html__( 'Core Global no está activo. Las pantallas de Offset están deshabilitadas.', 'core-print-offset' ) . '</p></div>';
+            echo '<div class="notice notice-warning"><p>' . esc_html__( 'Core Global no está activo. Activa el plugin Gestión Core Global para habilitar las pantallas de Offset.', 'core-print-offset' ) . '</p></div>';
+        } elseif ( ! $this->core_api_available ) {
+            echo '<div class="notice notice-warning"><p>' . esc_html__( 'Core activo, pero falta API (clientes/documentos).', 'core-print-offset' ) . '</p></div>';
         }
+
+        $this->maybe_show_core_debug();
+    }
+
+    private function maybe_show_core_debug() {
+        if ( ! defined( 'CPO_DEBUG_CORE' ) || ! CPO_DEBUG_CORE ) {
+            return;
+        }
+
+        if ( ! current_user_can( 'manage_options' ) ) {
+            return;
+        }
+
+        $details = $this->core_bridge->get_core_debug_details();
+        $lines = array(
+            sprintf(
+                'cpo_core_is_active: %s',
+                $details['filter_active'] ? 'true' : 'false'
+            ),
+            sprintf(
+                'core_global_is_active(): %s',
+                $details['function_exists'] ? ( $details['function_active'] ? 'true' : 'false' ) : 'missing'
+            ),
+            sprintf(
+                'GC_CORE_GLOBAL_ACTIVE: %s',
+                $details['gc_core_global_active_defined'] ? ( $details['gc_core_global_active_value'] ? 'true' : 'false' ) : 'undefined'
+            ),
+            sprintf(
+                'CORE_GLOBAL_ACTIVE: %s',
+                $details['core_global_active_defined'] ? ( $details['core_global_active_value'] ? 'true' : 'false' ) : 'undefined'
+            ),
+            sprintf(
+                'CORE_GLOBAL_VERSION: %s',
+                $details['core_global_version_defined'] ? 'defined' : 'undefined'
+            ),
+            sprintf(
+                'GC_CORE_GLOBAL_VERSION: %s',
+                $details['gc_core_global_version_defined'] ? 'defined' : 'undefined'
+            ),
+            sprintf(
+                'Core bootstrap: %s',
+                $details['bootstrap_path'] ? $details['bootstrap_path'] : 'unknown'
+            ),
+            sprintf(
+                'Core active source: %s',
+                $details['active_source']
+            ),
+        );
+
+        $output = implode( '<br>', array_map( 'esc_html', $lines ) );
+        echo '<div class="notice notice-info"><p>' . $output . '</p></div>';
     }
 
     private function add_notice( $message, $type = 'success' ) {

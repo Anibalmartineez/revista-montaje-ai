@@ -11,7 +11,23 @@ if (!defined('ABSPATH')) {
     exit;
 }
 
+// Official handshake for Core Global detection.
+define('GC_CORE_GLOBAL_ACTIVE', true);
 define('GC_CORE_GLOBAL_VERSION', '0.1.0');
+
+// Legacy aliases for modules still using CORE_GLOBAL_*.
+if (!defined('CORE_GLOBAL_ACTIVE')) {
+    define('CORE_GLOBAL_ACTIVE', GC_CORE_GLOBAL_ACTIVE);
+}
+if (!defined('CORE_GLOBAL_VERSION')) {
+    define('CORE_GLOBAL_VERSION', GC_CORE_GLOBAL_VERSION);
+}
+
+if (!function_exists('core_global_is_active')) {
+    function core_global_is_active(): bool {
+        return true;
+    }
+}
 if (!defined('GC_CORE_GLOBAL_API_VERSION')) {
     if (defined('GC_CORE_GLOBAL_API_MIN_VERSION')) {
         define('GC_CORE_GLOBAL_API_VERSION', GC_CORE_GLOBAL_API_MIN_VERSION);
