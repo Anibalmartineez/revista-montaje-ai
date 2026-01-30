@@ -205,7 +205,7 @@ class CPO_Public {
                                     <label>
                                         <?php esc_html_e( 'Máquina', 'core-print-offset' ); ?>
                                         <select name="maquina_id" data-machine-select>
-                                            <option value="0"><?php esc_html_e( 'Automática', 'core-print-offset' ); ?></option>
+                                            <option value=""><?php esc_html_e( 'Automática', 'core-print-offset' ); ?></option>
                                             <?php foreach ( $machines as $machine ) : ?>
                                                 <option value="<?php echo esc_attr( $machine['id'] ); ?>"
                                                         data-cost="<?php echo esc_attr( $machine['costo_hora'] ); ?>"
@@ -461,9 +461,14 @@ class CPO_Public {
         $payload['formas_por_pliego'] = max( 1, (int) ( $raw['formas_por_pliego'] ?? 1 ) );
         $payload['merma_pct'] = max( 0, cpo_get_decimal( wp_unslash( $raw['merma_pct'] ?? 0 ) ) );
         $payload['margin_pct'] = max( 0, cpo_get_decimal( wp_unslash( $raw['margin_pct'] ?? 0 ) ) );
-        $payload['maquina_id'] = (int) ( $raw['maquina_id'] ?? 0 );
+        if ( array_key_exists( 'maquina_id', $raw ) && $raw['maquina_id'] !== '' ) {
+            $payload['maquina_id'] = (int) $raw['maquina_id'];
+        } else {
+            $payload['maquina_id'] = null;
+        }
         $payload['horas_maquina'] = max( 0, cpo_get_decimal( wp_unslash( $raw['horas_maquina'] ?? 0 ) ) );
         $payload['costo_hora'] = max( 0, cpo_get_decimal( wp_unslash( $raw['costo_hora'] ?? 0 ) ) );
+        $payload['allow_machine_default'] = true;
 
         $processes = $raw['procesos'] ?? array();
         if ( ! is_array( $processes ) ) {

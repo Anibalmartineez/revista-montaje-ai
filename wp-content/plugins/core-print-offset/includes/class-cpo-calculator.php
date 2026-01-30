@@ -8,6 +8,10 @@ class CPO_Calculator {
     public static function calculate( array $payload ): array {
         global $wpdb;
 
+        $has_maquina_id = array_key_exists( 'maquina_id', $payload );
+        $maquina_id_raw = $payload['maquina_id'] ?? null;
+        $allow_machine_default = ! empty( $payload['allow_machine_default'] );
+
         $payload = wp_parse_args(
             $payload,
             array(
@@ -20,6 +24,7 @@ class CPO_Calculator {
                 'maquina_id'       => 0,
                 'horas_maquina'    => 0,
                 'costo_hora'       => 0,
+                'allow_machine_default' => false,
             )
         );
 
@@ -63,7 +68,9 @@ class CPO_Calculator {
 
         $maquina = null;
         $maquina_defaulted = false;
-        if ( ! $maquina_id ) {
+        $explicit_no_machine = $has_maquina_id && ( $maquina_id_raw === 0 || $maquina_id_raw === '0' );
+        $machine_missing = ( ! $has_maquina_id || $maquina_id_raw === '' || $maquina_id_raw === null );
+        if ( $allow_machine_default && $machine_missing && ! $explicit_no_machine ) {
             $maquina = self::get_default_machine();
             if ( $maquina ) {
                 $maquina_id = (int) $maquina['id'];
@@ -94,7 +101,7 @@ class CPO_Calculator {
             } elseif ( $proceso['modo_cobro'] === 'por_pliego' ) {
                 $multiplier = max( 1, $pliegos_necesarios );
             } elseif ( $proceso['modo_cobro'] === 'por_hora' ) {
-                $multiplier = max( 1, $horas_maquina );
+                $multiplier = $maquina ? max( 1, $horas_maquina ) : 0;
             }
 
             $subtotal_proceso = (float) $proceso['costo_base'] * $multiplier;

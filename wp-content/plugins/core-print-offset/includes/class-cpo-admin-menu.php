@@ -461,6 +461,7 @@ class CPO_Admin_Menu {
                 'margin_pct'       => $margen_pct,
                 'maquina_id'       => $maquina_id,
                 'horas_maquina'    => $horas_maquina,
+                'allow_machine_default' => false,
             );
 
             $result = CPO_Calculator::calculate( $payload );
