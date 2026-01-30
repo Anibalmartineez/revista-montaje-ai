@@ -13,6 +13,9 @@
     const materialPrice = form.querySelector('[data-material-price]');
     const pliegoSelect = form.querySelector('[data-pliego-select]');
     const pliegoCustom = form.querySelector('[data-pliego-custom]');
+    const machineSelect = form.querySelector('[data-machine-select]');
+    const horasInput = form.querySelector('[data-horas-input]');
+    const costoInput = form.querySelector('[data-costo-input]');
 
     const formatCurrency = (value) => {
         if (Number.isNaN(value)) {
@@ -28,6 +31,7 @@
         alertBox.textContent = message;
         alertBox.hidden = false;
         alertBox.classList.toggle('is-success', type === 'success');
+        alertBox.classList.toggle('is-warning', type === 'warning');
     };
 
     const clearAlert = () => {
@@ -37,6 +41,12 @@
         alertBox.textContent = '';
         alertBox.hidden = true;
         alertBox.classList.remove('is-success');
+        alertBox.classList.remove('is-warning');
+    };
+
+    const parseNumber = (value) => {
+        const parsed = parseFloat(value);
+        return Number.isNaN(parsed) ? 0 : parsed;
     };
 
     const updateMaterialPrice = () => {
@@ -50,6 +60,36 @@
             materialPrice.textContent = `Precio vigente: ${formatCurrency(parseFloat(price))} ${currency}`;
         } else {
             materialPrice.textContent = config.strings.priceMissing;
+        }
+    };
+
+    const getPliegosEstimados = () => {
+        const cantidad = parseNumber(form.querySelector('[name="cantidad"]')?.value);
+        const formas = parseNumber(form.querySelector('[name="formas_por_pliego"]')?.value);
+        const merma = parseNumber(form.querySelector('[name="merma_pct"]')?.value);
+        if (!cantidad || !formas) {
+            return 0;
+        }
+        return Math.ceil((cantidad / Math.max(1, formas)) * (1 + merma / 100));
+    };
+
+    const updateMachineFields = () => {
+        if (!machineSelect) {
+            return;
+        }
+        const selected = machineSelect.options[machineSelect.selectedIndex];
+        const cost = selected ? parseNumber(selected.dataset.cost) : 0;
+        const rendimiento = selected ? parseNumber(selected.dataset.rendimiento) : 0;
+
+        if (costoInput && (!costoInput.value || costoInput.dataset.userEdited !== 'true')) {
+            costoInput.value = cost ? cost.toFixed(2) : '';
+        }
+
+        if (horasInput && horasInput.dataset.userEdited !== 'true' && rendimiento > 0) {
+            const pliegos = getPliegosEstimados();
+            if (pliegos > 0) {
+                horasInput.value = (pliegos / rendimiento).toFixed(2);
+            }
         }
     };
 
@@ -87,6 +127,15 @@
                 node.textContent = value ?? '-';
             }
         });
+        if (horasInput && typeof data.horas_maquina === 'number' && horasInput.dataset.userEdited !== 'true') {
+            horasInput.value = data.horas_maquina ? parseNumber(data.horas_maquina).toFixed(2) : '';
+        }
+        if (costoInput && typeof data.costo_hora === 'number' && costoInput.dataset.userEdited !== 'true') {
+            costoInput.value = data.costo_hora ? parseNumber(data.costo_hora).toFixed(2) : '';
+        }
+        if (machineSelect && data.maquina_id && parseNumber(machineSelect.value) === 0) {
+            machineSelect.value = String(data.maquina_id);
+        }
     };
 
     const calculate = async () => {
@@ -106,6 +155,9 @@
             return null;
         }
         applyResults(payload.data);
+        if (payload.data?.price_note) {
+            showAlert(payload.data.price_note, 'warning');
+        }
         return payload.data;
     };
 
@@ -141,10 +193,22 @@
     });
 
     materialSelect?.addEventListener('change', updateMaterialPrice);
-    pliegoSelect?.addEventListener('change', toggleCustomPliego);
+    pliegoSelect?.addEventListener('change', () => {
+        toggleCustomPliego();
+        updateMachineFields();
+    });
+    machineSelect?.addEventListener('change', updateMachineFields);
+
+    horasInput?.addEventListener('input', () => {
+        horasInput.dataset.userEdited = 'true';
+    });
+    costoInput?.addEventListener('input', () => {
+        costoInput.dataset.userEdited = 'true';
+    });
 
     updateMaterialPrice();
     toggleCustomPliego();
+    updateMachineFields();
 
     if (coreButton) {
         coreButton.disabled = !config.coreAvailable;
