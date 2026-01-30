@@ -60,6 +60,19 @@
         return true;
     }
 
+    function scrollToSection(container, sectionId) {
+        if (!container || !sectionId || !window.requestAnimationFrame) {
+            return;
+        }
+        var section = container.querySelector('.gc-dashboard-section[data-gc-section="' + sectionId + '"]');
+        if (!section || typeof section.scrollIntoView !== 'function') {
+            return;
+        }
+        window.requestAnimationFrame(function () {
+            section.scrollIntoView();
+        });
+    }
+
     function getDefaultSection(container) {
         if (!container) {
             return '';
@@ -259,6 +272,9 @@
 
             if (targetSection) {
                 setActiveSection(container, targetSection, { updateHash: false, persist: true });
+                if (targetSection === hashSection) {
+                    scrollToSection(container, targetSection);
+                }
             }
         });
 
@@ -268,7 +284,9 @@
                 return;
             }
             dashboards.forEach(function (container) {
-                setActiveSection(container, sectionId, { updateHash: false, persist: true });
+                if (setActiveSection(container, sectionId, { updateHash: false, persist: true })) {
+                    scrollToSection(container, sectionId);
+                }
             });
         });
     }
