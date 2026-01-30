@@ -1,17 +1,75 @@
 (function () {
-    function setActiveNav(link) {
-        if (!link) {
+    function getSectionIdFromHash(hash) {
+        if (!hash) {
+            return '';
+        }
+        return hash.replace('#', '');
+    }
+
+    function getStoredSection() {
+        try {
+            return window.localStorage.getItem('gc_active_section') || '';
+        } catch (error) {
+            return '';
+        }
+    }
+
+    function storeSection(sectionId) {
+        if (!sectionId) {
             return;
         }
-        var container = link.closest('.gc-dashboard');
-        if (!container) {
-            return;
+        try {
+            window.localStorage.setItem('gc_active_section', sectionId);
+        } catch (error) {
+            // ignore storage errors
         }
-        var links = container.querySelectorAll('.gc-dashboard-button');
-        links.forEach(function (item) {
+    }
+
+    function setActiveSection(container, sectionId, options) {
+        if (!container || !sectionId) {
+            return false;
+        }
+        var button = container.querySelector('.gc-dashboard-button[data-gc-target="' + sectionId + '"]');
+        var section = container.querySelector('.gc-dashboard-section[data-gc-section="' + sectionId + '"]');
+        if (!button || !section) {
+            return false;
+        }
+        var buttons = container.querySelectorAll('.gc-dashboard-button');
+        var sections = container.querySelectorAll('.gc-dashboard-section');
+        buttons.forEach(function (item) {
             item.classList.remove('is-active');
         });
-        link.classList.add('is-active');
+        sections.forEach(function (item) {
+            item.classList.remove('is-active');
+        });
+        button.classList.add('is-active');
+        section.classList.add('is-active');
+
+        if (options && options.updateHash) {
+            if (window.history && window.history.replaceState) {
+                window.history.replaceState(null, '', '#' + sectionId);
+            } else {
+                window.location.hash = sectionId;
+            }
+        }
+
+        if (options && options.persist) {
+            storeSection(sectionId);
+        }
+
+        return true;
+    }
+
+    function getDefaultSection(container) {
+        if (!container) {
+            return '';
+        }
+        var preferred = container.querySelector('.gc-dashboard-section[data-gc-section="movimientos"]');
+        if (preferred) {
+            return 'movimientos';
+        }
+        var first = container.querySelector('.gc-dashboard-section[data-gc-section]');
+        return first ? first.getAttribute('data-gc-section') || '' : '';
     }
 
     function handleNavClick(event) {
@@ -19,7 +77,13 @@
         if (!target) {
             return;
         }
-        setActiveNav(target);
+        var container = target.closest('.gc-dashboard');
+        var sectionId = target.getAttribute('data-gc-target') || getSectionIdFromHash(target.getAttribute('href') || '');
+        if (!container || !sectionId) {
+            return;
+        }
+        event.preventDefault();
+        setActiveSection(container, sectionId, { updateHash: true, persist: true });
     }
 
     function toggleConditionalFields(scope) {
@@ -177,18 +241,45 @@
         });
     }
 
+    function initDashboardNavigation() {
+        var dashboards = document.querySelectorAll('.gc-dashboard');
+        dashboards.forEach(function (container) {
+            var hashSection = getSectionIdFromHash(window.location.hash);
+            var storedSection = getStoredSection();
+            var defaultSection = getDefaultSection(container);
+            var targetSection = '';
+
+            if (hashSection && container.querySelector('.gc-dashboard-section[data-gc-section="' + hashSection + '"]')) {
+                targetSection = hashSection;
+            } else if (storedSection && container.querySelector('.gc-dashboard-section[data-gc-section="' + storedSection + '"]')) {
+                targetSection = storedSection;
+            } else {
+                targetSection = defaultSection;
+            }
+
+            if (targetSection) {
+                setActiveSection(container, targetSection, { updateHash: false, persist: true });
+            }
+        });
+
+        window.addEventListener('hashchange', function () {
+            var sectionId = getSectionIdFromHash(window.location.hash);
+            if (!sectionId) {
+                return;
+            }
+            dashboards.forEach(function (container) {
+                setActiveSection(container, sectionId, { updateHash: false, persist: true });
+            });
+        });
+    }
+
     function init() {
         document.addEventListener('click', handleNavClick);
         toggleConditionalFields(document);
         toggleDeudaFields(document);
         toggleFrecuenciaFields(document);
         initPendingAmountAutofill();
-        if (window.location.hash) {
-            var initial = document.querySelector('.gc-dashboard-button[href="' + window.location.hash + '"]');
-            if (initial) {
-                setActiveNav(initial);
-            }
-        }
+        initDashboardNavigation();
     }
 
     if (document.readyState === 'loading') {

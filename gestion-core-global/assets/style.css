@@ -96,6 +96,13 @@
     box-shadow: 0 6px 18px rgba(37, 99, 235, 0.18);
 }
 
+.gc-dashboard-button.is-active {
+    color: var(--gc-primary-dark);
+    border-color: #c7d2fe;
+    background: #eef2ff;
+    box-shadow: 0 6px 18px rgba(37, 99, 235, 0.2);
+}
+
 .gc-summary-grid {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
@@ -134,6 +141,14 @@
 .gc-dashboard-content {
     display: grid;
     gap: 1.5rem;
+}
+
+.gc-dashboard-section {
+    display: none;
+}
+
+.gc-dashboard-section.is-active {
+    display: block;
 }
 
 .gc-panel {

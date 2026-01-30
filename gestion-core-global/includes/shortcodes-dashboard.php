@@ -98,10 +98,13 @@ function gc_render_dashboard_shortcode(): string {
 
     $nav_items = '';
     $sections_html = '';
+    $is_first_section = true;
     foreach ($normalized_sections as $section) {
         $icon_html = $section['icon'] ? '<span class="gc-dashboard-icon">' . esc_html($section['icon']) . '</span>' : '';
-        $nav_items .= '<a class="gc-dashboard-button" href="#' . esc_attr($section['id']) . '">' . $icon_html . esc_html($section['label']) . '</a>';
-        $sections_html .= '<div id="' . esc_attr($section['id']) . '">' . do_shortcode($section['shortcode']) . '</div>';
+        $active_class = $is_first_section ? ' is-active' : '';
+        $nav_items .= '<a class="gc-dashboard-button' . $active_class . '" href="#' . esc_attr($section['id']) . '" data-gc-target="' . esc_attr($section['id']) . '">' . $icon_html . esc_html($section['label']) . '</a>';
+        $sections_html .= '<div id="' . esc_attr($section['id']) . '" class="gc-dashboard-section' . $active_class . '" data-gc-section="' . esc_attr($section['id']) . '">' . do_shortcode($section['shortcode']) . '</div>';
+        $is_first_section = false;
     }
 
     $nav = '<div class="gc-dashboard-nav">' . $nav_items . '</div>';
