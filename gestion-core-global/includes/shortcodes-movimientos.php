@@ -86,7 +86,7 @@ function gc_render_movimientos_shortcode(): string {
         . '<label>Categoría<input type="text" name="categoria" value="' . esc_attr(gc_field_value($edit_data, 'categoria')) . '"></label>'
         . '<label>Cliente<select name="cliente_id">' . gc_select_options(gc_get_clientes_options(), gc_field_value($edit_data, 'cliente_id')) . '</select></label>'
         . '<label>Proveedor<select name="proveedor_id">' . gc_select_options(gc_get_proveedores_options(), gc_field_value($edit_data, 'proveedor_id')) . '</select></label>'
-        . '<label>Documento<select name="documento_id">' . gc_select_options(gc_get_documentos_options(), gc_field_value($edit_data, 'documento_id')) . '</select></label>'
+        . '<label>Documento<select name="documento_id">' . gc_select_options(gc_get_documentos_options('', true, (int) gc_field_value($edit_data, 'documento_id')), gc_field_value($edit_data, 'documento_id')) . '</select></label>'
         . '<label class="gc-form-conditional" data-gc-show="egreso">Vincular a deuda<select name="deuda_id">' . gc_select_options(gc_get_deudas_options(true), gc_field_value($edit_data, 'deuda_id')) . '</select></label>'
         . '</div>'
         . '<label>Descripción<textarea name="descripcion" rows="2">' . esc_textarea(gc_field_value($edit_data, 'descripcion')) . '</textarea></label>'

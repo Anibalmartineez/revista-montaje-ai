@@ -539,13 +539,41 @@ function gc_get_proveedores_options(): array {
     return $options;
 }
 
-function gc_get_documentos_options(string $tipo = ''): array {
+function gc_get_documentos_options(string $tipo = '', bool $only_open = false, ?int $include_id = null): array {
     global $wpdb;
     $table = gc_get_table('gc_documentos');
+    $where = array();
+    $params = array();
+
     if ($tipo) {
-        $rows = $wpdb->get_results($wpdb->prepare("SELECT id, numero FROM {$table} WHERE tipo = %s ORDER BY fecha DESC", $tipo), ARRAY_A);
+        $where[] = 'tipo = %s';
+        $params[] = $tipo;
+    }
+
+    if ($only_open) {
+        $where[] = "(saldo > 0 OR estado IN ('pendiente', 'parcial'))";
+    }
+
+    $where_sql = '';
+    if ($where) {
+        $where_sql = 'WHERE ' . implode(' AND ', $where);
+    }
+
+    if ($include_id) {
+        if ($where_sql) {
+            $where_sql = 'WHERE (' . implode(' AND ', $where) . ') OR id = %d';
+        } else {
+            $where_sql = 'WHERE id = %d';
+        }
+        $params[] = $include_id;
+    }
+
+    $query = "SELECT id, numero FROM {$table} {$where_sql} ORDER BY fecha DESC";
+
+    if ($params) {
+        $rows = $wpdb->get_results($wpdb->prepare($query, $params), ARRAY_A);
     } else {
-        $rows = $wpdb->get_results("SELECT id, numero FROM {$table} ORDER BY fecha DESC", ARRAY_A);
+        $rows = $wpdb->get_results($query, ARRAY_A);
     }
     $options = array('' => 'Sin documento');
     foreach ($rows as $row) {
