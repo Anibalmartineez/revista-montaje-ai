@@ -46,8 +46,8 @@
         section.classList.add('is-active');
 
         if (options && options.updateHash) {
-            if (window.history && window.history.replaceState) {
-                window.history.replaceState(null, '', '#' + sectionId);
+            if (window.history && window.history.pushState) {
+                window.history.pushState(null, '', '#' + sectionId);
             } else {
                 window.location.hash = sectionId;
             }
@@ -86,7 +86,8 @@
     }
 
     function handleNavClick(event) {
-        var target = event.target.closest('.gc-dashboard-button');
+        var eventTarget = event.target;
+        var target = eventTarget instanceof Element ? eventTarget.closest('.gc-dashboard-button') : null;
         if (!target) {
             return;
         }
