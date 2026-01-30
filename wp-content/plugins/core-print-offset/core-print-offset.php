@@ -22,6 +22,7 @@ define( 'CPO_PLUGIN_URL', plugin_dir_url( __FILE__ ) );
 require_once CPO_PLUGIN_DIR . 'includes/helpers.php';
 require_once CPO_PLUGIN_DIR . 'includes/class-cpo-activator.php';
 require_once CPO_PLUGIN_DIR . 'includes/class-cpo-deactivator.php';
+require_once CPO_PLUGIN_DIR . 'includes/class-cpo-calculator.php';
 require_once CPO_PLUGIN_DIR . 'includes/class-cpo-core-bridge.php';
 require_once CPO_PLUGIN_DIR . 'includes/class-cpo-admin-menu.php';
 require_once CPO_PLUGIN_DIR . 'includes/class-cpo-public.php';

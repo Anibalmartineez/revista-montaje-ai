@@ -452,77 +452,62 @@ class CPO_Admin_Menu {
             $procesos       = isset( $_POST['procesos'] ) ? array_map( 'intval', (array) $_POST['procesos'] ) : array();
             $now            = cpo_now();
 
-            $pliegos_estimados = (int) ceil( $cantidad / $formas_por_pliego );
-            $costo_total = 0;
+            $payload = array(
+                'cantidad'         => $cantidad,
+                'formas_por_pliego'=> $formas_por_pliego,
+                'merma_pct'        => 0,
+                'material_id'      => $material_id,
+                'procesos'         => $procesos,
+                'margin_pct'       => $margen_pct,
+                'maquina_id'       => $maquina_id,
+                'horas_maquina'    => $horas_maquina,
+            );
+
+            $result = CPO_Calculator::calculate( $payload );
             $items = array();
 
-            if ( $material_id ) {
-                $precio_info = $wpdb->get_row(
-                    $wpdb->prepare(
-                        "SELECT precio, vigente_desde FROM {$wpdb->prefix}cpo_material_precios WHERE material_id = %d ORDER BY vigente_desde DESC LIMIT 1",
-                        $material_id
-                    ),
-                    ARRAY_A
-                );
-                $precio_material = $precio_info ? (float) $precio_info['precio'] : 0;
-                $precio_snapshot = array(
-                    'precio'            => $precio_material,
-                    'vigente_desde'     => $precio_info['vigente_desde'] ?? null,
-                    'formas_por_pliego' => $formas_por_pliego,
-                );
-                $costo_papel = $precio_material * $pliegos_estimados;
-                $costo_total += $costo_papel;
-                $material_nombre = $wpdb->get_var( $wpdb->prepare( "SELECT nombre FROM {$wpdb->prefix}cpo_materiales WHERE id = %d", $material_id ) );
-
+            if ( $result['material'] ) {
                 $items[] = array(
                     'tipo'        => 'papel',
-                    'referencia'  => $material_id,
-                    'descripcion' => sprintf( __( 'Papel: %s', 'core-print-offset' ), $material_nombre ),
-                    'cantidad'    => $pliegos_estimados,
-                    'unitario'    => $precio_material,
-                    'subtotal'    => $costo_papel,
-                    'snapshot'    => $precio_snapshot,
+                    'referencia'  => $result['material']['id'],
+                    'descripcion' => sprintf( __( 'Papel: %s', 'core-print-offset' ), $result['material']['nombre'] ),
+                    'cantidad'    => $result['pliegos_necesarios'],
+                    'unitario'    => $result['precio_pliego'],
+                    'subtotal'    => $result['costo_papel'],
+                    'snapshot'    => $result['material_snapshot'],
                 );
             }
 
-            if ( $maquina_id && $horas_maquina > 0 ) {
-                $maquina = $wpdb->get_row( $wpdb->prepare( "SELECT nombre, costo_hora FROM {$wpdb->prefix}cpo_maquinas WHERE id = %d", $maquina_id ), ARRAY_A );
-                if ( $maquina ) {
-                    $costo_maquina = $maquina['costo_hora'] * $horas_maquina;
-                    $costo_total += $costo_maquina;
+            if ( $result['maquina'] && $result['costo_maquina'] > 0 ) {
+                $items[] = array(
+                    'tipo'        => 'maquina',
+                    'referencia'  => $result['maquina']['id'],
+                    'descripcion' => sprintf( __( 'Máquina: %s', 'core-print-offset' ), $result['maquina']['nombre'] ),
+                    'cantidad'    => $result['horas_maquina'],
+                    'unitario'    => $result['costo_hora'],
+                    'subtotal'    => $result['costo_maquina'],
+                    'snapshot'    => array(
+                        'horas' => $result['horas_maquina'],
+                    ),
+                );
+            }
+
+            if ( ! empty( $result['procesos'] ) ) {
+                foreach ( $result['procesos'] as $proceso ) {
                     $items[] = array(
-                        'tipo'        => 'maquina',
-                        'referencia'  => $maquina_id,
-                        'descripcion' => sprintf( __( 'Máquina: %s', 'core-print-offset' ), $maquina['nombre'] ),
-                        'cantidad'    => $horas_maquina,
-                        'unitario'    => $maquina['costo_hora'],
-                        'subtotal'    => $costo_maquina,
-                        'snapshot'    => array(
-                            'horas' => $horas_maquina,
-                        ),
+                        'tipo'        => 'proceso',
+                        'referencia'  => $proceso['id'],
+                        'descripcion' => sprintf( __( 'Proceso: %s', 'core-print-offset' ), $proceso['nombre'] ),
+                        'cantidad'    => $proceso['cantidad'],
+                        'unitario'    => $proceso['unitario'],
+                        'subtotal'    => $proceso['subtotal'],
+                        'snapshot'    => array(),
                     );
                 }
             }
 
-            if ( $procesos ) {
-                foreach ( $procesos as $proceso_id ) {
-                    $proceso = $wpdb->get_row( $wpdb->prepare( "SELECT nombre, costo_base FROM {$wpdb->prefix}cpo_procesos WHERE id = %d", $proceso_id ), ARRAY_A );
-                    if ( $proceso ) {
-                        $costo_total += (float) $proceso['costo_base'];
-                        $items[] = array(
-                            'tipo'        => 'proceso',
-                            'referencia'  => $proceso_id,
-                            'descripcion' => sprintf( __( 'Proceso: %s', 'core-print-offset' ), $proceso['nombre'] ),
-                            'cantidad'    => 1,
-                            'unitario'    => (float) $proceso['costo_base'],
-                            'subtotal'    => (float) $proceso['costo_base'],
-                            'snapshot'    => array(),
-                        );
-                    }
-                }
-            }
-
-            $precio_total = $costo_total * ( 1 + ( $margen_pct / 100 ) );
+            $costo_total = $result['subtotal'];
+            $precio_total = $result['total'];
 
             $payload = array(
                 'core_cliente_id' => $core_cliente,

@@ -39,6 +39,7 @@ class CPO_Public {
     public function render_presupuesto_shortcode() {
         $materials = $this->get_materiales_list();
         $processes = $this->get_procesos_list();
+        $machines  = $this->get_maquinas_list();
 
         wp_enqueue_style(
             'cpo-offset-presupuesto',
@@ -63,8 +64,9 @@ class CPO_Public {
                 'nonce'         => wp_create_nonce( 'cpo_offset_presupuesto' ),
                 'canSave'       => is_user_logged_in(),
                 'coreAvailable' => $this->core_bridge->has_core_api(),
+                'canEditMachineCost' => current_user_can( 'manage_options' ),
                 'strings'       => array(
-                    'priceMissing' => __( 'Precio no cargado', 'core-print-offset' ),
+                    'priceMissing' => __( 'No hay precio vigente para este material. Cargalo en Offset > Materiales/Precios', 'core-print-offset' ),
                     'savingError'  => __( 'No se pudo guardar el presupuesto.', 'core-print-offset' ),
                     'saved'        => __( 'Presupuesto guardado.', 'core-print-offset' ),
                 ),
@@ -128,7 +130,7 @@ class CPO_Public {
                             <h3><?php esc_html_e( 'C) Papel', 'core-print-offset' ); ?></h3>
                             <label>
                                 <?php esc_html_e( 'Material', 'core-print-offset' ); ?>
-                                <select name="material_id" data-material-select>
+                                <select name="material_id" data-material-select <?php echo empty( $materials ) ? 'disabled' : ''; ?>>
                                     <option value="0"><?php esc_html_e( 'Selecciona un material', 'core-print-offset' ); ?></option>
                                     <?php foreach ( $materials as $material ) : ?>
                                         <option value="<?php echo esc_attr( $material['id'] ); ?>"
@@ -139,6 +141,9 @@ class CPO_Public {
                                     <?php endforeach; ?>
                                 </select>
                             </label>
+                            <?php if ( empty( $materials ) ) : ?>
+                                <p class="cpo-hint"><?php esc_html_e( 'No hay materiales cargados.', 'core-print-offset' ); ?></p>
+                            <?php endif; ?>
                             <p class="cpo-hint" data-material-price>
                                 <?php esc_html_e( 'Precio vigente: -', 'core-print-offset' ); ?>
                             </p>
@@ -193,6 +198,38 @@ class CPO_Public {
                             </div>
                         </section>
 
+                        <section class="cpo-section">
+                            <details class="cpo-advanced" data-advanced>
+                                <summary><?php esc_html_e( 'Modo avanzado', 'core-print-offset' ); ?></summary>
+                                <div class="cpo-advanced__content">
+                                    <label>
+                                        <?php esc_html_e( 'Máquina', 'core-print-offset' ); ?>
+                                        <select name="maquina_id" data-machine-select>
+                                            <option value="0"><?php esc_html_e( 'Automática', 'core-print-offset' ); ?></option>
+                                            <?php foreach ( $machines as $machine ) : ?>
+                                                <option value="<?php echo esc_attr( $machine['id'] ); ?>"
+                                                        data-cost="<?php echo esc_attr( $machine['costo_hora'] ); ?>"
+                                                        data-rendimiento="<?php echo esc_attr( $machine['rendimiento_hora'] ); ?>">
+                                                    <?php echo esc_html( $machine['nombre'] ); ?>
+                                                </option>
+                                            <?php endforeach; ?>
+                                        </select>
+                                    </label>
+                                    <div class="cpo-inline">
+                                        <label>
+                                            <?php esc_html_e( 'Horas estimadas', 'core-print-offset' ); ?>
+                                            <input type="number" name="horas_maquina" min="0" step="0.01" data-horas-input>
+                                        </label>
+                                        <label>
+                                            <?php esc_html_e( 'Costo / hora', 'core-print-offset' ); ?>
+                                            <input type="number" name="costo_hora" min="0" step="0.01" data-costo-input <?php echo current_user_can( 'manage_options' ) ? '' : 'readonly'; ?>>
+                                        </label>
+                                    </div>
+                                    <p class="cpo-hint"><?php esc_html_e( 'Si no seleccionás máquina, se usa la más económica activa.', 'core-print-offset' ); ?></p>
+                                </div>
+                            </details>
+                        </section>
+
                         <section class="cpo-section cpo-results">
                             <h3><?php esc_html_e( 'F) Resultados', 'core-print-offset' ); ?></h3>
                             <div class="cpo-results__grid">
@@ -202,15 +239,23 @@ class CPO_Public {
                                 </div>
                                 <div>
                                     <span><?php esc_html_e( 'Costo papel', 'core-print-offset' ); ?></span>
-                                    <strong data-result="paper_cost">-</strong>
+                                    <strong data-result="costo_papel">-</strong>
                                 </div>
                                 <div>
                                     <span><?php esc_html_e( 'Costo procesos', 'core-print-offset' ); ?></span>
-                                    <strong data-result="process_cost">-</strong>
+                                    <strong data-result="costo_procesos">-</strong>
+                                </div>
+                                <div>
+                                    <span><?php esc_html_e( 'Costo máquina', 'core-print-offset' ); ?></span>
+                                    <strong data-result="costo_maquina">-</strong>
                                 </div>
                                 <div>
                                     <span><?php esc_html_e( 'Subtotal', 'core-print-offset' ); ?></span>
                                     <strong data-result="subtotal">-</strong>
+                                </div>
+                                <div>
+                                    <span><?php esc_html_e( 'Margen', 'core-print-offset' ); ?></span>
+                                    <strong data-result="margen">-</strong>
                                 </div>
                             </div>
                             <label>
@@ -219,7 +264,7 @@ class CPO_Public {
                             </label>
                             <div class="cpo-total">
                                 <span><?php esc_html_e( 'Total final', 'core-print-offset' ); ?></span>
-                                <strong data-result="total_final">-</strong>
+                                <strong data-result="total">-</strong>
                             </div>
                             <p class="cpo-hint" data-result="price_note"></p>
                         </section>
@@ -243,7 +288,7 @@ class CPO_Public {
         $this->ensure_valid_nonce();
 
         $payload = $this->sanitize_payload( $_POST );
-        $result  = $this->calculate_totals( $payload );
+        $result  = CPO_Calculator::calculate( $payload );
 
         wp_send_json_success( $result );
     }
@@ -256,7 +301,7 @@ class CPO_Public {
         }
 
         $payload = $this->sanitize_payload( $_POST );
-        $result  = $this->calculate_totals( $payload );
+        $result  = CPO_Calculator::calculate( $payload );
 
         global $wpdb;
 
@@ -291,7 +336,7 @@ class CPO_Public {
                 'margen_pct'     => $payload['margin_pct'],
                 'estado'         => 'borrador',
                 'costo_total'    => $result['subtotal'],
-                'precio_total'   => $result['total_final'],
+                'precio_total'   => $result['total'],
                 'created_at'     => $now,
                 'updated_at'     => $now,
             ),
@@ -322,8 +367,8 @@ class CPO_Public {
                     'descripcion'    => $result['material']['nombre'],
                     'cantidad'       => $result['pliegos_necesarios'],
                     'unitario'       => $result['precio_pliego'],
-                    'subtotal'       => $result['paper_cost'],
-                    'snapshot_json'  => $snapshot,
+                    'subtotal'       => $result['costo_papel'],
+                    'snapshot_json'  => wp_json_encode( $result['material_snapshot'] ),
                     'created_at'     => $now,
                 ),
                 array( '%d', '%s', '%d', '%s', '%f', '%f', '%f', '%s', '%s' )
@@ -346,8 +391,26 @@ class CPO_Public {
             );
         }
 
-        if ( ! empty( $result['processes'] ) ) {
-            foreach ( $result['processes'] as $process ) {
+        if ( $result['maquina'] && $result['costo_maquina'] > 0 ) {
+            $wpdb->insert(
+                $wpdb->prefix . 'cpo_presupuesto_items',
+                array(
+                    'presupuesto_id' => $presupuesto_id,
+                    'tipo'           => 'maquina',
+                    'referencia_id'  => $result['maquina']['id'],
+                    'descripcion'    => sprintf( __( 'Máquina: %s', 'core-print-offset' ), $result['maquina']['nombre'] ),
+                    'cantidad'       => $result['horas_maquina'],
+                    'unitario'       => $result['costo_hora'],
+                    'subtotal'       => $result['costo_maquina'],
+                    'snapshot_json'  => wp_json_encode( array( 'horas' => $result['horas_maquina'] ) ),
+                    'created_at'     => $now,
+                ),
+                array( '%d', '%s', '%d', '%s', '%f', '%f', '%f', '%s', '%s' )
+            );
+        }
+
+        if ( ! empty( $result['procesos'] ) ) {
+            foreach ( $result['procesos'] as $process ) {
                 $wpdb->insert(
                     $wpdb->prefix . 'cpo_presupuesto_items',
                     array(
@@ -398,6 +461,9 @@ class CPO_Public {
         $payload['formas_por_pliego'] = max( 1, (int) ( $raw['formas_por_pliego'] ?? 1 ) );
         $payload['merma_pct'] = max( 0, cpo_get_decimal( wp_unslash( $raw['merma_pct'] ?? 0 ) ) );
         $payload['margin_pct'] = max( 0, cpo_get_decimal( wp_unslash( $raw['margin_pct'] ?? 0 ) ) );
+        $payload['maquina_id'] = (int) ( $raw['maquina_id'] ?? 0 );
+        $payload['horas_maquina'] = max( 0, cpo_get_decimal( wp_unslash( $raw['horas_maquina'] ?? 0 ) ) );
+        $payload['costo_hora'] = max( 0, cpo_get_decimal( wp_unslash( $raw['costo_hora'] ?? 0 ) ) );
 
         $processes = $raw['procesos'] ?? array();
         if ( ! is_array( $processes ) ) {
@@ -406,68 +472,6 @@ class CPO_Public {
         $payload['procesos'] = array_values( array_filter( array_map( 'intval', $processes ) ) );
 
         return $payload;
-    }
-
-    private function calculate_totals( $payload ) {
-        $material = null;
-        $precio_pliego = 0;
-        $precio_note = '';
-
-        if ( $payload['material_id'] ) {
-            $material = $this->get_material_by_id( $payload['material_id'] );
-            if ( $material && $material['precio_vigente'] !== null ) {
-                $precio_pliego = (float) $material['precio_vigente'];
-            } else {
-                $precio_note = __( 'Precio no cargado', 'core-print-offset' );
-            }
-        }
-
-        $pliegos_necesarios = (int) ceil(
-            ( $payload['cantidad'] / max( 1, $payload['formas_por_pliego'] ) ) * ( 1 + $payload['merma_pct'] / 100 )
-        );
-
-        $paper_cost = $pliegos_necesarios * $precio_pliego;
-
-        $processes = $this->get_processes_by_ids( $payload['procesos'] );
-        $process_cost = 0;
-        $process_breakdown = array();
-
-        foreach ( $processes as $process ) {
-            $multiplier = 1;
-            if ( $process['modo_cobro'] === 'por_unidad' ) {
-                $multiplier = $payload['cantidad'];
-            } elseif ( $process['modo_cobro'] === 'por_pliego' ) {
-                $multiplier = max( 1, $pliegos_necesarios );
-            }
-
-            $subtotal = $process['costo_base'] * $multiplier;
-            $process_cost += $subtotal;
-
-            $process_breakdown[] = array(
-                'id'       => $process['id'],
-                'nombre'   => $process['nombre'],
-                'cantidad' => $multiplier,
-                'unitario' => (float) $process['costo_base'],
-                'subtotal' => $subtotal,
-            );
-        }
-
-        $machine_cost = 0;
-        $subtotal = $paper_cost + $process_cost + $machine_cost;
-        $total_final = $subtotal * ( 1 + $payload['margin_pct'] / 100 );
-
-        return array(
-            'pliegos_necesarios' => $pliegos_necesarios,
-            'precio_pliego'      => $precio_pliego,
-            'paper_cost'         => $paper_cost,
-            'process_cost'       => $process_cost,
-            'machine_cost'       => $machine_cost,
-            'subtotal'           => $subtotal,
-            'total_final'        => $total_final,
-            'material'           => $material,
-            'processes'          => $process_breakdown,
-            'price_note'         => $precio_note,
-        );
     }
 
     private function get_materiales_list() {
@@ -492,26 +496,13 @@ class CPO_Public {
         return $wpdb->get_results( $sql, ARRAY_A );
     }
 
-    private function get_material_by_id( $material_id ) {
+    private function get_maquinas_list() {
         global $wpdb;
 
-        $sql = "SELECT m.*, (
-                SELECT precio FROM {$wpdb->prefix}cpo_material_precios p
-                WHERE p.material_id = m.id
-                ORDER BY p.vigente_desde DESC
-                LIMIT 1
-            ) AS precio_vigente,
-            (
-                SELECT moneda FROM {$wpdb->prefix}cpo_material_precios p
-                WHERE p.material_id = m.id
-                ORDER BY p.vigente_desde DESC
-                LIMIT 1
-            ) AS moneda
-            FROM {$wpdb->prefix}cpo_materiales m
-            WHERE m.id = %d
-            LIMIT 1";
-
-        return $wpdb->get_row( $wpdb->prepare( $sql, $material_id ), ARRAY_A );
+        return $wpdb->get_results(
+            "SELECT * FROM {$wpdb->prefix}cpo_maquinas WHERE activo = 1 ORDER BY costo_hora ASC, created_at ASC",
+            ARRAY_A
+        );
     }
 
     private function get_procesos_list() {
@@ -523,16 +514,4 @@ class CPO_Public {
         );
     }
 
-    private function get_processes_by_ids( $ids ) {
-        global $wpdb;
-
-        if ( empty( $ids ) ) {
-            return array();
-        }
-
-        $placeholders = implode( ',', array_fill( 0, count( $ids ), '%d' ) );
-        $sql = "SELECT * FROM {$wpdb->prefix}cpo_procesos WHERE id IN ($placeholders) AND activo = 1";
-
-        return $wpdb->get_results( $wpdb->prepare( $sql, $ids ), ARRAY_A );
-    }
 }
