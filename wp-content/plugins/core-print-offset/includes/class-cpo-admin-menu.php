@@ -567,6 +567,12 @@ class CPO_Admin_Menu {
                 $id = intval( $_GET['presupuesto_id'] );
                 $presupuesto = $wpdb->get_row( $wpdb->prepare( "SELECT * FROM {$wpdb->prefix}cpo_presupuestos WHERE id = %d", $id ), ARRAY_A );
                 if ( $presupuesto ) {
+                    $existing_core_document_id = isset( $presupuesto['core_documento_id'] ) ? (int) $presupuesto['core_documento_id'] : 0;
+                    if ( $existing_core_document_id > 0 ) {
+                        $this->add_notice( __( 'Este presupuesto ya tiene un documento en Core.', 'core-print-offset' ), 'warning' );
+                        return $data;
+                    }
+
                     $cliente_id = isset( $presupuesto['cliente_id'] ) ? (int) $presupuesto['cliente_id'] : 0;
                     if ( ! $cliente_id && isset( $presupuesto['core_cliente_id'] ) ) {
                         $cliente_id = (int) $presupuesto['core_cliente_id'];

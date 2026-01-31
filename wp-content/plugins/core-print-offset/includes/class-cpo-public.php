@@ -505,6 +505,16 @@ class CPO_Public {
             wp_send_json_error( array( 'message' => __( 'Presupuesto no encontrado.', 'core-print-offset' ) ), 404 );
         }
 
+        $existing_core_document_id = isset( $presupuesto['core_documento_id'] ) ? (int) $presupuesto['core_documento_id'] : 0;
+        if ( $existing_core_document_id > 0 ) {
+            wp_send_json_success(
+                array(
+                    'message'            => __( 'Este presupuesto ya tiene un documento en Core.', 'core-print-offset' ),
+                    'core_documento_id'  => $existing_core_document_id,
+                )
+            );
+        }
+
         $cliente_id = isset( $presupuesto['cliente_id'] ) ? (int) $presupuesto['cliente_id'] : 0;
         if ( ! $cliente_id && isset( $presupuesto['core_cliente_id'] ) ) {
             $cliente_id = (int) $presupuesto['core_cliente_id'];
