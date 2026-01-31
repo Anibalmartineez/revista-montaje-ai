@@ -139,4 +139,76 @@ class CPO_Core_Bridge {
 
         return new WP_Error( 'cpo_core_missing', __( 'Core API no disponible', 'core-print-offset' ) );
     }
+
+    public function get_core_clients_list(): array {
+        if ( ! $this->check_core_active() ) {
+            return array();
+        }
+
+        $clients = $this->get_core_clients();
+        if ( is_wp_error( $clients ) || ! is_array( $clients ) ) {
+            $clients = $this->query_core_clients_table();
+        }
+
+        if ( empty( $clients ) || ! is_array( $clients ) ) {
+            return array();
+        }
+
+        $normalized = array();
+
+        $is_list = isset( $clients[0] ) && is_array( $clients[0] );
+        if ( $is_list ) {
+            foreach ( $clients as $client ) {
+                if ( ! is_array( $client ) ) {
+                    continue;
+                }
+                $client_id = (int) ( $client['id'] ?? $client['cliente_id'] ?? 0 );
+                $client_name = $client['nombre'] ?? $client['name'] ?? '';
+                if ( $client_id && $client_name !== '' ) {
+                    $normalized[] = array(
+                        'id' => $client_id,
+                        'nombre' => $client_name,
+                    );
+                }
+            }
+        } else {
+            foreach ( $clients as $client_id => $client_name ) {
+                if ( ! is_numeric( $client_id ) ) {
+                    continue;
+                }
+                $client_name = is_scalar( $client_name ) ? (string) $client_name : '';
+                if ( $client_name === '' ) {
+                    continue;
+                }
+                $normalized[] = array(
+                    'id' => (int) $client_id,
+                    'nombre' => $client_name,
+                );
+            }
+        }
+
+        usort(
+            $normalized,
+            function ( $a, $b ) {
+                return strcasecmp( $a['nombre'], $b['nombre'] );
+            }
+        );
+
+        return $normalized;
+    }
+
+    private function query_core_clients_table(): array {
+        if ( ! function_exists( 'gc_get_table' ) ) {
+            return array();
+        }
+
+        global $wpdb;
+        $table = gc_get_table( 'gc_clientes' );
+        $exists = $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $table ) );
+        if ( ! $exists ) {
+            return array();
+        }
+
+        return $wpdb->get_results( "SELECT id, nombre FROM {$table} ORDER BY nombre ASC", ARRAY_A );
+    }
 }

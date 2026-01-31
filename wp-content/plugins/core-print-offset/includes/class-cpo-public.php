@@ -15,6 +15,7 @@ class CPO_Public {
         add_action( 'wp_ajax_cpo_offset_calculate', array( $this, 'handle_calculate' ) );
         add_action( 'wp_ajax_nopriv_cpo_offset_calculate', array( $this, 'handle_calculate' ) );
         add_action( 'wp_ajax_cpo_offset_save_presupuesto', array( $this, 'handle_save_presupuesto' ) );
+        add_action( 'wp_ajax_cpo_offset_create_core_document', array( $this, 'handle_create_core_document' ) );
 
         add_action( 'init', array( $this, 'maybe_register_dashboard_sections' ) );
     }
@@ -40,6 +41,9 @@ class CPO_Public {
         $materials = $this->get_materiales_list();
         $processes = $this->get_procesos_list();
         $machines  = $this->get_maquinas_list();
+        $core_clients = $this->core_bridge->get_core_clients_list();
+        $core_active = $this->core_bridge->check_core_active();
+        $has_core_clients = $core_active && ! empty( $core_clients );
 
         wp_enqueue_style(
             'cpo-offset-presupuesto',
@@ -69,6 +73,10 @@ class CPO_Public {
                     'priceMissing' => __( 'No hay precio vigente para este material. Cargalo en Offset > Materiales/Precios', 'core-print-offset' ),
                     'savingError'  => __( 'No se pudo guardar el presupuesto.', 'core-print-offset' ),
                     'saved'        => __( 'Presupuesto guardado.', 'core-print-offset' ),
+                    'coreClientRequired' => __( 'Selecciona un cliente de Core para crear el documento.', 'core-print-offset' ),
+                    'coreSaveRequired'   => __( 'Guarda el presupuesto antes de crear el documento en Core.', 'core-print-offset' ),
+                    'coreCreated'        => __( 'Documento creado en Core.', 'core-print-offset' ),
+                    'coreUnavailable'    => __( 'Core Global no está disponible.', 'core-print-offset' ),
                 ),
             )
         );
@@ -85,10 +93,32 @@ class CPO_Public {
                     <div class="cpo-grid">
                         <section class="cpo-section">
                             <h3><?php esc_html_e( 'A) Trabajo', 'core-print-offset' ); ?></h3>
-                            <label>
-                                <?php esc_html_e( 'Cliente (opcional)', 'core-print-offset' ); ?>
-                                <input type="text" name="cliente" placeholder="<?php esc_attr_e( 'Nombre del cliente', 'core-print-offset' ); ?>">
-                            </label>
+                            <?php if ( $has_core_clients ) : ?>
+                                <label>
+                                    <?php esc_html_e( 'Cliente (Core)', 'core-print-offset' ); ?>
+                                    <select name="cliente_id" data-cliente-select>
+                                        <option value="0"><?php esc_html_e( 'Seleccionar cliente', 'core-print-offset' ); ?></option>
+                                        <?php foreach ( $core_clients as $client ) : ?>
+                                            <option value="<?php echo esc_attr( $client['id'] ); ?>">
+                                                <?php echo esc_html( $client['nombre'] ); ?>
+                                            </option>
+                                        <?php endforeach; ?>
+                                        <option value="other"><?php esc_html_e( 'Otro / No está en lista', 'core-print-offset' ); ?></option>
+                                    </select>
+                                </label>
+                                <label data-cliente-text hidden>
+                                    <?php esc_html_e( 'Cliente (otro)', 'core-print-offset' ); ?>
+                                    <input type="text" name="cliente_texto" placeholder="<?php esc_attr_e( 'Nombre del cliente', 'core-print-offset' ); ?>">
+                                </label>
+                            <?php else : ?>
+                                <label>
+                                    <?php esc_html_e( 'Cliente (opcional)', 'core-print-offset' ); ?>
+                                    <input type="text" name="cliente_texto" placeholder="<?php esc_attr_e( 'Nombre del cliente', 'core-print-offset' ); ?>">
+                                </label>
+                                <?php if ( $core_active ) : ?>
+                                    <p class="cpo-hint"><?php esc_html_e( 'Core Global está activo pero no se encontraron clientes.', 'core-print-offset' ); ?></p>
+                                <?php endif; ?>
+                            <?php endif; ?>
                             <label>
                                 <?php esc_html_e( 'Descripción', 'core-print-offset' ); ?>
                                 <input type="text" name="descripcion" required placeholder="<?php esc_attr_e( 'Ej: Catálogo 24 páginas', 'core-print-offset' ); ?>">
@@ -274,6 +304,7 @@ class CPO_Public {
                         <button type="button" class="cpo-button" data-cpo-calc><?php esc_html_e( 'Calcular', 'core-print-offset' ); ?></button>
                         <button type="button" class="cpo-button cpo-button--primary" data-cpo-save><?php esc_html_e( 'Guardar Presupuesto', 'core-print-offset' ); ?></button>
                         <button type="button" class="cpo-button cpo-button--ghost" data-cpo-core disabled><?php esc_html_e( 'Crear documento en Core', 'core-print-offset' ); ?></button>
+                        <input type="hidden" name="presupuesto_id" value="" data-presupuesto-id>
                     </div>
 
                     <div class="cpo-alert" data-cpo-alert hidden></div>
@@ -320,11 +351,21 @@ class CPO_Public {
         }
 
         $now = cpo_now();
+        $cliente_id = $payload['cliente_id'] > 0 ? (int) $payload['cliente_id'] : null;
+        $cliente_texto = $payload['cliente_texto'];
+        if ( $cliente_id ) {
+            $client_name = $this->get_core_client_name( $cliente_id );
+            if ( $client_name ) {
+                $cliente_texto = $client_name;
+            }
+        }
 
         $inserted = $wpdb->insert(
             $wpdb->prefix . 'cpo_presupuestos',
             array(
-                'core_cliente_id' => null,
+                'core_cliente_id' => $cliente_id,
+                'cliente_id'    => $cliente_id,
+                'cliente_texto' => $cliente_texto ?: null,
                 'core_documento_id' => null,
                 'titulo'         => $titulo,
                 'producto'       => $payload['descripcion'],
@@ -340,7 +381,7 @@ class CPO_Public {
                 'created_at'     => $now,
                 'updated_at'     => $now,
             ),
-            array( '%d', '%d', '%s', '%s', '%s', '%d', '%d', '%s', '%d', '%f', '%s', '%f', '%f', '%s', '%s' )
+            array( '%d', '%d', '%s', '%d', '%s', '%s', '%s', '%d', '%d', '%s', '%d', '%f', '%s', '%f', '%f', '%s', '%s' )
         );
 
         if ( ! $inserted ) {
@@ -352,7 +393,7 @@ class CPO_Public {
             array(
                 'inputs'  => $payload,
                 'totals'  => $result,
-                'cliente' => $payload['cliente'],
+                'cliente' => $cliente_texto,
             ),
             JSON_UNESCAPED_UNICODE
         );
@@ -433,6 +474,73 @@ class CPO_Public {
             array(
                 'message' => __( 'Presupuesto guardado.', 'core-print-offset' ),
                 'id'      => $presupuesto_id,
+                'cliente_id' => $cliente_id,
+            )
+        );
+    }
+
+    public function handle_create_core_document() {
+        $this->ensure_valid_nonce();
+
+        if ( ! is_user_logged_in() ) {
+            wp_send_json_error( array( 'message' => __( 'Debes iniciar sesión para crear documentos.', 'core-print-offset' ) ), 401 );
+        }
+
+        if ( ! $this->core_bridge->has_core_api() ) {
+            wp_send_json_error( array( 'message' => __( 'Core Global no está disponible.', 'core-print-offset' ) ), 400 );
+        }
+
+        $presupuesto_id = isset( $_POST['presupuesto_id'] ) ? intval( $_POST['presupuesto_id'] ) : 0;
+        if ( ! $presupuesto_id ) {
+            wp_send_json_error( array( 'message' => __( 'Guarda el presupuesto antes de crear el documento en Core.', 'core-print-offset' ) ), 400 );
+        }
+
+        global $wpdb;
+        $presupuesto = $wpdb->get_row(
+            $wpdb->prepare( "SELECT * FROM {$wpdb->prefix}cpo_presupuestos WHERE id = %d", $presupuesto_id ),
+            ARRAY_A
+        );
+
+        if ( ! $presupuesto ) {
+            wp_send_json_error( array( 'message' => __( 'Presupuesto no encontrado.', 'core-print-offset' ) ), 404 );
+        }
+
+        $cliente_id = isset( $presupuesto['cliente_id'] ) ? (int) $presupuesto['cliente_id'] : 0;
+        if ( ! $cliente_id && isset( $presupuesto['core_cliente_id'] ) ) {
+            $cliente_id = (int) $presupuesto['core_cliente_id'];
+        }
+
+        if ( ! $cliente_id ) {
+            wp_send_json_error( array( 'message' => __( 'Selecciona un cliente de Core para crear el documento.', 'core-print-offset' ) ), 400 );
+        }
+
+        $response = $this->core_bridge->create_core_document(
+            array(
+                'tipo'       => 'presupuesto',
+                'titulo'     => $presupuesto['titulo'],
+                'cliente_id' => $cliente_id,
+                'total'      => $presupuesto['precio_total'],
+            )
+        );
+
+        if ( is_wp_error( $response ) ) {
+            wp_send_json_error( array( 'message' => $response->get_error_message() ), 400 );
+        }
+
+        $core_documento_id = is_array( $response ) && isset( $response['id'] ) ? (int) $response['id'] : (int) $response;
+        if ( $core_documento_id ) {
+            $wpdb->update(
+                $wpdb->prefix . 'cpo_presupuestos',
+                array( 'core_documento_id' => $core_documento_id ),
+                array( 'id' => $presupuesto_id )
+            );
+            $this->maybe_add_core_document_items( $core_documento_id, $presupuesto_id );
+        }
+
+        wp_send_json_success(
+            array(
+                'message' => __( 'Documento creado en Core.', 'core-print-offset' ),
+                'core_documento_id' => $core_documento_id,
             )
         );
     }
@@ -447,7 +555,9 @@ class CPO_Public {
     private function sanitize_payload( $raw ) {
         $payload = array();
 
-        $payload['cliente'] = sanitize_text_field( wp_unslash( $raw['cliente'] ?? '' ) );
+        $cliente_id_raw = $raw['cliente_id'] ?? 0;
+        $payload['cliente_id'] = is_numeric( $cliente_id_raw ) ? (int) $cliente_id_raw : 0;
+        $payload['cliente_texto'] = sanitize_text_field( wp_unslash( $raw['cliente_texto'] ?? '' ) );
         $payload['descripcion'] = sanitize_text_field( wp_unslash( $raw['descripcion'] ?? '' ) );
         $payload['cantidad'] = max( 1, (int) ( $raw['cantidad'] ?? 1 ) );
         $payload['ancho_mm'] = cpo_get_decimal( wp_unslash( $raw['ancho_mm'] ?? 0 ) );
@@ -477,6 +587,52 @@ class CPO_Public {
         $payload['procesos'] = array_values( array_filter( array_map( 'intval', $processes ) ) );
 
         return $payload;
+    }
+
+    private function get_core_client_name( int $client_id ): string {
+        if ( ! $client_id ) {
+            return '';
+        }
+
+        $clients = $this->core_bridge->get_core_clients_list();
+        foreach ( $clients as $client ) {
+            if ( (int) $client['id'] === $client_id ) {
+                return (string) $client['nombre'];
+            }
+        }
+
+        return '';
+    }
+
+    private function maybe_add_core_document_items( int $documento_id, int $presupuesto_id ): void {
+        if ( ! function_exists( 'gc_api_add_documento_item' ) ) {
+            return;
+        }
+
+        global $wpdb;
+        $items = $wpdb->get_results(
+            $wpdb->prepare(
+                "SELECT descripcion, cantidad, unitario, subtotal FROM {$wpdb->prefix}cpo_presupuesto_items WHERE presupuesto_id = %d",
+                $presupuesto_id
+            ),
+            ARRAY_A
+        );
+
+        if ( empty( $items ) ) {
+            return;
+        }
+
+        foreach ( $items as $item ) {
+            gc_api_add_documento_item(
+                $documento_id,
+                array(
+                    'descripcion' => $item['descripcion'],
+                    'cantidad'    => $item['cantidad'],
+                    'precio_unit' => $item['unitario'],
+                    'total'       => $item['subtotal'],
+                )
+            );
+        }
     }
 
     private function get_materiales_list() {

@@ -428,15 +428,13 @@ class CPO_Admin_Menu {
         );
 
         if ( $this->core_active ) {
-            $clients = $this->core_bridge->get_core_clients();
-            if ( ! is_wp_error( $clients ) && is_array( $clients ) ) {
-                $data['core_clients'] = $clients;
-            }
+            $data['core_clients'] = $this->core_bridge->get_core_clients_list();
         }
 
         if ( $this->core_active && isset( $_POST['cpo_presupuesto_save'] ) && check_admin_referer( 'cpo_presupuesto_save', 'cpo_presupuesto_nonce' ) ) {
             $id             = isset( $_POST['presupuesto_id'] ) ? intval( $_POST['presupuesto_id'] ) : 0;
-            $core_cliente   = isset( $_POST['core_cliente_id'] ) ? intval( $_POST['core_cliente_id'] ) : null;
+            $cliente_id     = isset( $_POST['cliente_id'] ) ? intval( $_POST['cliente_id'] ) : 0;
+            $cliente_texto  = sanitize_text_field( wp_unslash( $_POST['cliente_texto'] ?? '' ) );
             $titulo         = sanitize_text_field( wp_unslash( $_POST['titulo'] ?? '' ) );
             $producto       = sanitize_text_field( wp_unslash( $_POST['producto'] ?? '' ) );
             $formato_final  = sanitize_text_field( wp_unslash( $_POST['formato_final'] ?? '' ) );
@@ -451,16 +449,22 @@ class CPO_Admin_Menu {
             $horas_maquina  = cpo_get_decimal( wp_unslash( $_POST['horas_maquina'] ?? 0 ) );
             $procesos       = isset( $_POST['procesos'] ) ? array_map( 'intval', (array) $_POST['procesos'] ) : array();
             $now            = cpo_now();
+            if ( $cliente_id > 0 ) {
+                $client_name = $this->get_core_client_name_from_list( $cliente_id, $data['core_clients'] );
+                if ( $client_name ) {
+                    $cliente_texto = $client_name;
+                }
+            }
 
             $payload = array(
-                'cantidad'         => $cantidad,
-                'formas_por_pliego'=> $formas_por_pliego,
-                'merma_pct'        => 0,
-                'material_id'      => $material_id,
-                'procesos'         => $procesos,
-                'margin_pct'       => $margen_pct,
-                'maquina_id'       => $maquina_id,
-                'horas_maquina'    => $horas_maquina,
+                'cantidad'              => $cantidad,
+                'formas_por_pliego'     => $formas_por_pliego,
+                'merma_pct'             => 0,
+                'material_id'           => $material_id,
+                'procesos'              => $procesos,
+                'margin_pct'            => $margen_pct,
+                'maquina_id'            => $maquina_id,
+                'horas_maquina'         => $horas_maquina,
                 'allow_machine_default' => false,
             );
 
@@ -511,7 +515,9 @@ class CPO_Admin_Menu {
             $precio_total = $result['total'];
 
             $payload = array(
-                'core_cliente_id' => $core_cliente,
+                'core_cliente_id' => $cliente_id > 0 ? $cliente_id : null,
+                'cliente_id'      => $cliente_id > 0 ? $cliente_id : null,
+                'cliente_texto'   => $cliente_texto ?: null,
                 'titulo'          => $titulo,
                 'producto'        => $producto,
                 'formato_final'   => $formato_final,
@@ -561,11 +567,21 @@ class CPO_Admin_Menu {
                 $id = intval( $_GET['presupuesto_id'] );
                 $presupuesto = $wpdb->get_row( $wpdb->prepare( "SELECT * FROM {$wpdb->prefix}cpo_presupuestos WHERE id = %d", $id ), ARRAY_A );
                 if ( $presupuesto ) {
+                    $cliente_id = isset( $presupuesto['cliente_id'] ) ? (int) $presupuesto['cliente_id'] : 0;
+                    if ( ! $cliente_id && isset( $presupuesto['core_cliente_id'] ) ) {
+                        $cliente_id = (int) $presupuesto['core_cliente_id'];
+                    }
+
+                    if ( ! $cliente_id ) {
+                        $this->add_notice( __( 'Selecciona un cliente de Core antes de generar el documento.', 'core-print-offset' ), 'warning' );
+                        return $data;
+                    }
+
                     $response = $this->core_bridge->create_core_document(
                         array(
                             'tipo'    => 'presupuesto',
                             'titulo'  => $presupuesto['titulo'],
-                            'cliente' => $presupuesto['core_cliente_id'],
+                            'cliente_id' => $cliente_id,
                             'total'   => $presupuesto['precio_total'],
                         )
                     );
@@ -574,6 +590,7 @@ class CPO_Admin_Menu {
                     } else {
                         $core_documento_id = is_array( $response ) && isset( $response['id'] ) ? (int) $response['id'] : (int) $response;
                         $wpdb->update( $wpdb->prefix . 'cpo_presupuestos', array( 'core_documento_id' => $core_documento_id ), array( 'id' => $id ) );
+                        $this->maybe_add_core_document_items( $core_documento_id, $id );
                         $this->add_notice( __( 'Documento generado en Core.', 'core-print-offset' ) );
                     }
                 }
@@ -629,6 +646,51 @@ class CPO_Admin_Menu {
         return $data;
     }
 
+    private function get_core_client_name_from_list( int $cliente_id, array $clients ): string {
+        if ( ! $cliente_id ) {
+            return '';
+        }
+
+        foreach ( $clients as $client ) {
+            if ( (int) ( $client['id'] ?? 0 ) === $cliente_id ) {
+                return (string) ( $client['nombre'] ?? '' );
+            }
+        }
+
+        return '';
+    }
+
+    private function maybe_add_core_document_items( int $documento_id, int $presupuesto_id ): void {
+        if ( ! function_exists( 'gc_api_add_documento_item' ) ) {
+            return;
+        }
+
+        global $wpdb;
+        $items = $wpdb->get_results(
+            $wpdb->prepare(
+                "SELECT descripcion, cantidad, unitario, subtotal FROM {$wpdb->prefix}cpo_presupuesto_items WHERE presupuesto_id = %d",
+                $presupuesto_id
+            ),
+            ARRAY_A
+        );
+
+        if ( empty( $items ) ) {
+            return;
+        }
+
+        foreach ( $items as $item ) {
+            gc_api_add_documento_item(
+                $documento_id,
+                array(
+                    'descripcion' => $item['descripcion'],
+                    'cantidad'    => $item['cantidad'],
+                    'precio_unit' => $item['unitario'],
+                    'total'       => $item['subtotal'],
+                )
+            );
+        }
+    }
+
     private function handle_ordenes() {
         global $wpdb;
 
@@ -659,7 +721,7 @@ class CPO_Admin_Menu {
                         array(
                             'tipo'    => 'factura',
                             'titulo'  => $orden['titulo'],
-                            'cliente' => $orden['core_cliente_id'],
+                            'cliente_id' => $orden['core_cliente_id'],
                         )
                     );
                     if ( is_wp_error( $response ) ) {
