@@ -300,7 +300,12 @@ class CPO_Admin_Menu {
             $tipo                = sanitize_text_field( wp_unslash( $_POST['tipo'] ?? '' ) );
             $costo_hora          = cpo_get_decimal( wp_unslash( $_POST['costo_hora'] ?? 0 ) );
             $rendimiento         = isset( $_POST['rendimiento_hora'] ) ? intval( $_POST['rendimiento_hora'] ) : null;
-            $rendimiento_pliegos = isset( $_POST['rendimiento_pliegos_hora'] ) ? intval( $_POST['rendimiento_pliegos_hora'] ) : $rendimiento;
+            $rendimiento_pliegos_raw = isset( $_POST['rendimiento_pliegos_hora'] ) ? trim( (string) wp_unslash( $_POST['rendimiento_pliegos_hora'] ) ) : '';
+            // Solo persistir rendimiento_pliegos_hora si tiene valor > 0; '' debe quedar como null para permitir fallback.
+            $rendimiento_pliegos = $rendimiento_pliegos_raw !== '' ? intval( $rendimiento_pliegos_raw ) : null;
+            if ( $rendimiento_pliegos !== null && $rendimiento_pliegos <= 0 ) {
+                $rendimiento_pliegos = null;
+            }
             $setup_min           = cpo_get_decimal( wp_unslash( $_POST['setup_min'] ?? 0 ) );
             $activo              = isset( $_POST['activo'] ) ? 1 : 0;
             $now                 = cpo_now();
@@ -487,14 +492,14 @@ class CPO_Admin_Menu {
                 }
             }
 
-            $payload = cpo_build_presupuesto_payload(
+            $snapshot_inputs = cpo_build_presupuesto_payload(
                 $_POST,
                 array(
                     'allow_machine_default' => false,
                 )
             );
 
-            $result = CPO_Calculator::calculate( $payload );
+            $result = CPO_Calculator::calculate( $snapshot_inputs );
             $items = array();
 
             if ( $result['material'] ) {
@@ -593,7 +598,7 @@ class CPO_Admin_Menu {
             }
 
             $snapshot_payload = array(
-                'inputs'  => $payload,
+                'inputs'  => $snapshot_inputs,
                 'totals'  => $result,
                 'cliente' => $cliente_texto,
             );
