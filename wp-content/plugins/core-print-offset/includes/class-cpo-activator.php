@@ -45,6 +45,8 @@ class CPO_Activator {
             tipo varchar(100) NOT NULL,
             costo_hora decimal(14,2) NOT NULL,
             rendimiento_hora int(11) DEFAULT NULL,
+            rendimiento_pliegos_hora int(11) DEFAULT NULL,
+            setup_min decimal(10,2) DEFAULT NULL,
             activo tinyint(1) NOT NULL DEFAULT 1,
             created_at datetime NOT NULL,
             updated_at datetime NOT NULL,
@@ -54,9 +56,12 @@ class CPO_Activator {
         $tables[] = "CREATE TABLE {$wpdb->prefix}cpo_procesos (
             id bigint(20) unsigned NOT NULL AUTO_INCREMENT,
             nombre varchar(190) NOT NULL,
-            modo_cobro enum('por_hora','por_unidad','por_pliego','fijo') NOT NULL DEFAULT 'fijo',
+            modo_cobro enum('por_hora','por_unidad','por_pliego','por_millar','por_m2','por_kg','fijo') NOT NULL DEFAULT 'fijo',
             costo_base decimal(14,2) NOT NULL DEFAULT 0,
             unidad varchar(40) DEFAULT NULL,
+            consumo_g_m2 decimal(14,4) DEFAULT NULL,
+            merma_proceso_pct decimal(5,2) DEFAULT NULL,
+            setup_min decimal(10,2) DEFAULT NULL,
             activo tinyint(1) NOT NULL DEFAULT 1,
             created_at datetime NOT NULL,
             updated_at datetime NOT NULL,
@@ -146,6 +151,39 @@ class CPO_Activator {
         require_once ABSPATH . 'wp-admin/includes/upgrade.php';
 
         $charset_collate = $wpdb->get_charset_collate();
+
+        $table_sql = "CREATE TABLE {$wpdb->prefix}cpo_maquinas (
+            id bigint(20) unsigned NOT NULL AUTO_INCREMENT,
+            nombre varchar(190) NOT NULL,
+            tipo varchar(100) NOT NULL,
+            costo_hora decimal(14,2) NOT NULL,
+            rendimiento_hora int(11) DEFAULT NULL,
+            rendimiento_pliegos_hora int(11) DEFAULT NULL,
+            setup_min decimal(10,2) DEFAULT NULL,
+            activo tinyint(1) NOT NULL DEFAULT 1,
+            created_at datetime NOT NULL,
+            updated_at datetime NOT NULL,
+            PRIMARY KEY  (id)
+        ) $charset_collate;";
+
+        dbDelta( $table_sql );
+
+        $table_sql = "CREATE TABLE {$wpdb->prefix}cpo_procesos (
+            id bigint(20) unsigned NOT NULL AUTO_INCREMENT,
+            nombre varchar(190) NOT NULL,
+            modo_cobro enum('por_hora','por_unidad','por_pliego','por_millar','por_m2','por_kg','fijo') NOT NULL DEFAULT 'fijo',
+            costo_base decimal(14,2) NOT NULL DEFAULT 0,
+            unidad varchar(40) DEFAULT NULL,
+            consumo_g_m2 decimal(14,4) DEFAULT NULL,
+            merma_proceso_pct decimal(5,2) DEFAULT NULL,
+            setup_min decimal(10,2) DEFAULT NULL,
+            activo tinyint(1) NOT NULL DEFAULT 1,
+            created_at datetime NOT NULL,
+            updated_at datetime NOT NULL,
+            PRIMARY KEY  (id)
+        ) $charset_collate;";
+
+        dbDelta( $table_sql );
 
         $table_sql = "CREATE TABLE {$wpdb->prefix}cpo_presupuestos (
             id bigint(20) unsigned NOT NULL AUTO_INCREMENT,

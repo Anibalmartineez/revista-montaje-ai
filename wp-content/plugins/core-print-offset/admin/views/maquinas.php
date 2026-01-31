@@ -32,6 +32,14 @@ $core_active = $data['core_active'];
                     <td><input name="rendimiento_hora" id="rendimiento_hora" type="number" value="<?php echo esc_attr( $editing['rendimiento_hora'] ?? '' ); ?>"></td>
                 </tr>
                 <tr>
+                    <th><label for="rendimiento_pliegos_hora"><?php esc_html_e( 'Rendimiento pliegos / hora', 'core-print-offset' ); ?></label></th>
+                    <td><input name="rendimiento_pliegos_hora" id="rendimiento_pliegos_hora" type="number" value="<?php echo esc_attr( $editing['rendimiento_pliegos_hora'] ?? '' ); ?>"></td>
+                </tr>
+                <tr>
+                    <th><label for="setup_min"><?php esc_html_e( 'Setup (min)', 'core-print-offset' ); ?></label></th>
+                    <td><input name="setup_min" id="setup_min" type="number" step="0.01" value="<?php echo esc_attr( $editing['setup_min'] ?? '' ); ?>"></td>
+                </tr>
+                <tr>
                     <th><label for="activo"><?php esc_html_e( 'Activo', 'core-print-offset' ); ?></label></th>
                     <td><input name="activo" id="activo" type="checkbox" <?php checked( (int) ( $editing['activo'] ?? 1 ), 1 ); ?>></td>
                 </tr>

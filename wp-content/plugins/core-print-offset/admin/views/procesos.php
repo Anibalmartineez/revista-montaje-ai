@@ -25,7 +25,7 @@ $core_active = $data['core_active'];
                         <select name="modo_cobro" id="modo_cobro">
                             <?php
                             $modo = $editing['modo_cobro'] ?? 'fijo';
-                            foreach ( array( 'por_hora', 'por_unidad', 'por_pliego', 'fijo' ) as $option ) :
+                            foreach ( array( 'por_hora', 'por_unidad', 'por_pliego', 'por_millar', 'por_m2', 'por_kg', 'fijo' ) as $option ) :
                                 printf(
                                     '<option value="%1$s" %2$s>%1$s</option>',
                                     esc_attr( $option ),
@@ -43,6 +43,18 @@ $core_active = $data['core_active'];
                 <tr>
                     <th><label for="unidad"><?php esc_html_e( 'Unidad', 'core-print-offset' ); ?></label></th>
                     <td><input name="unidad" id="unidad" type="text" value="<?php echo esc_attr( $editing['unidad'] ?? '' ); ?>"></td>
+                </tr>
+                <tr>
+                    <th><label for="consumo_g_m2"><?php esc_html_e( 'Consumo (g/m²)', 'core-print-offset' ); ?></label></th>
+                    <td><input name="consumo_g_m2" id="consumo_g_m2" type="number" step="0.01" value="<?php echo esc_attr( $editing['consumo_g_m2'] ?? '' ); ?>"></td>
+                </tr>
+                <tr>
+                    <th><label for="merma_proceso_pct"><?php esc_html_e( 'Merma proceso %', 'core-print-offset' ); ?></label></th>
+                    <td><input name="merma_proceso_pct" id="merma_proceso_pct" type="number" step="0.01" value="<?php echo esc_attr( $editing['merma_proceso_pct'] ?? '' ); ?>"></td>
+                </tr>
+                <tr>
+                    <th><label for="setup_min"><?php esc_html_e( 'Setup (min)', 'core-print-offset' ); ?></label></th>
+                    <td><input name="setup_min" id="setup_min" type="number" step="0.01" value="<?php echo esc_attr( $editing['setup_min'] ?? '' ); ?>"></td>
                 </tr>
                 <tr>
                     <th><label for="activo"><?php esc_html_e( 'Activo', 'core-print-offset' ); ?></label></th>

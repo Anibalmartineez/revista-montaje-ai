@@ -165,7 +165,8 @@ class CPO_Public {
                                     <?php foreach ( $materials as $material ) : ?>
                                         <option value="<?php echo esc_attr( $material['id'] ); ?>"
                                                 data-price="<?php echo esc_attr( $material['precio_vigente'] ?? '' ); ?>"
-                                                data-moneda="<?php echo esc_attr( $material['moneda'] ?? 'PYG' ); ?>">
+                                                data-moneda="<?php echo esc_attr( $material['moneda'] ?? 'PYG' ); ?>"
+                                                data-formato-base="<?php echo esc_attr( $material['formato_base'] ?? '' ); ?>">
                                             <?php echo esc_html( $material['nombre'] ); ?>
                                         </option>
                                     <?php endforeach; ?>
@@ -188,6 +189,10 @@ class CPO_Public {
                                     <option value="70x100" selected>70 x 100 cm</option>
                                     <option value="custom"><?php esc_html_e( 'Personalizado (mm)', 'core-print-offset' ); ?></option>
                                 </select>
+                            </label>
+                            <label class="cpo-inline">
+                                <input type="checkbox" name="pliego_personalizado" value="1" data-pliego-override>
+                                <?php esc_html_e( 'Usar pliego personalizado', 'core-print-offset' ); ?>
                             </label>
                             <div class="cpo-inline" data-pliego-custom hidden>
                                 <label>
@@ -239,7 +244,8 @@ class CPO_Public {
                                             <?php foreach ( $machines as $machine ) : ?>
                                                 <option value="<?php echo esc_attr( $machine['id'] ); ?>"
                                                         data-cost="<?php echo esc_attr( $machine['costo_hora'] ); ?>"
-                                                        data-rendimiento="<?php echo esc_attr( $machine['rendimiento_hora'] ); ?>">
+                                                        data-rendimiento="<?php echo esc_attr( $machine['rendimiento_pliegos_hora'] ?? $machine['rendimiento_hora'] ); ?>"
+                                                        data-setup="<?php echo esc_attr( $machine['setup_min'] ?? 0 ); ?>">
                                                     <?php echo esc_html( $machine['nombre'] ); ?>
                                                 </option>
                                             <?php endforeach; ?>
@@ -297,6 +303,7 @@ class CPO_Public {
                                 <strong data-result="total">-</strong>
                             </div>
                             <p class="cpo-hint" data-result="price_note"></p>
+                            <div class="cpo-breakdown" data-result-breakdown hidden></div>
                         </section>
                     </div>
 
@@ -389,13 +396,10 @@ class CPO_Public {
         }
 
         $presupuesto_id = (int) $wpdb->insert_id;
-        $snapshot = wp_json_encode(
-            array(
-                'inputs'  => $payload,
-                'totals'  => $result,
-                'cliente' => $cliente_texto,
-            ),
-            JSON_UNESCAPED_UNICODE
+        $snapshot_payload = array(
+            'inputs'  => $payload,
+            'totals'  => $result,
+            'cliente' => $cliente_texto,
         );
 
         if ( $result['material'] ) {
@@ -409,23 +413,12 @@ class CPO_Public {
                     'cantidad'       => $result['pliegos_necesarios'],
                     'unitario'       => $result['precio_pliego'],
                     'subtotal'       => $result['costo_papel'],
-                    'snapshot_json'  => wp_json_encode( $result['material_snapshot'] ),
-                    'created_at'     => $now,
-                ),
-                array( '%d', '%s', '%d', '%s', '%f', '%f', '%f', '%s', '%s' )
-            );
-        } else {
-            $wpdb->insert(
-                $wpdb->prefix . 'cpo_presupuesto_items',
-                array(
-                    'presupuesto_id' => $presupuesto_id,
-                    'tipo'           => 'otro',
-                    'referencia_id'  => null,
-                    'descripcion'    => __( 'Snapshot presupuesto', 'core-print-offset' ),
-                    'cantidad'       => 1,
-                    'unitario'       => 0,
-                    'subtotal'       => 0,
-                    'snapshot_json'  => $snapshot,
+                    'snapshot_json'  => wp_json_encode(
+                        array(
+                            'material' => $result['material'],
+                            'precio'   => $result['material_snapshot'],
+                        )
+                    ),
                     'created_at'     => $now,
                 ),
                 array( '%d', '%s', '%d', '%s', '%f', '%f', '%f', '%s', '%s' )
@@ -443,7 +436,13 @@ class CPO_Public {
                     'cantidad'       => $result['horas_maquina'],
                     'unitario'       => $result['costo_hora'],
                     'subtotal'       => $result['costo_maquina'],
-                    'snapshot_json'  => wp_json_encode( array( 'horas' => $result['horas_maquina'] ) ),
+                    'snapshot_json'  => wp_json_encode(
+                        array(
+                            'horas'      => $result['horas_maquina'],
+                            'costo_hora' => $result['costo_hora'],
+                            'maquina'    => $result['maquina'],
+                        )
+                    ),
                     'created_at'     => $now,
                 ),
                 array( '%d', '%s', '%d', '%s', '%f', '%f', '%f', '%s', '%s' )
@@ -462,13 +461,29 @@ class CPO_Public {
                         'cantidad'       => $process['cantidad'],
                         'unitario'       => $process['unitario'],
                         'subtotal'       => $process['subtotal'],
-                        'snapshot_json'  => null,
+                        'snapshot_json'  => wp_json_encode( $process ),
                         'created_at'     => $now,
                     ),
                     array( '%d', '%s', '%d', '%s', '%f', '%f', '%f', '%s', '%s' )
                 );
             }
         }
+
+        $wpdb->insert(
+            $wpdb->prefix . 'cpo_presupuesto_items',
+            array(
+                'presupuesto_id' => $presupuesto_id,
+                'tipo'           => 'otro',
+                'referencia_id'  => null,
+                'descripcion'    => __( 'Snapshot presupuesto', 'core-print-offset' ),
+                'cantidad'       => 1,
+                'unitario'       => 0,
+                'subtotal'       => 0,
+                'snapshot_json'  => wp_json_encode( $snapshot_payload, JSON_UNESCAPED_UNICODE ),
+                'created_at'     => $now,
+            ),
+            array( '%d', '%s', '%d', '%s', '%f', '%f', '%f', '%s', '%s' )
+        );
 
         wp_send_json_success(
             array(
@@ -563,40 +578,12 @@ class CPO_Public {
     }
 
     private function sanitize_payload( $raw ) {
-        $payload = array();
-
-        $cliente_id_raw = $raw['cliente_id'] ?? 0;
-        $payload['cliente_id'] = is_numeric( $cliente_id_raw ) ? (int) $cliente_id_raw : 0;
-        $payload['cliente_texto'] = sanitize_text_field( wp_unslash( $raw['cliente_texto'] ?? '' ) );
-        $payload['descripcion'] = sanitize_text_field( wp_unslash( $raw['descripcion'] ?? '' ) );
-        $payload['cantidad'] = max( 1, (int) ( $raw['cantidad'] ?? 1 ) );
-        $payload['ancho_mm'] = cpo_get_decimal( wp_unslash( $raw['ancho_mm'] ?? 0 ) );
-        $payload['alto_mm'] = cpo_get_decimal( wp_unslash( $raw['alto_mm'] ?? 0 ) );
-        $payload['colores'] = sanitize_text_field( wp_unslash( $raw['colores'] ?? '4/0' ) );
-        $payload['sangrado_mm'] = cpo_get_decimal( wp_unslash( $raw['sangrado_mm'] ?? 0 ) );
-        $payload['material_id'] = (int) ( $raw['material_id'] ?? 0 );
-        $payload['pliego_formato'] = sanitize_text_field( wp_unslash( $raw['pliego_formato'] ?? '' ) );
-        $payload['pliego_ancho_mm'] = cpo_get_decimal( wp_unslash( $raw['pliego_ancho_mm'] ?? 0 ) );
-        $payload['pliego_alto_mm'] = cpo_get_decimal( wp_unslash( $raw['pliego_alto_mm'] ?? 0 ) );
-        $payload['formas_por_pliego'] = max( 1, (int) ( $raw['formas_por_pliego'] ?? 1 ) );
-        $payload['merma_pct'] = max( 0, cpo_get_decimal( wp_unslash( $raw['merma_pct'] ?? 0 ) ) );
-        $payload['margin_pct'] = max( 0, cpo_get_decimal( wp_unslash( $raw['margin_pct'] ?? 0 ) ) );
-        if ( array_key_exists( 'maquina_id', $raw ) && $raw['maquina_id'] !== '' ) {
-            $payload['maquina_id'] = (int) $raw['maquina_id'];
-        } else {
-            $payload['maquina_id'] = null;
-        }
-        $payload['horas_maquina'] = max( 0, cpo_get_decimal( wp_unslash( $raw['horas_maquina'] ?? 0 ) ) );
-        $payload['costo_hora'] = max( 0, cpo_get_decimal( wp_unslash( $raw['costo_hora'] ?? 0 ) ) );
-        $payload['allow_machine_default'] = true;
-
-        $processes = $raw['procesos'] ?? array();
-        if ( ! is_array( $processes ) ) {
-            $processes = array();
-        }
-        $payload['procesos'] = array_values( array_filter( array_map( 'intval', $processes ) ) );
-
-        return $payload;
+        return cpo_build_presupuesto_payload(
+            $raw,
+            array(
+                'allow_machine_default' => true,
+            )
+        );
     }
 
     private function get_core_client_name( int $client_id ): string {
