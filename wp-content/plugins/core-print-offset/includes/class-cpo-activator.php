@@ -66,6 +66,8 @@ class CPO_Activator {
         $tables[] = "CREATE TABLE {$wpdb->prefix}cpo_presupuestos (
             id bigint(20) unsigned NOT NULL AUTO_INCREMENT,
             core_cliente_id bigint(20) unsigned DEFAULT NULL,
+            cliente_id bigint(20) unsigned DEFAULT NULL,
+            cliente_texto varchar(190) DEFAULT NULL,
             core_documento_id bigint(20) unsigned DEFAULT NULL,
             titulo varchar(190) NOT NULL,
             producto varchar(190) DEFAULT NULL,
@@ -81,7 +83,8 @@ class CPO_Activator {
             created_at datetime NOT NULL,
             updated_at datetime NOT NULL,
             PRIMARY KEY  (id),
-            KEY core_cliente_id (core_cliente_id)
+            KEY core_cliente_id (core_cliente_id),
+            KEY cliente_id (cliente_id)
         ) $charset_collate;";
 
         $tables[] = "CREATE TABLE {$wpdb->prefix}cpo_presupuesto_items (
@@ -135,5 +138,39 @@ class CPO_Activator {
         if ( $role && ! $role->has_cap( 'manage_cpo_offset' ) ) {
             $role->add_cap( 'manage_cpo_offset' );
         }
+    }
+
+    public static function maybe_update_schema() {
+        global $wpdb;
+
+        require_once ABSPATH . 'wp-admin/includes/upgrade.php';
+
+        $charset_collate = $wpdb->get_charset_collate();
+
+        $table_sql = "CREATE TABLE {$wpdb->prefix}cpo_presupuestos (
+            id bigint(20) unsigned NOT NULL AUTO_INCREMENT,
+            core_cliente_id bigint(20) unsigned DEFAULT NULL,
+            cliente_id bigint(20) unsigned DEFAULT NULL,
+            cliente_texto varchar(190) DEFAULT NULL,
+            core_documento_id bigint(20) unsigned DEFAULT NULL,
+            titulo varchar(190) NOT NULL,
+            producto varchar(190) DEFAULT NULL,
+            formato_final varchar(50) DEFAULT NULL,
+            cantidad int(11) NOT NULL,
+            material_id bigint(20) unsigned DEFAULT NULL,
+            colores varchar(20) DEFAULT NULL,
+            caras int(11) NOT NULL DEFAULT 1,
+            margen_pct decimal(5,2) NOT NULL DEFAULT 30,
+            estado enum('borrador','enviado','aceptado','rechazado') NOT NULL DEFAULT 'borrador',
+            costo_total decimal(14,2) NOT NULL DEFAULT 0,
+            precio_total decimal(14,2) NOT NULL DEFAULT 0,
+            created_at datetime NOT NULL,
+            updated_at datetime NOT NULL,
+            PRIMARY KEY  (id),
+            KEY core_cliente_id (core_cliente_id),
+            KEY cliente_id (cliente_id)
+        ) $charset_collate;";
+
+        dbDelta( $table_sql );
     }
 }

@@ -4,6 +4,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 }
 $editing = $data['editing'];
 $core_active = $data['core_active'];
+$selected_cliente_id = (int) ( $editing['cliente_id'] ?? $editing['core_cliente_id'] ?? 0 );
 ?>
 <div class="wrap">
     <h1><?php esc_html_e( 'Presupuestos', 'core-print-offset' ); ?></h1>
@@ -16,21 +17,25 @@ $core_active = $data['core_active'];
             <input type="hidden" name="presupuesto_id" value="<?php echo esc_attr( $editing['id'] ?? 0 ); ?>">
             <table class="form-table">
                 <tr>
-                    <th><label for="core_cliente_id"><?php esc_html_e( 'Cliente (Core)', 'core-print-offset' ); ?></label></th>
+                    <th><label for="cliente_id"><?php esc_html_e( 'Cliente (Core)', 'core-print-offset' ); ?></label></th>
                     <td>
                         <?php if ( ! empty( $data['core_clients'] ) ) : ?>
-                            <select name="core_cliente_id" id="core_cliente_id">
+                            <select name="cliente_id" id="cliente_id">
                                 <option value="0"><?php esc_html_e( 'Seleccionar', 'core-print-offset' ); ?></option>
                                 <?php foreach ( $data['core_clients'] as $client ) : ?>
                                     <?php $client_id = is_array( $client ) ? ( $client['id'] ?? 0 ) : 0; ?>
                                     <?php $client_name = is_array( $client ) ? ( $client['nombre'] ?? $client['name'] ?? '' ) : ''; ?>
-                                    <option value="<?php echo esc_attr( $client_id ); ?>" <?php selected( (int) ( $editing['core_cliente_id'] ?? 0 ), (int) $client_id ); ?>><?php echo esc_html( $client_name ); ?></option>
+                                    <option value="<?php echo esc_attr( $client_id ); ?>" <?php selected( $selected_cliente_id, (int) $client_id ); ?>><?php echo esc_html( $client_name ); ?></option>
                                 <?php endforeach; ?>
                             </select>
                         <?php else : ?>
-                            <input name="core_cliente_id" id="core_cliente_id" type="number" value="<?php echo esc_attr( $editing['core_cliente_id'] ?? '' ); ?>">
+                            <input name="cliente_id" id="cliente_id" type="number" value="<?php echo esc_attr( $selected_cliente_id ?: '' ); ?>">
                         <?php endif; ?>
                     </td>
+                </tr>
+                <tr>
+                    <th><label for="cliente_texto"><?php esc_html_e( 'Cliente (texto)', 'core-print-offset' ); ?></label></th>
+                    <td><input name="cliente_texto" id="cliente_texto" type="text" value="<?php echo esc_attr( $editing['cliente_texto'] ?? '' ); ?>"></td>
                 </tr>
                 <tr>
                     <th><label for="titulo"><?php esc_html_e( 'Título', 'core-print-offset' ); ?></label></th>
@@ -122,6 +127,7 @@ $core_active = $data['core_active'];
         <thead>
             <tr>
                 <th><?php esc_html_e( 'Título', 'core-print-offset' ); ?></th>
+                <th><?php esc_html_e( 'Cliente', 'core-print-offset' ); ?></th>
                 <th><?php esc_html_e( 'Cantidad', 'core-print-offset' ); ?></th>
                 <th><?php esc_html_e( 'Estado', 'core-print-offset' ); ?></th>
                 <th><?php esc_html_e( 'Total', 'core-print-offset' ); ?></th>
@@ -130,8 +136,21 @@ $core_active = $data['core_active'];
         </thead>
         <tbody>
             <?php foreach ( $data['presupuestos'] as $presupuesto ) : ?>
+                <?php
+                $cliente_label = $presupuesto['cliente_texto'] ?? '';
+                if ( ! $cliente_label && ! empty( $data['core_clients'] ) ) {
+                    $cliente_id = (int) ( $presupuesto['cliente_id'] ?? $presupuesto['core_cliente_id'] ?? 0 );
+                    foreach ( $data['core_clients'] as $client ) {
+                        if ( (int) ( $client['id'] ?? 0 ) === $cliente_id ) {
+                            $cliente_label = $client['nombre'] ?? '';
+                            break;
+                        }
+                    }
+                }
+                ?>
                 <tr>
                     <td><?php echo esc_html( $presupuesto['titulo'] ); ?></td>
+                    <td><?php echo $cliente_label ? esc_html( $cliente_label ) : '-'; ?></td>
                     <td><?php echo esc_html( $presupuesto['cantidad'] ); ?></td>
                     <td><?php echo esc_html( ucfirst( $presupuesto['estado'] ) ); ?></td>
                     <td><?php echo esc_html( $presupuesto['precio_total'] ); ?></td>
