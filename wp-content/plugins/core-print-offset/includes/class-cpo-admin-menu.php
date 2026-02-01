@@ -221,6 +221,8 @@ class CPO_Admin_Menu {
                 $wpdb->insert( $wpdb->prefix . 'cpo_materiales', $payload );
                 $this->add_notice( __( 'Material creado.', 'core-print-offset' ) );
             }
+
+            $this->bump_material_cache();
         }
 
         if ( isset( $_POST['cpo_material_price_add'] ) && check_admin_referer( 'cpo_material_price_add', 'cpo_material_price_nonce' ) ) {
@@ -242,6 +244,7 @@ class CPO_Admin_Menu {
                     )
                 );
                 $this->add_notice( __( 'Precio agregado.', 'core-print-offset' ) );
+                $this->bump_material_cache();
             }
         }
 
@@ -251,6 +254,7 @@ class CPO_Admin_Menu {
                 $activo = (int) $wpdb->get_var( $wpdb->prepare( "SELECT activo FROM {$wpdb->prefix}cpo_materiales WHERE id = %d", $id ) );
                 $wpdb->update( $wpdb->prefix . 'cpo_materiales', array( 'activo' => $activo ? 0 : 1, 'updated_at' => cpo_now() ), array( 'id' => $id ) );
                 $this->add_notice( __( 'Estado actualizado.', 'core-print-offset' ) );
+                $this->bump_material_cache();
             }
         }
 
@@ -267,7 +271,15 @@ class CPO_Admin_Menu {
     private function get_materiales_list() {
         global $wpdb;
 
-        return $wpdb->get_results(
+        $cache_version = cpo_get_cache_version( 'material' );
+        $cache_key = sprintf( 'admin_materiales_list:%s', $cache_version );
+        $found = false;
+        $cached = wp_cache_get( $cache_key, 'cpo', false, $found );
+        if ( $found ) {
+            return is_array( $cached ) ? $cached : array();
+        }
+
+        $results = $wpdb->get_results(
             "SELECT m.*, (
                 SELECT precio FROM {$wpdb->prefix}cpo_material_precios p
                 WHERE p.material_id = m.id
@@ -278,6 +290,10 @@ class CPO_Admin_Menu {
             ORDER BY m.created_at DESC",
             ARRAY_A
         );
+
+        wp_cache_set( $cache_key, $results, 'cpo', 300 );
+
+        return $results;
     }
 
     private function handle_maquinas() {
@@ -329,6 +345,8 @@ class CPO_Admin_Menu {
                 $wpdb->insert( $wpdb->prefix . 'cpo_maquinas', $payload );
                 $this->add_notice( __( 'Máquina creada.', 'core-print-offset' ) );
             }
+
+            $this->bump_maquina_cache();
         }
 
         if ( isset( $_GET['cpo_action'], $_GET['maquina_id'], $_GET['_wpnonce'] ) && $_GET['cpo_action'] === 'toggle_maquina' ) {
@@ -337,6 +355,7 @@ class CPO_Admin_Menu {
                 $activo = (int) $wpdb->get_var( $wpdb->prepare( "SELECT activo FROM {$wpdb->prefix}cpo_maquinas WHERE id = %d", $id ) );
                 $wpdb->update( $wpdb->prefix . 'cpo_maquinas', array( 'activo' => $activo ? 0 : 1, 'updated_at' => cpo_now() ), array( 'id' => $id ) );
                 $this->add_notice( __( 'Estado actualizado.', 'core-print-offset' ) );
+                $this->bump_maquina_cache();
             }
         }
 
@@ -353,7 +372,18 @@ class CPO_Admin_Menu {
     private function get_maquinas_list() {
         global $wpdb;
 
-        return $wpdb->get_results( "SELECT * FROM {$wpdb->prefix}cpo_maquinas ORDER BY created_at DESC", ARRAY_A );
+        $cache_version = cpo_get_cache_version( 'maquina' );
+        $cache_key = sprintf( 'admin_maquinas_list:%s', $cache_version );
+        $found = false;
+        $cached = wp_cache_get( $cache_key, 'cpo', false, $found );
+        if ( $found ) {
+            return is_array( $cached ) ? $cached : array();
+        }
+
+        $results = $wpdb->get_results( "SELECT * FROM {$wpdb->prefix}cpo_maquinas ORDER BY created_at DESC", ARRAY_A );
+        wp_cache_set( $cache_key, $results, 'cpo', 300 );
+
+        return $results;
     }
 
     private function handle_procesos() {
@@ -402,6 +432,8 @@ class CPO_Admin_Menu {
                 $wpdb->insert( $wpdb->prefix . 'cpo_procesos', $payload );
                 $this->add_notice( __( 'Proceso creado.', 'core-print-offset' ) );
             }
+
+            $this->bump_proceso_cache();
         }
 
         if ( isset( $_GET['cpo_action'], $_GET['proceso_id'], $_GET['_wpnonce'] ) && $_GET['cpo_action'] === 'toggle_proceso' ) {
@@ -410,6 +442,7 @@ class CPO_Admin_Menu {
                 $activo = (int) $wpdb->get_var( $wpdb->prepare( "SELECT activo FROM {$wpdb->prefix}cpo_procesos WHERE id = %d", $id ) );
                 $wpdb->update( $wpdb->prefix . 'cpo_procesos', array( 'activo' => $activo ? 0 : 1, 'updated_at' => cpo_now() ), array( 'id' => $id ) );
                 $this->add_notice( __( 'Estado actualizado.', 'core-print-offset' ) );
+                $this->bump_proceso_cache();
             }
         }
 
@@ -426,7 +459,30 @@ class CPO_Admin_Menu {
     private function get_procesos_list() {
         global $wpdb;
 
-        return $wpdb->get_results( "SELECT * FROM {$wpdb->prefix}cpo_procesos ORDER BY created_at DESC", ARRAY_A );
+        $cache_version = cpo_get_cache_version( 'proceso' );
+        $cache_key = sprintf( 'admin_procesos_list:%s', $cache_version );
+        $found = false;
+        $cached = wp_cache_get( $cache_key, 'cpo', false, $found );
+        if ( $found ) {
+            return is_array( $cached ) ? $cached : array();
+        }
+
+        $results = $wpdb->get_results( "SELECT * FROM {$wpdb->prefix}cpo_procesos ORDER BY created_at DESC", ARRAY_A );
+        wp_cache_set( $cache_key, $results, 'cpo', 300 );
+
+        return $results;
+    }
+
+    private function bump_material_cache(): void {
+        cpo_bump_cache_version( 'material' );
+    }
+
+    private function bump_maquina_cache(): void {
+        cpo_bump_cache_version( 'maquina' );
+    }
+
+    private function bump_proceso_cache(): void {
+        cpo_bump_cache_version( 'proceso' );
     }
 
     private function get_presupuesto_snapshot_payload( int $presupuesto_id ): array {
@@ -435,6 +491,19 @@ class CPO_Admin_Menu {
         }
 
         global $wpdb;
+        $presupuesto_snapshot = $wpdb->get_var(
+            $wpdb->prepare(
+                "SELECT snapshot_json FROM {$wpdb->prefix}cpo_presupuestos WHERE id = %d",
+                $presupuesto_id
+            )
+        );
+        if ( $presupuesto_snapshot ) {
+            $decoded = json_decode( $presupuesto_snapshot, true );
+            if ( is_array( $decoded ) ) {
+                return $decoded;
+            }
+        }
+
         $snapshot = $wpdb->get_var(
             $wpdb->prepare(
                 "SELECT snapshot_json FROM {$wpdb->prefix}cpo_presupuesto_items WHERE presupuesto_id = %d AND tipo = 'otro' ORDER BY id DESC LIMIT 1",
@@ -451,7 +520,25 @@ class CPO_Admin_Menu {
             return array();
         }
 
-        return $decoded['inputs'] ?? array();
+        if ( isset( $decoded['inputs'] ) && is_array( $decoded['inputs'] ) ) {
+            return $decoded['inputs'];
+        }
+
+        $presupuesto = $wpdb->get_row(
+            $wpdb->prepare( "SELECT * FROM {$wpdb->prefix}cpo_presupuestos WHERE id = %d", $presupuesto_id ),
+            ARRAY_A
+        );
+        if ( ! $presupuesto ) {
+            return array();
+        }
+
+        return array(
+            'descripcion' => $presupuesto['producto'] ?? $presupuesto['titulo'] ?? '',
+            'cantidad'    => (int) ( $presupuesto['cantidad'] ?? 0 ),
+            'material_id' => (int) ( $presupuesto['material_id'] ?? 0 ),
+            'colores'     => $presupuesto['colores'] ?? '',
+            'margin_pct'  => $presupuesto['margen_pct'] ?? 0,
+        );
     }
 
     private function handle_presupuestos() {
@@ -501,6 +588,8 @@ class CPO_Admin_Menu {
 
             $result = CPO_Calculator::calculate( $snapshot_inputs );
             $items = array();
+            $snapshot_json = wp_json_encode( $snapshot_inputs, JSON_UNESCAPED_UNICODE );
+            $calc_result_json = wp_json_encode( $result, JSON_UNESCAPED_UNICODE );
 
             if ( $result['material'] ) {
                 $items[] = array(
@@ -565,6 +654,9 @@ class CPO_Admin_Menu {
                 'estado'          => $estado,
                 'costo_total'     => $costo_total,
                 'precio_total'    => $precio_total,
+                'snapshot_json'   => $snapshot_json,
+                'calc_result_json' => $calc_result_json,
+                'snapshot_version' => CPO_SNAPSHOT_VERSION,
                 'updated_at'      => $now,
             );
 

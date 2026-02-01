@@ -145,6 +145,13 @@ class CPO_Core_Bridge {
             return array();
         }
 
+        $cache_key = 'core_clients_list';
+        $found = false;
+        $cached = wp_cache_get( $cache_key, 'cpo', false, $found );
+        if ( $found ) {
+            return is_array( $cached ) ? $cached : array();
+        }
+
         $clients = $this->get_core_clients();
         if ( is_wp_error( $clients ) || ! is_array( $clients ) ) {
             $clients = $this->query_core_clients_table();
@@ -193,6 +200,8 @@ class CPO_Core_Bridge {
                 return strcasecmp( $a['nombre'], $b['nombre'] );
             }
         );
+
+        wp_cache_set( $cache_key, $normalized, 'cpo', 300 );
 
         return $normalized;
     }

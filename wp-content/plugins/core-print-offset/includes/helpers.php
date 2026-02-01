@@ -31,6 +31,25 @@ function cpo_admin_notice( $message, $type = 'info' ) {
     );
 }
 
+function cpo_get_cache_version( string $group ): string {
+    $key = 'cpo_cache_version_' . $group;
+    $version = wp_cache_get( $key, 'cpo' );
+    if ( ! $version ) {
+        $version = (string) get_option( $key, '1' );
+        wp_cache_set( $key, $version, 'cpo' );
+    }
+
+    return (string) $version;
+}
+
+function cpo_bump_cache_version( string $group ): void {
+    $key = 'cpo_cache_version_' . $group;
+    $version = (int) get_option( $key, 1 );
+    $version++;
+    update_option( $key, (string) $version );
+    wp_cache_set( $key, (string) $version, 'cpo' );
+}
+
 function cpo_build_presupuesto_payload( array $raw, array $options = array() ): array {
     $options = wp_parse_args(
         $options,

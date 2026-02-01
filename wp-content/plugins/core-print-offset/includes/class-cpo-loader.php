@@ -6,7 +6,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 
 class CPO_Loader {
     public function run() {
-        CPO_Activator::maybe_update_schema();
+        CPO_Activator::maybe_update_schema_versioned();
 
         $admin_menu = new CPO_Admin_Menu();
         add_action( 'admin_menu', array( $admin_menu, 'register_menu' ) );

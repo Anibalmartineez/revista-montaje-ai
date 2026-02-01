@@ -12,6 +12,48 @@ class CPO_Activator {
 
         $charset_collate = $wpdb->get_charset_collate();
 
+        $tables = self::get_schema_tables( $charset_collate );
+
+        foreach ( $tables as $table_sql ) {
+            dbDelta( $table_sql );
+        }
+
+        update_option( 'cpo_schema_version', CPO_SCHEMA_VERSION );
+
+        $role = get_role( 'administrator' );
+        if ( $role && ! $role->has_cap( 'manage_cpo_offset' ) ) {
+            $role->add_cap( 'manage_cpo_offset' );
+        }
+    }
+
+    public static function maybe_update_schema() {
+        self::maybe_update_schema_versioned();
+    }
+
+    public static function maybe_update_schema_versioned(): void {
+        global $wpdb;
+
+        $stored_version = (int) get_option( 'cpo_schema_version', 0 );
+        if ( $stored_version >= CPO_SCHEMA_VERSION ) {
+            return;
+        }
+
+        require_once ABSPATH . 'wp-admin/includes/upgrade.php';
+
+        $charset_collate = $wpdb->get_charset_collate();
+
+        $tables = self::get_schema_tables( $charset_collate );
+
+        foreach ( $tables as $table_sql ) {
+            dbDelta( $table_sql );
+        }
+
+        update_option( 'cpo_schema_version', CPO_SCHEMA_VERSION );
+    }
+
+    private static function get_schema_tables( string $charset_collate ): array {
+        global $wpdb;
+
         $tables = array();
 
         $tables[] = "CREATE TABLE {$wpdb->prefix}cpo_materiales (
@@ -85,6 +127,9 @@ class CPO_Activator {
             estado enum('borrador','enviado','aceptado','rechazado') NOT NULL DEFAULT 'borrador',
             costo_total decimal(14,2) NOT NULL DEFAULT 0,
             precio_total decimal(14,2) NOT NULL DEFAULT 0,
+            snapshot_json longtext DEFAULT NULL,
+            calc_result_json longtext DEFAULT NULL,
+            snapshot_version int(11) DEFAULT NULL,
             created_at datetime NOT NULL,
             updated_at datetime NOT NULL,
             PRIMARY KEY  (id),
@@ -135,80 +180,6 @@ class CPO_Activator {
             KEY orden_id (orden_id)
         ) $charset_collate;";
 
-        foreach ( $tables as $table_sql ) {
-            dbDelta( $table_sql );
-        }
-
-        $role = get_role( 'administrator' );
-        if ( $role && ! $role->has_cap( 'manage_cpo_offset' ) ) {
-            $role->add_cap( 'manage_cpo_offset' );
-        }
-    }
-
-    public static function maybe_update_schema() {
-        global $wpdb;
-
-        require_once ABSPATH . 'wp-admin/includes/upgrade.php';
-
-        $charset_collate = $wpdb->get_charset_collate();
-
-        $table_sql = "CREATE TABLE {$wpdb->prefix}cpo_maquinas (
-            id bigint(20) unsigned NOT NULL AUTO_INCREMENT,
-            nombre varchar(190) NOT NULL,
-            tipo varchar(100) NOT NULL,
-            costo_hora decimal(14,2) NOT NULL,
-            rendimiento_hora int(11) DEFAULT NULL,
-            rendimiento_pliegos_hora int(11) DEFAULT NULL,
-            setup_min decimal(10,2) DEFAULT NULL,
-            activo tinyint(1) NOT NULL DEFAULT 1,
-            created_at datetime NOT NULL,
-            updated_at datetime NOT NULL,
-            PRIMARY KEY  (id)
-        ) $charset_collate;";
-
-        dbDelta( $table_sql );
-
-        $table_sql = "CREATE TABLE {$wpdb->prefix}cpo_procesos (
-            id bigint(20) unsigned NOT NULL AUTO_INCREMENT,
-            nombre varchar(190) NOT NULL,
-            modo_cobro enum('por_hora','por_unidad','por_pliego','por_millar','por_m2','por_kg','fijo') NOT NULL DEFAULT 'fijo',
-            costo_base decimal(14,2) NOT NULL DEFAULT 0,
-            unidad varchar(40) DEFAULT NULL,
-            consumo_g_m2 decimal(14,4) DEFAULT NULL,
-            merma_proceso_pct decimal(5,2) DEFAULT NULL,
-            setup_min decimal(10,2) DEFAULT NULL,
-            activo tinyint(1) NOT NULL DEFAULT 1,
-            created_at datetime NOT NULL,
-            updated_at datetime NOT NULL,
-            PRIMARY KEY  (id)
-        ) $charset_collate;";
-
-        dbDelta( $table_sql );
-
-        $table_sql = "CREATE TABLE {$wpdb->prefix}cpo_presupuestos (
-            id bigint(20) unsigned NOT NULL AUTO_INCREMENT,
-            core_cliente_id bigint(20) unsigned DEFAULT NULL,
-            cliente_id bigint(20) unsigned DEFAULT NULL,
-            cliente_texto varchar(190) DEFAULT NULL,
-            core_documento_id bigint(20) unsigned DEFAULT NULL,
-            titulo varchar(190) NOT NULL,
-            producto varchar(190) DEFAULT NULL,
-            formato_final varchar(50) DEFAULT NULL,
-            cantidad int(11) NOT NULL,
-            material_id bigint(20) unsigned DEFAULT NULL,
-            colores varchar(20) DEFAULT NULL,
-            caras int(11) NOT NULL DEFAULT 1,
-            margen_pct decimal(5,2) NOT NULL DEFAULT 30,
-            estado enum('borrador','enviado','aceptado','rechazado') NOT NULL DEFAULT 'borrador',
-            costo_total decimal(14,2) NOT NULL DEFAULT 0,
-            precio_total decimal(14,2) NOT NULL DEFAULT 0,
-            created_at datetime NOT NULL,
-            updated_at datetime NOT NULL,
-            PRIMARY KEY  (id),
-            KEY core_cliente_id (core_cliente_id),
-            KEY cliente_id (cliente_id)
-        ) $charset_collate;";
-
-        dbDelta( $table_sql );
+        return $tables;
     }
 }
