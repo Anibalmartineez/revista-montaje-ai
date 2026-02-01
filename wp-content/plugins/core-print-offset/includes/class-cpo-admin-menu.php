@@ -295,21 +295,30 @@ class CPO_Admin_Menu {
         }
 
         if ( isset( $_POST['cpo_maquina_save'] ) && check_admin_referer( 'cpo_maquina_save', 'cpo_maquina_nonce' ) ) {
-            $id            = isset( $_POST['maquina_id'] ) ? intval( $_POST['maquina_id'] ) : 0;
-            $nombre        = sanitize_text_field( wp_unslash( $_POST['nombre'] ?? '' ) );
-            $tipo          = sanitize_text_field( wp_unslash( $_POST['tipo'] ?? '' ) );
-            $costo_hora    = cpo_get_decimal( wp_unslash( $_POST['costo_hora'] ?? 0 ) );
-            $rendimiento   = isset( $_POST['rendimiento_hora'] ) ? intval( $_POST['rendimiento_hora'] ) : null;
-            $activo        = isset( $_POST['activo'] ) ? 1 : 0;
-            $now           = cpo_now();
+            $id                  = isset( $_POST['maquina_id'] ) ? intval( $_POST['maquina_id'] ) : 0;
+            $nombre              = sanitize_text_field( wp_unslash( $_POST['nombre'] ?? '' ) );
+            $tipo                = sanitize_text_field( wp_unslash( $_POST['tipo'] ?? '' ) );
+            $costo_hora          = cpo_get_decimal( wp_unslash( $_POST['costo_hora'] ?? 0 ) );
+            $rendimiento         = isset( $_POST['rendimiento_hora'] ) ? intval( $_POST['rendimiento_hora'] ) : null;
+            $rendimiento_pliegos_raw = isset( $_POST['rendimiento_pliegos_hora'] ) ? trim( (string) wp_unslash( $_POST['rendimiento_pliegos_hora'] ) ) : '';
+            // Solo persistir rendimiento_pliegos_hora si tiene valor > 0; '' debe quedar como null para permitir fallback.
+            $rendimiento_pliegos = $rendimiento_pliegos_raw !== '' ? intval( $rendimiento_pliegos_raw ) : null;
+            if ( $rendimiento_pliegos !== null && $rendimiento_pliegos <= 0 ) {
+                $rendimiento_pliegos = null;
+            }
+            $setup_min           = cpo_get_decimal( wp_unslash( $_POST['setup_min'] ?? 0 ) );
+            $activo              = isset( $_POST['activo'] ) ? 1 : 0;
+            $now                 = cpo_now();
 
             $payload = array(
-                'nombre'           => $nombre,
-                'tipo'             => $tipo,
-                'costo_hora'        => $costo_hora,
-                'rendimiento_hora'  => $rendimiento,
-                'activo'           => $activo,
-                'updated_at'       => $now,
+                'nombre'                    => $nombre,
+                'tipo'                      => $tipo,
+                'costo_hora'                => $costo_hora,
+                'rendimiento_hora'          => $rendimiento,
+                'rendimiento_pliegos_hora'  => $rendimiento_pliegos,
+                'setup_min'                 => $setup_min,
+                'activo'                    => $activo,
+                'updated_at'                => $now,
             );
 
             if ( $id > 0 ) {
@@ -362,21 +371,27 @@ class CPO_Admin_Menu {
         }
 
         if ( isset( $_POST['cpo_proceso_save'] ) && check_admin_referer( 'cpo_proceso_save', 'cpo_proceso_nonce' ) ) {
-            $id          = isset( $_POST['proceso_id'] ) ? intval( $_POST['proceso_id'] ) : 0;
-            $nombre      = sanitize_text_field( wp_unslash( $_POST['nombre'] ?? '' ) );
-            $modo_cobro  = sanitize_text_field( wp_unslash( $_POST['modo_cobro'] ?? 'fijo' ) );
-            $costo_base  = cpo_get_decimal( wp_unslash( $_POST['costo_base'] ?? 0 ) );
-            $unidad      = sanitize_text_field( wp_unslash( $_POST['unidad'] ?? '' ) );
-            $activo      = isset( $_POST['activo'] ) ? 1 : 0;
-            $now         = cpo_now();
+            $id                 = isset( $_POST['proceso_id'] ) ? intval( $_POST['proceso_id'] ) : 0;
+            $nombre             = sanitize_text_field( wp_unslash( $_POST['nombre'] ?? '' ) );
+            $modo_cobro         = sanitize_text_field( wp_unslash( $_POST['modo_cobro'] ?? 'fijo' ) );
+            $costo_base         = cpo_get_decimal( wp_unslash( $_POST['costo_base'] ?? 0 ) );
+            $unidad             = sanitize_text_field( wp_unslash( $_POST['unidad'] ?? '' ) );
+            $consumo_g_m2        = cpo_get_decimal( wp_unslash( $_POST['consumo_g_m2'] ?? 0 ) );
+            $merma_proceso_pct  = cpo_get_decimal( wp_unslash( $_POST['merma_proceso_pct'] ?? 0 ) );
+            $setup_min          = cpo_get_decimal( wp_unslash( $_POST['setup_min'] ?? 0 ) );
+            $activo             = isset( $_POST['activo'] ) ? 1 : 0;
+            $now                = cpo_now();
 
             $payload = array(
-                'nombre'     => $nombre,
-                'modo_cobro' => $modo_cobro,
-                'costo_base' => $costo_base,
-                'unidad'     => $unidad,
-                'activo'     => $activo,
-                'updated_at' => $now,
+                'nombre'            => $nombre,
+                'modo_cobro'        => $modo_cobro,
+                'costo_base'        => $costo_base,
+                'unidad'            => $unidad,
+                'consumo_g_m2'      => $consumo_g_m2 ?: null,
+                'merma_proceso_pct' => $merma_proceso_pct ?: null,
+                'setup_min'         => $setup_min ?: null,
+                'activo'            => $activo,
+                'updated_at'        => $now,
             );
 
             if ( $id > 0 ) {
@@ -414,6 +429,31 @@ class CPO_Admin_Menu {
         return $wpdb->get_results( "SELECT * FROM {$wpdb->prefix}cpo_procesos ORDER BY created_at DESC", ARRAY_A );
     }
 
+    private function get_presupuesto_snapshot_payload( int $presupuesto_id ): array {
+        if ( ! $presupuesto_id ) {
+            return array();
+        }
+
+        global $wpdb;
+        $snapshot = $wpdb->get_var(
+            $wpdb->prepare(
+                "SELECT snapshot_json FROM {$wpdb->prefix}cpo_presupuesto_items WHERE presupuesto_id = %d AND tipo = 'otro' ORDER BY id DESC LIMIT 1",
+                $presupuesto_id
+            )
+        );
+
+        if ( ! $snapshot ) {
+            return array();
+        }
+
+        $decoded = json_decode( $snapshot, true );
+        if ( ! is_array( $decoded ) ) {
+            return array();
+        }
+
+        return $decoded['inputs'] ?? array();
+    }
+
     private function handle_presupuestos() {
         global $wpdb;
 
@@ -444,10 +484,6 @@ class CPO_Admin_Menu {
             $caras          = intval( $_POST['caras'] ?? 1 );
             $margen_pct     = cpo_get_decimal( wp_unslash( $_POST['margen_pct'] ?? 30 ) );
             $estado         = sanitize_text_field( wp_unslash( $_POST['estado'] ?? 'borrador' ) );
-            $formas_por_pliego = max( 1, intval( $_POST['formas_por_pliego'] ?? 1 ) );
-            $maquina_id     = isset( $_POST['maquina_id'] ) ? intval( $_POST['maquina_id'] ) : 0;
-            $horas_maquina  = cpo_get_decimal( wp_unslash( $_POST['horas_maquina'] ?? 0 ) );
-            $procesos       = isset( $_POST['procesos'] ) ? array_map( 'intval', (array) $_POST['procesos'] ) : array();
             $now            = cpo_now();
             if ( $cliente_id > 0 ) {
                 $client_name = $this->get_core_client_name_from_list( $cliente_id, $data['core_clients'] );
@@ -456,19 +492,14 @@ class CPO_Admin_Menu {
                 }
             }
 
-            $payload = array(
-                'cantidad'              => $cantidad,
-                'formas_por_pliego'     => $formas_por_pliego,
-                'merma_pct'             => 0,
-                'material_id'           => $material_id,
-                'procesos'              => $procesos,
-                'margin_pct'            => $margen_pct,
-                'maquina_id'            => $maquina_id,
-                'horas_maquina'         => $horas_maquina,
-                'allow_machine_default' => false,
+            $snapshot_inputs = cpo_build_presupuesto_payload(
+                $_POST,
+                array(
+                    'allow_machine_default' => false,
+                )
             );
 
-            $result = CPO_Calculator::calculate( $payload );
+            $result = CPO_Calculator::calculate( $snapshot_inputs );
             $items = array();
 
             if ( $result['material'] ) {
@@ -479,7 +510,10 @@ class CPO_Admin_Menu {
                     'cantidad'    => $result['pliegos_necesarios'],
                     'unitario'    => $result['precio_pliego'],
                     'subtotal'    => $result['costo_papel'],
-                    'snapshot'    => $result['material_snapshot'],
+                    'snapshot'    => array(
+                        'material' => $result['material'],
+                        'precio'   => $result['material_snapshot'],
+                    ),
                 );
             }
 
@@ -492,7 +526,9 @@ class CPO_Admin_Menu {
                     'unitario'    => $result['costo_hora'],
                     'subtotal'    => $result['costo_maquina'],
                     'snapshot'    => array(
-                        'horas' => $result['horas_maquina'],
+                        'horas'      => $result['horas_maquina'],
+                        'costo_hora' => $result['costo_hora'],
+                        'maquina'    => $result['maquina'],
                     ),
                 );
             }
@@ -506,7 +542,7 @@ class CPO_Admin_Menu {
                         'cantidad'    => $proceso['cantidad'],
                         'unitario'    => $proceso['unitario'],
                         'subtotal'    => $proceso['subtotal'],
-                        'snapshot'    => array(),
+                        'snapshot'    => $proceso,
                     );
                 }
             }
@@ -560,6 +596,26 @@ class CPO_Admin_Menu {
                     )
                 );
             }
+
+            $snapshot_payload = array(
+                'inputs'  => $snapshot_inputs,
+                'totals'  => $result,
+                'cliente' => $cliente_texto,
+            );
+            $wpdb->insert(
+                $wpdb->prefix . 'cpo_presupuesto_items',
+                array(
+                    'presupuesto_id' => $presupuesto_id,
+                    'tipo'           => 'otro',
+                    'referencia_id'  => null,
+                    'descripcion'    => __( 'Snapshot presupuesto', 'core-print-offset' ),
+                    'cantidad'       => 1,
+                    'unitario'       => 0,
+                    'subtotal'       => 0,
+                    'snapshot_json'  => wp_json_encode( $snapshot_payload, JSON_UNESCAPED_UNICODE ),
+                    'created_at'     => $now,
+                )
+            );
         }
 
         if ( $this->core_active && isset( $_GET['cpo_action'], $_GET['presupuesto_id'], $_GET['_wpnonce'] ) && $_GET['cpo_action'] === 'generate_document' ) {
@@ -606,6 +662,7 @@ class CPO_Admin_Menu {
         if ( isset( $_GET['cpo_action'], $_GET['presupuesto_id'] ) && $_GET['cpo_action'] === 'edit_presupuesto' ) {
             $id = intval( $_GET['presupuesto_id'] );
             $data['editing'] = $wpdb->get_row( $wpdb->prepare( "SELECT * FROM {$wpdb->prefix}cpo_presupuestos WHERE id = %d", $id ), ARRAY_A );
+            $data['editing_payload'] = $this->get_presupuesto_snapshot_payload( $id );
         }
 
         if ( $this->core_active && isset( $_GET['cpo_action'], $_GET['presupuesto_id'], $_GET['_wpnonce'] ) && $_GET['cpo_action'] === 'convert_to_order' ) {

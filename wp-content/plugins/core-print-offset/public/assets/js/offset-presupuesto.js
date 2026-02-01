@@ -13,12 +13,14 @@
     const materialPrice = form.querySelector('[data-material-price]');
     const pliegoSelect = form.querySelector('[data-pliego-select]');
     const pliegoCustom = form.querySelector('[data-pliego-custom]');
+    const pliegoOverride = form.querySelector('[data-pliego-override]');
     const machineSelect = form.querySelector('[data-machine-select]');
     const horasInput = form.querySelector('[data-horas-input]');
     const costoInput = form.querySelector('[data-costo-input]');
     const clienteSelect = form.querySelector('[data-cliente-select]');
     const clienteTextWrapper = form.querySelector('[data-cliente-text]');
     const presupuestoIdInput = form.querySelector('[data-presupuesto-id]');
+    const breakdownBox = form.querySelector('[data-result-breakdown]');
 
     const formatCurrency = (value) => {
         if (Number.isNaN(value)) {
@@ -124,6 +126,7 @@
         const selected = machineSelect.options[machineSelect.selectedIndex];
         const cost = selected ? parseNumber(selected.dataset.cost) : 0;
         const rendimiento = selected ? parseNumber(selected.dataset.rendimiento) : 0;
+        const setupMin = selected ? parseNumber(selected.dataset.setup) : 0;
 
         if (costoInput && (!costoInput.value || costoInput.dataset.userEdited !== 'true')) {
             costoInput.value = cost ? cost.toFixed(2) : '';
@@ -132,17 +135,57 @@
         if (horasInput && horasInput.dataset.userEdited !== 'true' && rendimiento > 0) {
             const pliegos = getPliegosEstimados();
             if (pliegos > 0) {
-                horasInput.value = (pliegos / rendimiento).toFixed(2);
+                horasInput.value = ((setupMin / 60) + (pliegos / rendimiento)).toFixed(2);
             }
         }
+    };
+
+    const ensurePliegoOption = (value, label) => {
+        if (!pliegoSelect) {
+            return;
+        }
+        const options = Array.from(pliegoSelect.options);
+        if (!options.some((option) => option.value === value)) {
+            const option = document.createElement('option');
+            option.value = value;
+            option.textContent = label || value;
+            pliegoSelect.appendChild(option);
+        }
+    };
+
+    const applyPliegoFromMaterial = () => {
+        if (!materialSelect || !pliegoSelect) {
+            return '';
+        }
+        const selected = materialSelect.options[materialSelect.selectedIndex];
+        const formatoBase = selected ? selected.dataset.formatoBase : '';
+        if (formatoBase) {
+            ensurePliegoOption(formatoBase, formatoBase);
+            pliegoSelect.value = formatoBase;
+        }
+        return formatoBase || '';
     };
 
     const toggleCustomPliego = () => {
         if (!pliegoSelect || !pliegoCustom) {
             return;
         }
+        const selected = materialSelect ? materialSelect.options[materialSelect.selectedIndex] : null;
+        const formatoBase = selected ? selected.dataset.formatoBase : '';
+        const override = pliegoOverride && pliegoOverride.checked;
+        const shouldUseMaterial = Boolean(formatoBase) && !override;
+
+        if (shouldUseMaterial) {
+            applyPliegoFromMaterial();
+        }
+
+        pliegoSelect.hidden = shouldUseMaterial;
+        if (pliegoOverride) {
+            pliegoOverride.hidden = !formatoBase;
+        }
+
         const isCustom = pliegoSelect.value === 'custom';
-        pliegoCustom.hidden = !isCustom;
+        pliegoCustom.hidden = shouldUseMaterial || !isCustom;
     };
 
     const getFormData = () => {
@@ -180,6 +223,49 @@
         if (machineSelect && data.maquina_id && parseNumber(machineSelect.value) === 0) {
             machineSelect.value = String(data.maquina_id);
         }
+
+        if (breakdownBox) {
+            breakdownBox.innerHTML = '';
+            const items = [];
+
+            if (data.material) {
+                items.push({
+                    label: `Papel${data.material?.nombre ? ` (${data.material.nombre})` : ''}`,
+                    detail: `${data.pliegos_con_merma ?? data.pliegos_necesarios ?? 0} pliegos x ${formatCurrency(data.precio_pliego ?? 0)}`,
+                    total: data.costo_papel ?? 0,
+                });
+            }
+
+            if (data.maquina && data.costo_maquina) {
+                items.push({
+                    label: `Máquina${data.maquina?.nombre ? ` (${data.maquina.nombre})` : ''}`,
+                    detail: `${data.horas_maquina ?? 0} h x ${formatCurrency(data.costo_hora ?? 0)}`,
+                    total: data.costo_maquina ?? 0,
+                });
+            }
+
+            if (Array.isArray(data.procesos)) {
+                data.procesos.forEach((process) => {
+                    items.push({
+                        label: `Proceso (${process.nombre})`,
+                        detail: process.detalle_calculo || `${process.cantidad} x ${formatCurrency(process.unitario ?? 0)}`,
+                        total: process.subtotal ?? 0,
+                    });
+                });
+            }
+
+            if (items.length) {
+                items.forEach((item) => {
+                    const row = document.createElement('div');
+                    row.className = 'cpo-breakdown__row';
+                    row.innerHTML = `<span>${item.label}<small>${item.detail}</small></span><strong>${formatCurrency(item.total)}</strong>`;
+                    breakdownBox.appendChild(row);
+                });
+                breakdownBox.hidden = false;
+            } else {
+                breakdownBox.hidden = true;
+            }
+        }
     };
 
     const calculate = async () => {
@@ -201,6 +287,8 @@
         applyResults(payload.data);
         if (payload.data?.price_note) {
             showAlert(payload.data.price_note, 'warning');
+        } else if (Array.isArray(payload.data?.warnings) && payload.data.warnings.length) {
+            showAlert(payload.data.warnings.join(' '), 'warning');
         }
         return payload.data;
     };
@@ -274,7 +362,10 @@
         createCoreDocument();
     });
 
-    materialSelect?.addEventListener('change', updateMaterialPrice);
+    materialSelect?.addEventListener('change', () => {
+        updateMaterialPrice();
+        toggleCustomPliego();
+    });
     clienteSelect?.addEventListener('change', () => {
         updateClienteFields();
         updateCoreButtonState();
@@ -282,6 +373,9 @@
     pliegoSelect?.addEventListener('change', () => {
         toggleCustomPliego();
         updateMachineFields();
+    });
+    pliegoOverride?.addEventListener('change', () => {
+        toggleCustomPliego();
     });
     machineSelect?.addEventListener('change', updateMachineFields);
 

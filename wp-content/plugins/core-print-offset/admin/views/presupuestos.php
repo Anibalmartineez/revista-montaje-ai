@@ -3,8 +3,12 @@ if ( ! defined( 'ABSPATH' ) ) {
     exit;
 }
 $editing = $data['editing'];
+$payload = $data['editing_payload'] ?? array();
 $core_active = $data['core_active'];
 $selected_cliente_id = (int) ( $editing['cliente_id'] ?? $editing['core_cliente_id'] ?? 0 );
+$selected_material_id = isset( $payload['material_id'] ) ? (int) $payload['material_id'] : (int) ( $editing['material_id'] ?? 0 );
+$selected_maquina_id = isset( $payload['maquina_id'] ) ? (int) $payload['maquina_id'] : 0;
+$selected_procesos = isset( $payload['procesos'] ) && is_array( $payload['procesos'] ) ? $payload['procesos'] : array();
 ?>
 <div class="wrap">
     <h1><?php esc_html_e( 'Presupuestos', 'core-print-offset' ); ?></h1>
@@ -50,6 +54,13 @@ $selected_cliente_id = (int) ( $editing['cliente_id'] ?? $editing['core_cliente_
                     <td><input name="formato_final" id="formato_final" type="text" value="<?php echo esc_attr( $editing['formato_final'] ?? '' ); ?>"></td>
                 </tr>
                 <tr>
+                    <th><?php esc_html_e( 'Formato final (mm)', 'core-print-offset' ); ?></th>
+                    <td class="cpo-inline">
+                        <input name="ancho_mm" type="number" step="0.1" placeholder="<?php esc_attr_e( 'Ancho', 'core-print-offset' ); ?>" value="<?php echo esc_attr( $payload['ancho_mm'] ?? '' ); ?>">
+                        <input name="alto_mm" type="number" step="0.1" placeholder="<?php esc_attr_e( 'Alto', 'core-print-offset' ); ?>" value="<?php echo esc_attr( $payload['alto_mm'] ?? '' ); ?>">
+                    </td>
+                </tr>
+                <tr>
                     <th><label for="cantidad"><?php esc_html_e( 'Cantidad', 'core-print-offset' ); ?></label></th>
                     <td><input name="cantidad" id="cantidad" type="number" value="<?php echo esc_attr( $editing['cantidad'] ?? 0 ); ?>" required></td>
                 </tr>
@@ -59,7 +70,7 @@ $selected_cliente_id = (int) ( $editing['cliente_id'] ?? $editing['core_cliente_
                         <select name="material_id" id="material_id">
                             <option value="0"><?php esc_html_e( 'Seleccionar', 'core-print-offset' ); ?></option>
                             <?php foreach ( $data['materiales'] as $material ) : ?>
-                                <option value="<?php echo esc_attr( $material['id'] ); ?>" <?php selected( (int) ( $editing['material_id'] ?? 0 ), (int) $material['id'] ); ?>><?php echo esc_html( $material['nombre'] ); ?></option>
+                                <option value="<?php echo esc_attr( $material['id'] ); ?>" <?php selected( $selected_material_id, (int) $material['id'] ); ?>><?php echo esc_html( $material['nombre'] ); ?></option>
                             <?php endforeach; ?>
                         </select>
                     </td>
@@ -74,7 +85,42 @@ $selected_cliente_id = (int) ( $editing['cliente_id'] ?? $editing['core_cliente_
                 </tr>
                 <tr>
                     <th><label for="formas_por_pliego"><?php esc_html_e( 'Formas por pliego', 'core-print-offset' ); ?></label></th>
-                    <td><input name="formas_por_pliego" id="formas_por_pliego" type="number" value="1"></td>
+                    <td><input name="formas_por_pliego" id="formas_por_pliego" type="number" value="<?php echo esc_attr( $payload['formas_por_pliego'] ?? 1 ); ?>"></td>
+                </tr>
+                <tr>
+                    <th><label for="merma_pct"><?php esc_html_e( 'Merma %', 'core-print-offset' ); ?></label></th>
+                    <td><input name="merma_pct" id="merma_pct" type="number" step="0.1" value="<?php echo esc_attr( $payload['merma_pct'] ?? 0 ); ?>"></td>
+                </tr>
+                <tr>
+                    <th><label for="sangrado_mm"><?php esc_html_e( 'Sangrado (mm)', 'core-print-offset' ); ?></label></th>
+                    <td><input name="sangrado_mm" id="sangrado_mm" type="number" step="0.1" value="<?php echo esc_attr( $payload['sangrado_mm'] ?? 0 ); ?>"></td>
+                </tr>
+                <tr>
+                    <th><?php esc_html_e( 'Pliego / Formato', 'core-print-offset' ); ?></th>
+                    <td class="cpo-inline">
+                        <select name="pliego_formato">
+                            <?php
+                            $pliego_formato = $payload['pliego_formato'] ?? '70x100';
+                            $pliego_options = array( '64x88', '70x100', 'custom' );
+                            if ( $pliego_formato && ! in_array( $pliego_formato, $pliego_options, true ) ) {
+                                $pliego_options[] = $pliego_formato;
+                            }
+                            foreach ( $pliego_options as $option ) :
+                                printf(
+                                    '<option value="%1$s" %2$s>%1$s</option>',
+                                    esc_attr( $option ),
+                                    selected( $pliego_formato, $option, false )
+                                );
+                            endforeach;
+                            ?>
+                        </select>
+                        <label>
+                            <input type="checkbox" name="pliego_personalizado" value="1" <?php checked( ! empty( $payload['pliego_personalizado'] ) ); ?>>
+                            <?php esc_html_e( 'Personalizado', 'core-print-offset' ); ?>
+                        </label>
+                        <input name="pliego_ancho_mm" type="number" step="0.1" placeholder="<?php esc_attr_e( 'Ancho', 'core-print-offset' ); ?>" value="<?php echo esc_attr( $payload['pliego_ancho_mm'] ?? '' ); ?>">
+                        <input name="pliego_alto_mm" type="number" step="0.1" placeholder="<?php esc_attr_e( 'Alto', 'core-print-offset' ); ?>" value="<?php echo esc_attr( $payload['pliego_alto_mm'] ?? '' ); ?>">
+                    </td>
                 </tr>
                 <tr>
                     <th><label for="maquina_id"><?php esc_html_e( 'Máquina', 'core-print-offset' ); ?></label></th>
@@ -82,21 +128,21 @@ $selected_cliente_id = (int) ( $editing['cliente_id'] ?? $editing['core_cliente_
                         <select name="maquina_id" id="maquina_id">
                             <option value="0"><?php esc_html_e( 'Sin máquina', 'core-print-offset' ); ?></option>
                             <?php foreach ( $data['maquinas'] as $maquina ) : ?>
-                                <option value="<?php echo esc_attr( $maquina['id'] ); ?>"><?php echo esc_html( $maquina['nombre'] ); ?></option>
+                                <option value="<?php echo esc_attr( $maquina['id'] ); ?>" <?php selected( $selected_maquina_id, (int) $maquina['id'] ); ?>><?php echo esc_html( $maquina['nombre'] ); ?></option>
                             <?php endforeach; ?>
                         </select>
                     </td>
                 </tr>
                 <tr>
                     <th><label for="horas_maquina"><?php esc_html_e( 'Horas estimadas', 'core-print-offset' ); ?></label></th>
-                    <td><input name="horas_maquina" id="horas_maquina" type="number" step="0.01" value="0"></td>
+                    <td><input name="horas_maquina" id="horas_maquina" type="number" step="0.01" value="<?php echo esc_attr( $payload['horas_maquina'] ?? 0 ); ?>"></td>
                 </tr>
                 <tr>
                     <th><?php esc_html_e( 'Procesos', 'core-print-offset' ); ?></th>
                     <td>
                         <?php foreach ( $data['procesos'] as $proceso ) : ?>
                             <label>
-                                <input type="checkbox" name="procesos[]" value="<?php echo esc_attr( $proceso['id'] ); ?>">
+                                <input type="checkbox" name="procesos[]" value="<?php echo esc_attr( $proceso['id'] ); ?>" <?php checked( in_array( (int) $proceso['id'], $selected_procesos, true ) ); ?>>
                                 <?php echo esc_html( $proceso['nombre'] ); ?>
                             </label><br>
                         <?php endforeach; ?>
