@@ -5,6 +5,8 @@ if ( ! defined( 'ABSPATH' ) ) {
 }
 
 class CPO_Calculator {
+    private const CACHE_TTL = 300;
+
     public static function calculate( array $payload ): array {
         global $wpdb;
 
@@ -225,6 +227,14 @@ class CPO_Calculator {
     private static function get_material_by_id( int $material_id ): ?array {
         global $wpdb;
 
+        $cache_version = cpo_get_cache_version( 'material' );
+        $cache_key = sprintf( 'material_by_id:%s:%d', $cache_version, $material_id );
+        $found = false;
+        $cached = wp_cache_get( $cache_key, 'cpo', false, $found );
+        if ( $found ) {
+            return $cached ?: null;
+        }
+
         $sql = "SELECT m.*, (
                 SELECT precio FROM {$wpdb->prefix}cpo_material_precios p
                 WHERE p.material_id = m.id
@@ -249,6 +259,21 @@ class CPO_Calculator {
 
         $row = $wpdb->get_row( $wpdb->prepare( $sql, $material_id ), ARRAY_A );
 
+        wp_cache_set( $cache_key, $row ?: null, 'cpo', self::CACHE_TTL );
+        if ( $row ) {
+            $price_key = sprintf( 'price_vigente:%s:%d:latest', $cache_version, $material_id );
+            wp_cache_set(
+                $price_key,
+                array(
+                    'precio'        => $row['precio_vigente'],
+                    'vigente_desde' => $row['vigente_desde'],
+                    'moneda'        => $row['moneda'],
+                ),
+                'cpo',
+                self::CACHE_TTL
+            );
+        }
+
         return $row ?: null;
     }
 
@@ -259,19 +284,47 @@ class CPO_Calculator {
             return array();
         }
 
+        sort( $ids, SORT_NUMERIC );
+        $cache_version = cpo_get_cache_version( 'proceso' );
+        $cache_key = sprintf( 'process_by_ids:%s:%s', $cache_version, md5( wp_json_encode( $ids ) ) );
+        $found = false;
+        $cached = wp_cache_get( $cache_key, 'cpo', false, $found );
+        if ( $found ) {
+            return $cached ?: array();
+        }
+
         $placeholders = implode( ',', array_fill( 0, count( $ids ), '%d' ) );
         $sql = "SELECT * FROM {$wpdb->prefix}cpo_procesos WHERE id IN ($placeholders) AND activo = 1";
 
-        return $wpdb->get_results( $wpdb->prepare( $sql, $ids ), ARRAY_A );
+        $results = $wpdb->get_results( $wpdb->prepare( $sql, $ids ), ARRAY_A );
+        wp_cache_set( $cache_key, $results, 'cpo', self::CACHE_TTL );
+        foreach ( $results as $process ) {
+            if ( isset( $process['id'] ) ) {
+                $process_key = sprintf( 'process_by_id:%s:%d', $cache_version, (int) $process['id'] );
+                wp_cache_set( $process_key, $process, 'cpo', self::CACHE_TTL );
+            }
+        }
+
+        return $results;
     }
 
     private static function get_machine_by_id( int $machine_id ): ?array {
         global $wpdb;
 
+        $cache_version = cpo_get_cache_version( 'maquina' );
+        $cache_key = sprintf( 'machine_by_id:%s:%d', $cache_version, $machine_id );
+        $found = false;
+        $cached = wp_cache_get( $cache_key, 'cpo', false, $found );
+        if ( $found ) {
+            return $cached ?: null;
+        }
+
         $machine = $wpdb->get_row(
             $wpdb->prepare( "SELECT * FROM {$wpdb->prefix}cpo_maquinas WHERE id = %d", $machine_id ),
             ARRAY_A
         );
+
+        wp_cache_set( $cache_key, $machine ?: null, 'cpo', self::CACHE_TTL );
 
         return $machine ?: null;
     }
@@ -279,10 +332,20 @@ class CPO_Calculator {
     private static function get_default_machine(): ?array {
         global $wpdb;
 
+        $cache_version = cpo_get_cache_version( 'maquina' );
+        $cache_key = sprintf( 'machine_default:%s', $cache_version );
+        $found = false;
+        $cached = wp_cache_get( $cache_key, 'cpo', false, $found );
+        if ( $found ) {
+            return $cached ?: null;
+        }
+
         $machine = $wpdb->get_row(
             "SELECT * FROM {$wpdb->prefix}cpo_maquinas WHERE activo = 1 ORDER BY costo_hora ASC, created_at ASC LIMIT 1",
             ARRAY_A
         );
+
+        wp_cache_set( $cache_key, $machine ?: null, 'cpo', self::CACHE_TTL );
 
         return $machine ?: null;
     }

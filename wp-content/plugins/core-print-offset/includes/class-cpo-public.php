@@ -367,6 +367,9 @@ class CPO_Public {
             }
         }
 
+        $snapshot_json = wp_json_encode( $payload, JSON_UNESCAPED_UNICODE );
+        $calc_result_json = wp_json_encode( $result, JSON_UNESCAPED_UNICODE );
+
         $inserted = $wpdb->insert(
             $wpdb->prefix . 'cpo_presupuestos',
             array(
@@ -385,10 +388,13 @@ class CPO_Public {
                 'estado'         => 'borrador',
                 'costo_total'    => $result['subtotal'],
                 'precio_total'   => $result['total'],
+                'snapshot_json'  => $snapshot_json,
+                'calc_result_json' => $calc_result_json,
+                'snapshot_version' => CPO_SNAPSHOT_VERSION,
                 'created_at'     => $now,
                 'updated_at'     => $now,
             ),
-            array( '%d', '%d', '%s', '%d', '%s', '%s', '%s', '%d', '%d', '%s', '%d', '%f', '%s', '%f', '%f', '%s', '%s' )
+            array( '%d', '%d', '%s', '%d', '%s', '%s', '%s', '%d', '%d', '%s', '%d', '%f', '%s', '%f', '%f', '%s', '%s', '%d', '%s', '%s' )
         );
 
         if ( ! $inserted ) {
@@ -499,6 +505,10 @@ class CPO_Public {
 
         if ( ! is_user_logged_in() ) {
             wp_send_json_error( array( 'message' => __( 'Debes iniciar sesión para crear documentos.', 'core-print-offset' ) ), 401 );
+        }
+
+        if ( ! current_user_can( 'manage_cpo_offset' ) ) {
+            wp_send_json_error( array( 'message' => __( 'No tienes permisos para crear documentos en Core.', 'core-print-offset' ) ), 403 );
         }
 
         if ( ! $this->core_bridge->has_core_api() ) {
@@ -635,6 +645,14 @@ class CPO_Public {
     private function get_materiales_list() {
         global $wpdb;
 
+        $cache_version = cpo_get_cache_version( 'material' );
+        $cache_key = sprintf( 'materiales_list:%s', $cache_version );
+        $found = false;
+        $cached = wp_cache_get( $cache_key, 'cpo', false, $found );
+        if ( $found ) {
+            return is_array( $cached ) ? $cached : array();
+        }
+
         $sql = "SELECT m.*, (
                 SELECT precio FROM {$wpdb->prefix}cpo_material_precios p
                 WHERE p.material_id = m.id
@@ -651,25 +669,52 @@ class CPO_Public {
             WHERE m.activo = 1
             ORDER BY m.nombre ASC";
 
-        return $wpdb->get_results( $sql, ARRAY_A );
+        $results = $wpdb->get_results( $sql, ARRAY_A );
+        wp_cache_set( $cache_key, $results, 'cpo', 300 );
+
+        return $results;
     }
 
     private function get_maquinas_list() {
         global $wpdb;
 
-        return $wpdb->get_results(
+        $cache_version = cpo_get_cache_version( 'maquina' );
+        $cache_key = sprintf( 'maquinas_list:%s', $cache_version );
+        $found = false;
+        $cached = wp_cache_get( $cache_key, 'cpo', false, $found );
+        if ( $found ) {
+            return is_array( $cached ) ? $cached : array();
+        }
+
+        $results = $wpdb->get_results(
             "SELECT * FROM {$wpdb->prefix}cpo_maquinas WHERE activo = 1 ORDER BY costo_hora ASC, created_at ASC",
             ARRAY_A
         );
+
+        wp_cache_set( $cache_key, $results, 'cpo', 300 );
+
+        return $results;
     }
 
     private function get_procesos_list() {
         global $wpdb;
 
-        return $wpdb->get_results(
+        $cache_version = cpo_get_cache_version( 'proceso' );
+        $cache_key = sprintf( 'procesos_list:%s', $cache_version );
+        $found = false;
+        $cached = wp_cache_get( $cache_key, 'cpo', false, $found );
+        if ( $found ) {
+            return is_array( $cached ) ? $cached : array();
+        }
+
+        $results = $wpdb->get_results(
             "SELECT * FROM {$wpdb->prefix}cpo_procesos WHERE activo = 1 ORDER BY nombre ASC",
             ARRAY_A
         );
+
+        wp_cache_set( $cache_key, $results, 'cpo', 300 );
+
+        return $results;
     }
 
 }

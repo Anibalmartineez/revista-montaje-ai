@@ -12,6 +12,8 @@ if ( ! defined( 'ABSPATH' ) ) {
 }
 
 define( 'CPO_VERSION', '0.1.0' );
+define( 'CPO_SCHEMA_VERSION', 2 );
+define( 'CPO_SNAPSHOT_VERSION', 1 );
 
 define( 'CPO_PLUGIN_FILE', __FILE__ );
 
