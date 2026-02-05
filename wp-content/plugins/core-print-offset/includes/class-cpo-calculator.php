@@ -228,7 +228,7 @@ class CPO_Calculator {
         global $wpdb;
 
         $cache_version = cpo_get_cache_version( 'material' );
-        $cache_key = sprintf( 'material_by_id:%s:%d', $cache_version, $material_id );
+        $cache_key = cpo_get_cache_key( sprintf( 'material_by_id:%s:%d', $cache_version, $material_id ) );
         $found = false;
         $cached = wp_cache_get( $cache_key, 'cpo', false, $found );
         if ( $found ) {
@@ -261,7 +261,7 @@ class CPO_Calculator {
 
         wp_cache_set( $cache_key, $row ?: null, 'cpo', self::CACHE_TTL );
         if ( $row ) {
-            $price_key = sprintf( 'price_vigente:%s:%d:latest', $cache_version, $material_id );
+            $price_key = cpo_get_cache_key( sprintf( 'price_vigente:%s:%d:latest', $cache_version, $material_id ) );
             wp_cache_set(
                 $price_key,
                 array(
@@ -286,7 +286,7 @@ class CPO_Calculator {
 
         sort( $ids, SORT_NUMERIC );
         $cache_version = cpo_get_cache_version( 'proceso' );
-        $cache_key = sprintf( 'process_by_ids:%s:%s', $cache_version, md5( wp_json_encode( $ids ) ) );
+        $cache_key = cpo_get_cache_key( sprintf( 'process_by_ids:%s:%s', $cache_version, md5( wp_json_encode( $ids ) ) ) );
         $found = false;
         $cached = wp_cache_get( $cache_key, 'cpo', false, $found );
         if ( $found ) {
@@ -300,7 +300,7 @@ class CPO_Calculator {
         wp_cache_set( $cache_key, $results, 'cpo', self::CACHE_TTL );
         foreach ( $results as $process ) {
             if ( isset( $process['id'] ) ) {
-                $process_key = sprintf( 'process_by_id:%s:%d', $cache_version, (int) $process['id'] );
+                $process_key = cpo_get_cache_key( sprintf( 'process_by_id:%s:%d', $cache_version, (int) $process['id'] ) );
                 wp_cache_set( $process_key, $process, 'cpo', self::CACHE_TTL );
             }
         }
@@ -312,7 +312,7 @@ class CPO_Calculator {
         global $wpdb;
 
         $cache_version = cpo_get_cache_version( 'maquina' );
-        $cache_key = sprintf( 'machine_by_id:%s:%d', $cache_version, $machine_id );
+        $cache_key = cpo_get_cache_key( sprintf( 'machine_by_id:%s:%d', $cache_version, $machine_id ) );
         $found = false;
         $cached = wp_cache_get( $cache_key, 'cpo', false, $found );
         if ( $found ) {
@@ -333,7 +333,7 @@ class CPO_Calculator {
         global $wpdb;
 
         $cache_version = cpo_get_cache_version( 'maquina' );
-        $cache_key = sprintf( 'machine_default:%s', $cache_version );
+        $cache_key = cpo_get_cache_key( sprintf( 'machine_default:%s', $cache_version ) );
         $found = false;
         $cached = wp_cache_get( $cache_key, 'cpo', false, $found );
         if ( $found ) {

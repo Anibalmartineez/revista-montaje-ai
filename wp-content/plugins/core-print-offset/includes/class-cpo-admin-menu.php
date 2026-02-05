@@ -272,7 +272,7 @@ class CPO_Admin_Menu {
         global $wpdb;
 
         $cache_version = cpo_get_cache_version( 'material' );
-        $cache_key = sprintf( 'admin_materiales_list:%s', $cache_version );
+        $cache_key = cpo_get_cache_key( sprintf( 'admin_materiales_list:%s', $cache_version ) );
         $found = false;
         $cached = wp_cache_get( $cache_key, 'cpo', false, $found );
         if ( $found ) {
@@ -373,7 +373,7 @@ class CPO_Admin_Menu {
         global $wpdb;
 
         $cache_version = cpo_get_cache_version( 'maquina' );
-        $cache_key = sprintf( 'admin_maquinas_list:%s', $cache_version );
+        $cache_key = cpo_get_cache_key( sprintf( 'admin_maquinas_list:%s', $cache_version ) );
         $found = false;
         $cached = wp_cache_get( $cache_key, 'cpo', false, $found );
         if ( $found ) {
@@ -460,7 +460,7 @@ class CPO_Admin_Menu {
         global $wpdb;
 
         $cache_version = cpo_get_cache_version( 'proceso' );
-        $cache_key = sprintf( 'admin_procesos_list:%s', $cache_version );
+        $cache_key = cpo_get_cache_key( sprintf( 'admin_procesos_list:%s', $cache_version ) );
         $found = false;
         $cached = wp_cache_get( $cache_key, 'cpo', false, $found );
         if ( $found ) {
@@ -475,14 +475,17 @@ class CPO_Admin_Menu {
 
     private function bump_material_cache(): void {
         cpo_bump_cache_version( 'material' );
+        cpo_bump_cache_bust_version();
     }
 
     private function bump_maquina_cache(): void {
         cpo_bump_cache_version( 'maquina' );
+        cpo_bump_cache_bust_version();
     }
 
     private function bump_proceso_cache(): void {
         cpo_bump_cache_version( 'proceso' );
+        cpo_bump_cache_bust_version();
     }
 
     private function get_presupuesto_snapshot_payload( int $presupuesto_id ): array {
@@ -521,6 +524,11 @@ class CPO_Admin_Menu {
         }
 
         if ( isset( $decoded['inputs'] ) && is_array( $decoded['inputs'] ) ) {
+            if ( defined( 'WP_DEBUG' ) && WP_DEBUG ) {
+                error_log(
+                    sprintf( 'CPO admin rehydrate legacy snapshot for presupuesto %d from items.', $presupuesto_id )
+                );
+            }
             return $decoded['inputs'];
         }
 
@@ -530,6 +538,12 @@ class CPO_Admin_Menu {
         );
         if ( ! $presupuesto ) {
             return array();
+        }
+
+        if ( defined( 'WP_DEBUG' ) && WP_DEBUG ) {
+            error_log(
+                sprintf( 'CPO admin rehydrate legacy snapshot for presupuesto %d from columns.', $presupuesto_id )
+            );
         }
 
         return array(

@@ -508,6 +508,14 @@ class CPO_Public {
         }
 
         if ( ! current_user_can( 'manage_cpo_offset' ) ) {
+            if ( defined( 'WP_DEBUG' ) && WP_DEBUG ) {
+                error_log(
+                    sprintf(
+                        'CPO core document blocked for user %d (capability manage_cpo_offset).',
+                        get_current_user_id()
+                    )
+                );
+            }
             wp_send_json_error( array( 'message' => __( 'No tienes permisos para crear documentos en Core.', 'core-print-offset' ) ), 403 );
         }
 
@@ -646,7 +654,7 @@ class CPO_Public {
         global $wpdb;
 
         $cache_version = cpo_get_cache_version( 'material' );
-        $cache_key = sprintf( 'materiales_list:%s', $cache_version );
+        $cache_key = cpo_get_cache_key( sprintf( 'materiales_list:%s', $cache_version ) );
         $found = false;
         $cached = wp_cache_get( $cache_key, 'cpo', false, $found );
         if ( $found ) {
@@ -679,7 +687,7 @@ class CPO_Public {
         global $wpdb;
 
         $cache_version = cpo_get_cache_version( 'maquina' );
-        $cache_key = sprintf( 'maquinas_list:%s', $cache_version );
+        $cache_key = cpo_get_cache_key( sprintf( 'maquinas_list:%s', $cache_version ) );
         $found = false;
         $cached = wp_cache_get( $cache_key, 'cpo', false, $found );
         if ( $found ) {
@@ -700,7 +708,7 @@ class CPO_Public {
         global $wpdb;
 
         $cache_version = cpo_get_cache_version( 'proceso' );
-        $cache_key = sprintf( 'procesos_list:%s', $cache_version );
+        $cache_key = cpo_get_cache_key( sprintf( 'procesos_list:%s', $cache_version ) );
         $found = false;
         $cached = wp_cache_get( $cache_key, 'cpo', false, $found );
         if ( $found ) {

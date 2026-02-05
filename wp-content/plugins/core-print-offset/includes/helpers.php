@@ -31,12 +31,29 @@ function cpo_admin_notice( $message, $type = 'info' ) {
     );
 }
 
+function cpo_get_cache_bust_version(): string {
+    $version = (int) get_option( 'cpo_cache_bust_version', 1 );
+
+    return (string) max( 1, $version );
+}
+
+function cpo_bump_cache_bust_version(): void {
+    $version = (int) get_option( 'cpo_cache_bust_version', 1 );
+    $version++;
+    update_option( 'cpo_cache_bust_version', (string) $version );
+}
+
+function cpo_get_cache_key( string $key ): string {
+    return sprintf( '%s:%s', cpo_get_cache_bust_version(), $key );
+}
+
 function cpo_get_cache_version( string $group ): string {
     $key = 'cpo_cache_version_' . $group;
-    $version = wp_cache_get( $key, 'cpo' );
+    $cache_key = cpo_get_cache_key( $key );
+    $version = wp_cache_get( $cache_key, 'cpo' );
     if ( ! $version ) {
         $version = (string) get_option( $key, '1' );
-        wp_cache_set( $key, $version, 'cpo' );
+        wp_cache_set( $cache_key, $version, 'cpo' );
     }
 
     return (string) $version;
@@ -44,10 +61,11 @@ function cpo_get_cache_version( string $group ): string {
 
 function cpo_bump_cache_version( string $group ): void {
     $key = 'cpo_cache_version_' . $group;
+    $cache_key = cpo_get_cache_key( $key );
     $version = (int) get_option( $key, 1 );
     $version++;
     update_option( $key, (string) $version );
-    wp_cache_set( $key, (string) $version, 'cpo' );
+    wp_cache_set( $cache_key, (string) $version, 'cpo' );
 }
 
 function cpo_build_presupuesto_payload( array $raw, array $options = array() ): array {
