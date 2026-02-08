@@ -18,7 +18,38 @@ class CPO_Activator {
             dbDelta( $table_sql );
         }
 
-        update_option( 'cpo_schema_version', CPO_SCHEMA_VERSION );
+        $stored_version = (int) get_option( 'cpo_schema_version', 0 );
+        if ( defined( 'WP_DEBUG' ) && WP_DEBUG ) {
+            error_log(
+                sprintf(
+                    'CPO schema migration starting: %d -> %d.',
+                    $stored_version,
+                    CPO_SCHEMA_VERSION
+                )
+            );
+        }
+
+        $updated = update_option( 'cpo_schema_version', CPO_SCHEMA_VERSION );
+
+        if ( defined( 'WP_DEBUG' ) && WP_DEBUG ) {
+            if ( $updated ) {
+                error_log(
+                    sprintf(
+                        'CPO schema migration completed: %d -> %d.',
+                        $stored_version,
+                        CPO_SCHEMA_VERSION
+                    )
+                );
+            } else {
+                error_log(
+                    sprintf(
+                        'CPO schema migration failed to update version: %d -> %d.',
+                        $stored_version,
+                        CPO_SCHEMA_VERSION
+                    )
+                );
+            }
+        }
 
         $role = get_role( 'administrator' );
         if ( $role && ! $role->has_cap( 'manage_cpo_offset' ) ) {
@@ -38,6 +69,16 @@ class CPO_Activator {
             return;
         }
 
+        if ( defined( 'WP_DEBUG' ) && WP_DEBUG ) {
+            error_log(
+                sprintf(
+                    'CPO schema migration starting: %d -> %d.',
+                    $stored_version,
+                    CPO_SCHEMA_VERSION
+                )
+            );
+        }
+
         require_once ABSPATH . 'wp-admin/includes/upgrade.php';
 
         $charset_collate = $wpdb->get_charset_collate();
@@ -48,7 +89,27 @@ class CPO_Activator {
             dbDelta( $table_sql );
         }
 
-        update_option( 'cpo_schema_version', CPO_SCHEMA_VERSION );
+        $updated = update_option( 'cpo_schema_version', CPO_SCHEMA_VERSION );
+
+        if ( defined( 'WP_DEBUG' ) && WP_DEBUG ) {
+            if ( $updated ) {
+                error_log(
+                    sprintf(
+                        'CPO schema migration completed: %d -> %d.',
+                        $stored_version,
+                        CPO_SCHEMA_VERSION
+                    )
+                );
+            } else {
+                error_log(
+                    sprintf(
+                        'CPO schema migration failed to update version: %d -> %d.',
+                        $stored_version,
+                        CPO_SCHEMA_VERSION
+                    )
+                );
+            }
+        }
     }
 
     private static function get_schema_tables( string $charset_collate ): array {

@@ -145,7 +145,7 @@ class CPO_Core_Bridge {
             return array();
         }
 
-        $cache_key = 'core_clients_list';
+        $cache_key = cpo_get_cache_key( 'core_clients_list' );
         $found = false;
         $cached = wp_cache_get( $cache_key, 'cpo', false, $found );
         if ( $found ) {
