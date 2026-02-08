@@ -101,7 +101,16 @@ function gc_render_dashboard_shortcode(): string {
     foreach ($normalized_sections as $section) {
         $icon_html = $section['icon'] ? '<span class="gc-dashboard-icon">' . esc_html($section['icon']) . '</span>' : '';
         $nav_items .= '<a class="gc-dashboard-button" href="#' . esc_attr($section['id']) . '">' . $icon_html . esc_html($section['label']) . '</a>';
-        $sections_html .= '<div id="' . esc_attr($section['id']) . '">' . do_shortcode($section['shortcode']) . '</div>';
+        $sections_html .= '<div id="' . esc_attr($section['id']) . '" class="gc-module" data-gc-module="' . esc_attr($section['id']) . '">'
+            . '<div class="gc-module__header">'
+            . '<button class="gc-module__toggle" type="button" aria-expanded="false" aria-controls="gc-module-' . esc_attr($section['id']) . '">'
+            . $icon_html . esc_html($section['label'])
+            . '</button>'
+            . '</div>'
+            . '<div id="gc-module-' . esc_attr($section['id']) . '" class="gc-module__body" role="region" aria-label="' . esc_attr($section['label']) . '">'
+            . do_shortcode($section['shortcode'])
+            . '</div>'
+            . '</div>';
     }
 
     $nav = '<div class="gc-dashboard-nav">' . $nav_items . '</div>';
