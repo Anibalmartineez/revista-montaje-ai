@@ -19,6 +19,7 @@
         if (!target) {
             return;
         }
+        event.preventDefault();
         setActiveNav(target);
         var hash = target.getAttribute('href');
         if (hash) {
