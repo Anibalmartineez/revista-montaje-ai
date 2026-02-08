@@ -14,6 +14,10 @@
     padding: 24px;
 }
 
+.cpo-card--list {
+    max-width: 1200px;
+}
+
 .cpo-card__header {
     margin-bottom: 24px;
 }
@@ -184,6 +188,68 @@
     background: #f8fafc;
     color: #64748b;
     border-color: #e2e8f0;
+    cursor: not-allowed;
+}
+
+.cpo-filters {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+    gap: 12px;
+    margin-bottom: 16px;
+    align-items: end;
+}
+
+.cpo-filters label {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    font-size: 13px;
+    color: #374151;
+}
+
+.cpo-filters input,
+.cpo-filters select {
+    padding: 8px 10px;
+    border-radius: 8px;
+    border: 1px solid #d1d5db;
+    font-size: 14px;
+}
+
+.cpo-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 14px;
+}
+
+.cpo-table th,
+.cpo-table td {
+    padding: 10px 12px;
+    border-bottom: 1px solid #e5e7eb;
+    text-align: left;
+}
+
+.cpo-table th {
+    background: #f9fafb;
+    font-weight: 600;
+}
+
+.cpo-table__actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+.cpo-link {
+    background: none;
+    border: none;
+    color: #1d4ed8;
+    cursor: pointer;
+    padding: 0;
+    font-size: 14px;
+}
+
+.cpo-link[disabled] {
+    color: #9ca3af;
     cursor: not-allowed;
 }
 

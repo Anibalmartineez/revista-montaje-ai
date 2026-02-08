@@ -11,11 +11,14 @@ class CPO_Public {
         $this->core_bridge = new CPO_Core_Bridge();
 
         add_shortcode( 'cpo_offset_presupuesto', array( $this, 'render_presupuesto_shortcode' ) );
+        add_shortcode( 'cpo_offset_presupuestos_list', array( $this, 'render_presupuestos_list_shortcode' ) );
 
         add_action( 'wp_ajax_cpo_offset_calculate', array( $this, 'handle_calculate' ) );
         add_action( 'wp_ajax_nopriv_cpo_offset_calculate', array( $this, 'handle_calculate' ) );
         add_action( 'wp_ajax_cpo_offset_save_presupuesto', array( $this, 'handle_save_presupuesto' ) );
         add_action( 'wp_ajax_cpo_offset_create_core_document', array( $this, 'handle_create_core_document' ) );
+        add_action( 'wp_ajax_cpo_offset_get_presupuesto', array( $this, 'handle_get_presupuesto' ) );
+        add_action( 'wp_ajax_cpo_offset_duplicate_presupuesto', array( $this, 'handle_duplicate_presupuesto' ) );
 
         add_action( 'init', array( $this, 'maybe_register_dashboard_sections' ) );
     }
@@ -32,6 +35,12 @@ class CPO_Public {
             'label' => __( 'Presupuesto Offset', 'core-print-offset' ),
             'shortcode' => '[cpo_offset_presupuesto]',
             'order' => 100,
+        );
+        $sections[] = array(
+            'id' => 'cpo-presupuestos',
+            'label' => __( 'Mis Presupuestos', 'core-print-offset' ),
+            'shortcode' => '[cpo_offset_presupuestos_list]',
+            'order' => 110,
         );
 
         return $sections;
@@ -60,26 +69,7 @@ class CPO_Public {
             true
         );
 
-        wp_localize_script(
-            'cpo-offset-presupuesto',
-            'cpoOffsetPresupuesto',
-            array(
-                'ajaxUrl'       => admin_url( 'admin-ajax.php' ),
-                'nonce'         => wp_create_nonce( 'cpo_offset_presupuesto' ),
-                'canSave'       => is_user_logged_in(),
-                'coreAvailable' => $this->core_bridge->has_core_api(),
-                'canEditMachineCost' => current_user_can( 'manage_options' ),
-                'strings'       => array(
-                    'priceMissing' => __( 'No hay precio vigente para este material. Cargalo en Offset > Materiales/Precios', 'core-print-offset' ),
-                    'savingError'  => __( 'No se pudo guardar el presupuesto.', 'core-print-offset' ),
-                    'saved'        => __( 'Presupuesto guardado.', 'core-print-offset' ),
-                    'coreClientRequired' => __( 'Selecciona un cliente de Core para crear el documento.', 'core-print-offset' ),
-                    'coreSaveRequired'   => __( 'Guarda el presupuesto antes de crear el documento en Core.', 'core-print-offset' ),
-                    'coreCreated'        => __( 'Documento creado en Core.', 'core-print-offset' ),
-                    'coreUnavailable'    => __( 'Core Global no está disponible.', 'core-print-offset' ),
-                ),
-            )
-        );
+        wp_localize_script( 'cpo-offset-presupuesto', 'cpoOffsetPresupuesto', $this->get_offset_script_config() );
 
         ob_start();
         ?>
@@ -322,6 +312,170 @@ class CPO_Public {
         return ob_get_clean();
     }
 
+    public function render_presupuestos_list_shortcode() {
+        if ( ! is_user_logged_in() ) {
+            return '<div class="cpo-offset-presupuesto"><div class="cpo-card"><p>' . esc_html__( 'Debes iniciar sesión para ver tus presupuestos.', 'core-print-offset' ) . '</p></div></div>';
+        }
+
+        global $wpdb;
+
+        $search = sanitize_text_field( wp_unslash( $_GET['cpo_search'] ?? '' ) );
+        $estado = sanitize_text_field( wp_unslash( $_GET['cpo_estado'] ?? '' ) );
+        $from = sanitize_text_field( wp_unslash( $_GET['cpo_from'] ?? '' ) );
+        $to = sanitize_text_field( wp_unslash( $_GET['cpo_to'] ?? '' ) );
+
+        $where = array( '1=1' );
+        $params = array();
+        $current_user_id = get_current_user_id();
+
+        if ( ! $this->user_can_manage_all_presupuestos() ) {
+            $where[] = 'created_by = %d';
+            $params[] = $current_user_id;
+        }
+
+        if ( $search ) {
+            $where[] = '(titulo LIKE %s OR cliente_texto LIKE %s)';
+            $like = '%' . $wpdb->esc_like( $search ) . '%';
+            $params[] = $like;
+            $params[] = $like;
+        }
+
+        if ( $estado ) {
+            $where[] = 'estado = %s';
+            $params[] = $estado;
+        }
+
+        if ( $from ) {
+            $where[] = 'DATE(created_at) >= %s';
+            $params[] = $from;
+        }
+
+        if ( $to ) {
+            $where[] = 'DATE(created_at) <= %s';
+            $params[] = $to;
+        }
+
+        $sql = "SELECT * FROM {$wpdb->prefix}cpo_presupuestos WHERE " . implode( ' AND ', $where ) . ' ORDER BY created_at DESC LIMIT 200';
+        if ( $params ) {
+            $sql = $wpdb->prepare( $sql, $params );
+        }
+
+        $presupuestos = $wpdb->get_results( $sql, ARRAY_A );
+
+        wp_enqueue_style(
+            'cpo-offset-presupuesto',
+            CPO_PLUGIN_URL . 'public/assets/css/offset-presupuesto.css',
+            array(),
+            CPO_VERSION
+        );
+
+        wp_enqueue_script(
+            'cpo-offset-presupuesto',
+            CPO_PLUGIN_URL . 'public/assets/js/offset-presupuesto.js',
+            array(),
+            CPO_VERSION,
+            true
+        );
+        wp_localize_script( 'cpo-offset-presupuesto', 'cpoOffsetPresupuesto', $this->get_offset_script_config() );
+
+        ob_start();
+        ?>
+        <div class="cpo-offset-presupuesto">
+            <div class="cpo-card cpo-card--list">
+                <div class="cpo-card__header">
+                    <h2><?php esc_html_e( 'Mis Presupuestos', 'core-print-offset' ); ?></h2>
+                    <p><?php esc_html_e( 'Reabre presupuestos, duplica o genera documentos de Core.', 'core-print-offset' ); ?></p>
+                </div>
+                <form method="get" class="cpo-filters">
+                    <input type="hidden" name="page_id" value="<?php echo esc_attr( get_queried_object_id() ); ?>">
+                    <label>
+                        <?php esc_html_e( 'Buscar', 'core-print-offset' ); ?>
+                        <input type="text" name="cpo_search" value="<?php echo esc_attr( $search ); ?>" placeholder="<?php esc_attr_e( 'Cliente o título', 'core-print-offset' ); ?>">
+                    </label>
+                    <label>
+                        <?php esc_html_e( 'Estado', 'core-print-offset' ); ?>
+                        <select name="cpo_estado">
+                            <option value=""><?php esc_html_e( 'Todos', 'core-print-offset' ); ?></option>
+                            <?php foreach ( array( 'borrador', 'enviado', 'aceptado', 'rechazado' ) as $estado_option ) : ?>
+                                <option value="<?php echo esc_attr( $estado_option ); ?>" <?php selected( $estado, $estado_option ); ?>><?php echo esc_html( ucfirst( $estado_option ) ); ?></option>
+                            <?php endforeach; ?>
+                        </select>
+                    </label>
+                    <label>
+                        <?php esc_html_e( 'Desde', 'core-print-offset' ); ?>
+                        <input type="date" name="cpo_from" value="<?php echo esc_attr( $from ); ?>">
+                    </label>
+                    <label>
+                        <?php esc_html_e( 'Hasta', 'core-print-offset' ); ?>
+                        <input type="date" name="cpo_to" value="<?php echo esc_attr( $to ); ?>">
+                    </label>
+                    <button type="submit" class="cpo-button"><?php esc_html_e( 'Filtrar', 'core-print-offset' ); ?></button>
+                </form>
+
+                <table class="cpo-table">
+                    <thead>
+                        <tr>
+                            <th><?php esc_html_e( 'Título', 'core-print-offset' ); ?></th>
+                            <th><?php esc_html_e( 'Cliente', 'core-print-offset' ); ?></th>
+                            <th><?php esc_html_e( 'Fecha', 'core-print-offset' ); ?></th>
+                            <th><?php esc_html_e( 'Estado', 'core-print-offset' ); ?></th>
+                            <th><?php esc_html_e( 'Total', 'core-print-offset' ); ?></th>
+                            <th><?php esc_html_e( 'Acciones', 'core-print-offset' ); ?></th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <?php if ( empty( $presupuestos ) ) : ?>
+                            <tr>
+                                <td colspan="6"><?php esc_html_e( 'No hay presupuestos para mostrar.', 'core-print-offset' ); ?></td>
+                            </tr>
+                        <?php else : ?>
+                            <?php foreach ( $presupuestos as $presupuesto ) : ?>
+                                <tr data-presupuesto-id="<?php echo esc_attr( $presupuesto['id'] ); ?>">
+                                    <td><?php echo esc_html( $presupuesto['titulo'] ); ?></td>
+                                    <td><?php echo esc_html( $presupuesto['cliente_texto'] ?: '-' ); ?></td>
+                                    <td><?php echo esc_html( mysql2date( 'd/m/Y', $presupuesto['created_at'] ) ); ?></td>
+                                    <td><?php echo esc_html( ucfirst( $presupuesto['estado'] ) ); ?></td>
+                                    <td><?php echo esc_html( $presupuesto['precio_total'] ); ?></td>
+                                    <td class="cpo-table__actions">
+                                        <button type="button" class="cpo-link" data-cpo-open="<?php echo esc_attr( $presupuesto['id'] ); ?>"><?php esc_html_e( 'Abrir', 'core-print-offset' ); ?></button>
+                                        <button type="button" class="cpo-link" data-cpo-duplicate="<?php echo esc_attr( $presupuesto['id'] ); ?>"><?php esc_html_e( 'Duplicar', 'core-print-offset' ); ?></button>
+                                        <button type="button" class="cpo-link" data-cpo-core="<?php echo esc_attr( $presupuesto['id'] ); ?>" <?php echo $presupuesto['core_documento_id'] ? 'disabled' : ''; ?>>
+                                            <?php echo $presupuesto['core_documento_id'] ? esc_html__( 'Doc. creado', 'core-print-offset' ) : esc_html__( 'Crear doc. Core', 'core-print-offset' ); ?>
+                                        </button>
+                                    </td>
+                                </tr>
+                            <?php endforeach; ?>
+                        <?php endif; ?>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+        <?php
+        return ob_get_clean();
+    }
+
+    private function get_offset_script_config(): array {
+        return array(
+            'ajaxUrl'       => admin_url( 'admin-ajax.php' ),
+            'nonce'         => wp_create_nonce( 'cpo_offset_presupuesto' ),
+            'canSave'       => is_user_logged_in(),
+            'coreAvailable' => $this->core_bridge->has_core_api(),
+            'canEditMachineCost' => current_user_can( 'manage_options' ),
+            'canManageCoreDocs'  => current_user_can( 'manage_cpo_offset' ) || current_user_can( 'manage_options' ),
+            'strings'       => array(
+                'priceMissing' => __( 'No hay precio vigente para este material. Cargalo en Offset > Materiales/Precios', 'core-print-offset' ),
+                'savingError'  => __( 'No se pudo guardar el presupuesto.', 'core-print-offset' ),
+                'saved'        => __( 'Presupuesto guardado.', 'core-print-offset' ),
+                'coreClientRequired' => __( 'Selecciona un cliente de Core para crear el documento.', 'core-print-offset' ),
+                'coreSaveRequired'   => __( 'Guarda el presupuesto antes de crear el documento en Core.', 'core-print-offset' ),
+                'coreCreated'        => __( 'Documento creado en Core.', 'core-print-offset' ),
+                'coreUnavailable'    => __( 'Core Global no está disponible.', 'core-print-offset' ),
+                'loadFailed'         => __( 'No se pudo cargar el presupuesto.', 'core-print-offset' ),
+                'duplicateFailed'    => __( 'No se pudo duplicar el presupuesto.', 'core-print-offset' ),
+            ),
+        );
+    }
+
     public function handle_calculate() {
         $this->ensure_valid_nonce();
 
@@ -370,13 +524,25 @@ class CPO_Public {
         $snapshot_json = wp_json_encode( $payload, JSON_UNESCAPED_UNICODE );
         $calc_result_json = wp_json_encode( $result, JSON_UNESCAPED_UNICODE );
 
-        $inserted = $wpdb->insert(
-            $wpdb->prefix . 'cpo_presupuestos',
-            array(
+        $presupuesto_id = isset( $_POST['presupuesto_id'] ) ? intval( $_POST['presupuesto_id'] ) : 0;
+        if ( $presupuesto_id ) {
+            $presupuesto = $wpdb->get_row(
+                $wpdb->prepare( "SELECT * FROM {$wpdb->prefix}cpo_presupuestos WHERE id = %d", $presupuesto_id ),
+                ARRAY_A
+            );
+
+            if ( ! $presupuesto ) {
+                wp_send_json_error( array( 'message' => __( 'Presupuesto no encontrado.', 'core-print-offset' ) ), 404 );
+            }
+
+            if ( ! $this->user_can_access_presupuesto( $presupuesto ) ) {
+                wp_send_json_error( array( 'message' => __( 'forbidden', 'core-print-offset' ) ), 403 );
+            }
+
+            $update_payload = array(
                 'core_cliente_id' => $cliente_id,
                 'cliente_id'    => $cliente_id,
                 'cliente_texto' => $cliente_texto ?: null,
-                'core_documento_id' => null,
                 'titulo'         => $titulo,
                 'producto'       => $payload['descripcion'],
                 'formato_final'  => $formato_final,
@@ -391,17 +557,59 @@ class CPO_Public {
                 'snapshot_json'  => $snapshot_json,
                 'calc_result_json' => $calc_result_json,
                 'snapshot_version' => CPO_SNAPSHOT_VERSION,
-                'created_at'     => $now,
                 'updated_at'     => $now,
-            ),
-            array( '%d', '%d', '%s', '%d', '%s', '%s', '%s', '%d', '%d', '%s', '%d', '%f', '%s', '%f', '%f', '%s', '%s', '%d', '%s', '%s' )
-        );
+            );
 
-        if ( ! $inserted ) {
-            wp_send_json_error( array( 'message' => __( 'No se pudo guardar el presupuesto.', 'core-print-offset' ) ), 500 );
+            if ( empty( $presupuesto['created_by'] ) ) {
+                $update_payload['created_by'] = get_current_user_id();
+            }
+
+            $updated = $wpdb->update(
+                $wpdb->prefix . 'cpo_presupuestos',
+                $update_payload,
+                array( 'id' => $presupuesto_id )
+            );
+
+            if ( false === $updated ) {
+                wp_send_json_error( array( 'message' => __( 'No se pudo guardar el presupuesto.', 'core-print-offset' ) ), 500 );
+            }
+
+            $wpdb->delete( $wpdb->prefix . 'cpo_presupuesto_items', array( 'presupuesto_id' => $presupuesto_id ) );
+        } else {
+            $inserted = $wpdb->insert(
+                $wpdb->prefix . 'cpo_presupuestos',
+                array(
+                    'created_by'   => get_current_user_id(),
+                    'core_cliente_id' => $cliente_id,
+                    'cliente_id'    => $cliente_id,
+                    'cliente_texto' => $cliente_texto ?: null,
+                    'core_documento_id' => null,
+                    'titulo'         => $titulo,
+                    'producto'       => $payload['descripcion'],
+                    'formato_final'  => $formato_final,
+                    'cantidad'       => $payload['cantidad'],
+                    'material_id'    => $payload['material_id'] ?: null,
+                    'colores'        => $payload['colores'],
+                    'caras'          => $caras,
+                    'margen_pct'     => $payload['margin_pct'],
+                    'estado'         => 'borrador',
+                    'costo_total'    => $result['subtotal'],
+                    'precio_total'   => $result['total'],
+                    'snapshot_json'  => $snapshot_json,
+                    'calc_result_json' => $calc_result_json,
+                    'snapshot_version' => CPO_SNAPSHOT_VERSION,
+                    'created_at'     => $now,
+                    'updated_at'     => $now,
+                ),
+                array( '%d', '%d', '%d', '%s', '%d', '%s', '%s', '%s', '%d', '%d', '%s', '%d', '%f', '%s', '%f', '%f', '%s', '%s', '%d', '%s', '%s' )
+            );
+
+            if ( ! $inserted ) {
+                wp_send_json_error( array( 'message' => __( 'No se pudo guardar el presupuesto.', 'core-print-offset' ) ), 500 );
+            }
+
+            $presupuesto_id = (int) $wpdb->insert_id;
         }
-
-        $presupuesto_id = (int) $wpdb->insert_id;
         $snapshot_payload = array(
             'inputs'  => $payload,
             'totals'  => $result,
@@ -500,6 +708,105 @@ class CPO_Public {
         );
     }
 
+    public function handle_get_presupuesto() {
+        $this->ensure_valid_nonce();
+
+        if ( ! is_user_logged_in() ) {
+            wp_send_json_error( array( 'message' => __( 'Debes iniciar sesión.', 'core-print-offset' ) ), 401 );
+        }
+
+        $presupuesto_id = isset( $_POST['presupuesto_id'] ) ? intval( $_POST['presupuesto_id'] ) : 0;
+        if ( ! $presupuesto_id ) {
+            wp_send_json_error( array( 'message' => __( 'Presupuesto inválido.', 'core-print-offset' ) ), 400 );
+        }
+
+        global $wpdb;
+        $presupuesto = $wpdb->get_row(
+            $wpdb->prepare( "SELECT * FROM {$wpdb->prefix}cpo_presupuestos WHERE id = %d", $presupuesto_id ),
+            ARRAY_A
+        );
+        if ( ! $presupuesto ) {
+            wp_send_json_error( array( 'message' => __( 'Presupuesto no encontrado.', 'core-print-offset' ) ), 404 );
+        }
+
+        if ( ! $this->user_can_access_presupuesto( $presupuesto ) ) {
+            wp_send_json_error( array( 'message' => __( 'forbidden', 'core-print-offset' ) ), 403 );
+        }
+
+        if ( empty( $presupuesto['created_by'] ) ) {
+            $wpdb->update(
+                $wpdb->prefix . 'cpo_presupuestos',
+                array( 'created_by' => get_current_user_id() ),
+                array( 'id' => $presupuesto_id )
+            );
+        }
+
+        $payload = cpo_get_presupuesto_snapshot_payload( $presupuesto_id );
+        $calc_result = array();
+        if ( ! empty( $presupuesto['calc_result_json'] ) ) {
+            $decoded = json_decode( $presupuesto['calc_result_json'], true );
+            if ( is_array( $decoded ) ) {
+                $calc_result = $decoded;
+            }
+        }
+
+        wp_send_json_success(
+            array(
+                'id' => $presupuesto_id,
+                'payload' => $payload,
+                'calc_result' => $calc_result,
+                'cliente_id' => (int) ( $presupuesto['cliente_id'] ?? $presupuesto['core_cliente_id'] ?? 0 ),
+                'cliente_texto' => $presupuesto['cliente_texto'] ?? '',
+            )
+        );
+    }
+
+    public function handle_duplicate_presupuesto() {
+        $this->ensure_valid_nonce();
+
+        if ( ! is_user_logged_in() ) {
+            wp_send_json_error( array( 'message' => __( 'Debes iniciar sesión.', 'core-print-offset' ) ), 401 );
+        }
+
+        $presupuesto_id = isset( $_POST['presupuesto_id'] ) ? intval( $_POST['presupuesto_id'] ) : 0;
+        if ( ! $presupuesto_id ) {
+            wp_send_json_error( array( 'message' => __( 'Presupuesto inválido.', 'core-print-offset' ) ), 400 );
+        }
+
+        global $wpdb;
+        $presupuesto = $wpdb->get_row(
+            $wpdb->prepare( "SELECT * FROM {$wpdb->prefix}cpo_presupuestos WHERE id = %d", $presupuesto_id ),
+            ARRAY_A
+        );
+        if ( ! $presupuesto ) {
+            wp_send_json_error( array( 'message' => __( 'Presupuesto no encontrado.', 'core-print-offset' ) ), 404 );
+        }
+
+        if ( ! $this->user_can_access_presupuesto( $presupuesto ) ) {
+            wp_send_json_error( array( 'message' => __( 'forbidden', 'core-print-offset' ) ), 403 );
+        }
+
+        if ( empty( $presupuesto['created_by'] ) ) {
+            $wpdb->update(
+                $wpdb->prefix . 'cpo_presupuestos',
+                array( 'created_by' => get_current_user_id() ),
+                array( 'id' => $presupuesto_id )
+            );
+        }
+
+        $result = cpo_duplicate_presupuesto( $presupuesto_id, get_current_user_id() );
+        if ( is_wp_error( $result ) ) {
+            wp_send_json_error( array( 'message' => $result->get_error_message() ), 400 );
+        }
+
+        wp_send_json_success(
+            array(
+                'message' => __( 'Presupuesto duplicado.', 'core-print-offset' ),
+                'id'      => (int) $result,
+            )
+        );
+    }
+
     public function handle_create_core_document() {
         $this->ensure_valid_nonce();
 
@@ -507,7 +814,7 @@ class CPO_Public {
             wp_send_json_error( array( 'message' => __( 'Debes iniciar sesión para crear documentos.', 'core-print-offset' ) ), 401 );
         }
 
-        if ( ! current_user_can( 'manage_cpo_offset' ) ) {
+        if ( ! $this->user_can_manage_all_presupuestos() ) {
             if ( defined( 'WP_DEBUG' ) && WP_DEBUG ) {
                 error_log(
                     sprintf(
@@ -536,6 +843,18 @@ class CPO_Public {
 
         if ( ! $presupuesto ) {
             wp_send_json_error( array( 'message' => __( 'Presupuesto no encontrado.', 'core-print-offset' ) ), 404 );
+        }
+
+        if ( ! $this->user_can_access_presupuesto( $presupuesto ) ) {
+            wp_send_json_error( array( 'message' => __( 'forbidden', 'core-print-offset' ) ), 403 );
+        }
+
+        if ( empty( $presupuesto['created_by'] ) ) {
+            $wpdb->update(
+                $wpdb->prefix . 'cpo_presupuestos',
+                array( 'created_by' => get_current_user_id() ),
+                array( 'id' => $presupuesto_id )
+            );
         }
 
         $existing_core_document_id = isset( $presupuesto['core_documento_id'] ) ? (int) $presupuesto['core_documento_id'] : 0;
@@ -602,6 +921,23 @@ class CPO_Public {
                 'allow_machine_default' => true,
             )
         );
+    }
+
+    private function user_can_manage_all_presupuestos(): bool {
+        return current_user_can( 'manage_cpo_offset' ) || current_user_can( 'manage_options' );
+    }
+
+    private function user_can_access_presupuesto( array $presupuesto ): bool {
+        if ( $this->user_can_manage_all_presupuestos() ) {
+            return true;
+        }
+
+        $created_by = isset( $presupuesto['created_by'] ) ? (int) $presupuesto['created_by'] : 0;
+        if ( ! $created_by ) {
+            return true;
+        }
+
+        return $created_by === get_current_user_id();
     }
 
     private function get_core_client_name( int $client_id ): string {

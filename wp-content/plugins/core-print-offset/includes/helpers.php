@@ -120,3 +120,137 @@ function cpo_build_presupuesto_payload( array $raw, array $options = array() ): 
 
     return $payload;
 }
+
+function cpo_get_presupuesto_snapshot_payload( int $presupuesto_id ): array {
+    if ( ! $presupuesto_id ) {
+        return array();
+    }
+
+    global $wpdb;
+
+    $snapshot = $wpdb->get_var(
+        $wpdb->prepare( "SELECT snapshot_json FROM {$wpdb->prefix}cpo_presupuestos WHERE id = %d", $presupuesto_id )
+    );
+
+    if ( $snapshot ) {
+        $decoded = json_decode( $snapshot, true );
+        if ( is_array( $decoded ) ) {
+            return $decoded;
+        }
+    }
+
+    $item_snapshot = $wpdb->get_var(
+        $wpdb->prepare(
+            "SELECT snapshot_json FROM {$wpdb->prefix}cpo_presupuesto_items WHERE presupuesto_id = %d AND tipo = 'otro' ORDER BY id DESC LIMIT 1",
+            $presupuesto_id
+        )
+    );
+    if ( $item_snapshot ) {
+        $decoded = json_decode( $item_snapshot, true );
+        if ( is_array( $decoded ) ) {
+            if ( isset( $decoded['inputs'] ) && is_array( $decoded['inputs'] ) ) {
+                if ( defined( 'WP_DEBUG' ) && WP_DEBUG ) {
+                    error_log(
+                        sprintf( 'CPO snapshot payload for presupuesto %d recovered from items.', $presupuesto_id )
+                    );
+                }
+                return $decoded['inputs'];
+            }
+            return $decoded;
+        }
+    }
+
+    $presupuesto = $wpdb->get_row(
+        $wpdb->prepare( "SELECT * FROM {$wpdb->prefix}cpo_presupuestos WHERE id = %d", $presupuesto_id ),
+        ARRAY_A
+    );
+    if ( ! $presupuesto ) {
+        return array();
+    }
+
+    if ( defined( 'WP_DEBUG' ) && WP_DEBUG ) {
+        error_log(
+            sprintf( 'CPO snapshot payload for presupuesto %d recovered from columns.', $presupuesto_id )
+        );
+    }
+
+    return array(
+        'descripcion' => $presupuesto['producto'] ?? $presupuesto['titulo'] ?? '',
+        'cantidad'    => (int) ( $presupuesto['cantidad'] ?? 0 ),
+        'material_id' => (int) ( $presupuesto['material_id'] ?? 0 ),
+        'colores'     => $presupuesto['colores'] ?? '',
+        'margin_pct'  => $presupuesto['margen_pct'] ?? 0,
+    );
+}
+
+function cpo_duplicate_presupuesto( int $presupuesto_id, ?int $created_by = null ) {
+    if ( ! $presupuesto_id ) {
+        return new WP_Error( 'cpo_invalid_presupuesto', __( 'Presupuesto inválido.', 'core-print-offset' ) );
+    }
+
+    global $wpdb;
+
+    $presupuesto = $wpdb->get_row(
+        $wpdb->prepare( "SELECT * FROM {$wpdb->prefix}cpo_presupuestos WHERE id = %d", $presupuesto_id ),
+        ARRAY_A
+    );
+    if ( ! $presupuesto ) {
+        return new WP_Error( 'cpo_presupuesto_missing', __( 'Presupuesto no encontrado.', 'core-print-offset' ) );
+    }
+
+    $now = cpo_now();
+    $titulo = $presupuesto['titulo'] ? sprintf( __( '%s (copia)', 'core-print-offset' ), $presupuesto['titulo'] ) : __( 'Presupuesto Offset (copia)', 'core-print-offset' );
+    $payload = $presupuesto;
+    unset( $payload['id'] );
+    $payload['titulo'] = $titulo;
+    $payload['estado'] = 'borrador';
+    $payload['core_documento_id'] = null;
+    if ( null !== $created_by ) {
+        $payload['created_by'] = $created_by;
+    }
+    $payload['created_at'] = $now;
+    $payload['updated_at'] = $now;
+
+    $inserted = $wpdb->insert( $wpdb->prefix . 'cpo_presupuestos', $payload );
+    if ( ! $inserted ) {
+        return new WP_Error( 'cpo_presupuesto_duplicate_failed', __( 'No se pudo duplicar el presupuesto.', 'core-print-offset' ) );
+    }
+
+    $new_id = (int) $wpdb->insert_id;
+
+    $items = $wpdb->get_results(
+        $wpdb->prepare(
+            "SELECT tipo, referencia_id, descripcion, cantidad, unitario, subtotal, snapshot_json FROM {$wpdb->prefix}cpo_presupuesto_items WHERE presupuesto_id = %d",
+            $presupuesto_id
+        ),
+        ARRAY_A
+    );
+
+    foreach ( $items as $item ) {
+        $wpdb->insert(
+            $wpdb->prefix . 'cpo_presupuesto_items',
+            array(
+                'presupuesto_id' => $new_id,
+                'tipo'           => $item['tipo'],
+                'referencia_id'  => $item['referencia_id'],
+                'descripcion'    => $item['descripcion'],
+                'cantidad'       => $item['cantidad'],
+                'unitario'       => $item['unitario'],
+                'subtotal'       => $item['subtotal'],
+                'snapshot_json'  => $item['snapshot_json'],
+                'created_at'     => $now,
+            )
+        );
+    }
+
+    return $new_id;
+}
+
+function cpo_get_offset_dashboard_url(): string {
+    $url = (string) apply_filters( 'cpo_offset_dashboard_url', '' );
+    if ( ! $url ) {
+        $url = home_url( '/' );
+    }
+
+    return $url;
+}

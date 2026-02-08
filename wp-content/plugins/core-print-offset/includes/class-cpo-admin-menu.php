@@ -489,70 +489,7 @@ class CPO_Admin_Menu {
     }
 
     private function get_presupuesto_snapshot_payload( int $presupuesto_id ): array {
-        if ( ! $presupuesto_id ) {
-            return array();
-        }
-
-        global $wpdb;
-        $presupuesto_snapshot = $wpdb->get_var(
-            $wpdb->prepare(
-                "SELECT snapshot_json FROM {$wpdb->prefix}cpo_presupuestos WHERE id = %d",
-                $presupuesto_id
-            )
-        );
-        if ( $presupuesto_snapshot ) {
-            $decoded = json_decode( $presupuesto_snapshot, true );
-            if ( is_array( $decoded ) ) {
-                return $decoded;
-            }
-        }
-
-        $snapshot = $wpdb->get_var(
-            $wpdb->prepare(
-                "SELECT snapshot_json FROM {$wpdb->prefix}cpo_presupuesto_items WHERE presupuesto_id = %d AND tipo = 'otro' ORDER BY id DESC LIMIT 1",
-                $presupuesto_id
-            )
-        );
-
-        if ( ! $snapshot ) {
-            return array();
-        }
-
-        $decoded = json_decode( $snapshot, true );
-        if ( ! is_array( $decoded ) ) {
-            return array();
-        }
-
-        if ( isset( $decoded['inputs'] ) && is_array( $decoded['inputs'] ) ) {
-            if ( defined( 'WP_DEBUG' ) && WP_DEBUG ) {
-                error_log(
-                    sprintf( 'CPO admin rehydrate legacy snapshot for presupuesto %d from items.', $presupuesto_id )
-                );
-            }
-            return $decoded['inputs'];
-        }
-
-        $presupuesto = $wpdb->get_row(
-            $wpdb->prepare( "SELECT * FROM {$wpdb->prefix}cpo_presupuestos WHERE id = %d", $presupuesto_id ),
-            ARRAY_A
-        );
-        if ( ! $presupuesto ) {
-            return array();
-        }
-
-        if ( defined( 'WP_DEBUG' ) && WP_DEBUG ) {
-            error_log(
-                sprintf( 'CPO admin rehydrate legacy snapshot for presupuesto %d from columns.', $presupuesto_id )
-            );
-        }
-
-        return array(
-            'descripcion' => $presupuesto['producto'] ?? $presupuesto['titulo'] ?? '',
-            'cantidad'    => (int) ( $presupuesto['cantidad'] ?? 0 ),
-            'material_id' => (int) ( $presupuesto['material_id'] ?? 0 ),
-            'colores'     => $presupuesto['colores'] ?? '',
-            'margin_pct'  => $presupuesto['margen_pct'] ?? 0,
-        );
+        return cpo_get_presupuesto_snapshot_payload( $presupuesto_id );
     }
 
     private function handle_presupuestos() {
@@ -566,13 +503,14 @@ class CPO_Admin_Menu {
             'maquinas'     => $this->get_maquinas_list(),
             'core_active'  => $this->core_active,
             'core_clients' => array(),
+            'can_edit'     => current_user_can( 'manage_options' ),
         );
 
         if ( $this->core_active ) {
             $data['core_clients'] = $this->core_bridge->get_core_clients_list();
         }
 
-        if ( $this->core_active && isset( $_POST['cpo_presupuesto_save'] ) && check_admin_referer( 'cpo_presupuesto_save', 'cpo_presupuesto_nonce' ) ) {
+        if ( $this->core_active && $data['can_edit'] && isset( $_POST['cpo_presupuesto_save'] ) && check_admin_referer( 'cpo_presupuesto_save', 'cpo_presupuesto_nonce' ) ) {
             $id             = isset( $_POST['presupuesto_id'] ) ? intval( $_POST['presupuesto_id'] ) : 0;
             $cliente_id     = isset( $_POST['cliente_id'] ) ? intval( $_POST['cliente_id'] ) : 0;
             $cliente_texto  = sanitize_text_field( wp_unslash( $_POST['cliente_texto'] ?? '' ) );
@@ -675,11 +613,15 @@ class CPO_Admin_Menu {
             );
 
             if ( $id > 0 ) {
+                if ( empty( $payload['created_by'] ) ) {
+                    $payload['created_by'] = get_current_user_id();
+                }
                 $wpdb->update( $wpdb->prefix . 'cpo_presupuestos', $payload, array( 'id' => $id ) );
                 $presupuesto_id = $id;
                 $wpdb->delete( $wpdb->prefix . 'cpo_presupuesto_items', array( 'presupuesto_id' => $id ) );
                 $this->add_notice( __( 'Presupuesto actualizado.', 'core-print-offset' ) );
             } else {
+                $payload['created_by'] = get_current_user_id();
                 $payload['created_at'] = $now;
                 $wpdb->insert( $wpdb->prefix . 'cpo_presupuestos', $payload );
                 $presupuesto_id = (int) $wpdb->insert_id;
@@ -724,6 +666,18 @@ class CPO_Admin_Menu {
             );
         }
 
+        if ( $this->core_active && isset( $_GET['cpo_action'], $_GET['presupuesto_id'], $_GET['_wpnonce'] ) && $_GET['cpo_action'] === 'duplicate_presupuesto' ) {
+            if ( wp_verify_nonce( sanitize_text_field( wp_unslash( $_GET['_wpnonce'] ) ), 'cpo_duplicate_presupuesto' ) ) {
+                $id = intval( $_GET['presupuesto_id'] );
+                $result = cpo_duplicate_presupuesto( $id, get_current_user_id() );
+                if ( is_wp_error( $result ) ) {
+                    $this->add_notice( $result->get_error_message(), 'error' );
+                } else {
+                    $this->add_notice( __( 'Presupuesto duplicado.', 'core-print-offset' ) );
+                }
+            }
+        }
+
         if ( $this->core_active && isset( $_GET['cpo_action'], $_GET['presupuesto_id'], $_GET['_wpnonce'] ) && $_GET['cpo_action'] === 'generate_document' ) {
             if ( wp_verify_nonce( sanitize_text_field( wp_unslash( $_GET['_wpnonce'] ) ), 'cpo_generate_document' ) ) {
                 $id = intval( $_GET['presupuesto_id'] );
@@ -765,10 +719,11 @@ class CPO_Admin_Menu {
             }
         }
 
-        if ( isset( $_GET['cpo_action'], $_GET['presupuesto_id'] ) && $_GET['cpo_action'] === 'edit_presupuesto' ) {
+        if ( isset( $_GET['cpo_action'], $_GET['presupuesto_id'] ) && in_array( $_GET['cpo_action'], array( 'edit_presupuesto', 'view_presupuesto' ), true ) ) {
             $id = intval( $_GET['presupuesto_id'] );
             $data['editing'] = $wpdb->get_row( $wpdb->prepare( "SELECT * FROM {$wpdb->prefix}cpo_presupuestos WHERE id = %d", $id ), ARRAY_A );
             $data['editing_payload'] = $this->get_presupuesto_snapshot_payload( $id );
+            $data['editing_mode'] = sanitize_text_field( wp_unslash( $_GET['cpo_action'] ) );
         }
 
         if ( $this->core_active && isset( $_GET['cpo_action'], $_GET['presupuesto_id'], $_GET['_wpnonce'] ) && $_GET['cpo_action'] === 'convert_to_order' ) {
