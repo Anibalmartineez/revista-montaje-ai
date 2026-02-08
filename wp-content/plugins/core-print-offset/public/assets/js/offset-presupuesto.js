@@ -99,9 +99,11 @@
             return;
         }
         const hasCliente = getSelectedClienteId() > 0;
-        coreButton.disabled = !config.coreAvailable || !hasCliente;
+        coreButton.disabled = !config.coreAvailable || !hasCliente || !config.canManageCoreDocs;
         if (!config.coreAvailable) {
             coreButton.title = config.strings.coreUnavailable || 'Core Global no disponible';
+        } else if (!config.canManageCoreDocs) {
+            coreButton.title = 'Sin permisos para crear documentos en Core';
         } else if (!hasCliente) {
             coreButton.title = config.strings.coreClientRequired || 'Selecciona un cliente';
         } else {
@@ -268,6 +270,128 @@
         }
     };
 
+    const applyPayloadToForm = (payload, meta = {}) => {
+        if (!payload) {
+            return;
+        }
+
+        const setValue = (name, value) => {
+            const field = form.querySelector(`[name="${name}"]`);
+            if (!field) {
+                return;
+            }
+            if (field.type === 'checkbox') {
+                field.checked = Boolean(value);
+            } else if (field.tagName === 'SELECT') {
+                field.value = value != null ? String(value) : '';
+            } else {
+                field.value = value ?? '';
+            }
+        };
+
+        setValue('descripcion', payload.descripcion || '');
+        setValue('cantidad', payload.cantidad || 1);
+        setValue('ancho_mm', payload.ancho_mm || '');
+        setValue('alto_mm', payload.alto_mm || '');
+        setValue('colores', payload.colores || '');
+        setValue('sangrado_mm', payload.sangrado_mm || '');
+        setValue('material_id', payload.material_id || 0);
+        setValue('pliego_formato', payload.pliego_formato || '');
+        setValue('pliego_ancho_mm', payload.pliego_ancho_mm || '');
+        setValue('pliego_alto_mm', payload.pliego_alto_mm || '');
+        if (pliegoOverride) {
+            pliegoOverride.checked = Boolean(payload.pliego_personalizado);
+        }
+        setValue('formas_por_pliego', payload.formas_por_pliego || 1);
+        setValue('merma_pct', payload.merma_pct || 0);
+        setValue('margin_pct', payload.margin_pct || payload.margen_pct || 0);
+        if (machineSelect) {
+            machineSelect.value = payload.maquina_id != null ? String(payload.maquina_id) : '0';
+        }
+        if (horasInput) {
+            horasInput.value = payload.horas_maquina ? Number(payload.horas_maquina).toFixed(2) : '';
+            horasInput.dataset.userEdited = '';
+        }
+        if (costoInput) {
+            costoInput.value = payload.costo_hora ? Number(payload.costo_hora).toFixed(2) : '';
+            costoInput.dataset.userEdited = '';
+        }
+
+        const procesos = Array.isArray(payload.procesos) ? payload.procesos.map(String) : [];
+        const procesoInputs = form.querySelectorAll('input[name="procesos[]"]');
+        procesoInputs.forEach((input) => {
+            input.checked = procesos.includes(input.value);
+        });
+
+        if (clienteSelect) {
+            const clienteId = meta.cliente_id || payload.cliente_id || 0;
+            if (clienteId) {
+                clienteSelect.value = String(clienteId);
+                if (clienteTextWrapper) {
+                    const textInput = clienteTextWrapper.querySelector('input');
+                    if (textInput) {
+                        textInput.value = '';
+                    }
+                }
+            } else if (payload.cliente_texto || meta.cliente_texto) {
+                clienteSelect.value = 'other';
+                if (clienteTextWrapper) {
+                    const textInput = clienteTextWrapper.querySelector('input');
+                    if (textInput) {
+                        textInput.value = meta.cliente_texto || payload.cliente_texto || '';
+                    }
+                }
+            } else {
+                clienteSelect.value = '0';
+            }
+        }
+
+        updateMaterialPrice();
+        toggleCustomPliego();
+        updateMachineFields();
+        updateClienteFields();
+        updateCoreButtonState();
+    };
+
+    const fetchPresupuesto = async (presupuestoId) => {
+        const formData = getFormData();
+        formData.append('action', 'cpo_offset_get_presupuesto');
+        formData.append('presupuesto_id', presupuestoId);
+
+        const response = await fetch(config.ajaxUrl, {
+            method: 'POST',
+            credentials: 'same-origin',
+            body: formData,
+        });
+
+        const payload = await response.json();
+        if (!payload.success) {
+            showAlert(payload.data?.message || config.strings.loadFailed);
+            return null;
+        }
+        return payload.data;
+    };
+
+    const loadPresupuesto = async (presupuestoId) => {
+        clearAlert();
+        const payload = await fetchPresupuesto(presupuestoId);
+        if (!payload) {
+            return;
+        }
+        if (presupuestoIdInput) {
+            presupuestoIdInput.value = payload.id;
+        }
+        applyPayloadToForm(payload.payload, {
+            cliente_id: payload.cliente_id,
+            cliente_texto: payload.cliente_texto,
+        });
+        if (payload.calc_result) {
+            applyResults(payload.calc_result);
+        }
+        showAlert('Presupuesto cargado.', 'success');
+        form.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    };
+
     const calculate = async () => {
         clearAlert();
         const formData = getFormData();
@@ -320,22 +444,31 @@
         updateCoreButtonState();
     };
 
-    const createCoreDocument = async () => {
+    const createCoreDocument = async (presupuestoId = null) => {
         if (!config.coreAvailable) {
             showAlert(config.strings.coreUnavailable || 'Core Global no disponible');
             return;
         }
-        if (getSelectedClienteId() <= 0) {
-            showAlert(config.strings.coreClientRequired || 'Selecciona un cliente de Core.', 'warning');
+        if (!config.canManageCoreDocs) {
+            showAlert('No tienes permisos para crear documentos en Core.', 'warning');
             return;
         }
-        if (!presupuestoIdInput || !presupuestoIdInput.value) {
-            showAlert(config.strings.coreSaveRequired || 'Guarda el presupuesto antes de crear el documento.', 'warning');
-            return;
+        if (!presupuestoId) {
+            if (getSelectedClienteId() <= 0) {
+                showAlert(config.strings.coreClientRequired || 'Selecciona un cliente de Core.', 'warning');
+                return;
+            }
+            if (!presupuestoIdInput || !presupuestoIdInput.value) {
+                showAlert(config.strings.coreSaveRequired || 'Guarda el presupuesto antes de crear el documento.', 'warning');
+                return;
+            }
         }
         clearAlert();
         const formData = getFormData();
         formData.append('action', 'cpo_offset_create_core_document');
+        if (presupuestoId) {
+            formData.append('presupuesto_id', presupuestoId);
+        }
 
         const response = await fetch(config.ajaxUrl, {
             method: 'POST',
@@ -393,5 +526,51 @@
 
     if (coreButton) {
         updateCoreButtonState();
+    }
+
+    document.addEventListener('click', async (event) => {
+        const openButton = event.target.closest('[data-cpo-open]');
+        if (openButton) {
+            event.preventDefault();
+            await loadPresupuesto(openButton.dataset.cpoOpen);
+            return;
+        }
+
+        const duplicateButton = event.target.closest('[data-cpo-duplicate]');
+        if (duplicateButton) {
+            event.preventDefault();
+            clearAlert();
+            const formData = getFormData();
+            formData.append('action', 'cpo_offset_duplicate_presupuesto');
+            formData.append('presupuesto_id', duplicateButton.dataset.cpoDuplicate);
+            const response = await fetch(config.ajaxUrl, {
+                method: 'POST',
+                credentials: 'same-origin',
+                body: formData,
+            });
+            const payload = await response.json();
+            if (!payload.success) {
+                showAlert(payload.data?.message || config.strings.duplicateFailed);
+                return;
+            }
+            showAlert(payload.data?.message || 'Presupuesto duplicado.', 'success');
+            if (payload.data?.id) {
+                await loadPresupuesto(payload.data.id);
+            }
+            return;
+        }
+
+        const coreListButton = event.target.closest('[data-cpo-core]');
+        if (coreListButton && coreListButton.dataset.cpoCore) {
+            event.preventDefault();
+            await createCoreDocument(coreListButton.dataset.cpoCore);
+            return;
+        }
+    });
+
+    const urlParams = new URLSearchParams(window.location.search);
+    const initialPresupuestoId = urlParams.get('cpo_presupuesto_id');
+    if (initialPresupuestoId) {
+        loadPresupuesto(initialPresupuestoId);
     }
 })();
