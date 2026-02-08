@@ -22,7 +22,8 @@
         setActiveNav(target);
         var hash = target.getAttribute('href');
         if (hash) {
-            openModuleById(hash.replace('#', ''), false);
+            var dashboard = target.closest('.gc-dashboard');
+            openModuleById(dashboard, hash.replace('#', ''), false);
         }
     }
 
@@ -212,8 +213,7 @@
         }
     }
 
-    function openModuleById(moduleId, persist) {
-        var dashboard = document.querySelector('.gc-dashboard');
+    function openModuleById(dashboard, moduleId, persist) {
         if (!dashboard || !moduleId) {
             return;
         }
@@ -240,51 +240,53 @@
     }
 
     function initModules() {
-        var dashboard = document.querySelector('.gc-dashboard');
-        if (!dashboard) {
+        var dashboards = document.querySelectorAll('.gc-dashboard');
+        if (!dashboards.length) {
             return;
         }
-        var modules = dashboard.querySelectorAll('.gc-module');
-        if (!modules.length) {
-            return;
-        }
-        modules.forEach(function (module) {
-            var panelBody = module.querySelector('.gc-panel-body');
-            reorderPanelBody(panelBody);
-            var toggle = module.querySelector('.gc-module__toggle');
-            if (!toggle) {
+        dashboards.forEach(function (dashboard) {
+            var modules = dashboard.querySelectorAll('.gc-module');
+            if (!modules.length) {
                 return;
             }
-            toggle.addEventListener('click', function () {
-                var moduleId = module.getAttribute('data-gc-module');
-                var isOpen = !module.classList.contains('is-open');
-                if (isOpen && moduleId) {
-                    openModuleById(moduleId, true);
-                } else {
-                    setModuleState(module, false);
+            modules.forEach(function (module) {
+                var panelBody = module.querySelector('.gc-panel-body');
+                reorderPanelBody(panelBody);
+                var toggle = module.querySelector('.gc-module__toggle');
+                if (!toggle) {
+                    return;
                 }
+                toggle.addEventListener('click', function () {
+                    var moduleId = module.getAttribute('data-gc-module');
+                    var isOpen = !module.classList.contains('is-open');
+                    if (isOpen && moduleId) {
+                        openModuleById(dashboard, moduleId, true);
+                    } else {
+                        setModuleState(module, false);
+                    }
+                });
             });
-        });
 
-        var activeId = '';
-        if (window.location.hash) {
-            activeId = window.location.hash.replace('#', '');
-        } else if (window.localStorage) {
-            try {
-                activeId = window.localStorage.getItem('gc_dashboard_module') || '';
-            } catch (error) {
-                activeId = '';
+            var activeId = '';
+            if (window.location.hash) {
+                activeId = window.location.hash.replace('#', '');
+            } else if (window.localStorage) {
+                try {
+                    activeId = window.localStorage.getItem('gc_dashboard_module') || '';
+                } catch (error) {
+                    activeId = '';
+                }
             }
-        }
-        if (!activeId) {
-            var first = modules[0].getAttribute('data-gc-module');
-            if (first) {
-                activeId = first;
+            if (!activeId) {
+                var first = modules[0].getAttribute('data-gc-module');
+                if (first) {
+                    activeId = first;
+                }
             }
-        }
-        if (activeId) {
-            openModuleById(activeId, false);
-        }
+            if (activeId) {
+                openModuleById(dashboard, activeId, false);
+            }
+        });
     }
 
     function init() {
@@ -295,10 +297,10 @@
         initPendingAmountAutofill();
         initModules();
         if (window.location.hash) {
-            var initial = document.querySelector('.gc-dashboard-button[href="' + window.location.hash + '"]');
-            if (initial) {
+            var initialButtons = document.querySelectorAll('.gc-dashboard-button[href="' + window.location.hash + '"]');
+            initialButtons.forEach(function (initial) {
                 setActiveNav(initial);
-            }
+            });
         }
     }
 
