@@ -183,7 +183,7 @@ function cpo_get_presupuesto_snapshot_payload( int $presupuesto_id ): array {
     );
 }
 
-function cpo_duplicate_presupuesto( int $presupuesto_id ) {
+function cpo_duplicate_presupuesto( int $presupuesto_id, ?int $created_by = null ) {
     if ( ! $presupuesto_id ) {
         return new WP_Error( 'cpo_invalid_presupuesto', __( 'Presupuesto inválido.', 'core-print-offset' ) );
     }
@@ -205,6 +205,9 @@ function cpo_duplicate_presupuesto( int $presupuesto_id ) {
     $payload['titulo'] = $titulo;
     $payload['estado'] = 'borrador';
     $payload['core_documento_id'] = null;
+    if ( null !== $created_by ) {
+        $payload['created_by'] = $created_by;
+    }
     $payload['created_at'] = $now;
     $payload['updated_at'] = $now;
 

@@ -173,6 +173,7 @@ class CPO_Activator {
 
         $tables[] = "CREATE TABLE {$wpdb->prefix}cpo_presupuestos (
             id bigint(20) unsigned NOT NULL AUTO_INCREMENT,
+            created_by bigint(20) unsigned DEFAULT NULL,
             core_cliente_id bigint(20) unsigned DEFAULT NULL,
             cliente_id bigint(20) unsigned DEFAULT NULL,
             cliente_texto varchar(190) DEFAULT NULL,
@@ -194,6 +195,7 @@ class CPO_Activator {
             created_at datetime NOT NULL,
             updated_at datetime NOT NULL,
             PRIMARY KEY  (id),
+            KEY created_by (created_by),
             KEY core_cliente_id (core_cliente_id),
             KEY cliente_id (cliente_id)
         ) $charset_collate;";

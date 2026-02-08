@@ -613,11 +613,15 @@ class CPO_Admin_Menu {
             );
 
             if ( $id > 0 ) {
+                if ( empty( $payload['created_by'] ) ) {
+                    $payload['created_by'] = get_current_user_id();
+                }
                 $wpdb->update( $wpdb->prefix . 'cpo_presupuestos', $payload, array( 'id' => $id ) );
                 $presupuesto_id = $id;
                 $wpdb->delete( $wpdb->prefix . 'cpo_presupuesto_items', array( 'presupuesto_id' => $id ) );
                 $this->add_notice( __( 'Presupuesto actualizado.', 'core-print-offset' ) );
             } else {
+                $payload['created_by'] = get_current_user_id();
                 $payload['created_at'] = $now;
                 $wpdb->insert( $wpdb->prefix . 'cpo_presupuestos', $payload );
                 $presupuesto_id = (int) $wpdb->insert_id;
@@ -665,7 +669,7 @@ class CPO_Admin_Menu {
         if ( $this->core_active && isset( $_GET['cpo_action'], $_GET['presupuesto_id'], $_GET['_wpnonce'] ) && $_GET['cpo_action'] === 'duplicate_presupuesto' ) {
             if ( wp_verify_nonce( sanitize_text_field( wp_unslash( $_GET['_wpnonce'] ) ), 'cpo_duplicate_presupuesto' ) ) {
                 $id = intval( $_GET['presupuesto_id'] );
-                $result = cpo_duplicate_presupuesto( $id );
+                $result = cpo_duplicate_presupuesto( $id, get_current_user_id() );
                 if ( is_wp_error( $result ) ) {
                     $this->add_notice( $result->get_error_message(), 'error' );
                 } else {
