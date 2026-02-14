@@ -36,6 +36,9 @@
     const productionChipsNode = form.querySelector('[data-production-chips]');
     const warningsNode = form.querySelector('[data-technical-warnings]');
     const cannotCalculateNode = form.querySelector('[data-cannot-calculate]');
+    const baseLineBase = form.querySelector('[data-base-line-base]');
+    const baseLineUseful = form.querySelector('[data-base-line-useful]');
+    const baseLineFinal = form.querySelector('[data-base-line-final]');
 
     let currentCanCalculate = true;
 
@@ -69,6 +72,11 @@
     const parseNumber = (value) => {
         const parsed = parseFloat(value);
         return Number.isNaN(parsed) ? 0 : parsed;
+    };
+
+    const formatSheet = (sheet) => {
+        if (!Array.isArray(sheet) || sheet.length < 2 || !sheet[0] || !sheet[1]) return '-';
+        return `${Math.round(sheet[0])} x ${Math.round(sheet[1])} mm`;
     };
 
     const getFieldValue = (fieldName) => {
@@ -318,6 +326,8 @@
                 ['Merma técnica', production.merma_pliegos],
                 ['Pliegos', production.pliegos],
                 ['Tiempo', production.tiempo_horas ? `${production.tiempo_horas} h` : ''],
+                ['Área útil/pliego', production.area_pliego_util_m2 ? `${production.area_pliego_util_m2} m²` : ''],
+                ['Pliegos útiles', production.pliegos_utiles],
             ].filter((item) => item[1] !== undefined && item[1] !== null && item[1] !== '');
 
             chips.forEach(([label, value]) => {
@@ -328,13 +338,28 @@
             });
         }
 
-        const warnings = Array.isArray(data.warnings) ? data.warnings : [];
+        const warnings = Array.isArray(data.warnings) ? [...data.warnings] : [];
+        const usefulSheet = data.useful_sheet_mm || data?.base_calculo_summary?.pliego_util || [];
+        if ((!Array.isArray(usefulSheet) || !usefulSheet[0] || !usefulSheet[1]) && Array.isArray(data.procesos)) {
+            const hasM2Util = data.procesos.some((p) => p?.modo_cobro === 'por_m2' && p?.base_calculo === 'pliego_util');
+            if (hasM2Util) {
+                warnings.push('Hay procesos por m² con base pliego útil pero falta definir pliego útil.');
+            }
+        }
         if (warningsNode) {
             warningsNode.hidden = warnings.length === 0;
             warningsNode.innerHTML = warnings.length
                 ? `<strong>Advertencias</strong><ul>${warnings.map((warning) => `<li>${warning}</li>`).join('')}</ul>`
                 : '';
         }
+
+        const summary = data.base_calculo_summary || {};
+        if (baseLineBase) baseLineBase.textContent = `Pliego base: ${formatSheet(summary.pliego_base || data.base_sheet_mm)}`;
+        if (baseLineUseful) {
+            const area = data.area_pliego_util_m2 ? ` (${Number(data.area_pliego_util_m2).toFixed(4)} m²)` : '';
+            baseLineUseful.textContent = `Pliego útil: ${formatSheet(summary.pliego_util || data.useful_sheet_mm)}${area}`;
+        }
+        if (baseLineFinal) baseLineFinal.textContent = `Unidades final: ${summary.unidad_final || getFieldValue('cantidad') || '-'}`;
 
         const missing = Array.isArray(data.missing_fields) ? data.missing_fields : [];
         if (cannotCalculateNode) {

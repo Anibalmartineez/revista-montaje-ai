@@ -382,6 +382,12 @@ class CPO_Public {
                                 <h4><?php esc_html_e( 'Resumen técnico', 'core-print-offset' ); ?></h4>
                                 <div class="cpo-tech-summary__chips" data-production-chips></div>
                                 <p class="cpo-hint" data-production-summary></p>
+                                <div class="cpo-tech-summary__bases">
+                                    <strong><?php esc_html_e( 'Base de cálculo de procesos', 'core-print-offset' ); ?></strong>
+                                    <p class="cpo-hint" data-base-line-base><?php esc_html_e( 'Pliego base: -', 'core-print-offset' ); ?></p>
+                                    <p class="cpo-hint" data-base-line-useful><?php esc_html_e( 'Pliego útil: -', 'core-print-offset' ); ?></p>
+                                    <p class="cpo-hint" data-base-line-final><?php esc_html_e( 'Unidades final: -', 'core-print-offset' ); ?></p>
+                                </div>
                                 <div class="cpo-tech-summary__warnings" data-technical-warnings hidden></div>
                                 <p class="cpo-tech-summary__missing" data-cannot-calculate hidden></p>
                             </div>
@@ -884,6 +890,8 @@ class CPO_Public {
                 'pieces_per_base' => $result['pieces_per_base'] ?? 1,
                 'base_sheet_mm' => $result['base_sheet_mm'] ?? array(),
                 'useful_sheet_mm' => $result['useful_sheet_mm'] ?? array(),
+                'base_calculo_summary' => $result['base_calculo_summary'] ?? array(),
+                'area_pliego_util_m2' => $result['area_pliego_util_m2'] ?? 0,
                 'can_calculate' => $can_calculate,
             )
         );
@@ -1166,6 +1174,8 @@ class CPO_Public {
                 'required_fields' => $required_fields,
                 'missing_fields' => array(),
                 'warnings' => $result['warnings'] ?? array(),
+                'base_calculo_summary' => $result['base_calculo_summary'] ?? array(),
+                'area_pliego_util_m2' => $result['area_pliego_util_m2'] ?? 0,
                 'can_calculate' => true,
             )
         );
@@ -1653,6 +1663,13 @@ class CPO_Public {
             "SELECT * FROM {$wpdb->prefix}cpo_procesos WHERE activo = 1 ORDER BY nombre ASC",
             ARRAY_A
         );
+
+        foreach ( $results as &$process ) {
+            $decoded_unit = cpo_decode_process_unit_meta( (string) ( $process['unidad'] ?? '' ) );
+            $process['unidad'] = $decoded_unit['unidad'];
+            $process['base_calculo'] = cpo_get_process_base_calculo( $process );
+        }
+        unset( $process );
 
         wp_cache_set( $cache_key, $results, 'cpo', 300 );
 

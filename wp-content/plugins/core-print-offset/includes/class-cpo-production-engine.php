@@ -31,6 +31,8 @@ class CPO_Production_Engine {
         $util_ancho = max( 0.0, $sheet_context['useful_sheet_mm'][0] - ( self::MARGEN_LATERAL_MM * 2 ) );
         $util_alto = max( 0.0, $sheet_context['useful_sheet_mm'][1] - self::PINZA_MM - self::COLA_MM );
 
+        $area_pliego_util_m2 = ( (float) $sheet_context['useful_sheet_mm'][0] / 1000 ) * ( (float) $sheet_context['useful_sheet_mm'][1] / 1000 );
+
         $formas_horizontal = $ancho_trabajo > 0 ? (int) floor( $util_ancho / $ancho_trabajo ) : 0;
         $formas_vertical = $alto_trabajo > 0 ? (int) floor( $util_alto / $alto_trabajo ) : 0;
         $formas_por_pliego_auto = max( 0, $formas_horizontal * $formas_vertical );
@@ -106,6 +108,7 @@ class CPO_Production_Engine {
             'cut_fraction'             => $sheet_context['cut_fraction'],
             'useful_sheet_mm'          => $sheet_context['useful_sheet_mm'],
             'pieces_per_base'          => (int) $pieces_per_base,
+            'area_pliego_util_m2'      => round( $area_pliego_util_m2, 4 ),
             'production_summary'       => self::build_summary(
                 $formas_por_pliego,
                 $merma_pliegos,

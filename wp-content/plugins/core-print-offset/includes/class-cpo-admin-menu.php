@@ -221,6 +221,10 @@ class CPO_Admin_Menu {
                 }
             }
 
+            if ( ! in_array( $unidad_costo, array( 'pliego', 'resma' ), true ) ) {
+                $gramaje = '';
+            }
+
             $payload = array(
                 'nombre'        => $nombre,
                 'gramaje'       => $gramaje,
@@ -447,11 +451,22 @@ class CPO_Admin_Menu {
             $modo_cobro         = sanitize_text_field( wp_unslash( $_POST['modo_cobro'] ?? 'fijo' ) );
             $costo_base         = cpo_get_decimal( wp_unslash( $_POST['costo_base'] ?? 0 ) );
             $unidad             = sanitize_text_field( wp_unslash( $_POST['unidad'] ?? '' ) );
+            $base_calculo       = sanitize_key( wp_unslash( $_POST['base_calculo'] ?? '' ) );
+            if ( ! in_array( $base_calculo, array( 'pliego_base', 'pliego_util', 'unidad_final', 'none' ), true ) ) {
+                $base_calculo = cpo_default_process_base_calculo( $modo_cobro );
+            }
             $consumo_g_m2        = cpo_get_decimal( wp_unslash( $_POST['consumo_g_m2'] ?? 0 ) );
             $merma_proceso_pct  = cpo_get_decimal( wp_unslash( $_POST['merma_proceso_pct'] ?? 0 ) );
             $setup_min          = cpo_get_decimal( wp_unslash( $_POST['setup_min'] ?? 0 ) );
             $activo             = isset( $_POST['activo'] ) ? 1 : 0;
             $now                = cpo_now();
+
+            $unidad = cpo_encode_process_unit_meta(
+                $unidad,
+                array(
+                    'base_calculo' => $base_calculo,
+                )
+            );
 
             $payload = array(
                 'nombre'            => $nombre,
@@ -490,6 +505,11 @@ class CPO_Admin_Menu {
         if ( isset( $_GET['cpo_action'], $_GET['proceso_id'] ) && $_GET['cpo_action'] === 'edit_proceso' ) {
             $id = intval( $_GET['proceso_id'] );
             $data['editing'] = $wpdb->get_row( $wpdb->prepare( "SELECT * FROM {$wpdb->prefix}cpo_procesos WHERE id = %d", $id ), ARRAY_A );
+            if ( $data['editing'] ) {
+                $decoded_unit = cpo_decode_process_unit_meta( (string) ( $data['editing']['unidad'] ?? '' ) );
+                $data['editing']['unidad'] = $decoded_unit['unidad'];
+                $data['editing']['base_calculo'] = cpo_get_process_base_calculo( $data['editing'] );
+            }
         }
 
         $data['procesos'] = $this->get_procesos_list();
@@ -509,6 +529,12 @@ class CPO_Admin_Menu {
         }
 
         $results = $wpdb->get_results( "SELECT * FROM {$wpdb->prefix}cpo_procesos ORDER BY created_at DESC", ARRAY_A );
+        foreach ( $results as &$process ) {
+            $decoded_unit = cpo_decode_process_unit_meta( (string) ( $process['unidad'] ?? '' ) );
+            $process['unidad'] = $decoded_unit['unidad'];
+            $process['base_calculo'] = cpo_get_process_base_calculo( $process );
+        }
+        unset( $process );
         wp_cache_set( $cache_key, $results, 'cpo', 300 );
 
         return $results;

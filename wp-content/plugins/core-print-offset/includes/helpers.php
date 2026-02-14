@@ -85,6 +85,66 @@ function cpo_format_sheet_size_mm_display( string $normalized_mm, bool $show_cm_
     return sprintf( '%s (%s x %s cm)', $display, rtrim( rtrim( number_format( $parsed['w_mm'] / 10, 2, '.', '' ), '0' ), '.' ), rtrim( rtrim( number_format( $parsed['h_mm'] / 10, 2, '.', '' ), '0' ), '.' ) );
 }
 
+function cpo_default_process_base_calculo( string $modo_cobro ): string {
+    switch ( $modo_cobro ) {
+        case 'por_hora':
+        case 'por_m2':
+        case 'por_pliego':
+        case 'por_kg':
+            return 'pliego_util';
+        case 'por_millar':
+        case 'por_unidad':
+            return 'unidad_final';
+        case 'fijo':
+        default:
+            return 'none';
+    }
+}
+
+function cpo_decode_process_unit_meta( string $unidad_raw ): array {
+    $meta = array();
+    $unidad_clean = trim( $unidad_raw );
+
+    if ( preg_match( '/\s*##cpo_meta:([A-Za-z0-9+\/=]+)\s*$/', $unidad_clean, $matches ) ) {
+        $json = base64_decode( $matches[1], true );
+        $decoded = $json ? json_decode( $json, true ) : null;
+        if ( is_array( $decoded ) ) {
+            $meta = $decoded;
+        }
+        $unidad_clean = trim( preg_replace( '/\s*##cpo_meta:[A-Za-z0-9+\/=]+\s*$/', '', $unidad_clean ) );
+    }
+
+    return array(
+        'unidad' => $unidad_clean,
+        'meta'   => $meta,
+    );
+}
+
+function cpo_encode_process_unit_meta( string $unidad, array $meta ): string {
+    $unidad = trim( $unidad );
+    if ( empty( $meta ) ) {
+        return $unidad;
+    }
+
+    $json = wp_json_encode( $meta );
+    if ( ! $json ) {
+        return $unidad;
+    }
+
+    return trim( $unidad . ' ##cpo_meta:' . base64_encode( $json ) );
+}
+
+function cpo_get_process_base_calculo( array $process ): string {
+    $decoded = cpo_decode_process_unit_meta( (string) ( $process['unidad'] ?? '' ) );
+    $meta = is_array( $decoded['meta'] ?? null ) ? $decoded['meta'] : array();
+    $base_calculo = sanitize_key( (string) ( $meta['base_calculo'] ?? '' ) );
+    if ( in_array( $base_calculo, array( 'pliego_base', 'pliego_util', 'unidad_final', 'none' ), true ) ) {
+        return $base_calculo;
+    }
+
+    return cpo_default_process_base_calculo( (string) ( $process['modo_cobro'] ?? 'fijo' ) );
+}
+
 function cpo_admin_notice( $message, $type = 'info' ) {
     add_action(
         'admin_notices',

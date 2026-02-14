@@ -20,8 +20,8 @@ $core_active = $data['core_active'];
                     <td><input name="nombre" id="nombre" type="text" value="<?php echo esc_attr( $editing['nombre'] ?? '' ); ?>" required></td>
                 </tr>
                 <tr>
-                    <th><label for="gramaje"><?php esc_html_e( 'Gramaje', 'core-print-offset' ); ?></label></th>
-                    <td><input name="gramaje" id="gramaje" type="text" value="<?php echo esc_attr( $editing['gramaje'] ?? '' ); ?>"></td>
+                    <th><label for="gramaje"><?php esc_html_e( 'Gramaje (g/m²)', 'core-print-offset' ); ?></label></th>
+                    <td><input name="gramaje" id="gramaje" type="text" value="<?php echo esc_attr( $editing['gramaje'] ?? '' ); ?>"><p class="description" id="gramaje-help"></p></td>
                 </tr>
                 <tr>
                     <th><label for="sheet_w_mm"><?php esc_html_e( 'Ancho del pliego (mm)', 'core-print-offset' ); ?></label></th>
@@ -133,4 +133,26 @@ $core_active = $data['core_active'];
             <?php endforeach; ?>
         </tbody>
     </table>
+
+<script>
+(function(){
+    const unidad = document.getElementById('unidad_costo');
+    const gramaje = document.getElementById('gramaje');
+    const help = document.getElementById('gramaje-help');
+    if (!unidad || !gramaje) return;
+    const sync = () => {
+        const requires = ['pliego','resma'].includes(unidad.value);
+        gramaje.required = requires;
+        gramaje.closest('tr').style.display = '';
+        if (requires) {
+            help.textContent = '<?php echo esc_js( __( 'Obligatorio para materiales en pliego/resma.', 'core-print-offset' ) ); ?>';
+        } else {
+            help.textContent = '<?php echo esc_js( __( 'Opcional para kg/metro. No bloquea guardado.', 'core-print-offset' ) ); ?>';
+        }
+    };
+    unidad.addEventListener('change', sync);
+    sync();
+})();
+</script>
+
 </div>
