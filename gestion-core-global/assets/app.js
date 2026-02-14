@@ -252,7 +252,9 @@
             }
             modules.forEach(function (module) {
                 var panelBody = module.querySelector('.gc-panel-body');
-                reorderPanelBody(panelBody);
+                if (module.getAttribute('data-gc-reorder') === '1') {
+                    reorderPanelBody(panelBody);
+                }
                 var toggle = module.querySelector('.gc-module__toggle');
                 if (!toggle) {
                     return;
