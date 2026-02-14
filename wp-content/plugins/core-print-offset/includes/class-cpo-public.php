@@ -602,9 +602,7 @@ class CPO_Public {
 
         $ordenes = $wpdb->get_results( $sql, ARRAY_A );
         foreach ( $ordenes as &$orden ) {
-            $orden['core_documento_id'] = ! empty( $orden['presupuesto_core_documento_id'] )
-                ? (int) $orden['presupuesto_core_documento_id']
-                : (int) $orden['core_documento_id'];
+            $orden['core_documento_id'] = isset( $orden['core_documento_id'] ) ? (int) $orden['core_documento_id'] : 0;
         }
 
         wp_send_json_success( array( 'ordenes' => $ordenes ) );
@@ -646,14 +644,8 @@ class CPO_Public {
             }
         }
 
-        $existing_core_document_id = isset( $orden['presupuesto_core_documento_id'] ) ? (int) $orden['presupuesto_core_documento_id'] : 0;
+        $existing_core_document_id = isset( $orden['core_documento_id'] ) ? (int) $orden['core_documento_id'] : 0;
         if ( $existing_core_document_id > 0 ) {
-            $wpdb->update(
-                $wpdb->prefix . 'cpo_ordenes',
-                array( 'core_documento_id' => $existing_core_document_id, 'updated_at' => cpo_now() ),
-                array( 'id' => $orden_id )
-            );
-
             wp_send_json_success(
                 array(
                     'message' => __( 'La OT ya tiene factura en Core.', 'core-print-offset' ),
