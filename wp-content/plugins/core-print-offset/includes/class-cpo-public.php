@@ -219,35 +219,65 @@ class CPO_Public {
                             <p class="cpo-hint" data-material-price>
                                 <?php esc_html_e( 'Precio vigente: -', 'core-print-offset' ); ?>
                             </p>
+                            <p class="cpo-hint" data-base-sheet-display><?php esc_html_e( 'Pliego base: - (auto)', 'core-print-offset' ); ?></p>
+                            <input type="hidden" name="base_sheet_ancho_mm" value="700">
+                            <input type="hidden" name="base_sheet_alto_mm" value="1000">
+                            <input type="hidden" name="material_formato_base" value="">
+                            <input type="hidden" name="pliego_formato" value="70x100">
+                            <input type="hidden" name="pliego_ancho_mm" value="700">
+                            <input type="hidden" name="pliego_alto_mm" value="1000">
+                            <input type="hidden" name="pliego_personalizado" value="0">
                         </section>
 
                         <section class="cpo-section">
                             <h3><?php esc_html_e( 'D) Producción', 'core-print-offset' ); ?></h3>
-                            <label>
-                                <?php esc_html_e( 'Pliego / Formato', 'core-print-offset' ); ?>
-                                <select name="pliego_formato" data-pliego-select>
-                                    <option value="64x88">64 x 88 cm</option>
-                                    <option value="70x100" selected>70 x 100 cm</option>
-                                    <option value="custom"><?php esc_html_e( 'Personalizado (mm)', 'core-print-offset' ); ?></option>
-                                </select>
+                            <p class="cpo-hint" data-production-base-sheet><?php esc_html_e( 'Pliego base (desde material): -', 'core-print-offset' ); ?></p>
+                            <label class="cpo-inline cpo-checkbox">
+                                <input type="checkbox" name="use_cut_sheet" value="1" data-use-cut-sheet>
+                                <?php esc_html_e( 'Usar pliego cortado antes de imprimir (opcional)', 'core-print-offset' ); ?>
                             </label>
-                            <label class="cpo-inline">
-                                <input type="checkbox" name="pliego_personalizado" value="1" data-pliego-override>
-                                <?php esc_html_e( 'Usar pliego personalizado', 'core-print-offset' ); ?>
-                            </label>
-                            <div class="cpo-inline" data-pliego-custom hidden>
+                            <div data-cut-options hidden>
                                 <label>
-                                    <?php esc_html_e( 'Ancho (mm)', 'core-print-offset' ); ?>
-                                    <input type="number" name="pliego_ancho_mm" min="1" step="0.1">
+                                    <?php esc_html_e( 'Modo de corte', 'core-print-offset' ); ?>
+                                    <select name="cut_mode" data-cut-mode>
+                                        <option value="fraction"><?php esc_html_e( 'Fracción', 'core-print-offset' ); ?></option>
+                                        <option value="custom"><?php esc_html_e( 'Personalizado', 'core-print-offset' ); ?></option>
+                                    </select>
                                 </label>
-                                <label>
-                                    <?php esc_html_e( 'Alto (mm)', 'core-print-offset' ); ?>
-                                    <input type="number" name="pliego_alto_mm" min="1" step="0.1">
+                                <div data-cut-fraction-wrap>
+                                    <label>
+                                        <?php esc_html_e( 'Fracción', 'core-print-offset' ); ?>
+                                        <select name="cut_fraction" data-cut-fraction>
+                                            <option value="1/2">1/2</option>
+                                            <option value="1/3">1/3</option>
+                                            <option value="1/4">1/4</option>
+                                        </select>
+                                    </label>
+                                </div>
+                                <div class="cpo-inline" data-cut-custom-wrap hidden>
+                                    <label>
+                                        <?php esc_html_e( 'Ancho útil (mm)', 'core-print-offset' ); ?>
+                                        <input type="number" name="useful_sheet_ancho_mm" min="1" step="0.1">
+                                    </label>
+                                    <label>
+                                        <?php esc_html_e( 'Alto útil (mm)', 'core-print-offset' ); ?>
+                                        <input type="number" name="useful_sheet_alto_mm" min="1" step="0.1">
+                                    </label>
+                                </div>
+                                <label data-pieces-per-base-wrap hidden>
+                                    <?php esc_html_e( 'Piezas por pliego base', 'core-print-offset' ); ?>
+                                    <input type="number" name="pieces_per_base" min="1" step="1" value="1">
                                 </label>
                             </div>
+                            <p class="cpo-hint" data-useful-sheet-display><?php esc_html_e( 'Pliego útil: -', 'core-print-offset' ); ?></p>
+                            <p class="cpo-hint" data-pieces-display><?php esc_html_e( 'Piezas por pliego base: 1', 'core-print-offset' ); ?></p>
+                            <label class="cpo-inline cpo-checkbox">
+                                <input type="checkbox" name="enable_manual_forms" value="1" data-manual-forms-toggle>
+                                <?php esc_html_e( 'Editar manualmente formas por pliego', 'core-print-offset' ); ?>
+                            </label>
                             <label>
-                                <?php esc_html_e( 'Formas por pliego', 'core-print-offset' ); ?>
-                                <input type="number" name="formas_por_pliego" min="1" required value="4">
+                                <?php esc_html_e( 'Formas por pliego (AUTO)', 'core-print-offset' ); ?>
+                                <input type="number" name="formas_por_pliego" min="1" required value="4" readonly data-forms-input>
                             </label>
                             <label>
                                 <?php esc_html_e( 'Merma %', 'core-print-offset' ); ?>
@@ -311,12 +341,20 @@ class CPO_Public {
                             <h3><?php esc_html_e( 'F) Resultados', 'core-print-offset' ); ?></h3>
                             <div class="cpo-results__grid">
                                 <div>
-                                    <span><?php esc_html_e( 'Pliegos necesarios', 'core-print-offset' ); ?></span>
-                                    <strong data-result="pliegos_necesarios">-</strong>
+                                    <span><?php esc_html_e( 'Pliegos útiles necesarios', 'core-print-offset' ); ?></span>
+                                    <strong data-result="pliegos_utiles">-</strong>
                                 </div>
                                 <div>
                                     <span><?php esc_html_e( 'Costo papel', 'core-print-offset' ); ?></span>
                                     <strong data-result="costo_papel">-</strong>
+                                </div>
+                                <div>
+                                    <span><?php esc_html_e( 'Piezas por pliego base', 'core-print-offset' ); ?></span>
+                                    <strong data-result="pieces_per_base">-</strong>
+                                </div>
+                                <div>
+                                    <span><?php esc_html_e( 'Pliegos base a comprar', 'core-print-offset' ); ?></span>
+                                    <strong data-result="pliegos_base">-</strong>
                                 </div>
                                 <div>
                                     <span><?php esc_html_e( 'Costo procesos', 'core-print-offset' ); ?></span>
@@ -809,9 +847,19 @@ class CPO_Public {
         $validation = $this->validate_work_structure( $payload );
         $required_fields = $validation['required_fields'] ?? array();
         $missing_fields = $this->get_missing_required_fields( $required_fields, $payload );
+
+        $sheet_validation = $this->validate_sheet_payload( $payload );
+        if ( ! empty( $sheet_validation['missing_fields'] ) ) {
+            $missing_fields = array_values( array_unique( array_merge( $missing_fields, $sheet_validation['missing_fields'] ) ) );
+        }
+        if ( ! empty( $sheet_validation['warnings'] ) ) {
+            $validation['warnings'] = array_values( array_unique( array_merge( $validation['warnings'] ?? array(), $sheet_validation['warnings'] ) ) );
+        }
+
         $can_calculate = empty( $missing_fields );
 
         $production_summary = '';
+        $result = array();
         if ( $can_calculate ) {
             $result = CPO_Calculator::calculate( $payload );
             $production_summary = (string) ( $result['production_summary'] ?? '' );
@@ -830,6 +878,11 @@ class CPO_Public {
                 'missing_fields' => $missing_fields,
                 'warnings' => $validation['warnings'] ?? array(),
                 'production_summary' => $production_summary,
+                'production' => $result['production'] ?? array(),
+                'forms_per_sheet_auto' => $result['forms_per_sheet_auto'] ?? 0,
+                'pieces_per_base' => $result['pieces_per_base'] ?? 1,
+                'base_sheet_mm' => $result['base_sheet_mm'] ?? array(),
+                'useful_sheet_mm' => $result['useful_sheet_mm'] ?? array(),
                 'can_calculate' => $can_calculate,
             )
         );
@@ -849,6 +902,13 @@ class CPO_Public {
         $worktype_validation = $this->validate_work_structure( $payload );
         $required_fields = $worktype_validation['required_fields'] ?? array();
         $missing_fields = $this->get_missing_required_fields( $required_fields, $payload );
+        $sheet_validation = $this->validate_sheet_payload( $payload );
+        if ( ! empty( $sheet_validation['missing_fields'] ) ) {
+            $missing_fields = array_values( array_unique( array_merge( $missing_fields, $sheet_validation['missing_fields'] ) ) );
+        }
+        if ( ! empty( $sheet_validation['warnings'] ) ) {
+            $worktype_validation['warnings'] = array_values( array_unique( array_merge( $worktype_validation['warnings'] ?? array(), $sheet_validation['warnings'] ) ) );
+        }
         if ( ! empty( $missing_fields ) ) {
             wp_send_json_error(
                 array(
@@ -900,6 +960,17 @@ class CPO_Public {
                 $cliente_texto = $client_name;
             }
         }
+
+        $payload['base_sheet_mm'] = $result['base_sheet_mm'] ?? array();
+        $payload['use_cut_sheet'] = ! empty( $result['use_cut_sheet'] );
+        $payload['cut_mode'] = $result['cut_mode'] ?? ( $payload['cut_mode'] ?? 'none' );
+        $payload['cut_fraction'] = $result['cut_fraction'] ?? null;
+        $payload['useful_sheet_mm'] = $result['useful_sheet_mm'] ?? array();
+        $payload['pieces_per_base'] = (int) ( $result['pieces_per_base'] ?? 1 );
+        $payload['forms_per_sheet_auto'] = (int) ( $result['forms_per_sheet_auto'] ?? 0 );
+        $payload['forms_per_sheet_override'] = $result['forms_per_sheet_override'] ?? null;
+        $payload['pliegos_utiles'] = $result['pliegos_utiles'] ?? 0;
+        $payload['pliegos_base'] = (int) ( $result['pliegos_base'] ?? 0 );
 
         $snapshot_json = wp_json_encode( $payload, JSON_UNESCAPED_UNICODE );
         $calc_result_json = wp_json_encode( $result, JSON_UNESCAPED_UNICODE );
@@ -1358,6 +1429,30 @@ class CPO_Public {
         }
 
         return '' !== trim( (string) $value );
+    }
+
+
+    private function validate_sheet_payload( array $payload ): array {
+        $missing_fields = array();
+        $warnings = array();
+
+        if ( empty( $payload['material_id'] ) ) {
+            $warnings[] = __( 'Seleccioná un material para definir el pliego base.', 'core-print-offset' );
+        }
+
+        if ( ! empty( $payload['use_cut_sheet'] ) && ( $payload['cut_mode'] ?? 'fraction' ) === 'custom' ) {
+            if ( (float) ( $payload['useful_sheet_ancho_mm'] ?? 0 ) <= 0 ) {
+                $missing_fields[] = 'useful_sheet_ancho_mm';
+            }
+            if ( (float) ( $payload['useful_sheet_alto_mm'] ?? 0 ) <= 0 ) {
+                $missing_fields[] = 'useful_sheet_alto_mm';
+            }
+        }
+
+        return array(
+            'missing_fields' => $missing_fields,
+            'warnings' => $warnings,
+        );
     }
 
     private function save_presupuesto_meta_value( int $presupuesto_id, string $meta_key, $meta_value ): void {

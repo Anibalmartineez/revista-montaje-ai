@@ -95,6 +95,16 @@ function cpo_build_presupuesto_payload( array $raw, array $options = array() ): 
     $payload['pliego_ancho_mm'] = cpo_get_decimal( wp_unslash( $raw['pliego_ancho_mm'] ?? 0 ) );
     $payload['pliego_alto_mm'] = cpo_get_decimal( wp_unslash( $raw['pliego_alto_mm'] ?? 0 ) );
     $payload['pliego_personalizado'] = ! empty( $raw['pliego_personalizado'] ) && $raw['pliego_personalizado'] !== '0';
+    $payload['base_sheet_ancho_mm'] = cpo_get_decimal( wp_unslash( $raw['base_sheet_ancho_mm'] ?? 0 ) );
+    $payload['base_sheet_alto_mm'] = cpo_get_decimal( wp_unslash( $raw['base_sheet_alto_mm'] ?? 0 ) );
+    $payload['material_formato_base'] = sanitize_text_field( wp_unslash( $raw['material_formato_base'] ?? '' ) );
+    $payload['use_cut_sheet'] = ! empty( $raw['use_cut_sheet'] ) && '0' !== (string) $raw['use_cut_sheet'];
+    $payload['cut_mode'] = sanitize_key( wp_unslash( $raw['cut_mode'] ?? 'fraction' ) );
+    $payload['cut_fraction'] = sanitize_text_field( wp_unslash( $raw['cut_fraction'] ?? '' ) );
+    $payload['useful_sheet_ancho_mm'] = cpo_get_decimal( wp_unslash( $raw['useful_sheet_ancho_mm'] ?? 0 ) );
+    $payload['useful_sheet_alto_mm'] = cpo_get_decimal( wp_unslash( $raw['useful_sheet_alto_mm'] ?? 0 ) );
+    $payload['pieces_per_base'] = max( 0, (int) ( $raw['pieces_per_base'] ?? 0 ) );
+    $payload['enable_manual_forms'] = ! empty( $raw['enable_manual_forms'] ) && '0' !== (string) $raw['enable_manual_forms'];
     $payload['formas_por_pliego'] = max( 1, (int) ( $raw['formas_por_pliego'] ?? 1 ) );
     $payload['merma_pct'] = max( 0, cpo_get_decimal( wp_unslash( $raw['merma_pct'] ?? 0 ) ) );
     $payload['margin_pct'] = max(

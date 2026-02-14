@@ -11,9 +11,18 @@
     const alertBox = form.querySelector('[data-cpo-alert]');
     const materialSelect = form.querySelector('[data-material-select]');
     const materialPrice = form.querySelector('[data-material-price]');
-    const pliegoSelect = form.querySelector('[data-pliego-select]');
-    const pliegoCustom = form.querySelector('[data-pliego-custom]');
-    const pliegoOverride = form.querySelector('[data-pliego-override]');
+    const baseSheetDisplay = form.querySelector('[data-base-sheet-display]');
+    const productionBaseSheet = form.querySelector('[data-production-base-sheet]');
+    const usefulSheetDisplay = form.querySelector('[data-useful-sheet-display]');
+    const piecesDisplay = form.querySelector('[data-pieces-display]');
+    const useCutSheetToggle = form.querySelector('[data-use-cut-sheet]');
+    const cutOptions = form.querySelector('[data-cut-options]');
+    const cutModeSelect = form.querySelector('[data-cut-mode]');
+    const cutFractionWrap = form.querySelector('[data-cut-fraction-wrap]');
+    const cutCustomWrap = form.querySelector('[data-cut-custom-wrap]');
+    const piecesPerBaseWrap = form.querySelector('[data-pieces-per-base-wrap]');
+    const manualFormsToggle = form.querySelector('[data-manual-forms-toggle]');
+    const formsInput = form.querySelector('[data-forms-input]');
     const machineSelect = form.querySelector('[data-machine-select]');
     const horasInput = form.querySelector('[data-horas-input]');
     const costoInput = form.querySelector('[data-costo-input]');
@@ -199,52 +208,71 @@
         }
     };
 
-    const ensurePliegoOption = (value, label) => {
-        if (!pliegoSelect) {
-            return;
-        }
-        const options = Array.from(pliegoSelect.options);
-        if (!options.some((option) => option.value === value)) {
-            const option = document.createElement('option');
-            option.value = value;
-            option.textContent = label || value;
-            pliegoSelect.appendChild(option);
-        }
+    const parseSheetFormat = (value) => {
+        const match = String(value || '').toLowerCase().match(/([0-9]+(?:[.,][0-9]+)?)\s*[x×]\s*([0-9]+(?:[.,][0-9]+)?)/);
+        if (!match) return null;
+        const w = parseFloat(match[1].replace(',', '.'));
+        const h = parseFloat(match[2].replace(',', '.'));
+        if (!w || !h) return null;
+        const isCm = String(value || '').toLowerCase().includes('cm') || (w <= 200 && h <= 200);
+        return { w: isCm ? w * 10 : w, h: isCm ? h * 10 : h };
     };
 
-    const applyPliegoFromMaterial = () => {
-        if (!materialSelect || !pliegoSelect) {
-            return '';
-        }
-        const selected = materialSelect.options[materialSelect.selectedIndex];
-        const formatoBase = selected ? selected.dataset.formatoBase : '';
-        if (formatoBase) {
-            ensurePliegoOption(formatoBase, formatoBase);
-            pliegoSelect.value = formatoBase;
-        }
-        return formatoBase || '';
+    const setFieldValue = (name, value) => {
+        const field = form.querySelector(`[name="${name}"]`);
+        if (!field) return;
+        field.value = value ?? '';
     };
 
-    const toggleCustomPliego = () => {
-        if (!pliegoSelect || !pliegoCustom) {
-            return;
-        }
-        const selected = materialSelect ? materialSelect.options[materialSelect.selectedIndex] : null;
+    const updateCutControlsVisibility = () => {
+        const cutEnabled = Boolean(useCutSheetToggle?.checked);
+        const cutMode = cutModeSelect?.value || 'fraction';
+        if (cutOptions) cutOptions.hidden = !cutEnabled;
+        if (cutFractionWrap) cutFractionWrap.hidden = !cutEnabled || cutMode !== 'fraction';
+        if (cutCustomWrap) cutCustomWrap.hidden = !cutEnabled || cutMode !== 'custom';
+        if (piecesPerBaseWrap) piecesPerBaseWrap.hidden = !cutEnabled || cutMode !== 'custom';
+    };
+
+    const updateFormsInputState = () => {
+        if (!formsInput) return;
+        formsInput.readOnly = !(manualFormsToggle && manualFormsToggle.checked);
+    };
+
+    const updateSheetDerivedFields = () => {
+        const selected = materialSelect?.options[materialSelect.selectedIndex];
         const formatoBase = selected ? selected.dataset.formatoBase : '';
-        const override = pliegoOverride && pliegoOverride.checked;
-        const shouldUseMaterial = Boolean(formatoBase) && !override;
+        const parsedBase = parseSheetFormat(formatoBase) || { w: 700, h: 1000 };
 
-        if (shouldUseMaterial) {
-            applyPliegoFromMaterial();
+        setFieldValue('material_formato_base', formatoBase || '70x100');
+        setFieldValue('base_sheet_ancho_mm', parsedBase.w);
+        setFieldValue('base_sheet_alto_mm', parsedBase.h);
+        setFieldValue('pliego_formato', formatoBase || '70x100');
+        setFieldValue('pliego_ancho_mm', parsedBase.w);
+        setFieldValue('pliego_alto_mm', parsedBase.h);
+
+        const cutEnabled = Boolean(useCutSheetToggle?.checked);
+        const cutMode = cutModeSelect?.value || 'fraction';
+        let usefulW = parsedBase.w;
+        let usefulH = parsedBase.h;
+        let pieces = 1;
+
+        if (cutEnabled) {
+            if (cutMode === 'fraction') {
+                const fraction = (form.querySelector('[name="cut_fraction"]')?.value || '1/2');
+                const map = { '1/2': 2, '1/3': 3, '1/4': 4 };
+                pieces = map[fraction] || 2;
+                usefulH = parsedBase.h / pieces;
+            } else {
+                usefulW = parseNumber(form.querySelector('[name="useful_sheet_ancho_mm"]')?.value) || 0;
+                usefulH = parseNumber(form.querySelector('[name="useful_sheet_alto_mm"]')?.value) || 0;
+                pieces = parseInt(form.querySelector('[name="pieces_per_base"]')?.value || '1', 10) || 1;
+            }
         }
 
-        pliegoSelect.hidden = shouldUseMaterial;
-        if (pliegoOverride) {
-            pliegoOverride.hidden = !formatoBase;
-        }
-
-        const isCustom = pliegoSelect.value === 'custom';
-        pliegoCustom.hidden = shouldUseMaterial || !isCustom;
+        if (baseSheetDisplay) baseSheetDisplay.textContent = `Pliego base: ${parsedBase.w} x ${parsedBase.h} mm (auto)`;
+        if (productionBaseSheet) productionBaseSheet.textContent = `Pliego base (desde material): ${parsedBase.w} x ${parsedBase.h} mm`;
+        if (usefulSheetDisplay) usefulSheetDisplay.textContent = `Pliego útil: ${usefulW || '-'} x ${usefulH || '-'} mm`;
+        if (piecesDisplay) piecesDisplay.textContent = `Piezas por pliego base: ${pieces}`;
     };
 
     const getFormData = () => {
@@ -252,6 +280,8 @@
         if (!formData.get('work_type')) {
             formData.append('work_type', 'afiche_folleto');
         }
+        if (!formData.get('cut_mode')) { formData.append('cut_mode', 'fraction'); }
+        if (!formData.get('cut_fraction')) { formData.append('cut_fraction', '1/2'); }
         formData.append('nonce', config.nonce);
         formData.append('cliente_id', String(getSelectedClienteId()));
         return formData;
@@ -305,7 +335,7 @@
                 return;
             }
             const value = data[key];
-            if (key === 'pliegos_necesarios') {
+            if (['pliegos_necesarios', 'pliegos_utiles', 'pliegos_base', 'pieces_per_base'].includes(key)) {
                 node.textContent = value ?? '-';
             } else if (typeof value === 'number') {
                 node.textContent = formatCurrency(value);
@@ -365,6 +395,10 @@
         currentCanCalculate = data.can_calculate !== false;
         setRequiredLabels(data.required_fields || [], data.missing_fields || []);
         setSaveButtonState();
+        if (!manualFormsToggle?.checked && data.forms_per_sheet_auto && formsInput) {
+            formsInput.value = data.forms_per_sheet_auto;
+        }
+        updateSheetDerivedFields();
         renderTechnicalSummary(data);
         return data;
     };
@@ -382,13 +416,12 @@
             }
         };
 
-        ['descripcion', 'cantidad', 'ancho_mm', 'alto_mm', 'colores', 'sangrado_mm', 'material_id', 'pliego_formato', 'pliego_ancho_mm', 'pliego_alto_mm', 'formas_por_pliego', 'merma_pct', 'work_type', 'paginas', 'encuadernacion', 'costo_troquel', 'merma_troquel_extra'].forEach((field) => {
+        ['descripcion', 'cantidad', 'ancho_mm', 'alto_mm', 'colores', 'sangrado_mm', 'material_id', 'pliego_formato', 'pliego_ancho_mm', 'pliego_alto_mm', 'formas_por_pliego', 'merma_pct', 'work_type', 'paginas', 'encuadernacion', 'costo_troquel', 'merma_troquel_extra', 'base_sheet_ancho_mm', 'base_sheet_alto_mm', 'material_formato_base', 'cut_mode', 'cut_fraction', 'useful_sheet_ancho_mm', 'useful_sheet_alto_mm', 'pieces_per_base', 'use_cut_sheet', 'enable_manual_forms'].forEach((field) => {
             setValue(field, payload[field]);
         });
         setValue('troquel', payload.troquel);
         setValue('margin_pct', payload.margin_pct || payload.margen_pct || 30);
 
-        if (pliegoOverride) pliegoOverride.checked = Boolean(payload.pliego_personalizado);
         if (machineSelect) machineSelect.value = payload.maquina_id != null ? String(payload.maquina_id) : '0';
 
         if (clienteSelect) {
@@ -399,7 +432,9 @@
         }
 
         updateMaterialPrice();
-        toggleCustomPliego();
+        updateCutControlsVisibility();
+        updateFormsInputState();
+        updateSheetDerivedFields();
         updateMachineFields();
         updateClienteFields();
         toggleStructureByWorkType();
@@ -517,7 +552,7 @@
     saveButton?.addEventListener('click', savePresupuesto);
     createOrderPrimaryButton?.addEventListener('click', () => createOrderFromPresupuesto(presupuestoIdInput?.value || ''));
 
-    const reactiveFields = ['work_type', 'cantidad', 'paginas', 'material_id', 'ancho_mm', 'alto_mm', 'troquel', 'encuadernacion', 'colores', 'pliego_formato'];
+    const reactiveFields = ['work_type', 'cantidad', 'paginas', 'material_id', 'ancho_mm', 'alto_mm', 'troquel', 'encuadernacion', 'colores', 'useful_sheet_ancho_mm', 'useful_sheet_alto_mm', 'pieces_per_base', 'cut_fraction', 'cut_mode'];
     reactiveFields.forEach((fieldName) => {
         const field = form.querySelector(`[name="${fieldName}"]`);
         if (!field) return;
@@ -529,20 +564,29 @@
 
     materialSelect?.addEventListener('change', () => {
         updateMaterialPrice();
-        toggleCustomPliego();
+        updateSheetDerivedFields();
         validateStructure();
     });
     clienteSelect?.addEventListener('change', () => {
         updateClienteFields();
         updateCreateOrderButtonState();
     });
-    pliegoSelect?.addEventListener('change', () => {
-        toggleCustomPliego();
-        updateMachineFields();
+    useCutSheetToggle?.addEventListener('change', () => {
+        updateCutControlsVisibility();
+        updateSheetDerivedFields();
         validateStructure();
     });
-    pliegoOverride?.addEventListener('change', () => {
-        toggleCustomPliego();
+    cutModeSelect?.addEventListener('change', () => {
+        updateCutControlsVisibility();
+        updateSheetDerivedFields();
+        validateStructure();
+    });
+    form.querySelector('[name="cut_fraction"]')?.addEventListener('change', () => {
+        updateSheetDerivedFields();
+        validateStructure();
+    });
+    manualFormsToggle?.addEventListener('change', () => {
+        updateFormsInputState();
         validateStructure();
     });
     machineSelect?.addEventListener('change', updateMachineFields);
@@ -550,7 +594,9 @@
     costoInput?.addEventListener('input', () => { costoInput.dataset.userEdited = 'true'; });
 
     updateMaterialPrice();
-    toggleCustomPliego();
+    updateCutControlsVisibility();
+    updateFormsInputState();
+    updateSheetDerivedFields();
     updateMachineFields();
     updateClienteFields();
     toggleStructureByWorkType();

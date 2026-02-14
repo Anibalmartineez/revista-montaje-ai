@@ -56,6 +56,17 @@ class CPO_Calculator {
         $precio_snapshot = array();
         $pliego_ancho_mm = max( 0, (float) $payload['pliego_ancho_mm'] );
         $pliego_alto_mm = max( 0, (float) $payload['pliego_alto_mm'] );
+        $sheet_context = class_exists( 'CPO_Production_Engine' )
+            ? CPO_Production_Engine::derive_sheet_context( $payload )
+            : array(
+                'base_sheet_mm' => array( $pliego_ancho_mm, $pliego_alto_mm ),
+                'useful_sheet_mm' => array( $pliego_ancho_mm, $pliego_alto_mm ),
+                'pieces_per_base' => 1,
+                'use_cut_sheet' => false,
+                'cut_mode' => 'none',
+                'cut_fraction' => null,
+                'warnings' => array(),
+            );
 
         if ( $material_id ) {
             $material = self::get_material_by_id( $material_id );
@@ -92,8 +103,11 @@ class CPO_Calculator {
         $pliegos_netos = (int) ceil( $cantidad / $formas_por_pliego );
         $pliegos_con_merma = (int) ceil( $pliegos_netos * ( 1 + ( $merma_pct / 100 ) ) );
         $pliegos_necesarios = $pliegos_con_merma;
+        $pliegos_utiles = $pliegos_necesarios;
+        $pieces_per_base = max( 1, (int) ( $sheet_context['pieces_per_base'] ?? 1 ) );
+        $pliegos_base = (int) ceil( $pliegos_utiles / $pieces_per_base );
 
-        $costo_papel = $pliegos_necesarios * $precio_pliego;
+        $costo_papel = $pliegos_base * $precio_pliego;
 
         $procesos = self::get_processes_by_ids( $payload['procesos'] );
         $costo_procesos = 0;
@@ -204,12 +218,35 @@ class CPO_Calculator {
             if ( ! empty( $production_result['warnings'] ) && is_array( $production_result['warnings'] ) ) {
                 $warnings = array_merge( $warnings, $production_result['warnings'] );
             }
+
+            if ( isset( $production_result['pliegos_utiles'] ) ) {
+                $pliegos_utiles = (int) $production_result['pliegos_utiles'];
+            }
+            if ( isset( $production_result['pieces_per_base'] ) ) {
+                $pieces_per_base = max( 1, (int) $production_result['pieces_per_base'] );
+            }
+            if ( isset( $production_result['pliegos_base'] ) ) {
+                $pliegos_base = (int) $production_result['pliegos_base'];
+            } else {
+                $pliegos_base = (int) ceil( $pliegos_utiles / $pieces_per_base );
+            }
+
+            $pliegos_necesarios = $pliegos_base;
+            $pliegos_con_merma = $pliegos_utiles;
+            $costo_papel = $pliegos_base * $precio_pliego;
+
+            if ( isset( $production_result['forms_per_sheet_auto'] ) ) {
+                $formas_por_pliego = (int) $production_result['forms_per_sheet_auto'];
+            }
         }
 
         return array(
             'pliegos_netos'       => $pliegos_netos,
             'pliegos_con_merma'   => $pliegos_con_merma,
             'pliegos_necesarios' => $pliegos_necesarios,
+            'pliegos_utiles'      => $pliegos_utiles,
+            'pliegos_base'        => $pliegos_base,
+            'pieces_per_base'     => $pieces_per_base,
             'precio_pliego'      => $precio_pliego,
             'costo_papel'         => $costo_papel,
             'costo_procesos'      => $costo_procesos,
@@ -232,6 +269,13 @@ class CPO_Calculator {
             'price_note'          => $precio_note,
             'production'          => $production_result,
             'production_summary'  => $production_result['production_summary'] ?? '',
+            'base_sheet_mm'       => $production_result['base_sheet_mm'] ?? $sheet_context['base_sheet_mm'],
+            'useful_sheet_mm'     => $production_result['useful_sheet_mm'] ?? $sheet_context['useful_sheet_mm'],
+            'use_cut_sheet'       => $production_result['use_cut_sheet'] ?? $sheet_context['use_cut_sheet'],
+            'cut_mode'            => $production_result['cut_mode'] ?? $sheet_context['cut_mode'],
+            'cut_fraction'        => $production_result['cut_fraction'] ?? $sheet_context['cut_fraction'],
+            'forms_per_sheet_auto' => $production_result['forms_per_sheet_auto'] ?? $formas_por_pliego,
+            'forms_per_sheet_override' => $production_result['forms_per_sheet_override'] ?? null,
             'warnings'            => $warnings,
         );
     }
