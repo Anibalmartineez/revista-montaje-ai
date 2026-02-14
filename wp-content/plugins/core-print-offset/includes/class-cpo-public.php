@@ -6,9 +6,11 @@ if ( ! defined( 'ABSPATH' ) ) {
 
 class CPO_Public {
     private $core_bridge;
+    private $worktype_engine;
 
     public function __construct() {
         $this->core_bridge = new CPO_Core_Bridge();
+        $this->worktype_engine = class_exists( 'CPO_WorkType_Engine' ) ? new CPO_WorkType_Engine() : null;
 
         add_shortcode( 'cpo_offset_presupuesto', array( $this, 'render_presupuesto_shortcode' ) );
         add_shortcode( 'cpo_offset_presupuestos_list', array( $this, 'render_presupuestos_list_shortcode' ) );
@@ -720,7 +722,22 @@ class CPO_Public {
         }
 
         $payload = $this->sanitize_payload( $_POST );
+        $work_type = $this->resolve_work_type( $payload );
+        $payload['work_type'] = $work_type;
+
+        $worktype_validation = $this->validate_work_structure( $payload );
         $result  = CPO_Calculator::calculate( $payload );
+
+        if ( ! empty( $worktype_validation['warnings'] ) ) {
+            $result['warnings'] = array_values(
+                array_unique(
+                    array_merge(
+                        isset( $result['warnings'] ) && is_array( $result['warnings'] ) ? $result['warnings'] : array(),
+                        $worktype_validation['warnings']
+                    )
+                )
+            );
+        }
 
         global $wpdb;
 
@@ -926,12 +943,20 @@ class CPO_Public {
             array( '%d', '%s', '%d', '%s', '%f', '%f', '%f', '%s', '%s' )
         );
 
+        $this->save_presupuesto_meta_value( $presupuesto_id, 'work_type', $work_type );
+
         wp_send_json_success(
             array(
                 'message' => __( 'Presupuesto guardado.', 'core-print-offset' ),
                 'id'      => $presupuesto_id,
                 'cliente_id' => $cliente_id,
                 'production_summary' => $result['production_summary'] ?? '',
+                'work_structure' => array(
+                    'tipo' => $work_type,
+                    'multiplo' => (int) ( $worktype_validation['config']['multiplo_paginas'] ?? 0 ),
+                ),
+                'required_fields' => $worktype_validation['required_fields'] ?? array(),
+                'warnings' => $result['warnings'] ?? array(),
             )
         );
     }
@@ -1131,6 +1156,82 @@ class CPO_Public {
             array(
                 'allow_machine_default' => true,
             )
+        );
+    }
+
+    private function resolve_work_type( array $payload ): string {
+        $work_type = sanitize_key( (string) ( $payload['work_type'] ?? 'otro' ) );
+        if ( '' === $work_type ) {
+            $work_type = 'otro';
+        }
+
+        return $work_type;
+    }
+
+    private function validate_work_structure( array $payload ): array {
+        if ( ! $this->worktype_engine ) {
+            return array(
+                'work_type' => $this->resolve_work_type( $payload ),
+                'config' => array(),
+                'required_fields' => array(),
+                'warnings' => array(),
+            );
+        }
+
+        return $this->worktype_engine->validate_job_structure( $payload );
+    }
+
+    private function save_presupuesto_meta_value( int $presupuesto_id, string $meta_key, $meta_value ): void {
+        if ( $presupuesto_id <= 0 || '' === $meta_key ) {
+            return;
+        }
+
+        global $wpdb;
+
+        $snapshot = wp_json_encode(
+            array(
+                'key' => $meta_key,
+                'value' => $meta_value,
+            ),
+            JSON_UNESCAPED_UNICODE
+        );
+
+        $existing_id = (int) $wpdb->get_var(
+            $wpdb->prepare(
+                "SELECT id FROM {$wpdb->prefix}cpo_presupuesto_items WHERE presupuesto_id = %d AND tipo = 'meta' AND descripcion = %s ORDER BY id DESC LIMIT 1",
+                $presupuesto_id,
+                $meta_key
+            )
+        );
+
+        if ( $existing_id > 0 ) {
+            $wpdb->update(
+                $wpdb->prefix . 'cpo_presupuesto_items',
+                array(
+                    'snapshot_json' => $snapshot,
+                ),
+                array( 'id' => $existing_id ),
+                array( '%s' ),
+                array( '%d' )
+            );
+
+            return;
+        }
+
+        $wpdb->insert(
+            $wpdb->prefix . 'cpo_presupuesto_items',
+            array(
+                'presupuesto_id' => $presupuesto_id,
+                'tipo' => 'meta',
+                'referencia_id' => null,
+                'descripcion' => $meta_key,
+                'cantidad' => 1,
+                'unitario' => 0,
+                'subtotal' => 0,
+                'snapshot_json' => $snapshot,
+                'created_at' => cpo_now(),
+            ),
+            array( '%d', '%s', '%d', '%s', '%f', '%f', '%f', '%s', '%s' )
         );
     }
 

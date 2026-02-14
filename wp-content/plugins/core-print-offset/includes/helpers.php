@@ -118,6 +118,19 @@ function cpo_build_presupuesto_payload( array $raw, array $options = array() ): 
     }
     $payload['procesos'] = array_values( array_filter( array_map( 'intval', $processes ) ) );
 
+    $payload['work_type'] = sanitize_key( wp_unslash( $raw['work_type'] ?? 'otro' ) );
+    if ( '' === $payload['work_type'] ) {
+        $payload['work_type'] = 'otro';
+    }
+    $payload['paginas'] = max( 0, (int) ( $raw['paginas'] ?? 0 ) );
+    $payload['encuadernacion'] = sanitize_text_field( wp_unslash( $raw['encuadernacion'] ?? '' ) );
+    $payload['troquel'] = sanitize_text_field( wp_unslash( $raw['troquel'] ?? '' ) );
+    $payload['material_bobina'] = sanitize_text_field( wp_unslash( $raw['material_bobina'] ?? '' ) );
+    $payload['anilox'] = sanitize_text_field( wp_unslash( $raw['anilox'] ?? '' ) );
+    $payload['cilindro'] = sanitize_text_field( wp_unslash( $raw['cilindro'] ?? '' ) );
+    $payload['pliego_doble'] = ! empty( $raw['pliego_doble'] ) && '0' !== (string) $raw['pliego_doble'];
+
+
     return $payload;
 }
 

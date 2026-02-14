@@ -26,6 +26,7 @@ require_once CPO_PLUGIN_DIR . 'includes/class-cpo-activator.php';
 require_once CPO_PLUGIN_DIR . 'includes/class-cpo-deactivator.php';
 require_once CPO_PLUGIN_DIR . 'includes/class-cpo-calculator.php';
 require_once CPO_PLUGIN_DIR . 'includes/class-cpo-production-engine.php';
+require_once CPO_PLUGIN_DIR . 'includes/class-cpo-worktype-engine.php';
 require_once CPO_PLUGIN_DIR . 'includes/class-cpo-core-bridge.php';
 require_once CPO_PLUGIN_DIR . 'includes/class-cpo-admin-menu.php';
 require_once CPO_PLUGIN_DIR . 'includes/class-cpo-public.php';
