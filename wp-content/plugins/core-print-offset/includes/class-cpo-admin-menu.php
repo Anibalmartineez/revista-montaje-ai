@@ -197,11 +197,29 @@ class CPO_Admin_Menu {
             $id             = isset( $_POST['material_id'] ) ? intval( $_POST['material_id'] ) : 0;
             $nombre         = sanitize_text_field( wp_unslash( $_POST['nombre'] ?? '' ) );
             $gramaje        = sanitize_text_field( wp_unslash( $_POST['gramaje'] ?? '' ) );
-            $formato_base   = sanitize_text_field( wp_unslash( $_POST['formato_base'] ?? '' ) );
+            $sheet_w_mm     = cpo_get_decimal( wp_unslash( $_POST['sheet_w_mm'] ?? 0 ) );
+            $sheet_h_mm     = cpo_get_decimal( wp_unslash( $_POST['sheet_h_mm'] ?? 0 ) );
+            $legacy_formato = sanitize_text_field( wp_unslash( $_POST['formato_base'] ?? '' ) );
+            $formato_base   = '';
             $unidad_costo   = sanitize_text_field( wp_unslash( $_POST['unidad_costo'] ?? 'pliego' ) );
             $desperdicio    = cpo_get_decimal( wp_unslash( $_POST['desperdicio_pct'] ?? 0 ) );
             $activo         = isset( $_POST['activo'] ) ? 1 : 0;
             $now            = cpo_now();
+
+            if ( $sheet_w_mm > 0 && $sheet_h_mm > 0 ) {
+                $formato_base = sprintf( '%dx%d', (int) round( $sheet_w_mm ), (int) round( $sheet_h_mm ) );
+            } elseif ( '' !== $legacy_formato ) {
+                $parsed_legacy = cpo_parse_sheet_size_to_mm( $legacy_formato );
+                if ( ! empty( $parsed_legacy['normalized'] ) ) {
+                    $formato_base = $parsed_legacy['normalized'];
+                    if ( 'cm' === $parsed_legacy['assumed_unit'] ) {
+                        $this->add_notice( __( 'Detectado formato en cm, se normalizó a mm.', 'core-print-offset' ), 'warning' );
+                    }
+                } else {
+                    $formato_base = $legacy_formato;
+                    $this->add_notice( __( 'No se pudo interpretar el formato base. Se guardó el texto original.', 'core-print-offset' ), 'warning' );
+                }
+            }
 
             $payload = array(
                 'nombre'        => $nombre,
@@ -261,6 +279,18 @@ class CPO_Admin_Menu {
         if ( isset( $_GET['cpo_action'], $_GET['material_id'] ) && $_GET['cpo_action'] === 'edit_material' ) {
             $id = intval( $_GET['material_id'] );
             $data['editing'] = $wpdb->get_row( $wpdb->prepare( "SELECT * FROM {$wpdb->prefix}cpo_materiales WHERE id = %d", $id ), ARRAY_A );
+            if ( ! empty( $data['editing']['formato_base'] ) ) {
+                $parsed_edit = cpo_parse_sheet_size_to_mm( (string) $data['editing']['formato_base'] );
+                if ( ! empty( $parsed_edit['normalized'] ) ) {
+                    $data['editing']['sheet_w_mm'] = $parsed_edit['w_mm'];
+                    $data['editing']['sheet_h_mm'] = $parsed_edit['h_mm'];
+                    if ( 'cm' === $parsed_edit['assumed_unit'] ) {
+                        $data['editing']['format_notice'] = __( 'Detectado formato en cm, se normalizó a mm.', 'core-print-offset' );
+                    }
+                } else {
+                    $data['editing']['format_warning'] = __( 'No se pudo interpretar el formato base. Ingresá ancho y alto en mm.', 'core-print-offset' );
+                }
+            }
         }
 
         $data['materiales'] = $this->get_materiales_list();
@@ -290,6 +320,17 @@ class CPO_Admin_Menu {
             ORDER BY m.created_at DESC",
             ARRAY_A
         );
+
+        foreach ( $results as &$material ) {
+            $parsed = cpo_parse_sheet_size_to_mm( (string) ( $material['formato_base'] ?? '' ) );
+            if ( ! empty( $parsed['normalized'] ) ) {
+                $material['formato_base'] = $parsed['normalized'];
+                $material['formato_base_display'] = cpo_format_sheet_size_mm_display( $parsed['normalized'] );
+            } else {
+                $material['formato_base_display'] = $material['formato_base'] ?? '';
+            }
+        }
+        unset( $material );
 
         wp_cache_set( $cache_key, $results, 'cpo', 300 );
 

@@ -207,7 +207,8 @@ class CPO_Public {
                                         <option value="<?php echo esc_attr( $material['id'] ); ?>"
                                                 data-price="<?php echo esc_attr( $material['precio_vigente'] ?? '' ); ?>"
                                                 data-moneda="<?php echo esc_attr( $material['moneda'] ?? 'PYG' ); ?>"
-                                                data-formato-base="<?php echo esc_attr( $material['formato_base'] ?? '' ); ?>">
+                                                data-formato-base="<?php echo esc_attr( $material['formato_base'] ?? '' ); ?>"
+                                                data-formato-base-display="<?php echo esc_attr( $material['formato_base_display'] ?? '' ); ?>">
                                             <?php echo esc_html( $material['nombre'] ); ?>
                                         </option>
                                     <?php endforeach; ?>
@@ -1600,6 +1601,17 @@ class CPO_Public {
             ORDER BY m.nombre ASC";
 
         $results = $wpdb->get_results( $sql, ARRAY_A );
+        foreach ( $results as &$material ) {
+            $parsed_formato = cpo_parse_sheet_size_to_mm( (string) ( $material['formato_base'] ?? '' ) );
+            if ( ! empty( $parsed_formato['normalized'] ) ) {
+                $material['formato_base'] = $parsed_formato['normalized'];
+                $material['formato_base_display'] = cpo_format_sheet_size_mm_display( $parsed_formato['normalized'] );
+            } else {
+                $material['formato_base_display'] = $material['formato_base'] ?? '';
+            }
+        }
+        unset( $material );
+
         wp_cache_set( $cache_key, $results, 'cpo', 300 );
 
         return $results;

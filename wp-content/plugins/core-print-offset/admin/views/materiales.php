@@ -24,8 +24,22 @@ $core_active = $data['core_active'];
                     <td><input name="gramaje" id="gramaje" type="text" value="<?php echo esc_attr( $editing['gramaje'] ?? '' ); ?>"></td>
                 </tr>
                 <tr>
-                    <th><label for="formato_base"><?php esc_html_e( 'Formato base', 'core-print-offset' ); ?></label></th>
-                    <td><input name="formato_base" id="formato_base" type="text" value="<?php echo esc_attr( $editing['formato_base'] ?? '' ); ?>"></td>
+                    <th><label for="sheet_w_mm"><?php esc_html_e( 'Ancho del pliego (mm)', 'core-print-offset' ); ?></label></th>
+                    <td><input name="sheet_w_mm" id="sheet_w_mm" type="number" min="1" step="1" value="<?php echo esc_attr( $editing['sheet_w_mm'] ?? '' ); ?>"></td>
+                </tr>
+                <tr>
+                    <th><label for="sheet_h_mm"><?php esc_html_e( 'Alto del pliego (mm)', 'core-print-offset' ); ?></label></th>
+                    <td>
+                        <input name="sheet_h_mm" id="sheet_h_mm" type="number" min="1" step="1" value="<?php echo esc_attr( $editing['sheet_h_mm'] ?? '' ); ?>">
+                        <p class="description"><?php esc_html_e( 'Usar milímetros. Ej: 1000 x 700 (para 100 x 70 cm).', 'core-print-offset' ); ?></p>
+                        <?php if ( ! empty( $editing['format_notice'] ) ) : ?>
+                            <p class="description" style="color:#996800;"><?php echo esc_html( $editing['format_notice'] ); ?></p>
+                        <?php endif; ?>
+                        <?php if ( ! empty( $editing['format_warning'] ) ) : ?>
+                            <p class="description" style="color:#b32d2e;"><?php echo esc_html( $editing['format_warning'] ); ?></p>
+                        <?php endif; ?>
+                        <input type="hidden" name="formato_base" value="<?php echo esc_attr( $editing['formato_base'] ?? '' ); ?>">
+                    </td>
                 </tr>
                 <tr>
                     <th><label for="unidad_costo"><?php esc_html_e( 'Unidad de costo', 'core-print-offset' ); ?></label></th>
@@ -105,7 +119,7 @@ $core_active = $data['core_active'];
             <?php foreach ( $data['materiales'] as $material ) : ?>
                 <tr>
                     <td><?php echo esc_html( $material['nombre'] ); ?></td>
-                    <td><?php echo esc_html( $material['formato_base'] ); ?></td>
+                    <td><?php echo esc_html( $material['formato_base_display'] ?? ( $material['formato_base'] ?? '' ) ); ?></td>
                     <td><?php echo esc_html( $material['precio_vigente'] ?? 0 ); ?></td>
                     <td><?php echo esc_html( $material['activo'] ? __( 'Activo', 'core-print-offset' ) : __( 'Inactivo', 'core-print-offset' ) ); ?></td>
                     <td>

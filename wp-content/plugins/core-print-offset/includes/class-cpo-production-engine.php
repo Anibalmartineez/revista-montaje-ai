@@ -193,16 +193,16 @@ class CPO_Production_Engine {
         }
 
         if ( ! empty( $snapshot['pliego_formato'] ) ) {
-            $parsed = self::parse_pliego_format( (string) $snapshot['pliego_formato'] );
-            if ( $parsed ) {
-                return array( (float) $parsed['ancho_mm'], (float) $parsed['alto_mm'] );
+            $parsed = cpo_parse_sheet_size_to_mm( (string) $snapshot['pliego_formato'] );
+            if ( ! empty( $parsed['normalized'] ) ) {
+                return array( (float) $parsed['w_mm'], (float) $parsed['h_mm'] );
             }
         }
 
         if ( ! empty( $snapshot['material_formato_base'] ) ) {
-            $parsed = self::parse_pliego_format( (string) $snapshot['material_formato_base'] );
-            if ( $parsed ) {
-                return array( (float) $parsed['ancho_mm'], (float) $parsed['alto_mm'] );
+            $parsed = cpo_parse_sheet_size_to_mm( (string) $snapshot['material_formato_base'] );
+            if ( ! empty( $parsed['normalized'] ) ) {
+                return array( (float) $parsed['w_mm'], (float) $parsed['h_mm'] );
             }
         }
 
@@ -240,22 +240,6 @@ class CPO_Production_Engine {
         $fit_rotated = (int) floor( $base_w / $useful_h ) * (int) floor( $base_h / $useful_w );
 
         return max( 1, max( $fit_normal, $fit_rotated ) );
-    }
-
-    private static function parse_pliego_format( string $format ): ?array {
-        $normalized = str_replace( ',', '.', strtolower( trim( $format ) ) );
-        if ( ! preg_match( '/([0-9]+(?:\.[0-9]+)?)\s*[x×]\s*([0-9]+(?:\.[0-9]+)?)/', $normalized, $matches ) ) {
-            return null;
-        }
-
-        $raw_w = (float) $matches[1];
-        $raw_h = (float) $matches[2];
-        $is_cm = strpos( $normalized, 'cm' ) !== false || ( $raw_w <= 200 && $raw_h <= 200 );
-
-        return array(
-            'ancho_mm' => $is_cm ? ( $raw_w * 10 ) : $raw_w,
-            'alto_mm'  => $is_cm ? ( $raw_h * 10 ) : $raw_h,
-        );
     }
 
     private static function parse_colores( string $colores ): array {

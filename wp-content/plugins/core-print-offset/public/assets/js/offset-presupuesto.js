@@ -209,13 +209,28 @@
     };
 
     const parseSheetFormat = (value) => {
-        const match = String(value || '').toLowerCase().match(/([0-9]+(?:[.,][0-9]+)?)\s*[x×]\s*([0-9]+(?:[.,][0-9]+)?)/);
+        const source = String(value || '').trim().toLowerCase();
+        const match = source.match(/([0-9]+(?:[.,][0-9]+)?)\s*[x×]\s*([0-9]+(?:[.,][0-9]+)?)/);
         if (!match) return null;
         const w = parseFloat(match[1].replace(',', '.'));
         const h = parseFloat(match[2].replace(',', '.'));
         if (!w || !h) return null;
-        const isCm = String(value || '').toLowerCase().includes('cm') || (w <= 200 && h <= 200);
-        return { w: isCm ? w * 10 : w, h: isCm ? h * 10 : h };
+
+        let unit = 'unknown';
+        if (/\bmm\b/.test(source)) {
+            unit = 'mm';
+        } else if (/\bcm\b/.test(source)) {
+            unit = 'cm';
+        } else {
+            unit = Math.max(w, h) <= 400 ? 'cm' : 'mm';
+        }
+
+        const factor = unit === 'cm' ? 10 : 1;
+        return {
+            w: Math.round(w * factor),
+            h: Math.round(h * factor),
+            unit,
+        };
     };
 
     const setFieldValue = (name, value) => {
@@ -269,7 +284,9 @@
             }
         }
 
-        if (baseSheetDisplay) baseSheetDisplay.textContent = `Pliego base: ${parsedBase.w} x ${parsedBase.h} mm (auto)`;
+        const cmW = (parsedBase.w / 10).toString().replace(/\.0+$/, '');
+        const cmH = (parsedBase.h / 10).toString().replace(/\.0+$/, '');
+        if (baseSheetDisplay) baseSheetDisplay.textContent = `Pliego base: ${parsedBase.w} x ${parsedBase.h} mm (auto) (${cmW} x ${cmH} cm)`;
         if (productionBaseSheet) productionBaseSheet.textContent = `Pliego base (desde material): ${parsedBase.w} x ${parsedBase.h} mm`;
         if (usefulSheetDisplay) usefulSheetDisplay.textContent = `Pliego útil: ${usefulW || '-'} x ${usefulH || '-'} mm`;
         if (piecesDisplay) piecesDisplay.textContent = `Piezas por pliego base: ${pieces}`;

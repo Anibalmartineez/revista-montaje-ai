@@ -18,6 +18,73 @@ function cpo_get_decimal( $value ) {
     return (float) str_replace( ',', '.', $value );
 }
 
+function cpo_parse_sheet_size_to_mm( $input ): array {
+    $raw = is_string( $input ) ? trim( $input ) : '';
+    $result = array(
+        'w_mm'         => 0,
+        'h_mm'         => 0,
+        'assumed_unit' => 'unknown',
+        'normalized'   => '',
+    );
+
+    if ( '' === $raw ) {
+        return $result;
+    }
+
+    $normalized_input = strtolower( str_replace( ',', '.', $raw ) );
+    if ( ! preg_match( '/([0-9]+(?:\.[0-9]+)?)\s*[x×]\s*([0-9]+(?:\.[0-9]+)?)/u', $normalized_input, $matches ) ) {
+        return $result;
+    }
+
+    $w_raw = (float) $matches[1];
+    $h_raw = (float) $matches[2];
+    if ( $w_raw <= 0 || $h_raw <= 0 ) {
+        return $result;
+    }
+
+    $has_mm = preg_match( '/\bmm\b/u', $normalized_input );
+    $has_cm = preg_match( '/\bcm\b/u', $normalized_input );
+
+    if ( $has_mm ) {
+        $assumed_unit = 'mm';
+        $factor = 1;
+    } elseif ( $has_cm ) {
+        $assumed_unit = 'cm';
+        $factor = 10;
+    } else {
+        $assumed_unit = ( max( $w_raw, $h_raw ) <= 400 ) ? 'cm' : 'mm';
+        $factor = ( 'cm' === $assumed_unit ) ? 10 : 1;
+    }
+
+    $w_mm = (int) round( $w_raw * $factor );
+    $h_mm = (int) round( $h_raw * $factor );
+
+    if ( $w_mm <= 0 || $h_mm <= 0 ) {
+        return $result;
+    }
+
+    $result['w_mm'] = $w_mm;
+    $result['h_mm'] = $h_mm;
+    $result['assumed_unit'] = $assumed_unit;
+    $result['normalized'] = sprintf( '%dx%d', $w_mm, $h_mm );
+
+    return $result;
+}
+
+function cpo_format_sheet_size_mm_display( string $normalized_mm, bool $show_cm_hint = true ): string {
+    $parsed = cpo_parse_sheet_size_to_mm( $normalized_mm );
+    if ( empty( $parsed['normalized'] ) ) {
+        return $normalized_mm;
+    }
+
+    $display = sprintf( '%d x %d mm', $parsed['w_mm'], $parsed['h_mm'] );
+    if ( ! $show_cm_hint ) {
+        return $display;
+    }
+
+    return sprintf( '%s (%s x %s cm)', $display, rtrim( rtrim( number_format( $parsed['w_mm'] / 10, 2, '.', '' ), '0' ), '.' ), rtrim( rtrim( number_format( $parsed['h_mm'] / 10, 2, '.', '' ), '0' ), '.' ) );
+}
+
 function cpo_admin_notice( $message, $type = 'info' ) {
     add_action(
         'admin_notices',

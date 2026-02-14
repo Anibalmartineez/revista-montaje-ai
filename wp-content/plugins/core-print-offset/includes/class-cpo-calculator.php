@@ -89,10 +89,10 @@ class CPO_Calculator {
         }
 
         if ( ! $pliego_ancho_mm || ! $pliego_alto_mm ) {
-            $parsed = self::parse_pliego_format( $payload['pliego_formato'] );
-            if ( $parsed ) {
-                $pliego_ancho_mm = $parsed['ancho_mm'];
-                $pliego_alto_mm = $parsed['alto_mm'];
+            $parsed = cpo_parse_sheet_size_to_mm( (string) $payload['pliego_formato'] );
+            if ( ! empty( $parsed['normalized'] ) ) {
+                $pliego_ancho_mm = (float) $parsed['w_mm'];
+                $pliego_alto_mm = (float) $parsed['h_mm'];
             }
         }
 
@@ -404,25 +404,5 @@ class CPO_Calculator {
         wp_cache_set( $cache_key, $machine ?: null, 'cpo', self::CACHE_TTL );
 
         return $machine ?: null;
-    }
-
-    private static function parse_pliego_format( string $format ): ?array {
-        if ( ! $format ) {
-            return null;
-        }
-
-        if ( preg_match( '/(\d+(?:\.\d+)?)\s*[xX]\s*(\d+(?:\.\d+)?)/', $format, $matches ) ) {
-            $ancho = (float) $matches[1];
-            $alto = (float) $matches[2];
-            $is_cm = $ancho <= 300 && $alto <= 300;
-            $factor = $is_cm ? 10 : 1;
-
-            return array(
-                'ancho_mm' => $ancho * $factor,
-                'alto_mm'  => $alto * $factor,
-            );
-        }
-
-        return null;
     }
 }
