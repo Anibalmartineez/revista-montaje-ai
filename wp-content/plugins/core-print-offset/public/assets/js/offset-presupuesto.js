@@ -7,7 +7,7 @@
     const config = window.cpoOffsetPresupuesto;
     const calcButton = form.querySelector('[data-cpo-calc]');
     const saveButton = form.querySelector('[data-cpo-save]');
-    const coreButton = form.querySelector('[data-cpo-core]');
+    const createOrderPrimaryButton = form.querySelector('[data-cpo-create-order-primary]');
     const alertBox = form.querySelector('[data-cpo-alert]');
     const materialSelect = form.querySelector('[data-material-select]');
     const materialPrice = form.querySelector('[data-material-price]');
@@ -94,21 +94,13 @@
         return parsed > 0 ? parsed : 0;
     };
 
-    const updateCoreButtonState = () => {
-        if (!coreButton) {
+    const updateCreateOrderButtonState = () => {
+        if (!createOrderPrimaryButton) {
             return;
         }
-        const hasCliente = getSelectedClienteId() > 0;
-        coreButton.disabled = !config.coreAvailable || !hasCliente || !config.canManageCoreDocs;
-        if (!config.coreAvailable) {
-            coreButton.title = config.strings.coreUnavailable || 'Core Global no disponible';
-        } else if (!config.canManageCoreDocs) {
-            coreButton.title = 'Sin permisos para crear documentos en Core';
-        } else if (!hasCliente) {
-            coreButton.title = config.strings.coreClientRequired || 'Selecciona un cliente';
-        } else {
-            coreButton.title = '';
-        }
+        const presupuestoId = presupuestoIdInput?.value ? parseNumber(presupuestoIdInput.value) : 0;
+        createOrderPrimaryButton.disabled = presupuestoId <= 0;
+        createOrderPrimaryButton.title = presupuestoId > 0 ? '' : (config.strings.coreSaveRequired || 'Guarda y acepta el presupuesto para crear la OT.');
     };
 
     const getPliegosEstimados = () => {
@@ -350,7 +342,7 @@
         toggleCustomPliego();
         updateMachineFields();
         updateClienteFields();
-        updateCoreButtonState();
+        updateCreateOrderButtonState();
     };
 
     const fetchPresupuesto = async (presupuestoId) => {
@@ -441,7 +433,7 @@
         if (presupuestoIdInput && payload.data?.id) {
             presupuestoIdInput.value = payload.data.id;
         }
-        updateCoreButtonState();
+        updateCreateOrderButtonState();
     };
 
 
@@ -514,45 +506,6 @@
         window.setTimeout(() => window.location.reload(), 400);
     };
 
-    const createCoreDocument = async (presupuestoId = null) => {
-        if (!config.coreAvailable) {
-            showAlert(config.strings.coreUnavailable || 'Core Global no disponible');
-            return;
-        }
-        if (!config.canManageCoreDocs) {
-            showAlert('No tienes permisos para crear documentos en Core.', 'warning');
-            return;
-        }
-        if (!presupuestoId) {
-            if (getSelectedClienteId() <= 0) {
-                showAlert(config.strings.coreClientRequired || 'Selecciona un cliente de Core.', 'warning');
-                return;
-            }
-            if (!presupuestoIdInput || !presupuestoIdInput.value) {
-                showAlert(config.strings.coreSaveRequired || 'Guarda el presupuesto antes de crear el documento.', 'warning');
-                return;
-            }
-        }
-        clearAlert();
-        const formData = getFormData();
-        formData.append('action', 'cpo_offset_create_core_document');
-        if (presupuestoId) {
-            formData.append('presupuesto_id', presupuestoId);
-        }
-
-        const response = await fetch(config.ajaxUrl, {
-            method: 'POST',
-            credentials: 'same-origin',
-            body: formData,
-        });
-
-        const payload = await response.json();
-        if (!payload.success) {
-            showAlert(payload.data?.message || 'Error');
-            return;
-        }
-        showAlert(payload.data?.message || config.strings.coreCreated, 'success');
-    };
 
     calcButton?.addEventListener('click', () => {
         calculate();
@@ -561,8 +514,8 @@
     saveButton?.addEventListener('click', () => {
         savePresupuesto();
     });
-    coreButton?.addEventListener('click', () => {
-        createCoreDocument();
+    createOrderPrimaryButton?.addEventListener('click', () => {
+        createOrderFromPresupuesto(presupuestoIdInput?.value || '');
     });
 
     materialSelect?.addEventListener('change', () => {
@@ -571,7 +524,7 @@
     });
     clienteSelect?.addEventListener('change', () => {
         updateClienteFields();
-        updateCoreButtonState();
+        updateCreateOrderButtonState();
     });
     pliegoSelect?.addEventListener('change', () => {
         toggleCustomPliego();
@@ -594,8 +547,8 @@
     updateMachineFields();
     updateClienteFields();
 
-    if (coreButton) {
-        updateCoreButtonState();
+    if (createOrderPrimaryButton) {
+        updateCreateOrderButtonState();
     }
 
     document.addEventListener('click', async (event) => {
@@ -627,16 +580,6 @@
             if (payload.data?.id) {
                 await loadPresupuesto(payload.data.id);
             }
-            return;
-        }
-
-        const coreListButton = event.target.closest('[data-cpo-core]');
-        if (coreListButton && coreListButton.dataset.cpoCore) {
-            event.preventDefault();
-            if (coreListButton.disabled) {
-                return;
-            }
-            await createCoreDocument(coreListButton.dataset.cpoCore);
             return;
         }
 

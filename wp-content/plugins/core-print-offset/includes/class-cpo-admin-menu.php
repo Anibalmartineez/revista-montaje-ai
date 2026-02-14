@@ -680,42 +680,7 @@ class CPO_Admin_Menu {
 
         if ( $this->core_active && isset( $_GET['cpo_action'], $_GET['presupuesto_id'], $_GET['_wpnonce'] ) && $_GET['cpo_action'] === 'generate_document' ) {
             if ( wp_verify_nonce( sanitize_text_field( wp_unslash( $_GET['_wpnonce'] ) ), 'cpo_generate_document' ) ) {
-                $id = intval( $_GET['presupuesto_id'] );
-                $presupuesto = $wpdb->get_row( $wpdb->prepare( "SELECT * FROM {$wpdb->prefix}cpo_presupuestos WHERE id = %d", $id ), ARRAY_A );
-                if ( $presupuesto ) {
-                    $existing_core_document_id = isset( $presupuesto['core_documento_id'] ) ? (int) $presupuesto['core_documento_id'] : 0;
-                    if ( $existing_core_document_id > 0 ) {
-                        $this->add_notice( __( 'Este presupuesto ya tiene un documento en Core.', 'core-print-offset' ), 'warning' );
-                        return $data;
-                    }
-
-                    $cliente_id = isset( $presupuesto['cliente_id'] ) ? (int) $presupuesto['cliente_id'] : 0;
-                    if ( ! $cliente_id && isset( $presupuesto['core_cliente_id'] ) ) {
-                        $cliente_id = (int) $presupuesto['core_cliente_id'];
-                    }
-
-                    if ( ! $cliente_id ) {
-                        $this->add_notice( __( 'Selecciona un cliente de Core antes de generar el documento.', 'core-print-offset' ), 'warning' );
-                        return $data;
-                    }
-
-                    $response = $this->core_bridge->create_core_document(
-                        array(
-                            'tipo'    => 'presupuesto',
-                            'titulo'  => $presupuesto['titulo'],
-                            'cliente_id' => $cliente_id,
-                            'total'   => $presupuesto['precio_total'],
-                        )
-                    );
-                    if ( is_wp_error( $response ) ) {
-                        $this->add_notice( $response->get_error_message(), 'error' );
-                    } else {
-                        $core_documento_id = is_array( $response ) && isset( $response['id'] ) ? (int) $response['id'] : (int) $response;
-                        $wpdb->update( $wpdb->prefix . 'cpo_presupuestos', array( 'core_documento_id' => $core_documento_id ), array( 'id' => $id ) );
-                        $this->maybe_add_core_document_items( $core_documento_id, $id );
-                        $this->add_notice( __( 'Documento generado en Core.', 'core-print-offset' ) );
-                    }
-                }
+                $this->add_notice( __( 'La creación directa de documentos desde Presupuesto fue desactivada. Usa "Convertir a OT" y luego "Generar factura" desde la orden.', 'core-print-offset' ), 'warning' );
             }
         }
 
@@ -847,9 +812,8 @@ class CPO_Admin_Menu {
                     ARRAY_A
                 );
                 if ( $orden ) {
-                    $existing_core_document_id = isset( $orden['presupuesto_core_documento_id'] ) ? (int) $orden['presupuesto_core_documento_id'] : 0;
+                    $existing_core_document_id = isset( $orden['core_documento_id'] ) ? (int) $orden['core_documento_id'] : 0;
                     if ( $existing_core_document_id > 0 ) {
-                        $wpdb->update( $wpdb->prefix . 'cpo_ordenes', array( 'core_documento_id' => $existing_core_document_id, 'updated_at' => cpo_now() ), array( 'id' => $id ) );
                         $this->add_notice( __( 'Esta OT ya tiene factura en Core.', 'core-print-offset' ), 'warning' );
                     } else {
                         $total = isset( $orden['presupuesto_precio_total'] ) ? (float) $orden['presupuesto_precio_total'] : 0;

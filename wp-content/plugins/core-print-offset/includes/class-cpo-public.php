@@ -303,7 +303,7 @@ class CPO_Public {
                     <div class="cpo-actions">
                         <button type="button" class="cpo-button" data-cpo-calc><?php esc_html_e( 'Calcular', 'core-print-offset' ); ?></button>
                         <button type="button" class="cpo-button cpo-button--primary" data-cpo-save><?php esc_html_e( 'Guardar Presupuesto', 'core-print-offset' ); ?></button>
-                        <button type="button" class="cpo-button cpo-button--ghost" data-cpo-core disabled><?php esc_html_e( 'Crear documento en Core', 'core-print-offset' ); ?></button>
+                        <button type="button" class="cpo-button cpo-button--ghost" data-cpo-create-order-primary disabled><?php esc_html_e( 'Crear OT', 'core-print-offset' ); ?></button>
                         <input type="hidden" name="presupuesto_id" value="" data-presupuesto-id>
                     </div>
 
@@ -442,14 +442,11 @@ class CPO_Public {
                                     <td class="cpo-table__actions">
                                         <button type="button" class="cpo-link" data-cpo-open="<?php echo esc_attr( $presupuesto['id'] ); ?>"><?php esc_html_e( 'Abrir', 'core-print-offset' ); ?></button>
                                         <button type="button" class="cpo-link" data-cpo-duplicate="<?php echo esc_attr( $presupuesto['id'] ); ?>"><?php esc_html_e( 'Duplicar', 'core-print-offset' ); ?></button>
-                                        <button type="button" class="cpo-link" data-cpo-core="<?php echo esc_attr( $presupuesto['id'] ); ?>" <?php echo $presupuesto['core_documento_id'] ? 'disabled' : ''; ?>>
-                                            <?php echo $presupuesto['core_documento_id'] ? esc_html__( 'Ver factura', 'core-print-offset' ) : esc_html__( 'Crear doc. Core', 'core-print-offset' ); ?>
-                                        </button>
                                         <?php if ( $presupuesto['estado'] === 'aceptado' && empty( $presupuesto['orden_id'] ) ) : ?>
                                             <button type="button" class="cpo-link" data-cpo-create-order="<?php echo esc_attr( $presupuesto['id'] ); ?>"><?php esc_html_e( 'Crear OT', 'core-print-offset' ); ?></button>
                                         <?php elseif ( ! empty( $presupuesto['orden_id'] ) ) : ?>
                                             <span class="cpo-link"><?php echo esc_html( sprintf( __( 'OT: %s', 'core-print-offset' ), ucfirst( (string) $presupuesto['orden_estado'] ) ) ); ?></span>
-                                            <?php $documento_id = ! empty( $presupuesto['core_documento_id'] ) ? (int) $presupuesto['core_documento_id'] : (int) $presupuesto['orden_core_documento_id']; ?>
+                                            <?php $documento_id = (int) $presupuesto['orden_core_documento_id']; ?>
                                             <?php if ( $documento_id > 0 ) : ?>
                                                 <span class="cpo-link"><?php echo esc_html( sprintf( __( 'Ver factura #%d', 'core-print-offset' ), $documento_id ) ); ?></span>
                                             <?php else : ?>
@@ -480,9 +477,9 @@ class CPO_Public {
                 'priceMissing' => __( 'No hay precio vigente para este material. Cargalo en Offset > Materiales/Precios', 'core-print-offset' ),
                 'savingError'  => __( 'No se pudo guardar el presupuesto.', 'core-print-offset' ),
                 'saved'        => __( 'Presupuesto guardado.', 'core-print-offset' ),
-                'coreClientRequired' => __( 'Selecciona un cliente de Core para crear el documento.', 'core-print-offset' ),
-                'coreSaveRequired'   => __( 'Guarda el presupuesto antes de crear el documento en Core.', 'core-print-offset' ),
-                'coreCreated'        => __( 'Documento creado en Core.', 'core-print-offset' ),
+                'coreClientRequired' => __( 'Selecciona un cliente de Core para generar factura desde la OT.', 'core-print-offset' ),
+                'coreSaveRequired'   => __( 'Guarda y acepta el presupuesto para crear la OT.', 'core-print-offset' ),
+                'coreCreated'        => __( 'Factura generada en Core.', 'core-print-offset' ),
                 'coreUnavailable'    => __( 'Core Global no está disponible.', 'core-print-offset' ),
                 'loadFailed'         => __( 'No se pudo cargar el presupuesto.', 'core-print-offset' ),
                 'duplicateFailed'    => __( 'No se pudo duplicar el presupuesto.', 'core-print-offset' ),
@@ -552,7 +549,7 @@ class CPO_Public {
             array(
                 'presupuesto_id'   => $presupuesto_id,
                 'core_cliente_id'  => $presupuesto['core_cliente_id'],
-                'core_documento_id'=> isset( $presupuesto['core_documento_id'] ) ? (int) $presupuesto['core_documento_id'] : null,
+                'core_documento_id'=> null,
                 'titulo'           => $presupuesto['titulo'],
                 'fecha_entrega'    => $fecha_entrega ?: null,
                 'notas'            => $final_notas,
@@ -1041,28 +1038,12 @@ class CPO_Public {
         $this->ensure_valid_nonce();
 
         if ( ! is_user_logged_in() ) {
-            wp_send_json_error( array( 'message' => __( 'Debes iniciar sesión para crear documentos.', 'core-print-offset' ) ), 401 );
-        }
-
-        if ( ! $this->user_can_manage_all_presupuestos() ) {
-            if ( defined( 'WP_DEBUG' ) && WP_DEBUG ) {
-                error_log(
-                    sprintf(
-                        'CPO core document blocked for user %d (capability manage_cpo_offset).',
-                        get_current_user_id()
-                    )
-                );
-            }
-            wp_send_json_error( array( 'message' => __( 'No tienes permisos para crear documentos en Core.', 'core-print-offset' ) ), 403 );
-        }
-
-        if ( ! $this->core_bridge->has_core_api() ) {
-            wp_send_json_error( array( 'message' => __( 'Core Global no está disponible.', 'core-print-offset' ) ), 400 );
+            wp_send_json_error( array( 'message' => __( 'Debes iniciar sesión para crear órdenes.', 'core-print-offset' ) ), 401 );
         }
 
         $presupuesto_id = isset( $_POST['presupuesto_id'] ) ? intval( $_POST['presupuesto_id'] ) : 0;
         if ( ! $presupuesto_id ) {
-            wp_send_json_error( array( 'message' => __( 'Guarda el presupuesto antes de crear el documento en Core.', 'core-print-offset' ) ), 400 );
+            wp_send_json_error( array( 'message' => __( 'Guarda el presupuesto antes de crear la OT.', 'core-print-offset' ) ), 400 );
         }
 
         global $wpdb;
@@ -1087,52 +1068,51 @@ class CPO_Public {
             );
         }
 
-        $existing_core_document_id = isset( $presupuesto['core_documento_id'] ) ? (int) $presupuesto['core_documento_id'] : 0;
-        if ( $existing_core_document_id > 0 ) {
+        $existing_order = $wpdb->get_row(
+            $wpdb->prepare( "SELECT * FROM {$wpdb->prefix}cpo_ordenes WHERE presupuesto_id = %d LIMIT 1", $presupuesto_id ),
+            ARRAY_A
+        );
+        if ( $existing_order ) {
             wp_send_json_success(
                 array(
-                    'message'            => __( 'Este presupuesto ya tiene un documento en Core.', 'core-print-offset' ),
-                    'core_documento_id'  => $existing_core_document_id,
+                    'message' => __( 'La OT ya existe para este presupuesto.', 'core-print-offset' ),
+                    'orden_id' => (int) $existing_order['id'],
+                    'orden' => $existing_order,
                 )
             );
         }
 
-        $cliente_id = isset( $presupuesto['cliente_id'] ) ? (int) $presupuesto['cliente_id'] : 0;
-        if ( ! $cliente_id && isset( $presupuesto['core_cliente_id'] ) ) {
-            $cliente_id = (int) $presupuesto['core_cliente_id'];
+        if ( ( $presupuesto['estado'] ?? '' ) !== 'aceptado' ) {
+            wp_send_json_error( array( 'message' => __( 'Solo se pueden convertir presupuestos aceptados.', 'core-print-offset' ) ), 400 );
         }
 
-        if ( ! $cliente_id ) {
-            wp_send_json_error( array( 'message' => __( 'Selecciona un cliente de Core para crear el documento.', 'core-print-offset' ) ), 400 );
-        }
-
-        $response = $this->core_bridge->create_core_document(
+        $inserted = $wpdb->insert(
+            $wpdb->prefix . 'cpo_ordenes',
             array(
-                'tipo'       => 'presupuesto',
-                'titulo'     => $presupuesto['titulo'],
-                'cliente_id' => $cliente_id,
-                'total'      => $presupuesto['precio_total'],
+                'presupuesto_id'   => $presupuesto_id,
+                'core_cliente_id'  => $presupuesto['core_cliente_id'],
+                'core_documento_id'=> null,
+                'titulo'           => $presupuesto['titulo'],
+                'fecha_entrega'    => null,
+                'notas'            => null,
+                'estado'           => 'pendiente',
+                'created_at'       => cpo_now(),
+                'updated_at'       => cpo_now(),
             )
         );
 
-        if ( is_wp_error( $response ) ) {
-            wp_send_json_error( array( 'message' => $response->get_error_message() ), 400 );
+        if ( false === $inserted ) {
+            wp_send_json_error( array( 'message' => __( 'No se pudo crear la OT.', 'core-print-offset' ) ), 500 );
         }
 
-        $core_documento_id = is_array( $response ) && isset( $response['id'] ) ? (int) $response['id'] : (int) $response;
-        if ( $core_documento_id ) {
-            $wpdb->update(
-                $wpdb->prefix . 'cpo_presupuestos',
-                array( 'core_documento_id' => $core_documento_id ),
-                array( 'id' => $presupuesto_id )
-            );
-            $this->maybe_add_core_document_items( $core_documento_id, $presupuesto_id );
-        }
+        $orden_id = (int) $wpdb->insert_id;
+        $orden = $wpdb->get_row( $wpdb->prepare( "SELECT * FROM {$wpdb->prefix}cpo_ordenes WHERE id = %d", $orden_id ), ARRAY_A );
 
         wp_send_json_success(
             array(
-                'message' => __( 'Documento creado en Core.', 'core-print-offset' ),
-                'core_documento_id' => $core_documento_id,
+                'message' => __( 'Orden de trabajo creada.', 'core-print-offset' ),
+                'orden_id' => $orden_id,
+                'orden' => $orden,
             )
         );
     }
