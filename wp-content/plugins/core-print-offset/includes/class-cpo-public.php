@@ -127,13 +127,12 @@ class CPO_Public {
                             <label>
                                 <?php esc_html_e( 'Tipo de trabajo', 'core-print-offset' ); ?>
                                 <select name="work_type" data-work-type>
-                                    <option value="otro" selected><?php esc_html_e( 'Otro', 'core-print-offset' ); ?></option>
-                                    <option value="revista"><?php esc_html_e( 'Revista', 'core-print-offset' ); ?></option>
-                                    <option value="folleto"><?php esc_html_e( 'Folleto', 'core-print-offset' ); ?></option>
+                                    <option value="afiche_folleto" selected><?php esc_html_e( 'Afiche / Folleto', 'core-print-offset' ); ?></option>
                                     <option value="tarjeta"><?php esc_html_e( 'Tarjeta', 'core-print-offset' ); ?></option>
-                                    <option value="etiqueta"><?php esc_html_e( 'Etiqueta', 'core-print-offset' ); ?></option>
-                                    <option value="caja"><?php esc_html_e( 'Caja', 'core-print-offset' ); ?></option>
-                                    <option value="troquel"><?php esc_html_e( 'Troquel', 'core-print-offset' ); ?></option>
+                                    <option value="revista_catalogo"><?php esc_html_e( 'Revista / Catálogo', 'core-print-offset' ); ?></option>
+                                    <option value="caja_packaging"><?php esc_html_e( 'Caja / Packaging', 'core-print-offset' ); ?></option>
+                                    <option value="etiqueta_offset"><?php esc_html_e( 'Etiqueta offset (pliego)', 'core-print-offset' ); ?></option>
+                                    <option value="otro"><?php esc_html_e( 'Otro', 'core-print-offset' ); ?></option>
                                 </select>
                             </label>
                             <div class="cpo-structure" data-work-structure>
@@ -166,20 +165,6 @@ class CPO_Public {
                                     <label data-work-field="merma_troquel_extra">
                                         <?php esc_html_e( 'Merma troquel extra %', 'core-print-offset' ); ?>
                                         <input type="number" name="merma_troquel_extra" min="0" step="0.1">
-                                    </label>
-                                </div>
-                                <div class="cpo-inline">
-                                    <label data-work-field="material_bobina">
-                                        <?php esc_html_e( 'Material bobina', 'core-print-offset' ); ?>
-                                        <input type="text" name="material_bobina" placeholder="BOPP, couché, etc.">
-                                    </label>
-                                    <label data-work-field="anilox">
-                                        <?php esc_html_e( 'Anilox', 'core-print-offset' ); ?>
-                                        <input type="text" name="anilox" placeholder="Ej: 360">
-                                    </label>
-                                    <label data-work-field="cilindro">
-                                        <?php esc_html_e( 'Cilindro / paso', 'core-print-offset' ); ?>
-                                        <input type="text" name="cilindro" placeholder="Ej: 18">
                                     </label>
                                 </div>
                             </div>
@@ -1313,9 +1298,21 @@ class CPO_Public {
     }
 
     private function resolve_work_type( array $payload ): string {
-        $work_type = sanitize_key( (string) ( $payload['work_type'] ?? 'otro' ) );
+        $work_type = sanitize_key( (string) ( $payload['work_type'] ?? 'afiche_folleto' ) );
         if ( '' === $work_type ) {
-            $work_type = 'otro';
+            $work_type = 'afiche_folleto';
+        }
+
+        $legacy_map = array(
+            'revista' => 'revista_catalogo',
+            'folleto' => 'afiche_folleto',
+            'etiqueta' => 'etiqueta_offset',
+            'caja' => 'caja_packaging',
+            'troquel' => 'caja_packaging',
+        );
+
+        if ( isset( $legacy_map[ $work_type ] ) ) {
+            $work_type = $legacy_map[ $work_type ];
         }
 
         return $work_type;

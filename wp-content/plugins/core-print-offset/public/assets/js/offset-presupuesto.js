@@ -109,19 +109,16 @@
     };
 
     const toggleStructureByWorkType = () => {
-        const workType = workTypeSelect?.value || 'otro';
+        const workType = workTypeSelect?.value || 'afiche_folleto';
         if (!structureBox) {
             return;
         }
         const visibility = {
-            paginas: ['revista', 'folleto'],
-            encuadernacion: ['revista', 'folleto'],
-            troquel: ['troquel', 'caja'],
-            costo_troquel: ['troquel', 'caja'],
-            merma_troquel_extra: ['troquel', 'caja'],
-            material_bobina: ['etiqueta', 'caja'],
-            anilox: ['etiqueta', 'caja'],
-            cilindro: ['etiqueta', 'caja'],
+            paginas: ['revista_catalogo'],
+            encuadernacion: ['revista_catalogo'],
+            troquel: ['caja_packaging', 'etiqueta_offset'],
+            costo_troquel: ['caja_packaging', 'etiqueta_offset'],
+            merma_troquel_extra: ['caja_packaging', 'etiqueta_offset'],
         };
 
         structureBox.querySelectorAll('[data-work-field]').forEach((node) => {
@@ -253,7 +250,7 @@
     const getFormData = () => {
         const formData = new FormData(form);
         if (!formData.get('work_type')) {
-            formData.append('work_type', 'otro');
+            formData.append('work_type', 'afiche_folleto');
         }
         formData.append('nonce', config.nonce);
         formData.append('cliente_id', String(getSelectedClienteId()));
@@ -385,7 +382,7 @@
             }
         };
 
-        ['descripcion', 'cantidad', 'ancho_mm', 'alto_mm', 'colores', 'sangrado_mm', 'material_id', 'pliego_formato', 'pliego_ancho_mm', 'pliego_alto_mm', 'formas_por_pliego', 'merma_pct', 'work_type', 'paginas', 'encuadernacion', 'material_bobina', 'anilox', 'cilindro', 'costo_troquel', 'merma_troquel_extra'].forEach((field) => {
+        ['descripcion', 'cantidad', 'ancho_mm', 'alto_mm', 'colores', 'sangrado_mm', 'material_id', 'pliego_formato', 'pliego_ancho_mm', 'pliego_alto_mm', 'formas_por_pliego', 'merma_pct', 'work_type', 'paginas', 'encuadernacion', 'costo_troquel', 'merma_troquel_extra'].forEach((field) => {
             setValue(field, payload[field]);
         });
         setValue('troquel', payload.troquel);
@@ -520,7 +517,7 @@
     saveButton?.addEventListener('click', savePresupuesto);
     createOrderPrimaryButton?.addEventListener('click', () => createOrderFromPresupuesto(presupuestoIdInput?.value || ''));
 
-    const reactiveFields = ['work_type', 'cantidad', 'paginas', 'material_id', 'ancho_mm', 'alto_mm', 'troquel', 'anilox', 'encuadernacion', 'cilindro', 'material_bobina'];
+    const reactiveFields = ['work_type', 'cantidad', 'paginas', 'material_id', 'ancho_mm', 'alto_mm', 'troquel', 'encuadernacion', 'colores', 'pliego_formato'];
     reactiveFields.forEach((fieldName) => {
         const field = form.querySelector(`[name="${fieldName}"]`);
         if (!field) return;

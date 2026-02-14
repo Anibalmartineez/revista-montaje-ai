@@ -94,7 +94,16 @@ class CPO_Production_Engine {
             'costo_produccion'   => round( $costo_produccion, 2 ),
             'colores_frente'     => (int) $colores_frente,
             'colores_dorso'      => (int) $colores_dorso,
-            'production_summary' => self::build_summary( $chapas, $pasadas, $pliegos_final, $tiempo_total_horas ),
+            'production_summary' => self::build_summary(
+                $formas_por_pliego,
+                $merma_pliegos,
+                $chapas,
+                $colores_frente,
+                $colores_dorso,
+                $pasadas,
+                $pliegos_final,
+                $tiempo_total_horas
+            ),
             'warnings'           => $warnings,
         );
     }
@@ -168,11 +177,24 @@ class CPO_Production_Engine {
         return (int) ceil( $setup_min );
     }
 
-    private static function build_summary( int $chapas, int $pasadas, int $pliegos, float $tiempo_horas ): string {
+    private static function build_summary(
+        int $formas_por_pliego,
+        int $merma_pliegos,
+        int $chapas,
+        int $colores_frente,
+        int $colores_dorso,
+        int $pasadas,
+        int $pliegos,
+        float $tiempo_horas
+    ): string {
         return sprintf(
-            '%1$d chapas • %2$d pasadas • %3$d pliegos • %4$s hs máquina',
-            $chapas,
+            'Pliego: %1$d formas/pliego • Merma: %2$d pliegos • Pasadas: %3$d (%4$d/%5$d) • Chapas frente/dorso: %6$d • Tirada: %7$d pliegos • %8$s hs máquina',
+            $formas_por_pliego,
+            $merma_pliegos,
             $pasadas,
+            $colores_frente,
+            $colores_dorso,
+            $chapas,
             $pliegos,
             number_format( $tiempo_horas, 1, '.', '' )
         );

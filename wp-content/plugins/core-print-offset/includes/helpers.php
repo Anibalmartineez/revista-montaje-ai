@@ -118,9 +118,19 @@ function cpo_build_presupuesto_payload( array $raw, array $options = array() ): 
     }
     $payload['procesos'] = array_values( array_filter( array_map( 'intval', $processes ) ) );
 
-    $payload['work_type'] = sanitize_key( wp_unslash( $raw['work_type'] ?? 'otro' ) );
+    $payload['work_type'] = sanitize_key( wp_unslash( $raw['work_type'] ?? 'afiche_folleto' ) );
     if ( '' === $payload['work_type'] ) {
-        $payload['work_type'] = 'otro';
+        $payload['work_type'] = 'afiche_folleto';
+    }
+    $legacy_work_types = array(
+        'revista' => 'revista_catalogo',
+        'folleto' => 'afiche_folleto',
+        'etiqueta' => 'etiqueta_offset',
+        'caja' => 'caja_packaging',
+        'troquel' => 'caja_packaging',
+    );
+    if ( isset( $legacy_work_types[ $payload['work_type'] ] ) ) {
+        $payload['work_type'] = $legacy_work_types[ $payload['work_type'] ];
     }
     $payload['paginas'] = max( 0, (int) ( $raw['paginas'] ?? 0 ) );
     $payload['encuadernacion'] = sanitize_text_field( wp_unslash( $raw['encuadernacion'] ?? '' ) );
