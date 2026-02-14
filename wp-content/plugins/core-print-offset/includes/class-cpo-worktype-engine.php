@@ -73,6 +73,19 @@ class CPO_WorkType_Engine {
             'usa_frente_dorso'          => false,
             'usa_colores_especiales'    => true,
         ),
+        'troquel' => array(
+            'requiere_paginas'          => false,
+            'requiere_pliego'           => true,
+            'requiere_troquel'          => true,
+            'requiere_encuadernacion'   => false,
+            'requiere_material_bobina'  => false,
+            'requiere_anilox'           => false,
+            'requiere_cilindro'         => false,
+            'permite_varios_gramajes'   => false,
+            'multiplo_paginas'          => 0,
+            'usa_frente_dorso'          => false,
+            'usa_colores_especiales'    => false,
+        ),
         'otro' => array(
             'requiere_paginas'          => false,
             'requiere_pliego'           => false,
@@ -119,15 +132,8 @@ class CPO_WorkType_Engine {
         if ( ! empty( $config['requiere_cilindro'] ) ) {
             $fields[] = 'cilindro';
         }
-        if ( ! empty( $config['permite_varios_gramajes'] ) ) {
-            $fields[] = 'gramaje_interior';
-            $fields[] = 'gramaje_tapa';
-        }
         if ( ! empty( $config['usa_frente_dorso'] ) ) {
             $fields[] = 'colores';
-        }
-        if ( ! empty( $config['usa_colores_especiales'] ) ) {
-            $fields[] = 'colores_especiales';
         }
 
         return array_values( array_unique( $fields ) );
@@ -184,6 +190,15 @@ class CPO_WorkType_Engine {
             }
             if ( empty( $data['pliego_formato'] ) ) {
                 $warnings[] = __( 'Caja requiere pliego.', 'core-print-offset' );
+            }
+        }
+
+        if ( 'troquel' === $work_type ) {
+            if ( empty( $data['troquel'] ) ) {
+                $warnings[] = __( 'Trabajo troquelado requiere troquel activo.', 'core-print-offset' );
+            }
+            if ( empty( $data['pliego_formato'] ) ) {
+                $warnings[] = __( 'Trabajo troquelado requiere pliego.', 'core-print-offset' );
             }
         }
 

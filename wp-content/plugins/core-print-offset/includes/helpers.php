@@ -129,7 +129,8 @@ function cpo_build_presupuesto_payload( array $raw, array $options = array() ): 
     $payload['anilox'] = sanitize_text_field( wp_unslash( $raw['anilox'] ?? '' ) );
     $payload['cilindro'] = sanitize_text_field( wp_unslash( $raw['cilindro'] ?? '' ) );
     $payload['pliego_doble'] = ! empty( $raw['pliego_doble'] ) && '0' !== (string) $raw['pliego_doble'];
-
+    $payload['costo_troquel'] = max( 0, cpo_get_decimal( wp_unslash( $raw['costo_troquel'] ?? 0 ) ) );
+    $payload['merma_troquel_extra'] = max( 0, cpo_get_decimal( wp_unslash( $raw['merma_troquel_extra'] ?? 0 ) ) );
 
     return $payload;
 }
