@@ -15,6 +15,9 @@ class CPO_Calculator {
         $allow_machine_default = ! empty( $payload['allow_machine_default'] );
         $warnings = array();
 
+        $snapshot_version = isset( $payload['snapshot_version'] ) ? (int) $payload['snapshot_version'] : ( defined( 'CPO_SNAPSHOT_VERSION' ) ? (int) CPO_SNAPSHOT_VERSION : 1 );
+        $production_result = array();
+
         $payload = wp_parse_args(
             $payload,
             array(
@@ -196,6 +199,13 @@ class CPO_Calculator {
         $margen = $subtotal * ( $margin_pct / 100 );
         $total = $subtotal + $margen;
 
+        if ( $snapshot_version >= 2 && class_exists( 'CPO_Production_Engine' ) ) {
+            $production_result = CPO_Production_Engine::calculate( $payload, $maquina );
+            if ( ! empty( $production_result['warnings'] ) && is_array( $production_result['warnings'] ) ) {
+                $warnings = array_merge( $warnings, $production_result['warnings'] );
+            }
+        }
+
         return array(
             'pliegos_netos'       => $pliegos_netos,
             'pliegos_con_merma'   => $pliegos_con_merma,
@@ -220,6 +230,8 @@ class CPO_Calculator {
             'horas_maquina'       => $horas_maquina,
             'costo_hora'          => $costo_hora,
             'price_note'          => $precio_note,
+            'production'          => $production_result,
+            'production_summary'  => $production_result['production_summary'] ?? '',
             'warnings'            => $warnings,
         );
     }

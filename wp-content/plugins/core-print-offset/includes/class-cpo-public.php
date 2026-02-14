@@ -931,6 +931,7 @@ class CPO_Public {
                 'message' => __( 'Presupuesto guardado.', 'core-print-offset' ),
                 'id'      => $presupuesto_id,
                 'cliente_id' => $cliente_id,
+                'production_summary' => $result['production_summary'] ?? '',
             )
         );
     }
