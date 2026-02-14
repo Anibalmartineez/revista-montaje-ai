@@ -187,16 +187,73 @@
         if (!panelBody) {
             return;
         }
+        if (panelBody.getAttribute('data-gc-list-collapsible-ready') === '1') {
+            return;
+        }
         var tableWrap = panelBody.querySelector('.gc-table-wrap');
         var filterForm = panelBody.querySelector('.gc-form-inline');
         var createForm = panelBody.querySelector('.gc-form:not(.gc-form-inline)');
-        if (!tableWrap || !createForm) {
+        if (!createForm) {
             return;
         }
-        if (filterForm) {
-            panelBody.insertBefore(filterForm, createForm);
+
+        panelBody.insertBefore(createForm, panelBody.firstChild);
+
+        if (!tableWrap) {
+            panelBody.setAttribute('data-gc-list-collapsible-ready', '1');
+            return;
         }
-        panelBody.insertBefore(tableWrap, createForm);
+
+        var module = panelBody.closest('.gc-module');
+        var moduleId = module ? module.getAttribute('data-gc-module') : '';
+        var listId = 'gc-list-content-' + (moduleId || Math.random().toString(36).slice(2));
+        var storageKey = moduleId ? 'gc_list_open_' + moduleId : '';
+        var isOpen = false;
+
+        if (storageKey && window.localStorage) {
+            try {
+                isOpen = window.localStorage.getItem(storageKey) === '1';
+            } catch (error) {
+                isOpen = false;
+            }
+        }
+
+        var listToggle = document.createElement('button');
+        listToggle.type = 'button';
+        listToggle.className = 'gc-list-toggle';
+        listToggle.setAttribute('aria-controls', listId);
+
+        var listContainer = document.createElement('div');
+        listContainer.className = 'gc-list-collapsible';
+        listContainer.id = listId;
+
+        var updateListState = function (open) {
+            listToggle.setAttribute('aria-expanded', open ? 'true' : 'false');
+            listToggle.textContent = open ? 'Ocultar datos' : 'Ver datos cargados';
+            listContainer.hidden = !open;
+            if (storageKey && window.localStorage) {
+                try {
+                    window.localStorage.setItem(storageKey, open ? '1' : '0');
+                } catch (error) {
+                    // ignore storage errors
+                }
+            }
+        };
+
+        if (filterForm) {
+            listContainer.appendChild(filterForm);
+        }
+        listContainer.appendChild(tableWrap);
+
+        panelBody.appendChild(listToggle);
+        panelBody.appendChild(listContainer);
+
+        listToggle.addEventListener('click', function () {
+            updateListState(listContainer.hidden);
+        });
+
+        updateListState(isOpen);
+        panelBody.setAttribute('data-gc-list-collapsible-ready', '1');
     }
 
     function setModuleState(module, isOpen) {
