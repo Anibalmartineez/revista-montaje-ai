@@ -68,13 +68,13 @@ function gc_core_global_enqueue_assets(): void {
         'gc-core-global-style',
         GC_CORE_GLOBAL_URL . 'assets/style.css',
         array(),
-        GC_CORE_GLOBAL_VERSION
+        filemtime(GC_CORE_GLOBAL_PATH . 'assets/style.css')
     );
     wp_register_script(
         'gc-core-global-app',
         GC_CORE_GLOBAL_URL . 'assets/app.js',
         array(),
-        GC_CORE_GLOBAL_VERSION,
+        filemtime(GC_CORE_GLOBAL_PATH . 'assets/app.js'),
         true
     );
 

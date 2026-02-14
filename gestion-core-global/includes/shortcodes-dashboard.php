@@ -25,42 +25,49 @@ function gc_render_dashboard_shortcode(): string {
             'label' => 'Movimientos',
             'shortcode' => '[gc_movimientos]',
             'order' => 10,
+            'reorder' => true,
         ),
         array(
             'id' => 'clientes',
             'label' => 'Clientes',
             'shortcode' => '[gc_clientes]',
             'order' => 20,
+            'reorder' => true,
         ),
         array(
             'id' => 'proveedores',
             'label' => 'Proveedores',
             'shortcode' => '[gc_proveedores]',
             'order' => 30,
+            'reorder' => true,
         ),
         array(
             'id' => 'facturas-venta',
             'label' => 'Facturas venta',
             'shortcode' => '[gc_facturas_venta]',
             'order' => 40,
+            'reorder' => true,
         ),
         array(
             'id' => 'facturas-compra',
             'label' => 'Facturas compra',
             'shortcode' => '[gc_facturas_compra]',
             'order' => 50,
+            'reorder' => true,
         ),
         array(
             'id' => 'deudas',
             'label' => 'Deudas',
             'shortcode' => '[gc_deudas]',
             'order' => 60,
+            'reorder' => true,
         ),
         array(
             'id' => 'reportes',
             'label' => 'Reportes',
             'shortcode' => '[gc_reportes]',
             'order' => 70,
+            'reorder' => true,
         ),
     );
 
@@ -86,6 +93,7 @@ function gc_render_dashboard_shortcode(): string {
             'shortcode' => $shortcode,
             'icon' => isset($section['icon']) ? (string) $section['icon'] : '',
             'order' => isset($section['order']) ? (int) $section['order'] : 100,
+            'reorder' => !empty($section['reorder']),
         );
     }
 
@@ -101,7 +109,17 @@ function gc_render_dashboard_shortcode(): string {
     foreach ($normalized_sections as $section) {
         $icon_html = $section['icon'] ? '<span class="gc-dashboard-icon">' . esc_html($section['icon']) . '</span>' : '';
         $nav_items .= '<a class="gc-dashboard-button" href="#' . esc_attr($section['id']) . '">' . $icon_html . esc_html($section['label']) . '</a>';
-        $sections_html .= '<div id="' . esc_attr($section['id']) . '">' . do_shortcode($section['shortcode']) . '</div>';
+        $reorder_attr = $section['reorder'] ? ' data-gc-reorder="1"' : '';
+        $sections_html .= '<div id="' . esc_attr($section['id']) . '" class="gc-module" data-gc-module="' . esc_attr($section['id']) . '"' . $reorder_attr . '>'
+            . '<div class="gc-module__header">'
+            . '<button class="gc-module__toggle" type="button" aria-expanded="false" aria-controls="gc-module-' . esc_attr($section['id']) . '">'
+            . $icon_html . esc_html($section['label'])
+            . '</button>'
+            . '</div>'
+            . '<div id="gc-module-' . esc_attr($section['id']) . '" class="gc-module__body" role="region" aria-label="' . esc_attr($section['label']) . '">'
+            . do_shortcode($section['shortcode'])
+            . '</div>'
+            . '</div>';
     }
 
     $nav = '<div class="gc-dashboard-nav">' . $nav_items . '</div>';
