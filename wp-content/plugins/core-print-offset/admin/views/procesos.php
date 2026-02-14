@@ -41,6 +41,30 @@ $core_active = $data['core_active'];
                     <td><input name="costo_base" id="costo_base" type="number" step="0.01" value="<?php echo esc_attr( $editing['costo_base'] ?? 0 ); ?>"></td>
                 </tr>
                 <tr>
+                    <th><label for="base_calculo"><?php esc_html_e( 'Base de cálculo', 'core-print-offset' ); ?></label></th>
+                    <td>
+                        <select name="base_calculo" id="base_calculo">
+                            <?php
+                            $base_calculo = $editing['base_calculo'] ?? cpo_default_process_base_calculo( $modo );
+                            $base_options = array(
+                                'pliego_base' => __( 'Pliego base (compra)', 'core-print-offset' ),
+                                'pliego_util' => __( 'Pliego útil (producción)', 'core-print-offset' ),
+                                'unidad_final' => __( 'Unidad final', 'core-print-offset' ),
+                                'none' => __( 'Ninguna / fijo', 'core-print-offset' ),
+                            );
+                            foreach ( $base_options as $base_key => $base_label ) :
+                                printf(
+                                    '<option value="%1$s" %2$s>%3$s</option>',
+                                    esc_attr( $base_key ),
+                                    selected( $base_calculo, $base_key, false ),
+                                    esc_html( $base_label )
+                                );
+                            endforeach;
+                            ?>
+                        </select>
+                    </td>
+                </tr>
+                <tr>
                     <th><label for="unidad"><?php esc_html_e( 'Unidad', 'core-print-offset' ); ?></label></th>
                     <td><input name="unidad" id="unidad" type="text" value="<?php echo esc_attr( $editing['unidad'] ?? '' ); ?>"></td>
                 </tr>
@@ -73,6 +97,7 @@ $core_active = $data['core_active'];
                 <th><?php esc_html_e( 'Nombre', 'core-print-offset' ); ?></th>
                 <th><?php esc_html_e( 'Modo', 'core-print-offset' ); ?></th>
                 <th><?php esc_html_e( 'Costo base', 'core-print-offset' ); ?></th>
+                <th><?php esc_html_e( 'Base', 'core-print-offset' ); ?></th>
                 <th><?php esc_html_e( 'Estado', 'core-print-offset' ); ?></th>
                 <th><?php esc_html_e( 'Acciones', 'core-print-offset' ); ?></th>
             </tr>
@@ -83,6 +108,7 @@ $core_active = $data['core_active'];
                     <td><?php echo esc_html( $proceso['nombre'] ); ?></td>
                     <td><?php echo esc_html( $proceso['modo_cobro'] ); ?></td>
                     <td><?php echo esc_html( $proceso['costo_base'] ); ?></td>
+                    <td><?php echo esc_html( $proceso['base_calculo'] ?? cpo_default_process_base_calculo( $proceso['modo_cobro'] ?? 'fijo' ) ); ?></td>
                     <td><?php echo esc_html( $proceso['activo'] ? __( 'Activo', 'core-print-offset' ) : __( 'Inactivo', 'core-print-offset' ) ); ?></td>
                     <td>
                         <a href="<?php echo esc_url( add_query_arg( array( 'page' => 'cpo-procesos', 'cpo_action' => 'edit_proceso', 'proceso_id' => $proceso['id'] ) ) ); ?>" class="button-link"><?php esc_html_e( 'Editar', 'core-print-offset' ); ?></a>

@@ -18,6 +18,133 @@ function cpo_get_decimal( $value ) {
     return (float) str_replace( ',', '.', $value );
 }
 
+function cpo_parse_sheet_size_to_mm( $input ): array {
+    $raw = is_string( $input ) ? trim( $input ) : '';
+    $result = array(
+        'w_mm'         => 0,
+        'h_mm'         => 0,
+        'assumed_unit' => 'unknown',
+        'normalized'   => '',
+    );
+
+    if ( '' === $raw ) {
+        return $result;
+    }
+
+    $normalized_input = strtolower( str_replace( ',', '.', $raw ) );
+    if ( ! preg_match( '/([0-9]+(?:\.[0-9]+)?)\s*[x×]\s*([0-9]+(?:\.[0-9]+)?)/u', $normalized_input, $matches ) ) {
+        return $result;
+    }
+
+    $w_raw = (float) $matches[1];
+    $h_raw = (float) $matches[2];
+    if ( $w_raw <= 0 || $h_raw <= 0 ) {
+        return $result;
+    }
+
+    $has_mm = preg_match( '/\bmm\b/u', $normalized_input );
+    $has_cm = preg_match( '/\bcm\b/u', $normalized_input );
+
+    if ( $has_mm ) {
+        $assumed_unit = 'mm';
+        $factor = 1;
+    } elseif ( $has_cm ) {
+        $assumed_unit = 'cm';
+        $factor = 10;
+    } else {
+        $assumed_unit = ( max( $w_raw, $h_raw ) <= 400 ) ? 'cm' : 'mm';
+        $factor = ( 'cm' === $assumed_unit ) ? 10 : 1;
+    }
+
+    $w_mm = (int) round( $w_raw * $factor );
+    $h_mm = (int) round( $h_raw * $factor );
+
+    if ( $w_mm <= 0 || $h_mm <= 0 ) {
+        return $result;
+    }
+
+    $result['w_mm'] = $w_mm;
+    $result['h_mm'] = $h_mm;
+    $result['assumed_unit'] = $assumed_unit;
+    $result['normalized'] = sprintf( '%dx%d', $w_mm, $h_mm );
+
+    return $result;
+}
+
+function cpo_format_sheet_size_mm_display( string $normalized_mm, bool $show_cm_hint = true ): string {
+    $parsed = cpo_parse_sheet_size_to_mm( $normalized_mm );
+    if ( empty( $parsed['normalized'] ) ) {
+        return $normalized_mm;
+    }
+
+    $display = sprintf( '%d x %d mm', $parsed['w_mm'], $parsed['h_mm'] );
+    if ( ! $show_cm_hint ) {
+        return $display;
+    }
+
+    return sprintf( '%s (%s x %s cm)', $display, rtrim( rtrim( number_format( $parsed['w_mm'] / 10, 2, '.', '' ), '0' ), '.' ), rtrim( rtrim( number_format( $parsed['h_mm'] / 10, 2, '.', '' ), '0' ), '.' ) );
+}
+
+function cpo_default_process_base_calculo( string $modo_cobro ): string {
+    switch ( $modo_cobro ) {
+        case 'por_hora':
+        case 'por_m2':
+        case 'por_pliego':
+        case 'por_kg':
+            return 'pliego_util';
+        case 'por_millar':
+        case 'por_unidad':
+            return 'unidad_final';
+        case 'fijo':
+        default:
+            return 'none';
+    }
+}
+
+function cpo_decode_process_unit_meta( string $unidad_raw ): array {
+    $meta = array();
+    $unidad_clean = trim( $unidad_raw );
+
+    if ( preg_match( '/\s*##cpo_meta:([A-Za-z0-9+\/=]+)\s*$/', $unidad_clean, $matches ) ) {
+        $json = base64_decode( $matches[1], true );
+        $decoded = $json ? json_decode( $json, true ) : null;
+        if ( is_array( $decoded ) ) {
+            $meta = $decoded;
+        }
+        $unidad_clean = trim( preg_replace( '/\s*##cpo_meta:[A-Za-z0-9+\/=]+\s*$/', '', $unidad_clean ) );
+    }
+
+    return array(
+        'unidad' => $unidad_clean,
+        'meta'   => $meta,
+    );
+}
+
+function cpo_encode_process_unit_meta( string $unidad, array $meta ): string {
+    $unidad = trim( $unidad );
+    if ( empty( $meta ) ) {
+        return $unidad;
+    }
+
+    $json = wp_json_encode( $meta );
+    if ( ! $json ) {
+        return $unidad;
+    }
+
+    return trim( $unidad . ' ##cpo_meta:' . base64_encode( $json ) );
+}
+
+function cpo_get_process_base_calculo( array $process ): string {
+    $decoded = cpo_decode_process_unit_meta( (string) ( $process['unidad'] ?? '' ) );
+    $meta = is_array( $decoded['meta'] ?? null ) ? $decoded['meta'] : array();
+    $base_calculo = sanitize_key( (string) ( $meta['base_calculo'] ?? '' ) );
+    if ( in_array( $base_calculo, array( 'pliego_base', 'pliego_util', 'unidad_final', 'none' ), true ) ) {
+        return $base_calculo;
+    }
+
+    return cpo_default_process_base_calculo( (string) ( $process['modo_cobro'] ?? 'fijo' ) );
+}
+
 function cpo_admin_notice( $message, $type = 'info' ) {
     add_action(
         'admin_notices',
@@ -95,6 +222,16 @@ function cpo_build_presupuesto_payload( array $raw, array $options = array() ): 
     $payload['pliego_ancho_mm'] = cpo_get_decimal( wp_unslash( $raw['pliego_ancho_mm'] ?? 0 ) );
     $payload['pliego_alto_mm'] = cpo_get_decimal( wp_unslash( $raw['pliego_alto_mm'] ?? 0 ) );
     $payload['pliego_personalizado'] = ! empty( $raw['pliego_personalizado'] ) && $raw['pliego_personalizado'] !== '0';
+    $payload['base_sheet_ancho_mm'] = cpo_get_decimal( wp_unslash( $raw['base_sheet_ancho_mm'] ?? 0 ) );
+    $payload['base_sheet_alto_mm'] = cpo_get_decimal( wp_unslash( $raw['base_sheet_alto_mm'] ?? 0 ) );
+    $payload['material_formato_base'] = sanitize_text_field( wp_unslash( $raw['material_formato_base'] ?? '' ) );
+    $payload['use_cut_sheet'] = ! empty( $raw['use_cut_sheet'] ) && '0' !== (string) $raw['use_cut_sheet'];
+    $payload['cut_mode'] = sanitize_key( wp_unslash( $raw['cut_mode'] ?? 'fraction' ) );
+    $payload['cut_fraction'] = sanitize_text_field( wp_unslash( $raw['cut_fraction'] ?? '' ) );
+    $payload['useful_sheet_ancho_mm'] = cpo_get_decimal( wp_unslash( $raw['useful_sheet_ancho_mm'] ?? 0 ) );
+    $payload['useful_sheet_alto_mm'] = cpo_get_decimal( wp_unslash( $raw['useful_sheet_alto_mm'] ?? 0 ) );
+    $payload['pieces_per_base'] = max( 0, (int) ( $raw['pieces_per_base'] ?? 0 ) );
+    $payload['enable_manual_forms'] = ! empty( $raw['enable_manual_forms'] ) && '0' !== (string) $raw['enable_manual_forms'];
     $payload['formas_por_pliego'] = max( 1, (int) ( $raw['formas_por_pliego'] ?? 1 ) );
     $payload['merma_pct'] = max( 0, cpo_get_decimal( wp_unslash( $raw['merma_pct'] ?? 0 ) ) );
     $payload['margin_pct'] = max(
@@ -117,6 +254,30 @@ function cpo_build_presupuesto_payload( array $raw, array $options = array() ): 
         $processes = array();
     }
     $payload['procesos'] = array_values( array_filter( array_map( 'intval', $processes ) ) );
+
+    $payload['work_type'] = sanitize_key( wp_unslash( $raw['work_type'] ?? 'afiche_folleto' ) );
+    if ( '' === $payload['work_type'] ) {
+        $payload['work_type'] = 'afiche_folleto';
+    }
+    $legacy_work_types = array(
+        'revista' => 'revista_catalogo',
+        'folleto' => 'afiche_folleto',
+        'etiqueta' => 'etiqueta_offset',
+        'caja' => 'caja_packaging',
+        'troquel' => 'caja_packaging',
+    );
+    if ( isset( $legacy_work_types[ $payload['work_type'] ] ) ) {
+        $payload['work_type'] = $legacy_work_types[ $payload['work_type'] ];
+    }
+    $payload['paginas'] = max( 0, (int) ( $raw['paginas'] ?? 0 ) );
+    $payload['encuadernacion'] = sanitize_text_field( wp_unslash( $raw['encuadernacion'] ?? '' ) );
+    $payload['troquel'] = sanitize_text_field( wp_unslash( $raw['troquel'] ?? '' ) );
+    $payload['material_bobina'] = sanitize_text_field( wp_unslash( $raw['material_bobina'] ?? '' ) );
+    $payload['anilox'] = sanitize_text_field( wp_unslash( $raw['anilox'] ?? '' ) );
+    $payload['cilindro'] = sanitize_text_field( wp_unslash( $raw['cilindro'] ?? '' ) );
+    $payload['pliego_doble'] = ! empty( $raw['pliego_doble'] ) && '0' !== (string) $raw['pliego_doble'];
+    $payload['costo_troquel'] = max( 0, cpo_get_decimal( wp_unslash( $raw['costo_troquel'] ?? 0 ) ) );
+    $payload['merma_troquel_extra'] = max( 0, cpo_get_decimal( wp_unslash( $raw['merma_troquel_extra'] ?? 0 ) ) );
 
     return $payload;
 }
