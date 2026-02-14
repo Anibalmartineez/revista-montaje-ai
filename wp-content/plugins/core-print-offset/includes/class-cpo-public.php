@@ -19,6 +19,9 @@ class CPO_Public {
         add_action( 'wp_ajax_cpo_offset_create_core_document', array( $this, 'handle_create_core_document' ) );
         add_action( 'wp_ajax_cpo_offset_get_presupuesto', array( $this, 'handle_get_presupuesto' ) );
         add_action( 'wp_ajax_cpo_offset_duplicate_presupuesto', array( $this, 'handle_duplicate_presupuesto' ) );
+        add_action( 'wp_ajax_cpo_offset_convert_to_order', array( $this, 'handle_convert_to_order' ) );
+        add_action( 'wp_ajax_cpo_offset_get_ordenes', array( $this, 'handle_get_ordenes' ) );
+        add_action( 'wp_ajax_cpo_offset_generate_core_document_from_order', array( $this, 'handle_generate_core_document_from_order' ) );
 
         add_action( 'init', array( $this, 'maybe_register_dashboard_sections' ) );
     }
@@ -329,33 +332,33 @@ class CPO_Public {
         $current_user_id = get_current_user_id();
 
         if ( ! $this->user_can_manage_all_presupuestos() ) {
-            $where[] = 'created_by = %d';
+            $where[] = 'p.created_by = %d';
             $params[] = $current_user_id;
         }
 
         if ( $search ) {
-            $where[] = '(titulo LIKE %s OR cliente_texto LIKE %s)';
+            $where[] = '(p.titulo LIKE %s OR p.cliente_texto LIKE %s)';
             $like = '%' . $wpdb->esc_like( $search ) . '%';
             $params[] = $like;
             $params[] = $like;
         }
 
         if ( $estado ) {
-            $where[] = 'estado = %s';
+            $where[] = 'p.estado = %s';
             $params[] = $estado;
         }
 
         if ( $from ) {
-            $where[] = 'DATE(created_at) >= %s';
+            $where[] = 'DATE(p.created_at) >= %s';
             $params[] = $from;
         }
 
         if ( $to ) {
-            $where[] = 'DATE(created_at) <= %s';
+            $where[] = 'DATE(p.created_at) <= %s';
             $params[] = $to;
         }
 
-        $sql = "SELECT * FROM {$wpdb->prefix}cpo_presupuestos WHERE " . implode( ' AND ', $where ) . ' ORDER BY created_at DESC LIMIT 200';
+        $sql = "SELECT p.*, o.id AS orden_id, o.estado AS orden_estado, o.fecha_entrega AS orden_fecha_entrega, o.core_documento_id AS orden_core_documento_id FROM {$wpdb->prefix}cpo_presupuestos p LEFT JOIN {$wpdb->prefix}cpo_ordenes o ON o.presupuesto_id = p.id WHERE " . implode( ' AND ', $where ) . ' ORDER BY p.created_at DESC LIMIT 200';
         if ( $params ) {
             $sql = $wpdb->prepare( $sql, $params );
         }
@@ -440,8 +443,19 @@ class CPO_Public {
                                         <button type="button" class="cpo-link" data-cpo-open="<?php echo esc_attr( $presupuesto['id'] ); ?>"><?php esc_html_e( 'Abrir', 'core-print-offset' ); ?></button>
                                         <button type="button" class="cpo-link" data-cpo-duplicate="<?php echo esc_attr( $presupuesto['id'] ); ?>"><?php esc_html_e( 'Duplicar', 'core-print-offset' ); ?></button>
                                         <button type="button" class="cpo-link" data-cpo-core="<?php echo esc_attr( $presupuesto['id'] ); ?>" <?php echo $presupuesto['core_documento_id'] ? 'disabled' : ''; ?>>
-                                            <?php echo $presupuesto['core_documento_id'] ? esc_html__( 'Doc. creado', 'core-print-offset' ) : esc_html__( 'Crear doc. Core', 'core-print-offset' ); ?>
+                                            <?php echo $presupuesto['core_documento_id'] ? esc_html__( 'Ver factura', 'core-print-offset' ) : esc_html__( 'Crear doc. Core', 'core-print-offset' ); ?>
                                         </button>
+                                        <?php if ( $presupuesto['estado'] === 'aceptado' && empty( $presupuesto['orden_id'] ) ) : ?>
+                                            <button type="button" class="cpo-link" data-cpo-create-order="<?php echo esc_attr( $presupuesto['id'] ); ?>"><?php esc_html_e( 'Crear OT', 'core-print-offset' ); ?></button>
+                                        <?php elseif ( ! empty( $presupuesto['orden_id'] ) ) : ?>
+                                            <span class="cpo-link"><?php echo esc_html( sprintf( __( 'OT: %s', 'core-print-offset' ), ucfirst( (string) $presupuesto['orden_estado'] ) ) ); ?></span>
+                                            <?php $documento_id = ! empty( $presupuesto['core_documento_id'] ) ? (int) $presupuesto['core_documento_id'] : (int) $presupuesto['orden_core_documento_id']; ?>
+                                            <?php if ( $documento_id > 0 ) : ?>
+                                                <span class="cpo-link"><?php echo esc_html( sprintf( __( 'Ver factura #%d', 'core-print-offset' ), $documento_id ) ); ?></span>
+                                            <?php else : ?>
+                                                <button type="button" class="cpo-link" data-cpo-generate-invoice="<?php echo esc_attr( $presupuesto['orden_id'] ); ?>"><?php esc_html_e( 'Generar factura', 'core-print-offset' ); ?></button>
+                                            <?php endif; ?>
+                                        <?php endif; ?>
                                     </td>
                                 </tr>
                             <?php endforeach; ?>
@@ -472,7 +486,231 @@ class CPO_Public {
                 'coreUnavailable'    => __( 'Core Global no está disponible.', 'core-print-offset' ),
                 'loadFailed'         => __( 'No se pudo cargar el presupuesto.', 'core-print-offset' ),
                 'duplicateFailed'    => __( 'No se pudo duplicar el presupuesto.', 'core-print-offset' ),
+                'orderCreateFailed'  => __( 'No se pudo crear la orden de trabajo.', 'core-print-offset' ),
+                'orderCreated'       => __( 'Orden de trabajo creada.', 'core-print-offset' ),
+                'invoiceFromOrderFailed' => __( 'No se pudo generar la factura.', 'core-print-offset' ),
             ),
+        );
+    }
+
+    public function handle_convert_to_order() {
+        $this->ensure_valid_nonce();
+
+        if ( ! is_user_logged_in() ) {
+            wp_send_json_error( array( 'message' => __( 'Debes iniciar sesión para crear órdenes.', 'core-print-offset' ) ), 401 );
+        }
+
+        $presupuesto_id = isset( $_POST['presupuesto_id'] ) ? intval( $_POST['presupuesto_id'] ) : 0;
+        $numero_orden = sanitize_text_field( wp_unslash( $_POST['numero_orden'] ?? '' ) );
+        $fecha_entrega = sanitize_text_field( wp_unslash( $_POST['fecha_entrega'] ?? '' ) );
+        $notas = sanitize_textarea_field( wp_unslash( $_POST['notas'] ?? '' ) );
+
+        if ( ! $presupuesto_id ) {
+            wp_send_json_error( array( 'message' => __( 'Presupuesto inválido.', 'core-print-offset' ) ), 400 );
+        }
+
+        global $wpdb;
+        $presupuesto = $wpdb->get_row(
+            $wpdb->prepare( "SELECT * FROM {$wpdb->prefix}cpo_presupuestos WHERE id = %d", $presupuesto_id ),
+            ARRAY_A
+        );
+
+        if ( ! $presupuesto ) {
+            wp_send_json_error( array( 'message' => __( 'Presupuesto no encontrado.', 'core-print-offset' ) ), 404 );
+        }
+
+        if ( ! $this->user_can_access_presupuesto( $presupuesto ) ) {
+            wp_send_json_error( array( 'message' => __( 'forbidden', 'core-print-offset' ) ), 403 );
+        }
+
+        if ( ( $presupuesto['estado'] ?? '' ) !== 'aceptado' ) {
+            wp_send_json_error( array( 'message' => __( 'Solo se pueden convertir presupuestos aceptados.', 'core-print-offset' ) ), 400 );
+        }
+
+        $existing_order = $wpdb->get_row(
+            $wpdb->prepare( "SELECT * FROM {$wpdb->prefix}cpo_ordenes WHERE presupuesto_id = %d LIMIT 1", $presupuesto_id ),
+            ARRAY_A
+        );
+
+        if ( $existing_order ) {
+            wp_send_json_success(
+                array(
+                    'message' => __( 'La OT ya existe para este presupuesto.', 'core-print-offset' ),
+                    'orden_id' => (int) $existing_order['id'],
+                    'orden' => $existing_order,
+                )
+            );
+        }
+
+        $final_notas = $notas;
+        if ( $numero_orden !== '' ) {
+            $final_notas = trim( sprintf( "N° OT: %s\n%s", $numero_orden, $notas ) );
+        }
+
+        $inserted = $wpdb->insert(
+            $wpdb->prefix . 'cpo_ordenes',
+            array(
+                'presupuesto_id'   => $presupuesto_id,
+                'core_cliente_id'  => $presupuesto['core_cliente_id'],
+                'core_documento_id'=> isset( $presupuesto['core_documento_id'] ) ? (int) $presupuesto['core_documento_id'] : null,
+                'titulo'           => $presupuesto['titulo'],
+                'fecha_entrega'    => $fecha_entrega ?: null,
+                'notas'            => $final_notas,
+                'estado'           => 'pendiente',
+                'created_at'       => cpo_now(),
+                'updated_at'       => cpo_now(),
+            )
+        );
+
+        if ( false === $inserted ) {
+            wp_send_json_error( array( 'message' => __( 'No se pudo crear la OT.', 'core-print-offset' ) ), 500 );
+        }
+
+        $orden_id = (int) $wpdb->insert_id;
+        $orden = $wpdb->get_row( $wpdb->prepare( "SELECT * FROM {$wpdb->prefix}cpo_ordenes WHERE id = %d", $orden_id ), ARRAY_A );
+
+        wp_send_json_success(
+            array(
+                'message' => __( 'Orden de trabajo creada.', 'core-print-offset' ),
+                'orden_id' => $orden_id,
+                'orden' => $orden,
+            )
+        );
+    }
+
+    public function handle_get_ordenes() {
+        $this->ensure_valid_nonce();
+
+        if ( ! is_user_logged_in() ) {
+            wp_send_json_error( array( 'message' => __( 'Debes iniciar sesión para ver órdenes.', 'core-print-offset' ) ), 401 );
+        }
+
+        global $wpdb;
+
+        $where = array( '1=1' );
+        $params = array();
+
+        if ( ! $this->user_can_manage_all_presupuestos() ) {
+            $where[] = 'p.created_by = %d';
+            $params[] = get_current_user_id();
+        }
+
+        $sql = "SELECT o.*, p.titulo AS presupuesto_titulo, p.estado AS presupuesto_estado, p.core_documento_id AS presupuesto_core_documento_id FROM {$wpdb->prefix}cpo_ordenes o INNER JOIN {$wpdb->prefix}cpo_presupuestos p ON p.id = o.presupuesto_id WHERE " . implode( ' AND ', $where ) . ' ORDER BY o.created_at DESC';
+        if ( ! empty( $params ) ) {
+            $sql = $wpdb->prepare( $sql, $params );
+        }
+
+        $ordenes = $wpdb->get_results( $sql, ARRAY_A );
+        foreach ( $ordenes as &$orden ) {
+            $orden['core_documento_id'] = ! empty( $orden['presupuesto_core_documento_id'] )
+                ? (int) $orden['presupuesto_core_documento_id']
+                : (int) $orden['core_documento_id'];
+        }
+
+        wp_send_json_success( array( 'ordenes' => $ordenes ) );
+    }
+
+    public function handle_generate_core_document_from_order() {
+        $this->ensure_valid_nonce();
+
+        if ( ! is_user_logged_in() ) {
+            wp_send_json_error( array( 'message' => __( 'Debes iniciar sesión para generar facturas.', 'core-print-offset' ) ), 401 );
+        }
+
+        if ( ! $this->core_bridge->has_core_api() ) {
+            wp_send_json_error( array( 'message' => __( 'Core Global no está disponible.', 'core-print-offset' ) ), 400 );
+        }
+
+        $orden_id = isset( $_POST['orden_id'] ) ? intval( $_POST['orden_id'] ) : 0;
+        if ( ! $orden_id ) {
+            wp_send_json_error( array( 'message' => __( 'Orden inválida.', 'core-print-offset' ) ), 400 );
+        }
+
+        global $wpdb;
+        $orden = $wpdb->get_row(
+            $wpdb->prepare(
+                "SELECT o.*, p.id AS presupuesto_real_id, p.precio_total AS presupuesto_precio_total, p.core_documento_id AS presupuesto_core_documento_id, p.core_cliente_id AS presupuesto_core_cliente_id, p.cliente_id AS presupuesto_cliente_id, p.titulo AS presupuesto_titulo, p.created_by AS presupuesto_created_by FROM {$wpdb->prefix}cpo_ordenes o INNER JOIN {$wpdb->prefix}cpo_presupuestos p ON p.id = o.presupuesto_id WHERE o.id = %d",
+                $orden_id
+            ),
+            ARRAY_A
+        );
+
+        if ( ! $orden ) {
+            wp_send_json_error( array( 'message' => __( 'Orden no encontrada.', 'core-print-offset' ) ), 404 );
+        }
+
+        if ( ! $this->user_can_manage_all_presupuestos() ) {
+            $created_by = isset( $orden['presupuesto_created_by'] ) ? (int) $orden['presupuesto_created_by'] : 0;
+            if ( $created_by > 0 && $created_by !== get_current_user_id() ) {
+                wp_send_json_error( array( 'message' => __( 'forbidden', 'core-print-offset' ) ), 403 );
+            }
+        }
+
+        $existing_core_document_id = isset( $orden['presupuesto_core_documento_id'] ) ? (int) $orden['presupuesto_core_documento_id'] : 0;
+        if ( $existing_core_document_id > 0 ) {
+            $wpdb->update(
+                $wpdb->prefix . 'cpo_ordenes',
+                array( 'core_documento_id' => $existing_core_document_id, 'updated_at' => cpo_now() ),
+                array( 'id' => $orden_id )
+            );
+
+            wp_send_json_success(
+                array(
+                    'message' => __( 'La OT ya tiene factura en Core.', 'core-print-offset' ),
+                    'core_documento_id' => $existing_core_document_id,
+                )
+            );
+        }
+
+        $total = isset( $orden['presupuesto_precio_total'] ) ? (float) $orden['presupuesto_precio_total'] : 0;
+        if ( $total <= 0 ) {
+            wp_send_json_error( array( 'message' => __( 'No se puede generar factura: el presupuesto tiene total en 0.', 'core-print-offset' ) ), 400 );
+        }
+
+        $cliente_id = isset( $orden['presupuesto_core_cliente_id'] ) ? (int) $orden['presupuesto_core_cliente_id'] : 0;
+        if ( ! $cliente_id && isset( $orden['presupuesto_cliente_id'] ) ) {
+            $cliente_id = (int) $orden['presupuesto_cliente_id'];
+        }
+        if ( ! $cliente_id ) {
+            wp_send_json_error( array( 'message' => __( 'Selecciona un cliente de Core antes de generar factura.', 'core-print-offset' ) ), 400 );
+        }
+
+        $response = $this->core_bridge->create_core_document(
+            array(
+                'tipo'       => 'factura_venta',
+                'titulo'     => $orden['presupuesto_titulo'],
+                'cliente_id' => $cliente_id,
+                'total'      => $total,
+            )
+        );
+
+        if ( is_wp_error( $response ) ) {
+            wp_send_json_error( array( 'message' => $response->get_error_message() ), 400 );
+        }
+
+        $core_documento_id = is_array( $response ) && isset( $response['id'] ) ? (int) $response['id'] : (int) $response;
+        if ( $core_documento_id <= 0 ) {
+            wp_send_json_error( array( 'message' => __( 'Core no devolvió un ID de documento válido.', 'core-print-offset' ) ), 400 );
+        }
+
+        $wpdb->update(
+            $wpdb->prefix . 'cpo_presupuestos',
+            array( 'core_documento_id' => $core_documento_id, 'updated_at' => cpo_now() ),
+            array( 'id' => (int) $orden['presupuesto_real_id'] )
+        );
+        $wpdb->update(
+            $wpdb->prefix . 'cpo_ordenes',
+            array( 'core_documento_id' => $core_documento_id, 'updated_at' => cpo_now() ),
+            array( 'id' => $orden_id )
+        );
+
+        $this->maybe_add_core_document_items( $core_documento_id, (int) $orden['presupuesto_real_id'] );
+
+        wp_send_json_success(
+            array(
+                'message' => __( 'Factura generada en Core.', 'core-print-offset' ),
+                'core_documento_id' => $core_documento_id,
+            )
         );
     }
 

@@ -444,6 +444,76 @@
         updateCoreButtonState();
     };
 
+
+    const createOrderFromPresupuesto = async (presupuestoId) => {
+        if (!presupuestoId) {
+            showAlert(config.strings.orderCreateFailed || 'No se pudo crear la orden de trabajo.');
+            return;
+        }
+        const numeroOrden = window.prompt('Número de OT (opcional):', '');
+        if (numeroOrden === null) {
+            return;
+        }
+        const fechaEntrega = window.prompt('Fecha de entrega (YYYY-MM-DD, opcional):', '');
+        if (fechaEntrega === null) {
+            return;
+        }
+        const notas = window.prompt('Notas de OT (opcional):', '');
+        if (notas === null) {
+            return;
+        }
+
+        clearAlert();
+        const formData = getFormData();
+        formData.append('action', 'cpo_offset_convert_to_order');
+        formData.append('presupuesto_id', presupuestoId);
+        formData.append('numero_orden', numeroOrden || '');
+        formData.append('fecha_entrega', fechaEntrega || '');
+        formData.append('notas', notas || '');
+
+        const response = await fetch(config.ajaxUrl, {
+            method: 'POST',
+            credentials: 'same-origin',
+            body: formData,
+        });
+
+        const payload = await response.json();
+        if (!payload.success) {
+            showAlert(payload.data?.message || config.strings.orderCreateFailed);
+            return;
+        }
+
+        showAlert(payload.data?.message || config.strings.orderCreated, 'success');
+        window.setTimeout(() => window.location.reload(), 400);
+    };
+
+    const generateInvoiceFromOrder = async (ordenId) => {
+        if (!config.coreAvailable) {
+            showAlert(config.strings.coreUnavailable || 'Core Global no disponible');
+            return;
+        }
+
+        clearAlert();
+        const formData = getFormData();
+        formData.append('action', 'cpo_offset_generate_core_document_from_order');
+        formData.append('orden_id', ordenId);
+
+        const response = await fetch(config.ajaxUrl, {
+            method: 'POST',
+            credentials: 'same-origin',
+            body: formData,
+        });
+
+        const payload = await response.json();
+        if (!payload.success) {
+            showAlert(payload.data?.message || config.strings.invoiceFromOrderFailed);
+            return;
+        }
+
+        showAlert(payload.data?.message || config.strings.coreCreated, 'success');
+        window.setTimeout(() => window.location.reload(), 400);
+    };
+
     const createCoreDocument = async (presupuestoId = null) => {
         if (!config.coreAvailable) {
             showAlert(config.strings.coreUnavailable || 'Core Global no disponible');
@@ -563,7 +633,24 @@
         const coreListButton = event.target.closest('[data-cpo-core]');
         if (coreListButton && coreListButton.dataset.cpoCore) {
             event.preventDefault();
+            if (coreListButton.disabled) {
+                return;
+            }
             await createCoreDocument(coreListButton.dataset.cpoCore);
+            return;
+        }
+
+        const createOrderButton = event.target.closest('[data-cpo-create-order]');
+        if (createOrderButton && createOrderButton.dataset.cpoCreateOrder) {
+            event.preventDefault();
+            await createOrderFromPresupuesto(createOrderButton.dataset.cpoCreateOrder);
+            return;
+        }
+
+        const generateInvoiceButton = event.target.closest('[data-cpo-generate-invoice]');
+        if (generateInvoiceButton && generateInvoiceButton.dataset.cpoGenerateInvoice) {
+            event.preventDefault();
+            await generateInvoiceFromOrder(generateInvoiceButton.dataset.cpoGenerateInvoice);
             return;
         }
     });

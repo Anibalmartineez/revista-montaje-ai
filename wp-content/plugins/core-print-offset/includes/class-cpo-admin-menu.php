@@ -839,27 +839,60 @@ class CPO_Admin_Menu {
         if ( $this->core_active && isset( $_GET['cpo_action'], $_GET['orden_id'], $_GET['_wpnonce'] ) && $_GET['cpo_action'] === 'generate_invoice' ) {
             if ( wp_verify_nonce( sanitize_text_field( wp_unslash( $_GET['_wpnonce'] ) ), 'cpo_generate_invoice' ) ) {
                 $id = intval( $_GET['orden_id'] );
-                $orden = $wpdb->get_row( $wpdb->prepare( "SELECT * FROM {$wpdb->prefix}cpo_ordenes WHERE id = %d", $id ), ARRAY_A );
+                $orden = $wpdb->get_row(
+                    $wpdb->prepare(
+                        "SELECT o.*, p.id AS presupuesto_real_id, p.precio_total AS presupuesto_precio_total, p.core_documento_id AS presupuesto_core_documento_id, p.core_cliente_id AS presupuesto_core_cliente_id, p.cliente_id AS presupuesto_cliente_id, p.titulo AS presupuesto_titulo FROM {$wpdb->prefix}cpo_ordenes o LEFT JOIN {$wpdb->prefix}cpo_presupuestos p ON p.id = o.presupuesto_id WHERE o.id = %d",
+                        $id
+                    ),
+                    ARRAY_A
+                );
                 if ( $orden ) {
-                    $response = $this->core_bridge->create_core_document(
-                        array(
-                            'tipo'    => 'factura',
-                            'titulo'  => $orden['titulo'],
-                            'cliente_id' => $orden['core_cliente_id'],
-                        )
-                    );
-                    if ( is_wp_error( $response ) ) {
-                        $this->add_notice( $response->get_error_message(), 'error' );
+                    $existing_core_document_id = isset( $orden['presupuesto_core_documento_id'] ) ? (int) $orden['presupuesto_core_documento_id'] : 0;
+                    if ( $existing_core_document_id > 0 ) {
+                        $wpdb->update( $wpdb->prefix . 'cpo_ordenes', array( 'core_documento_id' => $existing_core_document_id, 'updated_at' => cpo_now() ), array( 'id' => $id ) );
+                        $this->add_notice( __( 'Esta OT ya tiene factura en Core.', 'core-print-offset' ), 'warning' );
                     } else {
-                        $core_documento_id = is_array( $response ) && isset( $response['id'] ) ? (int) $response['id'] : (int) $response;
-                        $wpdb->update( $wpdb->prefix . 'cpo_ordenes', array( 'core_documento_id' => $core_documento_id ), array( 'id' => $id ) );
-                        $this->add_notice( __( 'Factura generada en Core.', 'core-print-offset' ) );
+                        $total = isset( $orden['presupuesto_precio_total'] ) ? (float) $orden['presupuesto_precio_total'] : 0;
+                        if ( $total <= 0 ) {
+                            $this->add_notice( __( 'No se puede generar factura: el presupuesto tiene total en 0.', 'core-print-offset' ), 'warning' );
+                        } else {
+                            $cliente_id = isset( $orden['presupuesto_core_cliente_id'] ) ? (int) $orden['presupuesto_core_cliente_id'] : 0;
+                            if ( ! $cliente_id && isset( $orden['presupuesto_cliente_id'] ) ) {
+                                $cliente_id = (int) $orden['presupuesto_cliente_id'];
+                            }
+
+                            if ( ! $cliente_id ) {
+                                $this->add_notice( __( 'Selecciona un cliente de Core antes de generar factura.', 'core-print-offset' ), 'warning' );
+                            } else {
+                                $response = $this->core_bridge->create_core_document(
+                                    array(
+                                        'tipo'       => 'factura_venta',
+                                        'titulo'     => $orden['presupuesto_titulo'] ?: $orden['titulo'],
+                                        'cliente_id' => $cliente_id,
+                                        'total'      => $total,
+                                    )
+                                );
+                                if ( is_wp_error( $response ) ) {
+                                    $this->add_notice( $response->get_error_message(), 'error' );
+                                } else {
+                                    $core_documento_id = is_array( $response ) && isset( $response['id'] ) ? (int) $response['id'] : (int) $response;
+                                    if ( $core_documento_id > 0 ) {
+                                        $wpdb->update( $wpdb->prefix . 'cpo_presupuestos', array( 'core_documento_id' => $core_documento_id, 'updated_at' => cpo_now() ), array( 'id' => (int) $orden['presupuesto_real_id'] ) );
+                                        $wpdb->update( $wpdb->prefix . 'cpo_ordenes', array( 'core_documento_id' => $core_documento_id, 'updated_at' => cpo_now() ), array( 'id' => $id ) );
+                                        $this->maybe_add_core_document_items( $core_documento_id, (int) $orden['presupuesto_real_id'] );
+                                        $this->add_notice( __( 'Factura generada en Core.', 'core-print-offset' ) );
+                                    } else {
+                                        $this->add_notice( __( 'Core no devolvió un ID de documento válido.', 'core-print-offset' ), 'error' );
+                                    }
+                                }
+                            }
+                        }
                     }
                 }
             }
         }
 
-        $data['ordenes'] = $wpdb->get_results( "SELECT * FROM {$wpdb->prefix}cpo_ordenes ORDER BY created_at DESC", ARRAY_A );
+        $data['ordenes'] = $wpdb->get_results( "SELECT o.*, p.core_documento_id AS presupuesto_core_documento_id FROM {$wpdb->prefix}cpo_ordenes o LEFT JOIN {$wpdb->prefix}cpo_presupuestos p ON p.id = o.presupuesto_id ORDER BY o.created_at DESC", ARRAY_A );
 
         return $data;
     }
