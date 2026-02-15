@@ -44,8 +44,15 @@ $core_active = $data['core_active'];
                                 ?>
                                 <a href="<?php echo esc_url( $status_url ); ?>" class="button-link"><?php echo esc_html( ucfirst( str_replace( '_', ' ', $estado ) ) ); ?></a>
                             <?php endforeach; ?>
-                            <?php $invoice_url = wp_nonce_url( add_query_arg( array( 'page' => 'cpo-ordenes', 'cpo_action' => 'generate_invoice', 'orden_id' => $orden['id'] ) ), 'cpo_generate_invoice' ); ?>
-                            <a href="<?php echo esc_url( $invoice_url ); ?>" class="button-link"><?php esc_html_e( 'Generar factura', 'core-print-offset' ); ?></a>
+                            <?php
+                            $invoice_url = wp_nonce_url( add_query_arg( array( 'page' => 'cpo-ordenes', 'cpo_action' => 'generate_invoice', 'orden_id' => $orden['id'] ) ), 'cpo_generate_invoice' );
+                            $core_documento_id = ! empty( $orden['presupuesto_core_documento_id'] ) ? (int) $orden['presupuesto_core_documento_id'] : (int) ( $orden['core_documento_id'] ?? 0 );
+                            ?>
+                            <?php if ( $core_documento_id > 0 ) : ?>
+                                <span class="button-link"><?php echo esc_html( sprintf( __( 'Ver factura #%d', 'core-print-offset' ), $core_documento_id ) ); ?></span>
+                            <?php else : ?>
+                                <a href="<?php echo esc_url( $invoice_url ); ?>" class="button-link"><?php esc_html_e( 'Generar factura', 'core-print-offset' ); ?></a>
+                            <?php endif; ?>
                         <?php endif; ?>
                     </td>
                 </tr>
