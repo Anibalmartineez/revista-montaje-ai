@@ -445,13 +445,27 @@ class CPO_Admin_Menu {
             return $data;
         }
 
+        if ( isset( $_GET['cpo_proceso_notice'] ) ) {
+            $notice_code = sanitize_key( wp_unslash( $_GET['cpo_proceso_notice'] ) );
+            if ( 'created' === $notice_code ) {
+                $this->add_notice( __( 'Proceso creado.', 'core-print-offset' ) );
+            } elseif ( 'updated' === $notice_code ) {
+                $this->add_notice( __( 'Proceso actualizado.', 'core-print-offset' ) );
+            }
+        }
+
         if ( isset( $_POST['cpo_proceso_save'] ) && check_admin_referer( 'cpo_proceso_save', 'cpo_proceso_nonce' ) ) {
             $id                 = isset( $_POST['proceso_id'] ) ? intval( $_POST['proceso_id'] ) : 0;
             $nombre             = sanitize_text_field( wp_unslash( $_POST['nombre'] ?? '' ) );
             $modo_cobro         = sanitize_text_field( wp_unslash( $_POST['modo_cobro'] ?? 'fijo' ) );
-            $costo_base         = cpo_get_decimal( wp_unslash( $_POST['costo_base'] ?? 0 ) );
+            $costo_base_raw     = wp_unslash( $_POST['costo_base'] ?? '' );
+            $costo_base         = cpo_get_decimal( $costo_base_raw );
             $unidad             = sanitize_text_field( wp_unslash( $_POST['unidad'] ?? '' ) );
             $base_calculo       = sanitize_key( wp_unslash( $_POST['base_calculo'] ?? '' ) );
+            $valid_modos_cobro  = array( 'por_hora', 'por_unidad', 'por_pliego', 'por_millar', 'por_m2', 'por_kg', 'fijo' );
+            if ( ! in_array( $modo_cobro, $valid_modos_cobro, true ) ) {
+                $modo_cobro = 'fijo';
+            }
             if ( ! in_array( $base_calculo, array( 'pliego_base', 'pliego_util', 'unidad_final', 'none' ), true ) ) {
                 $base_calculo = cpo_default_process_base_calculo( $modo_cobro );
             }
@@ -460,13 +474,19 @@ class CPO_Admin_Menu {
             $setup_min          = cpo_get_decimal( wp_unslash( $_POST['setup_min'] ?? 0 ) );
             $activo             = isset( $_POST['activo'] ) ? 1 : 0;
             $now                = cpo_now();
+            $errors             = array();
 
-            $unidad = cpo_encode_process_unit_meta(
-                $unidad,
-                array(
-                    'base_calculo' => $base_calculo,
-                )
-            );
+            if ( '' === $nombre ) {
+                $errors[] = __( 'El nombre del proceso es obligatorio.', 'core-print-offset' );
+            }
+
+            if ( '' === trim( (string) $costo_base_raw ) || ! is_numeric( str_replace( ',', '.', (string) $costo_base_raw ) ) ) {
+                $errors[] = __( 'El costo base debe ser numérico.', 'core-print-offset' );
+            }
+
+            if ( $costo_base < 0 ) {
+                $errors[] = __( 'El costo base no puede ser negativo.', 'core-print-offset' );
+            }
 
             $payload = array(
                 'nombre'            => $nombre,
@@ -480,16 +500,45 @@ class CPO_Admin_Menu {
                 'updated_at'        => $now,
             );
 
-            if ( $id > 0 ) {
-                $wpdb->update( $wpdb->prefix . 'cpo_procesos', $payload, array( 'id' => $id ) );
-                $this->add_notice( __( 'Proceso actualizado.', 'core-print-offset' ) );
-            } else {
-                $payload['created_at'] = $now;
-                $wpdb->insert( $wpdb->prefix . 'cpo_procesos', $payload );
-                $this->add_notice( __( 'Proceso creado.', 'core-print-offset' ) );
-            }
+            if ( empty( $errors ) ) {
+                $table = $wpdb->prefix . 'cpo_procesos';
+                $formats = array( '%s', '%s', '%f', '%s', '%f', '%f', '%f', '%d', '%s' );
 
-            $this->bump_proceso_cache();
+                if ( $id > 0 ) {
+                    $result = $wpdb->update( $table, $payload, array( 'id' => $id ), $formats, array( '%d' ) );
+                    if ( false === $result ) {
+                        $this->add_notice( __( 'No se pudo actualizar el proceso.', 'core-print-offset' ), 'error' );
+                        if ( ! empty( $wpdb->last_error ) ) {
+                            $this->add_notice( $wpdb->last_error, 'error' );
+                        }
+                    } else {
+                        cpo_set_process_base_calculo_meta( $id, $base_calculo );
+                        $this->bump_proceso_cache();
+                        wp_safe_redirect( add_query_arg( array( 'page' => 'cpo-procesos', 'cpo_proceso_notice' => 'updated' ), admin_url( 'admin.php' ) ) );
+                        exit;
+                    }
+                } else {
+                    $payload['created_at'] = $now;
+                    $formats[] = '%s';
+                    $result = $wpdb->insert( $table, $payload, $formats );
+                    if ( false === $result ) {
+                        $this->add_notice( __( 'No se pudo crear el proceso.', 'core-print-offset' ), 'error' );
+                        if ( ! empty( $wpdb->last_error ) ) {
+                            $this->add_notice( $wpdb->last_error, 'error' );
+                        }
+                    } else {
+                        $inserted_id = (int) $wpdb->insert_id;
+                        cpo_set_process_base_calculo_meta( $inserted_id, $base_calculo );
+                        $this->bump_proceso_cache();
+                        wp_safe_redirect( add_query_arg( array( 'page' => 'cpo-procesos', 'cpo_proceso_notice' => 'created' ), admin_url( 'admin.php' ) ) );
+                        exit;
+                    }
+                }
+            } else {
+                foreach ( $errors as $error ) {
+                    $this->add_notice( $error, 'error' );
+                }
+            }
         }
 
         if ( isset( $_GET['cpo_action'], $_GET['proceso_id'], $_GET['_wpnonce'] ) && $_GET['cpo_action'] === 'toggle_proceso' ) {

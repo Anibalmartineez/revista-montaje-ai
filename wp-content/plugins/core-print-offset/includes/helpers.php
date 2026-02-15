@@ -101,6 +101,40 @@ function cpo_default_process_base_calculo( string $modo_cobro ): string {
     }
 }
 
+function cpo_get_process_meta_store(): array {
+    $meta = get_option( 'cpo_process_meta_store', array() );
+
+    return is_array( $meta ) ? $meta : array();
+}
+
+function cpo_get_process_base_calculo_meta( int $process_id ): string {
+    if ( $process_id <= 0 ) {
+        return '';
+    }
+
+    $store = cpo_get_process_meta_store();
+    $value = sanitize_key( (string) ( $store[ $process_id ]['base_calculo'] ?? '' ) );
+
+    return in_array( $value, array( 'pliego_base', 'pliego_util', 'unidad_final', 'none' ), true ) ? $value : '';
+}
+
+function cpo_set_process_base_calculo_meta( int $process_id, string $base_calculo ): void {
+    if ( $process_id <= 0 ) {
+        return;
+    }
+
+    $base_calculo = sanitize_key( $base_calculo );
+    if ( ! in_array( $base_calculo, array( 'pliego_base', 'pliego_util', 'unidad_final', 'none' ), true ) ) {
+        return;
+    }
+
+    $store = cpo_get_process_meta_store();
+    $store[ $process_id ] = array(
+        'base_calculo' => $base_calculo,
+    );
+    update_option( 'cpo_process_meta_store', $store, false );
+}
+
 function cpo_decode_process_unit_meta( string $unidad_raw ): array {
     $meta = array();
     $unidad_clean = trim( $unidad_raw );
@@ -135,6 +169,12 @@ function cpo_encode_process_unit_meta( string $unidad, array $meta ): string {
 }
 
 function cpo_get_process_base_calculo( array $process ): string {
+    $process_id = isset( $process['id'] ) ? intval( $process['id'] ) : 0;
+    $stored_base = cpo_get_process_base_calculo_meta( $process_id );
+    if ( '' !== $stored_base ) {
+        return $stored_base;
+    }
+
     $decoded = cpo_decode_process_unit_meta( (string) ( $process['unidad'] ?? '' ) );
     $meta = is_array( $decoded['meta'] ?? null ) ? $decoded['meta'] : array();
     $base_calculo = sanitize_key( (string) ( $meta['base_calculo'] ?? '' ) );
