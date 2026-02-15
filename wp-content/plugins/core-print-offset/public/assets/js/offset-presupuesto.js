@@ -424,6 +424,7 @@
     };
 
     const validateStructure = async () => {
+        updateSheetDerivedFields();
         const formData = getFormData();
         formData.append('action', 'cpo_offset_validate_structure');
 
@@ -437,10 +438,12 @@
         currentCanCalculate = data.can_calculate !== false;
         setRequiredLabels(data.required_fields || [], data.missing_fields || []);
         setSaveButtonState();
-        if (!manualFormsToggle?.checked && data.forms_per_sheet_auto && formsInput) {
-            formsInput.value = data.forms_per_sheet_auto;
+        if (!manualFormsToggle?.checked && formsInput) {
+            const autoForms = parseInt(data.forms_per_sheet_auto || '0', 10);
+            if (autoForms > 0) {
+                formsInput.value = autoForms;
+            }
         }
-        updateSheetDerivedFields();
         renderTechnicalSummary(data);
         return data;
     };
@@ -594,7 +597,7 @@
     saveButton?.addEventListener('click', savePresupuesto);
     createOrderPrimaryButton?.addEventListener('click', () => createOrderFromPresupuesto(presupuestoIdInput?.value || ''));
 
-    const reactiveFields = ['work_type', 'cantidad', 'paginas', 'material_id', 'ancho_mm', 'alto_mm', 'troquel', 'encuadernacion', 'colores', 'useful_sheet_ancho_mm', 'useful_sheet_alto_mm', 'pieces_per_base', 'cut_fraction', 'cut_mode'];
+    const reactiveFields = ['work_type', 'cantidad', 'paginas', 'material_id', 'ancho_mm', 'alto_mm', 'troquel', 'encuadernacion', 'colores', 'sangrado_mm', 'merma_pct', 'orientacion', 'useful_sheet_ancho_mm', 'useful_sheet_alto_mm', 'pieces_per_base', 'cut_fraction', 'cut_mode'];
     reactiveFields.forEach((fieldName) => {
         const field = form.querySelector(`[name="${fieldName}"]`);
         if (!field) return;

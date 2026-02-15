@@ -278,7 +278,7 @@ class CPO_Public {
                             </label>
                             <label>
                                 <?php esc_html_e( 'Formas por pliego (AUTO)', 'core-print-offset' ); ?>
-                                <input type="number" name="formas_por_pliego" min="1" required value="4" readonly data-forms-input>
+                                <input type="number" name="formas_por_pliego" min="1" required value="1" readonly data-forms-input>
                             </label>
                             <label>
                                 <?php esc_html_e( 'Merma %', 'core-print-offset' ); ?>
@@ -865,14 +865,10 @@ class CPO_Public {
 
         $can_calculate = empty( $missing_fields );
 
-        $production_summary = '';
-        $result = array();
-        if ( $can_calculate ) {
-            $result = CPO_Calculator::calculate( $payload );
-            $production_summary = (string) ( $result['production_summary'] ?? '' );
-            if ( ! empty( $result['warnings'] ) && is_array( $result['warnings'] ) ) {
-                $validation['warnings'] = array_values( array_unique( array_merge( $validation['warnings'] ?? array(), $result['warnings'] ) ) );
-            }
+        $result = CPO_Calculator::calculate( $payload );
+        $production_summary = (string) ( $result['production_summary'] ?? '' );
+        if ( ! empty( $result['warnings'] ) && is_array( $result['warnings'] ) ) {
+            $validation['warnings'] = array_values( array_unique( array_merge( $validation['warnings'] ?? array(), $result['warnings'] ) ) );
         }
 
         wp_send_json_success(
