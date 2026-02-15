@@ -50,6 +50,28 @@ class CPO_Calculator {
         $horas_maquina = max( 0, (float) $payload['horas_maquina'] );
         $costo_hora_override = max( 0, (float) $payload['costo_hora'] );
 
+        $maquina = null;
+        $maquina_defaulted = false;
+
+        if ( $maquina_id > 0 ) {
+            $maquina = self::get_machine_by_id( $maquina_id );
+            if ( ! $maquina ) {
+                $warnings[] = __( 'La máquina seleccionada no está disponible.', 'core-print-offset' );
+            }
+        }
+
+        if ( ! $maquina && $allow_machine_default && ( ! $has_maquina_id || ( $maquina_id_raw === null || (int) $maquina_id_raw <= 0 ) ) ) {
+            $maquina = self::get_default_machine();
+            if ( $maquina ) {
+                $maquina_defaulted = true;
+                $maquina_id = (int) ( $maquina['id'] ?? 0 );
+            }
+        }
+
+        $costo_hora = $costo_hora_override > 0
+            ? $costo_hora_override
+            : ( $maquina ? max( 0.0, (float) ( $maquina['costo_hora'] ?? 0 ) ) : 0.0 );
+
         $material = null;
         $precio_pliego = 0;
         $precio_note = '';
@@ -106,6 +128,21 @@ class CPO_Calculator {
         $pliegos_utiles = $pliegos_necesarios;
         $pieces_per_base = max( 1, (int) ( $sheet_context['pieces_per_base'] ?? 1 ) );
         $pliegos_base = (int) ceil( $pliegos_utiles / $pieces_per_base );
+
+        if ( $snapshot_version >= 2 && class_exists( 'CPO_Production_Engine' ) ) {
+            $production_result = CPO_Production_Engine::calculate( $payload, $maquina );
+            if ( ! empty( $production_result['warnings'] ) && is_array( $production_result['warnings'] ) ) {
+                $warnings = array_values( array_unique( array_merge( $warnings, $production_result['warnings'] ) ) );
+            }
+
+            $formas_por_pliego = max( 1, (int) ( $production_result['formas_por_pliego'] ?? $formas_por_pliego ) );
+            $pliegos_netos = (int) ceil( $cantidad / $formas_por_pliego );
+            $pliegos_con_merma = (int) ( $production_result['pliegos'] ?? $pliegos_con_merma );
+            $pliegos_necesarios = (int) ( $production_result['pliegos_necesarios'] ?? $pliegos_con_merma );
+            $pliegos_utiles = max( 0, (int) ( $production_result['pliegos_utiles'] ?? $pliegos_utiles ) );
+            $pieces_per_base = max( 1, (int) ( $production_result['pieces_per_base'] ?? $pieces_per_base ) );
+            $pliegos_base = max( 0, (int) ( $production_result['pliegos_base'] ?? $pliegos_base ) );
+        }
 
         $costo_papel = $pliegos_base * $precio_pliego;
 
@@ -228,8 +265,31 @@ class CPO_Calculator {
                 'setup_min'       => isset( $proceso['setup_min'] ) ? (float) $proceso['setup_min'] : null,
             );
         }
-        $costo_maquina = 0;
-        if ( $maquina && $horas_maquina > 0 ) {
+        if ( $maquina ) {
+            $setup_horas = max( 0.0, (float) ( $maquina['setup_min'] ?? 0 ) ) / 60;
+            $rendimiento_pliegos_hora = max( 0.0, (float) ( $maquina['rendimiento_pliegos_hora'] ?? 0 ) );
+            $rendimiento_hora = max( 0.0, (float) ( $maquina['rendimiento_hora'] ?? 0 ) );
+
+            $horas_produccion = 0.0;
+            if ( $rendimiento_pliegos_hora > 0 && $pliegos_utiles > 0 ) {
+                $horas_produccion = (float) $pliegos_utiles / $rendimiento_pliegos_hora;
+            } elseif ( $rendimiento_hora > 0 ) {
+                $base_rendimiento = $pliegos_utiles > 0 ? $pliegos_utiles : $cantidad;
+                $horas_produccion = (float) $base_rendimiento / $rendimiento_hora;
+            } elseif ( $horas_maquina > 0 ) {
+                $horas_produccion = $horas_maquina;
+            } else {
+                $warnings[] = __( 'La máquina no tiene rendimiento válido para calcular horas.', 'core-print-offset' );
+            }
+
+            $horas_totales_maquina = $setup_horas + max( 0.0, $horas_produccion );
+            if ( $horas_totales_maquina > 0 ) {
+                $horas_maquina = $horas_totales_maquina;
+            }
+        }
+
+        $costo_maquina = 0.0;
+        if ( $maquina && $horas_maquina > 0 && $costo_hora > 0 ) {
             $costo_maquina = $costo_hora * $horas_maquina;
         }
 
