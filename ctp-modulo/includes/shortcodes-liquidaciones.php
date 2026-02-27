@@ -66,6 +66,10 @@ function ctp_render_liquidaciones_shortcode(): string {
     $table_html .= wp_nonce_field('ctp_generar_liquidacion', '_wpnonce', true, false);
     $table_html .= '<input type="hidden" name="action" value="ctp_generar_liquidacion">';
     $table_html .= '<input type="hidden" name="cliente_id" value="' . esc_attr($cliente_id) . '">';
+    $table_html .= '<fieldset class="ctp-detalle-items"><legend>Detalle de ítems</legend>'
+        . '<label><input type="radio" name="detalle_items" value="orden" checked> Por orden</label>'
+        . '<label><input type="radio" name="detalle_items" value="item"> Por ítem</label>'
+        . '</fieldset>';
     $table_html .= '<div class="gc-table-wrap"><table class="gc-table">'
         . '<thead><tr><th></th><th>Fecha</th><th>N° Orden</th><th>Trabajo</th><th>Total</th></tr></thead>'
         . '<tbody>' . $rows_html . '</tbody></table></div>';

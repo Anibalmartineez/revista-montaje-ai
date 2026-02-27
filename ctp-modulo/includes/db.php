@@ -10,6 +10,7 @@ function ctp_modulo_install(): void {
 
     $ordenes_table = $wpdb->prefix . 'ctp_ordenes';
     $items_table = $wpdb->prefix . 'ctp_orden_items';
+    $liquidacion_ordenes_table = $wpdb->prefix . 'ctp_liquidacion_ordenes';
 
     $sql_ordenes = "CREATE TABLE {$ordenes_table} (
         id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
@@ -42,10 +43,22 @@ function ctp_modulo_install(): void {
         KEY orden_id (orden_id)
     ) {$charset_collate};";
 
+    $sql_liquidacion_ordenes = "CREATE TABLE {$liquidacion_ordenes_table} (
+        id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+        documento_id BIGINT UNSIGNED NOT NULL,
+        orden_id BIGINT UNSIGNED NOT NULL,
+        created_at DATETIME NOT NULL,
+        PRIMARY KEY (id),
+        UNIQUE KEY documento_orden (documento_id, orden_id),
+        KEY documento_id (documento_id),
+        KEY orden_id (orden_id)
+    ) {$charset_collate};";
+
     require_once ABSPATH . 'wp-admin/includes/upgrade.php';
 
     dbDelta($sql_ordenes);
     dbDelta($sql_items);
+    dbDelta($sql_liquidacion_ordenes);
 
     ctp_modulo_maybe_add_column($ordenes_table, 'documento_id', 'BIGINT UNSIGNED NULL');
     ctp_modulo_maybe_add_column($ordenes_table, 'estado', "ENUM('pendiente','liquidada','anulada') NOT NULL DEFAULT 'pendiente'");
@@ -57,11 +70,13 @@ function ctp_modulo_tables_exist(): bool {
     global $wpdb;
     $ordenes_table = $wpdb->prefix . 'ctp_ordenes';
     $items_table = $wpdb->prefix . 'ctp_orden_items';
+    $liquidacion_ordenes_table = $wpdb->prefix . 'ctp_liquidacion_ordenes';
 
     $ordenes_exists = $wpdb->get_var($wpdb->prepare('SHOW TABLES LIKE %s', $ordenes_table));
     $items_exists = $wpdb->get_var($wpdb->prepare('SHOW TABLES LIKE %s', $items_table));
+    $liquidacion_ordenes_exists = $wpdb->get_var($wpdb->prepare('SHOW TABLES LIKE %s', $liquidacion_ordenes_table));
 
-    return !empty($ordenes_exists) && !empty($items_exists);
+    return !empty($ordenes_exists) && !empty($items_exists) && !empty($liquidacion_ordenes_exists);
 }
 
 function ctp_modulo_maybe_add_column(string $table, string $column, string $definition): void {
