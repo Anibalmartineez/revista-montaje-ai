@@ -14,6 +14,7 @@ import base64
 from html import unescape
 from typing import Any, Dict, List
 from types import SimpleNamespace
+from services.openai_client import create_chat_completion
 
 from utils import (
     convertir_pts_a_mm,
@@ -37,14 +38,6 @@ from tinta_utils import (
 
 # Inicializa el cliente de OpenAI solo si hay API key disponible, evitando
 # errores durante la importación en entornos de test.
-try:
-    from openai import OpenAI
-
-    api_key = os.environ.get("OPENAI_API_KEY")
-    client = OpenAI(api_key=api_key) if api_key else None
-except Exception:  # pragma: no cover - la librería es opcional
-    client = None
-
 PT_PER_MM = 72 / 25.4
 
 
@@ -986,7 +979,7 @@ def generar_sugerencia_produccion(diagnostico_texto: str, resultado_revision: st
                 "content": f"Diagnóstico:\n{diagnostico_texto}\n\nResultado de la revisión:\n{resultado_revision}",
             },
         ]
-        respuesta = client.chat.completions.create(
+        respuesta = create_chat_completion(
             model="gpt-4",
             messages=mensajes,
             temperature=0.3,
