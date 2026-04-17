@@ -17,3 +17,15 @@ htmlcov/
 
 .DS_Store
 Thumbs.db
+
+# Archivos generados por el sistema (NO versionar)
+static/uploads/
+static/previews/
+static/simulaciones/
+static/ia_jobs/
+
+# PDFs de prueba o generados
+*.pdf
+
+# Archivos internos de pruebas
+AGENTS.md
