@@ -159,6 +159,11 @@ def _job_relpath(job_id: str, *parts: str) -> str:
     return os.path.join(POST_EDITOR_DIR, job_id, *parts).replace("\\", "/")
 
 
+def _static_web_relpath(abs_path: str) -> str:
+    """Convierte una ruta absoluta dentro de static/ a un path web estable."""
+    return os.path.relpath(abs_path, current_app.static_folder).replace("\\", "/")
+
+
 def _layout_path(job_dir: str) -> str:
     return os.path.join(job_dir, LAYOUT_FILENAME)
 
@@ -2422,13 +2427,13 @@ def revision():
         diag_abs = os.path.join(rev_dir, "diagnostico.png")
         shutil.copy(base_img_path, diag_abs)
         base_img_path = diag_abs
-        diag_rel = os.path.relpath(diag_abs, current_app.static_folder)
+        diag_rel = _static_web_relpath(diag_abs)
 
         iconos_src = os.path.join(current_app.static_folder, imagen_iconos_rel)
         iconos_abs = os.path.join(rev_dir, "diagnostico_iconos.png")
         shutil.copy(iconos_src, iconos_abs)
         imagen_rel = diag_rel
-        imagen_iconos_rel = os.path.relpath(iconos_abs, current_app.static_folder)
+        imagen_iconos_rel = _static_web_relpath(iconos_abs)
 
         tabla_riesgos = simular_riesgos(resumen)
 
@@ -2437,7 +2442,7 @@ def revision():
         sim_filename = f"sim_{revision_id}.png"
         sim_abs = os.path.join(sim_dir, sim_filename)
         generar_simulacion_avanzada(base_img_path, advertencias_iconos, anilox_lpi, sim_abs)
-        sim_rel = os.path.relpath(sim_abs, current_app.static_folder)
+        sim_rel = _static_web_relpath(sim_abs)
 
         try:
             with fitz.open(save_path) as doc_dimensiones:
@@ -2524,7 +2529,9 @@ def revision():
 
         final_pdf_path = os.path.join(rev_dir, f"{revision_id}.pdf")
         shutil.copy(save_path, final_pdf_path)
-        pdf_rel = os.path.relpath(final_pdf_path, current_app.static_folder)
+        pdf_rel = _static_web_relpath(final_pdf_path)
+
+        sugerencia_produccion = generar_sugerencia_produccion(texto, resumen)
 
         diagnostico_json.update(
             {
@@ -2647,6 +2654,7 @@ def revision():
             "material_coeficiente": material_coef,
             "material_coefficients": material_coeffs,
             "cobertura_total": cobertura_total_val,
+            "sugerencia_produccion": sugerencia_produccion,
         }
 
         diag_json_path = os.path.join(rev_dir, "diag.json")
@@ -2703,6 +2711,18 @@ def resultado_flexo():
     # ``res.json``; en ese caso, reutilizamos la imagen con iconos si existe.
     if "diag_img_web" not in datos:
         datos["diag_img_web"] = datos.get("imagen_iconos_web") or datos.get("imagen_path_web")
+
+    for path_key in (
+        "imagen_path_web",
+        "imagen_iconos_web",
+        "pdf_path_web",
+        "sim_img_web",
+        "diag_base_web",
+        "diag_img_web",
+    ):
+        raw_value = datos.get(path_key)
+        if isinstance(raw_value, str):
+            datos[path_key] = raw_value.replace("\\", "/")
 
     diag_json = datos.get("diagnostico_json")
     if not isinstance(diag_json, dict):
