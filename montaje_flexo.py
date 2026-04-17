@@ -961,22 +961,178 @@ def generar_diagnostico_texto(html_diagnostico: str) -> str:
     return "\n".join(lineas)
 
 
+def _strip_html_to_text(value: str) -> str:
+    if not value:
+        return ""
+    texto = re.sub(r"<br\s*/?>", "\n", value, flags=re.IGNORECASE)
+    texto = re.sub(r"</li\s*>", "\n", texto, flags=re.IGNORECASE)
+    texto = re.sub(r"</p\s*>", "\n", texto, flags=re.IGNORECASE)
+    texto = re.sub(r"<[^>]+>", "", texto)
+    texto = unescape(texto)
+    texto = texto.replace("\r", "\n")
+    texto = re.sub(r"\n{2,}", "\n", texto)
+    return texto.strip()
+
+
+def _extract_first_match(texto: str, patrones: List[str]) -> str | None:
+    for patron in patrones:
+        match = re.search(patron, texto, flags=re.IGNORECASE)
+        if match:
+            value = next((g for g in match.groups() if g is not None), None)
+            if value:
+                return " ".join(str(value).split())
+    return None
+
+
+def _collect_warning_lines(*texts: str, limit: int = 5) -> List[str]:
+    keywords = (
+        "riesgo",
+        "advert",
+        "problema",
+        "warning",
+        "trama",
+        "texto pequeño",
+        "texto pequeno",
+        "linea fina",
+        "línea fina",
+        "sobreimp",
+        "sangrado",
+        "resolución",
+        "resolucion",
+        "barniz",
+        "troquel",
+        "secado",
+        "ganancia de punto",
+        "baja",
+        "alta",
+    )
+    items: List[str] = []
+    seen = set()
+    for raw in texts:
+        clean = _strip_html_to_text(raw)
+        if not clean:
+            continue
+        for line in clean.splitlines():
+            line = " ".join(line.split())
+            if not line:
+                continue
+            low = line.lower()
+            if not any(keyword in low for keyword in keywords):
+                continue
+            line = re.sub(r"^[^\wáéíóúñüÁÉÍÓÚÑÜ]+", "", line)
+            if line and line not in seen:
+                seen.add(line)
+                items.append(line)
+            if len(items) >= limit:
+                return items
+    return items
+
+
+def _build_sugerencia_produccion_resumen(
+    diagnostico_texto: str, resultado_revision: str
+) -> str:
+    resultado_texto = _strip_html_to_text(resultado_revision)
+    diagnostico_plano = _strip_html_to_text(diagnostico_texto)
+    corpus = "\n".join(part for part in (resultado_texto, diagnostico_plano) if part)
+
+    material = _extract_first_match(
+        corpus,
+        [
+            r"Material de impresi[oó]n:\s*([^\n]+)",
+            r"material\s+'([^']+)'",
+        ],
+    )
+    anilox_lpi = _extract_first_match(
+        corpus,
+        [
+            r"Anilox(?:\s+LPI(?:\s*\(diagn[oó]stico\))?)?:\s*([0-9]+(?:[.,][0-9]+)?)",
+            r"Anilox:\s*([0-9]+(?:[.,][0-9]+)?)\s*lpi",
+        ],
+    )
+    bcm = _extract_first_match(
+        corpus,
+        [
+            r"BCM del anilox:\s*([0-9]+(?:[.,][0-9]+)?)",
+            r"\bBCM\b[^0-9]*([0-9]+(?:[.,][0-9]+)?)",
+        ],
+    )
+    velocidad = _extract_first_match(
+        corpus,
+        [
+            r"Velocidad(?:\s+estimada\s+de\s+impresi[oó]n|\s+de\s+c[aá]lculo)?:\s*([0-9]+(?:[.,][0-9]+)?)\s*m/min",
+        ],
+    )
+    paso = _extract_first_match(
+        corpus,
+        [r"Paso del cilindro:\s*([0-9]+(?:[.,][0-9]+)?)\s*mm"],
+    )
+    tamano = _extract_first_match(
+        corpus,
+        [r"Tama[nñ]o del dise[nñ]o:\s*([0-9]+(?:[.,][0-9]+)?\s*x\s*[0-9]+(?:[.,][0-9]+)?\s*mm)"],
+    )
+    cobertura_total = _extract_first_match(
+        corpus,
+        [r"Cobertura total(?: estimada del dise[nñ]o)?:\s*([0-9]+(?:[.,][0-9]+)?)\s*%"],
+    )
+    tac_promedio = _extract_first_match(
+        corpus,
+        [
+            r"TAC promedio detectado(?:\s*\(suma CMYK\))?:\s*([0-9]+(?:[.,][0-9]+)?)\s*%",
+            r"TAC promedio(?: detectado)?:\s*([0-9]+(?:[.,][0-9]+)?)\s*%",
+        ],
+    )
+
+    advertencias = _collect_warning_lines(resultado_revision, diagnostico_texto, limit=5)
+    problemas_txt = (
+        "; ".join(advertencias[:3])
+        if advertencias
+        else "No se detectaron problemas resumidos."
+    )
+    advertencias_txt = (
+        "; ".join(advertencias)
+        if advertencias
+        else "Sin advertencias críticas resumibles."
+    )
+
+    resumen_lineas = [
+        f"Material: {material or 'No disponible'}",
+        f"Anilox LPI: {anilox_lpi or 'No disponible'}",
+        f"BCM: {bcm or 'No disponible'}",
+        f"Velocidad: {velocidad + ' m/min' if velocidad else 'No disponible'}",
+        f"Paso del cilindro: {paso + ' mm' if paso else 'No disponible'}",
+        f"Tamaño del diseño: {tamano or 'No disponible'}",
+        f"Cobertura total: {cobertura_total + '%' if cobertura_total else 'No disponible'}",
+        f"TAC promedio: {tac_promedio + '%' if tac_promedio else 'No disponible'}",
+        f"Problemas detectados: {problemas_txt}",
+        f"Advertencias principales: {advertencias_txt}",
+    ]
+    return "\n".join(resumen_lineas)
+
+
 def generar_sugerencia_produccion(diagnostico_texto: str, resultado_revision: str) -> str:
     """Genera sugerencias prácticas de producción basadas en el diagnóstico."""
     try:
+        resumen_tecnico = _build_sugerencia_produccion_resumen(
+            diagnostico_texto, resultado_revision
+        )
         mensajes = [
             {
                 "role": "system",
                 "content": (
                     "Eres un especialista en producción de impresión flexográfica. "
                     "Brinda recomendaciones prácticas basadas en el diagnóstico entregado. "
+                    "Responde en español, de forma corta, clara, técnica y orientada a producción flexográfica. "
+                    "Limita la respuesta a un bloque breve con recomendaciones accionables. "
                     "Evalúa si el archivo está listo para impresión, riesgos en máquina, tipo de anilox según cobertura, "
                     "cambios de técnica de impresión, uso de barniz, doble pasada o reducción de colores y ajustes de preprensa."
                 ),
             },
             {
                 "role": "user",
-                "content": f"Diagnóstico:\n{diagnostico_texto}\n\nResultado de la revisión:\n{resultado_revision}",
+                "content": (
+                    "Genera una recomendación de producción a partir de este resumen técnico.\n\n"
+                    f"{resumen_tecnico}"
+                ),
             },
         ]
         respuesta = create_chat_completion(
