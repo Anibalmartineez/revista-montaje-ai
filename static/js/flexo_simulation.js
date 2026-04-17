@@ -48,6 +48,18 @@ document.addEventListener('DOMContentLoaded', () => {
   };
 
   const diagnostico = window.diagnosticoJson || {};
+  const resultadoDiagnostico =
+    diagnostico && typeof diagnostico.resultado_diagnostico === 'object'
+      ? diagnostico.resultado_diagnostico
+      : {};
+  const metricasDiagnostico =
+    resultadoDiagnostico && typeof resultadoDiagnostico.metricas === 'object'
+      ? resultadoDiagnostico.metricas
+      : {};
+  const umbralesDiagnostico =
+    resultadoDiagnostico && typeof resultadoDiagnostico.umbrales === 'object'
+      ? resultadoDiagnostico.umbrales
+      : {};
   const usePipelineV2 = Boolean(window.USE_PIPELINE_V2);
   const analisis = window.analisisDetallado || {};
   const advertenciasLista = Array.isArray(window.advertencias) ? window.advertencias : [];
@@ -68,6 +80,14 @@ document.addEventListener('DOMContentLoaded', () => {
   const tintaIdeal = getInkIdeal(diagnostico);
   const diagnosticoBaseFactors = getDiagnosticBaseFactors();
   const diagnosticoInkPerColor = normalizeInkPerColor(diagnostico.tinta_por_canal_ml_min);
+  const advertenciasCanonicas =
+    resultadoDiagnostico && typeof resultadoDiagnostico.advertencias === 'object'
+      ? resultadoDiagnostico.advertencias
+      : {};
+  const sobreimpresionCanonica =
+    advertenciasCanonicas && typeof advertenciasCanonicas.sobreimpresion === 'object'
+      ? advertenciasCanonicas.sobreimpresion
+      : {};
   const baseImgUrl = normalizeUrl(
     canvas.dataset.baseImg ||
       (baseImgEl ? baseImgEl.getAttribute('src') : '') ||
@@ -390,21 +410,38 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     if (metricsEls.overprint) {
-      if (!advertenciasStats.hay_overprint) {
-        metricsEls.overprint.textContent = 'Sin sobreimpresiones detectadas';
+      const backendOverprintCount =
+        asNumber(sobreimpresionCanonica.conteo) ??
+        asNumber(diagnostico.conteo_overprint) ??
+        advertenciasStats.conteo_overprint;
+      const backendOverprintDetected =
+        Boolean(sobreimpresionCanonica.detectada) ||
+        Boolean(diagnostico.tiene_overprint) ||
+        Boolean(advertenciasStats.hay_overprint) ||
+        (Number.isFinite(backendOverprintCount) && backendOverprintCount > 0);
+      if (!backendOverprintDetected) {
+        metricsEls.overprint.textContent = 'Sin sobreimpresiones detectadas en diagnóstico base';
       } else {
-        const count = advertenciasStats.conteo_overprint || 0;
-        metricsEls.overprint.textContent = `⚠️ ${count} objeto(s) con sobreimpresión activa`;
+        const count = Number.isFinite(backendOverprintCount) ? backendOverprintCount : 0;
+        metricsEls.overprint.textContent = `⚠️ ${count} objeto(s) con sobreimpresión activa en diagnóstico base`;
       }
     }
 
     updateCoverageList(coverageState);
 
-    const backendRisk = normalizeBackendRisk(diagnostico.ink_risk);
-    const riskSource = simulationActive ? 'Simulado' : 'Diagnóstico';
+    const backendRisk = normalizeBackendRisk(
+      (resultadoDiagnostico && resultadoDiagnostico.riesgo_global) || diagnostico.ink_risk,
+    );
+    const riskSource = simulationActive ? 'Simulación ajustada' : 'Diagnóstico base';
     const riskToShow = simulationActive
-      ? evaluateRisk(simulatedValue, tintaIdeal)
-      : backendRisk ?? evaluateRisk(baseTransmission, tintaIdeal);
+      ? evaluateRisk(simulatedValue, tintaIdeal, tacTotal, metricasDiagnostico.cobertura_total)
+      : backendRisk ??
+        evaluateRisk(
+          baseTransmission,
+          tintaIdeal,
+          leerTacFromDj(diagnostico, usePipelineV2),
+          metricasDiagnostico.cobertura_total,
+        );
 
     updateRiskUI(riskToShow, riskSource);
 
@@ -771,9 +808,17 @@ document.addEventListener('DOMContentLoaded', () => {
     return { level, label, reasons };
   }
 
-  function evaluateRisk(value, ideal) {
+  function evaluateRisk(value, ideal, tacValue, coverageTotal) {
     const idealVal = Number.isFinite(ideal) && ideal > 0 ? ideal : null;
     const val = Number.isFinite(value) ? value : null;
+    const tacVal = Number.isFinite(tacValue) ? tacValue : null;
+    const coverageVal = Number.isFinite(coverageTotal) ? coverageTotal : null;
+    const tacWarning = asNumber(umbralesDiagnostico.tac_warning) ?? 280;
+    const tacCritical = asNumber(umbralesDiagnostico.tac_critical) ?? 320;
+    const tacLow = asNumber(umbralesDiagnostico.tac_low) ?? 120;
+    const coverageHigh = asNumber(umbralesDiagnostico.coverage_high) ?? 85;
+    const coverageLow = asNumber(umbralesDiagnostico.coverage_low) ?? 10;
+
     if (val === null || idealVal === null) {
       return {
         level: 1,
@@ -781,41 +826,64 @@ document.addEventListener('DOMContentLoaded', () => {
         reasons: ['Sin datos suficientes para evaluar la transmisión de tinta.'],
       };
     }
+
     const ratio = val / idealVal;
     const deltaPct = (ratio - 1) * 100;
-    if (ratio >= 0.9 && ratio <= 1.1) {
-      return {
-        level: 0,
-        label: 'Verde',
-        reasons: [`Dentro de ±10% del ideal (${val.toFixed(2)} vs ${idealVal.toFixed(0)} ml/min).`],
-      };
+
+    const demandaAlta =
+      (coverageVal !== null && coverageVal >= coverageHigh) ||
+      (tacVal !== null && tacVal >= tacWarning);
+    const demandaBaja =
+      (coverageVal !== null && coverageVal <= coverageLow) ||
+      (tacVal !== null && tacVal <= tacLow);
+    const tintaBaja = ratio < 0.9;
+    const tintaAlta = ratio > 1.1;
+    const severidadTinta = ratio < 0.7 || ratio > 1.3 ? 2 : tintaBaja || tintaAlta ? 1 : 0;
+
+    const reasons = [];
+    if (coverageVal !== null) {
+      if (coverageVal >= coverageHigh) {
+        reasons.push(`Cobertura total alta (${coverageVal.toFixed(2)}%).`);
+      } else if (coverageVal <= coverageLow) {
+        reasons.push(`Cobertura total baja (${coverageVal.toFixed(2)}%).`);
+      }
     }
-    if (ratio >= 0.7 && ratio < 0.9) {
-      return {
-        level: 1,
-        label: 'Amarillo',
-        reasons: [`Subcarga ${Math.abs(deltaPct).toFixed(0)}% bajo el ideal.`],
-      };
+    if (tacVal !== null) {
+      if (tacVal >= tacCritical) {
+        reasons.push(`TAC crítico (${tacVal.toFixed(1)}%).`);
+      } else if (tacVal >= tacWarning) {
+        reasons.push(`TAC alto (${tacVal.toFixed(1)}%).`);
+      } else if (tacVal <= tacLow) {
+        reasons.push(`TAC bajo (${tacVal.toFixed(1)}%).`);
+      }
     }
-    if (ratio > 1.1 && ratio <= 1.3) {
-      return {
-        level: 1,
-        label: 'Amarillo',
-        reasons: [`Sobre carga +${deltaPct.toFixed(0)}% sobre el ideal.`],
-      };
+
+    if (demandaAlta && tintaBaja) {
+      reasons.unshift(
+        `Desbalance: carga gráfica alta con transmisión ${Math.abs(deltaPct).toFixed(0)}% bajo el ideal.`,
+      );
+      return { level: severidadTinta >= 1 ? 2 : 1, label: 'Rojo', reasons };
     }
-    if (ratio < 0.7) {
-      return {
-        level: 2,
-        label: 'Rojo',
-        reasons: [`Subcarga ${Math.abs(deltaPct).toFixed(0)}% bajo el ideal.`],
-      };
+    if (demandaAlta && tintaAlta) {
+      reasons.unshift(`Sobrecarga: transmisión +${deltaPct.toFixed(0)}% sobre el ideal.`);
+      return { level: 2, label: 'Rojo', reasons };
     }
-    return {
-      level: 2,
-      label: 'Rojo',
-      reasons: [`Sobre carga +${deltaPct.toFixed(0)}% sobre el ideal.`],
-    };
+    if (demandaBaja && tintaBaja) {
+      reasons.unshift(
+        `Subcarga: transmisión ${Math.abs(deltaPct).toFixed(0)}% bajo el ideal con baja carga gráfica.`,
+      );
+      return { level: severidadTinta >= 1 ? 2 : 1, label: 'Rojo', reasons };
+    }
+    if (tintaAlta) {
+      reasons.unshift(`Sobrecarga ${deltaPct.toFixed(0)}% sobre el ideal.`);
+      return { level: severidadTinta, label: severidadTinta >= 2 ? 'Rojo' : 'Amarillo', reasons };
+    }
+    if (tintaBaja) {
+      reasons.unshift(`Subcarga ${Math.abs(deltaPct).toFixed(0)}% bajo el ideal.`);
+      return { level: severidadTinta, label: severidadTinta >= 2 ? 'Rojo' : 'Amarillo', reasons };
+    }
+    reasons.unshift(`Transmisión dentro de ±10% del ideal (${val.toFixed(2)} vs ${idealVal.toFixed(0)} ml/min).`);
+    return { level: 0, label: 'Verde', reasons };
   }
 
   function resolveMaterialCoefficient(material, preset) {

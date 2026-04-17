@@ -120,6 +120,255 @@ def evaluar_riesgo_tinta(material: str | None, ml_min: float | None) -> Dict[str
     return {"level": nivel, "label": etiqueta, "reasons": list(razones)}
 
 
+def _as_number(value: Any) -> float | None:
+    if value is None:
+        return None
+    try:
+        numero = float(value)
+    except (TypeError, ValueError):
+        return None
+    if not math.isfinite(numero):
+        return None
+    return numero
+
+
+def construir_resultado_diagnostico(
+    diagnostico_json: Dict[str, Any] | None,
+    *,
+    advertencias_resumen: str | None = None,
+    indicadores_advertencias: Dict[str, Any] | None = None,
+) -> Dict[str, Any]:
+    """Genera una fuente única de verdad para métricas e interpretación flexo."""
+
+    dj = dict(diagnostico_json or {})
+    material = (dj.get("material") or "").strip()
+    anilox_lpi = _as_number(dj.get("anilox_lpi") or dj.get("lpi"))
+    anilox_bcm = _as_number(dj.get("anilox_bcm") or dj.get("bcm"))
+    velocidad = _as_number(dj.get("velocidad_impresion") or dj.get("velocidad"))
+    paso = _as_number(
+        dj.get("paso_del_cilindro") or dj.get("paso_cilindro") or dj.get("paso")
+    )
+    ancho_mm = _as_number(dj.get("ancho_mm"))
+    alto_mm = _as_number(dj.get("alto_mm"))
+    cobertura_total = _as_number(dj.get("cobertura_total"))
+    cobertura_por_canal = normalizar_coberturas(
+        dj.get("cobertura_por_canal") or dj.get("cobertura")
+    )
+    indicadores = dict(indicadores_advertencias or {})
+    overprint_count = int(indicadores.get("conteo_overprint") or 0)
+    overprint_detected = bool(indicadores.get("hay_overprint") or overprint_count > 0)
+    dominant_channel = None
+    dominant_channel_value = None
+    if cobertura_por_canal:
+        dominant_channel, dominant_channel_value = max(
+            cobertura_por_canal.items(),
+            key=lambda item: item[1],
+        )
+
+    tac_total = _as_number(dj.get("tac_total_v2"))
+    if tac_total is None:
+        tac_total = _as_number(dj.get("tac_total"))
+    if tac_total is None and cobertura_por_canal:
+        tac_total = tac_desde_cobertura(cobertura_por_canal)
+    if tac_total is not None:
+        tac_total = round(tac_total, 2)
+
+    ml_min = _as_number(dj.get("tinta_ml_min"))
+    ml_min_ideal = _as_number(dj.get("tinta_ideal_ml_min"))
+    if ml_min_ideal is None and material:
+        ml_min_ideal = get_ink_ideal_mlmin(material)
+
+    thresholds = obtener_thresholds_flexo(material=material, anilox_lpi=anilox_lpi)
+    coverage_high = 85.0
+    coverage_low = 10.0
+    tac_low = round(max(80.0, thresholds.tac_warning * 0.45), 2)
+
+    coverage_status = "sin_datos"
+    coverage_reasons: List[str] = []
+    if cobertura_total is not None:
+        cobertura_total = round(cobertura_total, 2)
+        if cobertura_total >= coverage_high:
+            coverage_status = "alta"
+            coverage_reasons.append(
+                f"Cobertura total alta ({cobertura_total:.2f}%). Tendencia a sobrecarga."
+            )
+        elif cobertura_total <= coverage_low:
+            coverage_status = "baja"
+            coverage_reasons.append(
+                f"Cobertura total baja ({cobertura_total:.2f}%). Tendencia a subcarga."
+            )
+        else:
+            coverage_status = "normal"
+            coverage_reasons.append(
+                f"Cobertura total dentro de rango operativo ({cobertura_total:.2f}%)."
+            )
+
+    tac_status = "sin_datos"
+    tac_reasons: List[str] = []
+    if tac_total is not None:
+        if tac_total >= thresholds.tac_critical:
+            tac_status = "alto"
+            tac_reasons.append(
+                f"TAC alto ({tac_total:.2f}%) sobre el límite crítico {thresholds.tac_critical}%."
+            )
+        elif tac_total >= thresholds.tac_warning:
+            tac_status = "alto"
+            tac_reasons.append(
+                f"TAC elevado ({tac_total:.2f}%) sobre el límite recomendado {thresholds.tac_warning}%."
+            )
+        elif tac_total <= tac_low:
+            if cobertura_total is not None and cobertura_total >= coverage_high:
+                tac_status = "normal"
+                tac_reasons.append(
+                    f"TAC moderado ({tac_total:.2f}%) con cobertura total alta ({cobertura_total:.2f}%). No se interpreta como TAC bajo por posible predominio de un canal."
+                )
+            else:
+                tac_status = "bajo"
+                tac_reasons.append(
+                    f"TAC bajo ({tac_total:.2f}%). Riesgo de impresión débil."
+                )
+        else:
+            tac_status = "normal"
+            tac_reasons.append(f"TAC dentro de rango operativo ({tac_total:.2f}%).")
+
+    transferencia_riesgo = evaluar_riesgo_tinta(material, ml_min)
+    ink_level = int(transferencia_riesgo.get("level", 1))
+    if ml_min is None or ml_min_ideal is None or ml_min_ideal <= 0:
+        transferencia_status = "sin_datos"
+    elif ink_level == 0:
+        transferencia_status = "equilibrada"
+    elif ml_min < ml_min_ideal:
+        transferencia_status = "subcarga"
+    else:
+        transferencia_status = "sobrecarga"
+
+    demanda_alta = coverage_status == "alta" or tac_status == "alto"
+    demanda_baja = coverage_status == "baja" or tac_status == "bajo"
+    tinta_alta = transferencia_status == "sobrecarga"
+    tinta_baja = transferencia_status == "subcarga"
+
+    global_status = "estable"
+    global_level = 0
+    global_label = "Verde"
+    global_reasons: List[str] = []
+
+    if demanda_alta and tinta_baja:
+        global_status = "desbalance"
+        global_level = 2 if ink_level >= 1 else 1
+        global_label = "Rojo" if global_level == 2 else "Amarillo"
+        global_reasons.append(
+            "Carga gráfica alta con transferencia de tinta por debajo del ideal."
+        )
+    elif demanda_alta and tinta_alta:
+        global_status = "sobrecarga"
+        global_level = 2
+        global_label = "Rojo"
+        global_reasons.append(
+            "Cobertura/TAC altos y transmisión alta: riesgo claro de sobrecarga."
+        )
+    elif demanda_alta:
+        global_status = "sobrecarga"
+        global_level = 1 if tac_status == "alto" else 0
+        global_label = "Amarillo" if global_level else "Verde"
+        global_reasons.append(
+            "Carga gráfica alta. Mantener control estricto de tinta y secado."
+        )
+    elif demanda_baja and tinta_baja:
+        global_status = "subcarga"
+        global_level = 2 if ink_level >= 1 else 1
+        global_label = "Rojo" if global_level == 2 else "Amarillo"
+        global_reasons.append(
+            "Carga gráfica baja y transmisión baja: riesgo de impresión débil."
+        )
+    elif demanda_baja:
+        global_status = "subcarga"
+        global_level = 1
+        global_label = "Amarillo"
+        global_reasons.append(
+            "Carga gráfica baja. Revisar densidad y soporte antes de imprimir."
+        )
+    elif tinta_alta:
+        global_status = "sobrecarga"
+        global_level = 1 if ink_level == 1 else 2
+        global_label = "Amarillo" if global_level == 1 else "Rojo"
+        global_reasons.append(
+            "Transmisión de tinta por encima del ideal."
+        )
+    elif tinta_baja:
+        global_status = "subcarga"
+        global_level = 1 if ink_level == 1 else 2
+        global_label = "Amarillo" if global_level == 1 else "Rojo"
+        global_reasons.append(
+            "Transmisión de tinta por debajo del ideal."
+        )
+    else:
+        global_reasons.append("Cobertura, TAC y transmisión alineados entre sí.")
+
+    for grupo in (
+        coverage_reasons,
+        tac_reasons,
+        list(transferencia_riesgo.get("reasons") or []),
+    ):
+        for reason in grupo:
+            if reason and reason not in global_reasons:
+                global_reasons.append(reason)
+
+    if advertencias_resumen:
+        global_reasons.append(str(advertencias_resumen))
+
+    return {
+        "metricas": {
+            "material": material or None,
+            "anilox_lpi": anilox_lpi,
+            "anilox_bcm": anilox_bcm,
+            "velocidad_impresion": velocidad,
+            "paso_cilindro": paso,
+            "ancho_mm": ancho_mm,
+            "alto_mm": alto_mm,
+            "cobertura_total": cobertura_total,
+            "tac_total": tac_total,
+            "tinta_ml_min": ml_min,
+            "tinta_ideal_ml_min": ml_min_ideal,
+            "cobertura_por_canal": cobertura_por_canal or None,
+            "canal_dominante": dominant_channel,
+            "canal_dominante_valor": dominant_channel_value,
+        },
+        "umbrales": {
+            "coverage_low": coverage_low,
+            "coverage_high": coverage_high,
+            "tac_low": tac_low,
+            "tac_warning": thresholds.tac_warning,
+            "tac_critical": thresholds.tac_critical,
+        },
+        "cobertura_estado": {
+            "status": coverage_status,
+            "reasons": coverage_reasons,
+        },
+        "tac_estado": {
+            "status": tac_status,
+            "reasons": tac_reasons,
+        },
+        "transferencia_estado": {
+            "status": transferencia_status,
+            "risk": transferencia_riesgo,
+        },
+        "riesgo_global": {
+            "status": global_status,
+            "level": global_level,
+            "label": global_label,
+            "reasons": global_reasons,
+        },
+        "advertencias": {
+            "resumen": advertencias_resumen or "",
+            "indicadores": dict(indicadores_advertencias or {}),
+            "sobreimpresion": {
+                "detectada": overprint_detected,
+                "conteo": overprint_count,
+            },
+        },
+    }
+
+
 def obtener_thresholds_flexo(
     material: str | None = None, anilox_lpi: float | None = None
 ) -> FlexoThresholds:

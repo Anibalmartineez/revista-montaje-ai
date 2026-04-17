@@ -1029,8 +1029,60 @@ def _collect_warning_lines(*texts: str, limit: int = 5) -> List[str]:
 
 
 def _build_sugerencia_produccion_resumen(
-    diagnostico_texto: str, resultado_revision: str
+    diagnostico_texto: Any, resultado_revision: Any
 ) -> str:
+    if isinstance(diagnostico_texto, dict):
+        diag_obj = diagnostico_texto
+    elif isinstance(resultado_revision, dict):
+        diag_obj = resultado_revision
+    else:
+        diag_obj = None
+
+    if isinstance(diag_obj, dict):
+        resultado = diag_obj.get("resultado_diagnostico") or {}
+        metricas = resultado.get("metricas") or {}
+        riesgo_global = resultado.get("riesgo_global") or {}
+        advertencias = resultado.get("advertencias") or {}
+        cobertura_estado = resultado.get("cobertura_estado") or {}
+        tac_estado = resultado.get("tac_estado") or {}
+        transferencia_estado = resultado.get("transferencia_estado") or {}
+        sobreimpresion = advertencias.get("sobreimpresion") or {}
+        material = metricas.get("material")
+        anilox_lpi = metricas.get("anilox_lpi")
+        bcm = metricas.get("anilox_bcm")
+        velocidad = metricas.get("velocidad_impresion")
+        paso = metricas.get("paso_cilindro")
+        ancho_mm = metricas.get("ancho_mm")
+        alto_mm = metricas.get("alto_mm")
+        cobertura_total = metricas.get("cobertura_total")
+        tac_promedio = metricas.get("tac_total")
+        canal_dominante = metricas.get("canal_dominante")
+        canal_dominante_valor = metricas.get("canal_dominante_valor")
+        problemas = riesgo_global.get("reasons") or []
+        advertencias_txt = advertencias.get("resumen") or "Sin advertencias críticas resumibles."
+        tamano = None
+        if ancho_mm is not None and alto_mm is not None:
+            tamano = f"{float(ancho_mm):.2f} x {float(alto_mm):.2f} mm"
+
+        resumen_lineas = [
+            f"Material: {material or 'No disponible'}",
+            f"Anilox LPI: {anilox_lpi if anilox_lpi is not None else 'No disponible'}",
+            f"BCM: {bcm if bcm is not None else 'No disponible'}",
+            f"Velocidad: {str(velocidad) + ' m/min' if velocidad is not None else 'No disponible'}",
+            f"Paso del cilindro: {str(paso) + ' mm' if paso is not None else 'No disponible'}",
+            f"Tamaño del diseño: {tamano or 'No disponible'}",
+            f"Cobertura total: {str(cobertura_total) + '%' if cobertura_total is not None else 'No disponible'}",
+            f"Estado cobertura: {cobertura_estado.get('status') or 'No disponible'}",
+            f"TAC promedio: {str(tac_promedio) + '%' if tac_promedio is not None else 'No disponible'}",
+            f"Estado TAC: {tac_estado.get('status') or 'No disponible'}",
+            f"Estado transferencia: {transferencia_estado.get('status') or 'No disponible'}",
+            f"Canal dominante: {str(canal_dominante) + ' ' + '(' + str(canal_dominante_valor) + '%)' if canal_dominante and canal_dominante_valor is not None else 'No disponible'}",
+            f"Sobreimpresión detectada: {str(sobreimpresion.get('conteo')) if sobreimpresion.get('detectada') else '0'}",
+            f"Problemas detectados: {'; '.join(problemas[:3]) if problemas else 'No se detectaron problemas resumidos.'}",
+            f"Advertencias principales: {advertencias_txt}",
+        ]
+        return "\n".join(resumen_lineas)
+
     resultado_texto = _strip_html_to_text(resultado_revision)
     diagnostico_plano = _strip_html_to_text(diagnostico_texto)
     corpus = "\n".join(part for part in (resultado_texto, diagnostico_plano) if part)
@@ -1119,18 +1171,25 @@ def generar_sugerencia_produccion(diagnostico_texto: str, resultado_revision: st
             {
                 "role": "system",
                 "content": (
-                    "Eres un especialista en producción de impresión flexográfica. "
-                    "Brinda recomendaciones prácticas basadas en el diagnóstico entregado. "
-                    "Responde en español, de forma corta, clara, técnica y orientada a producción flexográfica. "
-                    "Limita la respuesta a un bloque breve con recomendaciones accionables. "
-                    "Evalúa si el archivo está listo para impresión, riesgos en máquina, tipo de anilox según cobertura, "
-                    "cambios de técnica de impresión, uso de barniz, doble pasada o reducción de colores y ajustes de preprensa."
+                    "Eres un tecnico experto en impresion flexografica y preprensa. "
+                    "Debes responder como un responsable de produccion, con criterio tecnico real y sin frases genericas. "
+                    "Usa solo el resumen tecnico recibido y no inventes datos faltantes. "
+                    "Analiza cobertura total, TAC promedio, material, anilox LPI, BCM, velocidad, paso del cilindro y tamano del diseno. "
+                    "Interpreta si hay riesgo de subcarga o sobrecarga de tinta, estabilidad o inestabilidad de transferencia y sensibilidad del material. "
+                    "Considera estas reglas tecnicas al razonar: baja cobertura o TAC bajo pueden indicar impresion debil o subcarga; alta cobertura o TAC alto pueden indicar sobrecarga, saturacion, secado lento o ensuciamiento; en film el control de tinta debe ser mas fino; si la carga es alta puedes sugerir bajar BCM, controlar presion o moderar velocidad; si la carga es baja puedes sugerir subir BCM, revisar LPI o reducir velocidad. "
+                    "Solo sugiere ajustes de BCM, LPI o velocidad si el resumen realmente los justifica. "
+                    "No repitas literalmente el diagnostico original. "
+                    "Responde en espanol, de forma breve, clara, profesional y accionable. "
+                    "Estructura obligatoria de salida: Diagnostico breve: una sola linea. "
+                    "Riesgo principal: una sola linea; si no hay riesgo claro, indicalo. "
+                    "Recomendaciones de produccion: 2 o 3 bullets maximo. "
+                    "Ajustes sugeridos: bullets cortos con parametros concretos solo si corresponde; si no corresponde, indica mantener parametros."
                 ),
             },
             {
                 "role": "user",
                 "content": (
-                    "Genera una recomendación de producción a partir de este resumen técnico.\n\n"
+                    "Genera una recomendacion de produccion flexografica a partir de este resumen tecnico:\n\n"
                     f"{resumen_tecnico}"
                 ),
             },

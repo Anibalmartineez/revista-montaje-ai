@@ -58,6 +58,90 @@ def _format_number(value: float, decimals: int = 2) -> str:
     return text.rstrip("0").rstrip(".")
 
 
+def _tabla_desde_resultado_unificado(resultado: Dict[str, Any]) -> str:
+    metricas = resultado.get("metricas") or {}
+    umbrales = resultado.get("umbrales") or {}
+    cobertura_estado = resultado.get("cobertura_estado") or {}
+    tac_estado = resultado.get("tac_estado") or {}
+    transferencia_estado = resultado.get("transferencia_estado") or {}
+    riesgo_global = resultado.get("riesgo_global") or {}
+
+    filas: List[Dict[str, str]] = []
+
+    def agregar(problema: str, nivel: str, sugerencia: str) -> None:
+        filas.append(
+            {"problema": problema, "nivel": nivel, "sugerencia": sugerencia}
+        )
+
+    cobertura_total = metricas.get("cobertura_total")
+    if cobertura_estado.get("status") == "alta" and cobertura_total is not None:
+        agregar(
+            f"Cobertura total alta ({_format_number(float(cobertura_total), 2)}%)",
+            "🟡 Medio",
+            "Controlar carga de tinta, secado y presión de impresión.",
+        )
+    elif cobertura_estado.get("status") == "baja" and cobertura_total is not None:
+        agregar(
+            f"Cobertura total baja ({_format_number(float(cobertura_total), 2)}%)",
+            "🟡 Medio",
+            "Verificar densidad, BCM y estabilidad de transferencia.",
+        )
+
+    tac_total = metricas.get("tac_total")
+    if tac_estado.get("status") == "alto" and tac_total is not None:
+        agregar(
+            f"TAC alto ({_format_number(float(tac_total), 2)}%)",
+            "🔴 Alto"
+            if float(tac_total) >= float(umbrales.get("tac_critical") or 0)
+            else "🟡 Medio",
+            "Reducir carga total, optimizar separaciones y controlar secado.",
+        )
+    elif tac_estado.get("status") == "bajo" and tac_total is not None:
+        agregar(
+            f"TAC bajo ({_format_number(float(tac_total), 2)}%)",
+            "🟡 Medio",
+            "Revisar transferencia y densidad para evitar impresión débil.",
+        )
+
+    transferencia = transferencia_estado.get("risk") or {}
+    ml_min = metricas.get("tinta_ml_min")
+    if transferencia_estado.get("status") == "sobrecarga" and ml_min is not None:
+        agregar(
+            f"Transmisión alta ({_format_number(float(ml_min), 2)} ml/min)",
+            "🔴 Alto" if int(transferencia.get("level", 1)) >= 2 else "🟡 Medio",
+            "Bajar BCM o velocidad, y revisar presión/anilox.",
+        )
+    elif transferencia_estado.get("status") == "subcarga" and ml_min is not None:
+        agregar(
+            f"Transmisión baja ({_format_number(float(ml_min), 2)} ml/min)",
+            "🔴 Alto" if int(transferencia.get("level", 1)) >= 2 else "🟡 Medio",
+            "Subir BCM o reducir velocidad para mejorar transferencia.",
+        )
+
+    if riesgo_global.get("status") == "desbalance":
+        agregar(
+            "Desbalance entre carga gráfica y transferencia",
+            "🔴 Alto" if int(riesgo_global.get("level", 1)) >= 2 else "🟡 Medio",
+            "Ajustar parámetros de máquina para alinear TAC/cobertura con ml/min.",
+        )
+
+    if not filas:
+        razones = riesgo_global.get("reasons") or []
+        detalle = razones[0] if razones else "Sin riesgos detectados con las reglas establecidas."
+        return f"<div id='tabla-riesgos'><p>{detalle}</p></div>"
+
+    html_rows = "".join(
+        f"<tr><td>{r['problema']}</td><td>{r['nivel']}</td><td>{r['sugerencia']}</td></tr>"
+        for r in filas
+    )
+    return (
+        "<div id='tabla-riesgos'>"
+        "<table style='border-collapse:collapse; margin-top:20px; width:100%;'>"
+        "<thead><tr><th>Problema detectado</th><th>Nivel de riesgo</th><th>Sugerencia</th></tr></thead>"
+        f"<tbody>{html_rows}</tbody></table></div>"
+    )
+
+
 def simular_riesgos(
     diagnostico: str | Dict[str, Any],
     usar_ia: bool = False,
@@ -80,6 +164,11 @@ def simular_riesgos(
     str
         HTML con una tabla que resume los riesgos detectados.
     """
+
+    if isinstance(diagnostico, dict):
+        resultado_unificado = diagnostico.get("resultado_diagnostico")
+        if isinstance(resultado_unificado, dict):
+            return _tabla_desde_resultado_unificado(resultado_unificado)
 
     tac_val = _leer_tac(diagnostico)
     texto = _a_texto(diagnostico)

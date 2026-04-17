@@ -71,6 +71,7 @@ from montaje_offset_inteligente import (
 from montaje_offset_personalizado import montar_pliego_offset_personalizado
 from imposicion_offset_auto import imponer_pliego_offset_auto
 from diagnostico_flexo import (
+    construir_resultado_diagnostico,
     generar_preview_diagnostico,
     inyectar_parametros_simulacion,
     resumen_advertencias,
@@ -2435,8 +2436,6 @@ def revision():
         imagen_rel = diag_rel
         imagen_iconos_rel = _static_web_relpath(iconos_abs)
 
-        tabla_riesgos = simular_riesgos(resumen)
-
         sim_dir = os.path.join(current_app.static_folder, "simulaciones")
         os.makedirs(sim_dir, exist_ok=True)
         sim_filename = f"sim_{revision_id}.png"
@@ -2531,8 +2530,6 @@ def revision():
         shutil.copy(save_path, final_pdf_path)
         pdf_rel = _static_web_relpath(final_pdf_path)
 
-        sugerencia_produccion = generar_sugerencia_produccion(texto, resumen)
-
         diagnostico_json.update(
             {
                 "archivo": secure_filename(file.filename),
@@ -2597,6 +2594,29 @@ def revision():
         ):
             diagnostico_json.setdefault(clave, diagnostico_json.get(clave))
 
+        resultado_diagnostico = construir_resultado_diagnostico(
+            diagnostico_json,
+            advertencias_resumen=advertencias_resumen_txt,
+            indicadores_advertencias=advertencias_stats,
+        )
+        diagnostico_json["resultado_diagnostico"] = resultado_diagnostico
+        diagnostico_json["ink_risk"] = (
+            resultado_diagnostico.get("riesgo_global") or diagnostico_json.get("ink_risk")
+        )
+        diagnostico_json["ink_transfer_risk"] = (
+            resultado_diagnostico.get("transferencia_estado", {}).get("risk")
+        )
+
+        tabla_riesgos = simular_riesgos(
+            diagnostico_json,
+            material=material_norm,
+            anilox_lpi=anilox_lpi,
+        )
+        sugerencia_produccion = generar_sugerencia_produccion(
+            diagnostico_json,
+            diagnostico_json,
+        )
+
         diagnostico_data = {
             "pdf_path": final_pdf_path,
             "resultados_diagnostico": analisis_detallado,
@@ -2623,6 +2643,7 @@ def revision():
             "ancho_mm": ancho_mm,
             "alto_mm": alto_mm,
             "coef_material": material_coef,
+            "resultado_diagnostico": resultado_diagnostico,
             # Persistimos las rutas web del diagnóstico para que sigan
             # disponibles incluso si la simulación avanzada no se usa.
             "diag_base_web": diag_rel,
@@ -2744,6 +2765,15 @@ def resultado_flexo():
             "cobertura_por_canal",
         ):
             diag_json.setdefault(clave, diag_json.get(clave))
+
+    if "resultado_diagnostico" not in diag_json:
+        resultado_diagnostico = construir_resultado_diagnostico(
+            diag_json,
+            advertencias_resumen=datos.get("advertencias_resumen"),
+            indicadores_advertencias=datos.get("indicadores_advertencias"),
+        )
+        diag_json["resultado_diagnostico"] = resultado_diagnostico
+        diag_json["ink_risk"] = resultado_diagnostico.get("riesgo_global")
 
     material_coeffs = obtener_coeficientes_material()
     if "material_coefficients" not in datos:
