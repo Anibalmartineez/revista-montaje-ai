@@ -52,6 +52,8 @@
     maxSize: 50,
   };
 
+  const DRAG_THRESHOLD_PX = 4;
+
   // [TOUCH] Estado del drag unificado para mouse y táctil
   const dragState = {
     active: false,
@@ -1898,7 +1900,7 @@
     dragState.groupSlots = groupSlots;
     dragState.groupInitialPositions = groupInitialPositions;
     dragState.moved = false;
-    updateDistanceIndicator(slot);
+    hideDistanceIndicator();
 
     const moveHandler = (moveEv) => moveDrag(moveEv);
     const upHandler = (upEv) => endDrag(upEv);
@@ -1934,6 +1936,10 @@
 
     const dxPx = moveEv.clientX - startX;
     const dyPx = startY - moveEv.clientY; // invert because bottom reference
+    const dragDistancePx = Math.hypot(dxPx, dyPx);
+    if (!dragState.moved && dragDistancePx < DRAG_THRESHOLD_PX) {
+      return;
+    }
     const effectiveScale = state.scale * state.zoom;
     const dx = dxPx / effectiveScale;
     const dy = dyPx / effectiveScale;
@@ -2002,10 +2008,18 @@
 
     if (dragState.moved) {
       pushHistory();
+      hideDistanceIndicator();
+      if (state.selectedSlots && state.selectedSlots.size > 1 && state.selectedSlots.has(dragState.slot?.id)) {
+        state.selectedSlot = state.layout.slots.find((s) => s.id === dragState.slot?.id) || null;
+      } else if (dragState.slot?.id) {
+        state.selectedSlots = new Set([dragState.slot.id]);
+        state.selectedSlot = state.layout.slots.find((s) => s.id === dragState.slot.id) || null;
+      }
+      renderSheet();
+      renderSlotForm();
+    } else {
+      hideDistanceIndicator();
     }
-
-    hideDistanceIndicator();
-    renderSheet();
 
     dragState.active = false;
     dragState.pointerId = null;

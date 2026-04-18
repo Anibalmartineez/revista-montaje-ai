@@ -26,6 +26,15 @@ Mientras el usuario arrastra un slot:
 - se actualiza en tiempo real durante el movimiento
 - desaparece al terminar el drag
 
+### Ajuste de interacción posterior
+
+Para evitar interferencia entre click y drag:
+
+- el editor ahora usa un umbral mínimo de movimiento antes de considerar que empezó un drag real
+- el indicador aparece solo después de superar ese umbral
+- un click simple vuelve a seleccionar el slot normalmente
+- al terminar un drag real, el slot arrastrado queda seleccionado
+
 No bloquea:
 
 - edición
