@@ -285,6 +285,28 @@ def _ensure_imposition_fields(layout: Dict) -> tuple[Dict, bool]:
     return layout, changed
 
 
+def _first_numeric(*values, default: float = 0.0) -> float:
+    for value in values:
+        if value is None or value == "":
+            continue
+        try:
+            return float(value)
+        except (TypeError, ValueError):
+            continue
+    return float(default)
+
+
+def _layout_spacing_gaps(layout: Dict) -> tuple[float, float]:
+    spacing = layout.get("spacingSettings") or layout.get("spacing_settings") or {}
+    spacing_x = spacing.get("spacingX_mm") if isinstance(spacing, dict) else None
+    spacing_y = spacing.get("spacingY_mm") if isinstance(spacing, dict) else None
+    fallback_gap = layout.get("gap_default_mm")
+    return (
+        _first_numeric(spacing_x, fallback_gap, default=0.0),
+        _first_numeric(spacing_y, fallback_gap, default=0.0),
+    )
+
+
 def _ensure_export_fields(layout: Dict) -> tuple[Dict, bool]:
     changed = False
     if not isinstance(layout, dict):
@@ -677,19 +699,19 @@ def editor_offset_upload(job_id: str):
         file_storage.save(dest)
         new_ref = _next_ref()
         width_mm, height_mm = _pdf_page_size_mm(dest)
-        bleed_mm = layout.get("bleed_default_mm", 0)
+        bleed_mm = _first_numeric(layout.get("bleed_default_mm"), default=0.0)
         allow_rotation = True
         forms_per_plate = 1
         if work_id_form:
             related_work = next((w for w in layout.get("works", []) if w.get("id") == work_id_form), None)
             if related_work:
-                bleed_mm = float(related_work.get("default_bleed_mm", bleed_mm) or 0)
+                bleed_mm = _first_numeric(related_work.get("default_bleed_mm"), bleed_mm, default=0.0)
                 allow_rotation = bool(related_work.get("allow_rotation", True))
                 forms_per_plate = int(related_work.get("forms_per_plate") or forms_per_plate)
                 final_size = related_work.get("final_size_mm") or []
                 if len(final_size) == 2:
-                    width_mm = float(final_size[0] or width_mm)
-                    height_mm = float(final_size[1] or height_mm)
+                    width_mm = _first_numeric(final_size[0], width_mm, default=0.0)
+                    height_mm = _first_numeric(final_size[1], height_mm, default=0.0)
                     if not related_work.get("has_bleed"):
                         width_mm += 2 * bleed_mm
                         height_mm += 2 * bleed_mm
@@ -698,9 +720,9 @@ def editor_offset_upload(job_id: str):
                 "ref": new_ref,
                 "filename": filename,
                 "work_id": work_id_form,
-                "width_mm": round(float(width_mm or 0), 3),
-                "height_mm": round(float(height_mm or 0), 3),
-                "bleed_mm": round(float(bleed_mm or 0), 3),
+                "width_mm": round(_first_numeric(width_mm, default=0.0), 3),
+                "height_mm": round(_first_numeric(height_mm, default=0.0), 3),
+                "bleed_mm": round(_first_numeric(bleed_mm, default=0.0), 3),
                 "allow_rotation": allow_rotation,
                 "forms_per_plate": max(1, forms_per_plate),
             }
@@ -732,7 +754,7 @@ def _generate_slots_with_ai(layout: Dict, job_dir: str) -> Dict:
     diseno_objs: List[Diseno] = []
     pdf_meta: List[tuple[float, float, float, str | None]] = []
     for idx, work in enumerate(works):
-        bleed = work.get("default_bleed_mm", layout.get("bleed_default_mm", 0)) or 0
+        bleed = _first_numeric(work.get("default_bleed_mm"), layout.get("bleed_default_mm"), default=0.0)
         final_w, final_h = work.get("final_size_mm", [0, 0])
         has_bleed = bool(work.get("has_bleed"))
         if has_bleed:
@@ -807,9 +829,9 @@ def _sheet_area(layout: Dict) -> tuple[float, float, float, float, float, float]
 
 
 def _design_dimensions(design: Dict, layout: Dict) -> tuple[float, float, float]:
-    bleed = float(design.get("bleed_mm") or layout.get("bleed_default_mm") or 0)
-    width = float(design.get("width_mm") or 0)
-    height = float(design.get("height_mm") or 0)
+    bleed = _first_numeric(design.get("bleed_mm"), layout.get("bleed_default_mm"), default=0.0)
+    width = _first_numeric(design.get("width_mm"), default=0.0)
+    height = _first_numeric(design.get("height_mm"), default=0.0)
     return width + 2 * bleed, height + 2 * bleed, bleed
 
 
@@ -826,7 +848,7 @@ def _slots_from_nesting_result(result: NestingResult, layout: Dict) -> List[Dict
                 "h_mm": float(slot.get("h_mm", 0)),
                 "rotation_deg": int(slot.get("rotation_deg", 0)) % 360,
                 "logical_work_id": None,
-                "bleed_mm": float(slot.get("bleed_mm", layout.get("bleed_default_mm", 0))),
+                "bleed_mm": _first_numeric(slot.get("bleed_mm"), layout.get("bleed_default_mm"), default=0.0),
                 "crop_marks": True,
                 "locked": False,
                 "design_ref": slot.get("design_ref") or slot.get("file"),
@@ -844,10 +866,8 @@ def _build_step_repeat_slots(layout: Dict) -> List[Dict]:
     if usable_w <= 0 or usable_h <= 0:
         return []
 
-    spacing = layout.get("spacingSettings") or layout.get("spacing_settings") or {}
     # Bleed define el tamaño del slot; el gap del layout define la separación entre slots.
-    gap_x = float(spacing.get("spacingX_mm", layout.get("gap_default_mm", 0)) or 0)
-    gap_y = float(spacing.get("spacingY_mm", layout.get("gap_default_mm", 0)) or 0)
+    gap_x, gap_y = _layout_spacing_gaps(layout)
     slots: List[Dict] = []
     active_face = layout.get("active_face") or "front"
 
@@ -913,7 +933,7 @@ def _repeat_pattern_over_sheet(base_slots: List[Dict], bbox: tuple[float, float,
     if block_w <= 0 or block_h <= 0:
         return base_slots
 
-    gap = float(layout.get("gap_default_mm") or 0)
+    gap_x, gap_y = _layout_spacing_gaps(layout)
     slots: List[Dict] = []
     y_offset = bottom
     while y_offset + block_h <= bottom + usable_h + 1e-6:
@@ -928,8 +948,8 @@ def _repeat_pattern_over_sheet(base_slots: List[Dict], bbox: tuple[float, float,
                         "y_mm": y_offset + (slot["y_mm"] - min_y),
                     }
                 )
-            x_offset += block_w + gap
-        y_offset += block_h + gap
+            x_offset += block_w + gap_x
+        y_offset += block_h + gap_y
     return slots
 
 

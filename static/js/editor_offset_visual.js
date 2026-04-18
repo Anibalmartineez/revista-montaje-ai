@@ -201,6 +201,15 @@
     return parsed;
   }
 
+  function firstDefinedNumber(...values) {
+    for (const value of values) {
+      if (value === undefined || value === null || value === '') continue;
+      const parsed = parseFloat(value);
+      if (Number.isFinite(parsed)) return parsed;
+    }
+    return 0;
+  }
+
   function normalizeLayoutFaces() {
     if (!state.layout) return;
     if (!Array.isArray(state.layout.faces) || state.layout.faces.length === 0) {
@@ -624,12 +633,18 @@
   function updateSpacingSettingsFromUI() {
     const spacingXInput = document.getElementById('spacing-x');
     const spacingYInput = document.getElementById('spacing-y');
-    state.spacingSettings.spacingX_mm = spacingXInput
-      ? parseFloat(spacingXInput.value || state.spacingSettings.spacingX_mm)
-      : state.spacingSettings.spacingX_mm;
-    state.spacingSettings.spacingY_mm = spacingYInput
-      ? parseFloat(spacingYInput.value || state.spacingSettings.spacingY_mm)
-      : state.spacingSettings.spacingY_mm;
+    if (spacingXInput) {
+      const parsedX = parseFloat(spacingXInput.value);
+      if (Number.isFinite(parsedX)) {
+        state.spacingSettings.spacingX_mm = parsedX;
+      }
+    }
+    if (spacingYInput) {
+      const parsedY = parseFloat(spacingYInput.value);
+      if (Number.isFinite(parsedY)) {
+        state.spacingSettings.spacingY_mm = parsedY;
+      }
+    }
     syncSettingsToLayout();
   }
 
@@ -1202,7 +1217,7 @@
       name: 'Nuevo trabajo',
       final_size_mm: [50, 50],
       desired_copies: 1,
-      default_bleed_mm: state.layout.bleed_default_mm || 0,
+      default_bleed_mm: firstDefinedNumber(state.layout.bleed_default_mm),
       has_bleed: false,
     };
     state.layout.works.push(work);
@@ -1380,7 +1395,7 @@
       h_mm: 50,
       rotation_deg: 0,
       logical_work_id: workId,
-      bleed_mm: state.layout.bleed_default_mm || 0,
+      bleed_mm: firstDefinedNumber(state.layout.bleed_default_mm),
       crop_marks: true,
       locked: false,
       design_ref: null,
@@ -1926,7 +1941,9 @@
     const slotW = master.w_mm;
     const slotH = master.h_mm;
 
-    const baseBleed = copyBleed ? master.bleed_mm || 0 : state.layout.bleed_default_mm || 0;
+    const baseBleed = copyBleed
+      ? firstDefinedNumber(master.bleed_mm)
+      : firstDefinedNumber(state.layout.bleed_default_mm);
     const baseCrop = copyBleed ? !!master.crop_marks : false;
 
     const totalW = cols * slotW + (cols - 1) * gapH;

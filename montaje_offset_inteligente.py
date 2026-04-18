@@ -1845,15 +1845,22 @@ def _sanitize_slot_bleed(
     export_settings: dict | None,
     bleed_default: float,
     work: dict | None = None,
+    prefer_slot: bool = False,
 ) -> float:
     bleed_val = None
-    if isinstance(export_settings, dict):
+    if prefer_slot:
+        bleed_val = slot.get("bleed_mm")
+
+    if bleed_val is None and isinstance(export_settings, dict) and not prefer_slot:
         bleed_val = export_settings.get("bleed_mm")
 
     if bleed_val is None and design_ref is not None:
         design_overrides = (design_export or {}).get(str(design_ref))
         if isinstance(design_overrides, dict):
             bleed_val = design_overrides.get("bleed_mm")
+
+    if bleed_val is None and isinstance(export_settings, dict) and prefer_slot:
+        bleed_val = export_settings.get("bleed_mm")
 
     if bleed_val is None:
         bleed_val = slot.get("bleed_mm")
@@ -1952,7 +1959,13 @@ def montar_offset_desde_layout(layout_data, job_dir, preview: bool = False):
                 continue
             work = works.get(slot.get("logical_work_id"))
             bleed_val = _sanitize_slot_bleed(
-                slot, ref, design_export, export_settings, bleed_default, work
+                slot,
+                ref,
+                design_export,
+                export_settings,
+                bleed_default,
+                work,
+                prefer_slot=engine_name == "repeat",
             )
             w_mm = float(slot.get("w_mm", 0))
             h_mm = float(slot.get("h_mm", 0))

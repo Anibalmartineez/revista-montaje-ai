@@ -37,7 +37,8 @@ def _normalize_design(design: Dict) -> NestingPiece | None:
         return None
     if not ref or width <= 0 or height <= 0:
         return None
-    bleed = float(design.get("bleed_mm") or 0)
+    bleed_raw = design.get("bleed_mm")
+    bleed = float(bleed_raw) if bleed_raw is not None and bleed_raw != "" else 0.0
     forms = int(design.get("forms_per_plate") or 0)
     return NestingPiece(
         design_ref=str(ref),
