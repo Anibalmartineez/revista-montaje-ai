@@ -304,6 +304,46 @@ Ese orden existe hoy de forma implicita en Python. Si cambia sin documentarse pu
 
 No afectan preview/PDF, pero hoy viajan dentro del mismo contrato persistido. Refactors que “limpien” esos campos pueden romper continuidad de UX e historial de jobs.
 
+### Pipeline `slots -> preview/PDF`
+
+- un slot sin `design_ref` válido se omite silenciosamente
+- un `logical_work_id` inválido no rompe, pero cambia bleed/trim implícitos
+- `face` faltante manda el slot a frente
+- `repeat` y `nesting/hybrid` no comparten la misma semántica de `w_mm/h_mm`
+- `rotation_deg` se traduce a `rot_deg` y se vuelve a reinterpretar al dibujar
+- `locked` y `group_id` se guardan, pero no protegen ni modifican la salida final
+- `export_settings.crop_marks` global puede pisar la intención local del slot
+- `export_settings.bleed_mm` global puede pisar el bleed declarado en el slot
+- la vista del editor y el PDF solo coinciden si el contrato de slot y la lectura por engine siguen alineados
+
+## Riesgos específicos del pipeline slots -> preview/PDF
+
+### Omisión silenciosa de slots
+
+- si `slot.design_ref` no resuelve contra `designs[].ref`, el slot desaparece de la salida
+- hoy no hay error explícito ni warning de contrato
+
+### Interpretación variable de `w_mm/h_mm`
+
+- en `repeat` el backend los trata como caja final
+- en `nesting/hybrid` los reduce restando bleed layout
+- en manual puro la intención del usuario queda subordinada al engine activo
+
+### Prioridad bleed/crop poco obvia
+
+- el slot no tiene la última palabra
+- preview/PDF aplican una jerarquía que puede sobreescribir `slot.bleed_mm` y `slot.crop_marks`
+
+### Frente/dorso dependiente de `slot.face`
+
+- `faces[]` y `active_face` no bastan para garantizar dorso real
+- el corte efectivo entre frente y dorso se hace slot por slot
+
+### Campos persistidos pero no efectivos
+
+- `id`, `locked`, `group_id` son relevantes para edición, no para render
+- un usuario puede asumir que “bloqueado” congela salida, pero hoy solo congela la UI
+
 ## Validaciones faltantes detectadas
 
 - no se valida longitud exacta de `sheet_mm`
