@@ -1888,8 +1888,18 @@
     await saveLayout();
     const res = await fetch(`/editor_offset/preview/${window.JOB_ID}`, { method: 'POST' });
     const data = await res.json();
+    if (!res.ok || data.ok === false) {
+      const details = []
+        .concat((data.errors || []).map((item) => `- ${item.message}`))
+        .concat((data.warnings || []).map((item) => `- Warning: ${item.message}`));
+      alert([data.error || 'No se pudo generar la preview.', ...details].join('\n'));
+      return;
+    }
     if (data.url) {
       previewImg.src = data.url + `?t=${Date.now()}`;
+    }
+    if (data.warnings && data.warnings.length) {
+      alert(`Preview generada con advertencias:\n${data.warnings.map((item) => `- ${item.message}`).join('\n')}`);
     }
   }
 
@@ -1901,8 +1911,18 @@
     await saveLayout();
     const res = await fetch(`/editor_offset/generar_pdf/${window.JOB_ID}`, { method: 'POST' });
     const data = await res.json();
+    if (!res.ok || data.ok === false) {
+      const details = []
+        .concat((data.errors || []).map((item) => `- ${item.message}`))
+        .concat((data.warnings || []).map((item) => `- Warning: ${item.message}`));
+      alert([data.error || 'No se pudo generar el PDF final.', ...details].join('\n'));
+      return;
+    }
     if (data.url) {
       pdfOutput.innerHTML = `<a href="${data.url}" target="_blank">Descargar PDF</a>`;
+    }
+    if (data.warnings && data.warnings.length) {
+      alert(`PDF generado con advertencias:\n${data.warnings.map((item) => `- ${item.message}`).join('\n')}`);
     }
   }
 

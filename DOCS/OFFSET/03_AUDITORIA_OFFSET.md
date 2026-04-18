@@ -359,6 +359,31 @@ No afectan preview/PDF, pero hoy viajan dentro del mismo contrato persistido. Re
 - no se valida que `forms_per_plate` y dimensiones sean enteros/positivos de forma estricta en backend
 - no se valida que `output_mode` pertenezca al set permitido al generar preview/PDF
 
+## Validación mínima implementada en salida
+
+Se agregó una validación previa a preview/PDF en `routes.py` mediante `_validate_constructor_output_layout(layout)`.
+
+### Bloquean preview/PDF
+
+- `designs[].ref` duplicado o faltante
+- `slots[].id` duplicado o faltante
+- `slots[].design_ref` inexistente
+- `slot.face` inválido
+- `x_mm`, `y_mm`, `w_mm`, `h_mm`, `bleed_mm`, `rotation_deg` ausentes o no numéricos
+- `w_mm <= 0`
+- `h_mm <= 0`
+
+### Quedan como warning
+
+- `logical_work_id` no resuelto contra `works[].id`
+- `faces[]` declara `back` sin slots `face="back"`
+
+### Efecto operativo
+
+- preview/PDF ya no omiten silenciosamente slots rotos por `design_ref` inválido
+- la salida devuelve JSON estructurado con `errors[]` y `warnings[]`
+- el frontend del editor ahora informa esos problemas al usuario
+
 ## Campos que conviene tratar como congelados por compatibilidad
 
 - `sheet_mm`
