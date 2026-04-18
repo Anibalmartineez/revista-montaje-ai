@@ -45,6 +45,25 @@ Documentar el flujo real actual del editor visual IA de montaje offset sin refac
 
 No se ve carga directa de otros JS/CSS desde el template del editor visual IA.
 
+## Dependencias reales no visuales
+
+### Persistencia por job
+
+- `static/constructor_offset_jobs/<job_id>/layout_constructor.json`
+- ahi vive el contrato persistido del editor
+
+### Backend de orquestacion
+
+- `routes.py`
+
+### Motor de nesting usado por el editor
+
+- `engines/nesting_pro_engine.py`
+
+### Motor real de preview y PDF final
+
+- `montaje_offset_inteligente.py`
+
 ## Endpoints que consume el frontend del editor
 
 ### Carga inicial
@@ -72,6 +91,17 @@ No se ve carga directa de otros JS/CSS desde el template del editor visual IA.
 - `POST /editor_offset/preview/<job_id>`
 - `POST /editor_offset/generar_pdf/<job_id>`
 
+## Pipeline de datos resumido
+
+1. `GET /editor_offset_visual` carga o crea `layout_constructor.json`.
+2. El template serializa ese layout en `window.INITIAL_LAYOUT_JSON`.
+3. `static/js/editor_offset_visual.js` lo normaliza y lo convierte en `state.layout`.
+4. Las acciones del usuario modifican `state.layout`.
+5. `layoutToJson()` sincroniza defaults y serializa el contrato persistible.
+6. `POST /editor_offset/save` guarda el JSON en disco.
+7. Preview y PDF final nunca consumen el estado efimero del navegador.
+8. Preview/PDF leen solo el layout persistido desde disco y lo reinterpretan en `montaje_offset_inteligente.py`.
+
 ## Flujo real resumido
 
 1. El navegador abre `GET /editor_offset_visual`.
@@ -98,6 +128,14 @@ No se ve carga directa de otros JS/CSS desde el template del editor visual IA.
 
 - Frontend vivo: `static/js/editor_offset_visual.js`
 - Persistencia: `static/constructor_offset_jobs/<job_id>/layout_constructor.json`
+- Estado efimero no persistido:
+  - `zoom`
+  - `scale`
+  - `selectedSlot`
+  - `selectedSlots`
+  - `selectedWork`
+  - `history`
+  - `dragState`
 
 ### Orquestacion backend
 

@@ -261,6 +261,105 @@ Hay varias fuentes de verdad parciales.
   - motor para imponer
   - motor para render final
 
+## Riesgos de contrato y compatibilidad
+
+### Persistencia parcial vs estado real del editor
+
+- preview y PDF final no leen el estado vivo del navegador
+- leen el JSON persistido desde disco
+- si un cambio modifica `state.layout` pero no pasa por `layoutToJson()` y `saveLayout()`, la salida final puede no reflejar la UI
+
+### Doble semantica de rotacion
+
+- el frontend renderiza `rotation_deg` manteniendo centro visual
+- el backend vuelve a reconstruir posiciones usando `rot_deg`, `w_mm`, `h_mm` y `slot_box_final`
+- cambios pequeños en esa semantica pueden romper alineacion visual vs PDF
+
+### Orden de prioridad bleed/crop
+
+- `export_settings`
+- `design_export`
+- `slot.bleed_mm` / `slot.crop_marks`
+- `work.default_bleed_mm`
+- `bleed_default_mm`
+
+Ese orden existe hoy de forma implicita en Python. Si cambia sin documentarse puede romper preview/PDF sin que la UI lo haga evidente.
+
+### `repeat` vs `nesting/hybrid`
+
+- para `repeat`, el backend marca `slot_box_final=True`
+- eso cambia como se interpretan `w_mm` y `h_mm`
+- si se unifica mal este criterio, los slots pueden salir con tamaño o bleed incorrectos
+
+### Cara activa y caras persistidas
+
+- `state.activeFace` y `layout.active_face` deben mantenerse consistentes
+- `slots[].face` es la verdad final para render
+- si alguno se rompe, el usuario puede ver una cara y generar otra
+
+### Datos auxiliares guardados en el mismo layout
+
+- `snapSettings`
+- `spacingSettings`
+
+No afectan preview/PDF, pero hoy viajan dentro del mismo contrato persistido. Refactors que “limpien” esos campos pueden romper continuidad de UX e historial de jobs.
+
+## Validaciones faltantes detectadas
+
+- no se valida longitud exacta de `sheet_mm`
+- no se valida longitud exacta de `margins_mm`
+- no se valida schema de `works[]`, `designs[]` ni `slots[]`
+- no se validan rangos de `rotation_deg`
+- no se valida unicidad de `slots[].id`
+- no se valida unicidad de `designs[].ref`
+- no se valida que `slot.design_ref` exista realmente en `designs[]`
+- no se valida que `slot.logical_work_id` exista realmente en `works[]`
+- no se valida consistencia entre `faces`, `active_face` y `slots[].face`
+- no se valida que `group_id` agrupe slots de la misma cara
+- no se valida que `forms_per_plate` y dimensiones sean enteros/positivos de forma estricta en backend
+- no se valida que `output_mode` pertenezca al set permitido al generar preview/PDF
+
+## Campos que conviene tratar como congelados por compatibilidad
+
+- `sheet_mm`
+- `margins_mm`
+- `bleed_default_mm`
+- `gap_default_mm`
+- `works`
+- `designs`
+- `slots`
+- `faces`
+- `active_face`
+- `imposition_engine`
+- `allowed_engines`
+- `export_settings`
+- `design_export`
+- `ctp`
+- `snapSettings`
+- `spacingSettings`
+
+Dentro de esos bloques, especialmente sensibles:
+
+- `designs[].ref`
+- `designs[].filename`
+- `designs[].width_mm`
+- `designs[].height_mm`
+- `designs[].bleed_mm`
+- `designs[].forms_per_plate`
+- `designs[].allow_rotation`
+- `slots[].id`
+- `slots[].x_mm`
+- `slots[].y_mm`
+- `slots[].w_mm`
+- `slots[].h_mm`
+- `slots[].rotation_deg`
+- `slots[].design_ref`
+- `slots[].logical_work_id`
+- `slots[].bleed_mm`
+- `slots[].crop_marks`
+- `slots[].locked`
+- `slots[].face`
+
 ## Conclusiones
 
 El editor visual IA nuevo tiene flujo propio, pero no esta aislado en un modulo cerrado. La orquestacion vive en `routes.py`, el estado interactivo vive casi entero en `static/js/editor_offset_visual.js`, y la salida real vive en `montaje_offset_inteligente.py`.
