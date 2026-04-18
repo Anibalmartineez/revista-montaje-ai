@@ -1063,6 +1063,50 @@
     renderSlotForm();
   }
 
+  function getSelectedSlotIds() {
+    if (state.selectedSlots && state.selectedSlots.size > 0) {
+      return Array.from(state.selectedSlots);
+    }
+    return state.selectedSlot?.id ? [state.selectedSlot.id] : [];
+  }
+
+  function getSelectedSlots(opts = {}) {
+    const { editableOnly = false, sameFaceOnly = true } = opts;
+    const ids = new Set(getSelectedSlotIds());
+    return (state.layout.slots || []).filter((slot) => {
+      if (!ids.has(slot.id)) return false;
+      if (editableOnly && slot.locked) return false;
+      if (sameFaceOnly && (slot.face || 'front') !== (state.activeFace || 'front')) return false;
+      return true;
+    });
+  }
+
+  function roundMm(value) {
+    return Math.round((Number(value) || 0) * 1000) / 1000;
+  }
+
+  function setSlotEffectiveBox(slot, left, bottom) {
+    const box = getEffectiveSlotBox(slot);
+    const coords = slotCoordsFromBox({
+      ...box,
+      x: left,
+      y: bottom,
+      cx: left + box.effW / 2,
+      cy: bottom + box.effH / 2,
+    });
+    slot.x_mm = roundMm(coords.x);
+    slot.y_mm = roundMm(coords.y);
+  }
+
+  function refreshSelectionAfterEdit() {
+    const selectedId = state.selectedSlot?.id || getSelectedSlotIds()[0];
+    state.selectedSlot = selectedId
+      ? (state.layout.slots || []).find((slot) => slot.id === selectedId) || null
+      : null;
+    renderSheet();
+    renderSlotForm();
+  }
+
   function renderSlotForm() {
     const slot = state.selectedSlot || (state.selectedSlots && state.selectedSlots.size > 0
       ? state.layout.slots.find((s) => state.selectedSlots.has(s.id))
@@ -1348,20 +1392,36 @@
   }
 
   function duplicateSlot() {
-    if (!state.selectedSlot) return;
-    const base = state.selectedSlot;
-    const copy = { ...base, id: `s${Date.now()}` };
-    copy.face = copy.face || base.face || state.activeFace || 'front';
-    copy.x_mm += 5;
-    copy.y_mm += 5;
-    state.layout.slots.push(copy);
+    const bases = getSelectedSlots({ sameFaceOnly: false });
+    if (!bases.length) return;
+
+    const groupMap = new Map();
+    const copies = bases.map((base, index) => {
+      const copy = { ...base, id: `s${Date.now()}_${index + 1}` };
+      copy.face = copy.face || base.face || state.activeFace || 'front';
+      copy.x_mm = roundMm((copy.x_mm || 0) + 5);
+      copy.y_mm = roundMm((copy.y_mm || 0) + 5);
+      if (base.group_id) {
+        if (!groupMap.has(base.group_id)) {
+          groupMap.set(base.group_id, `g${Date.now()}_${groupMap.size + 1}`);
+        }
+        copy.group_id = groupMap.get(base.group_id);
+      }
+      return copy;
+    });
+
+    state.layout.slots.push(...copies);
+    state.selectedSlots = new Set(copies.map((copy) => copy.id));
+    state.selectedSlot = copies[0] || null;
     pushHistory();
-    selectSlot(copy.id);
+    renderSheet();
+    renderSlotForm();
   }
 
   function deleteSlot() {
-    if (!state.selectedSlot) return;
-    state.layout.slots = state.layout.slots.filter((s) => s.id !== state.selectedSlot.id);
+    const selectedIds = new Set(getSelectedSlotIds());
+    if (!selectedIds.size) return;
+    state.layout.slots = state.layout.slots.filter((s) => !selectedIds.has(s.id));
     state.selectedSlot = null;
     state.selectedSlots = new Set();
     pushHistory();
@@ -1403,6 +1463,106 @@
     pushHistory();
     renderSheet();
     renderSlotForm();
+  }
+
+  function getSelectionBounds(slots) {
+    const boxes = slots.map((slot) => ({ slot, box: getEffectiveSlotBox(slot) }));
+    return boxes.reduce(
+      (acc, item) => {
+        acc.minX = Math.min(acc.minX, item.box.x);
+        acc.maxX = Math.max(acc.maxX, item.box.x + item.box.effW);
+        acc.minY = Math.min(acc.minY, item.box.y);
+        acc.maxY = Math.max(acc.maxY, item.box.y + item.box.effH);
+        return acc;
+      },
+      { minX: Infinity, maxX: -Infinity, minY: Infinity, maxY: -Infinity },
+    );
+  }
+
+  function alignSelectedSlots(mode) {
+    const slots = getSelectedSlots({ editableOnly: true });
+    if (slots.length < 2) {
+      alert('Seleccioná al menos dos slots desbloqueados para alinear.');
+      return;
+    }
+
+    const bounds = getSelectionBounds(slots);
+    const centerX = (bounds.minX + bounds.maxX) / 2;
+    const centerY = (bounds.minY + bounds.maxY) / 2;
+
+    slots.forEach((slot) => {
+      const box = getEffectiveSlotBox(slot);
+      let left = box.x;
+      let bottom = box.y;
+
+      if (mode === 'left') left = bounds.minX;
+      if (mode === 'center-x') left = centerX - box.effW / 2;
+      if (mode === 'right') left = bounds.maxX - box.effW;
+      if (mode === 'bottom') bottom = bounds.minY;
+      if (mode === 'center-y') bottom = centerY - box.effH / 2;
+      if (mode === 'top') bottom = bounds.maxY - box.effH;
+
+      setSlotEffectiveBox(slot, left, bottom);
+    });
+
+    pushHistory();
+    refreshSelectionAfterEdit();
+  }
+
+  function distributeSelectedSlots(axis) {
+    const slots = getSelectedSlots({ editableOnly: true });
+    if (slots.length < 3) {
+      alert('Seleccioná al menos tres slots desbloqueados para distribuir.');
+      return;
+    }
+
+    const items = slots
+      .map((slot) => ({ slot, box: getEffectiveSlotBox(slot) }))
+      .sort((a, b) => {
+        if (axis === 'x') return a.box.x - b.box.x;
+        return a.box.y - b.box.y;
+      });
+
+    const first = items[0];
+    const last = items[items.length - 1];
+    const start = axis === 'x' ? first.box.x : first.box.y;
+    const end = axis === 'x' ? last.box.x + last.box.effW : last.box.y + last.box.effH;
+    const totalSize = items.reduce((sum, item) => sum + (axis === 'x' ? item.box.effW : item.box.effH), 0);
+    const gap = (end - start - totalSize) / (items.length - 1);
+
+    let cursor = start;
+    items.forEach((item) => {
+      if (axis === 'x') {
+        setSlotEffectiveBox(item.slot, cursor, item.box.y);
+        cursor += item.box.effW + gap;
+      } else {
+        setSlotEffectiveBox(item.slot, item.box.x, cursor);
+        cursor += item.box.effH + gap;
+      }
+    });
+
+    pushHistory();
+    refreshSelectionAfterEdit();
+  }
+
+  function getNudgeStep() {
+    const input = document.getElementById('nudge-step');
+    const parsed = parseFloat(input?.value || '1');
+    return Number.isFinite(parsed) && parsed > 0 ? parsed : 1;
+  }
+
+  function nudgeSelectedSlots(dx, dy, opts = {}) {
+    const slots = getSelectedSlots({ editableOnly: true, sameFaceOnly: false });
+    if (!slots.length) return false;
+
+    slots.forEach((slot) => {
+      slot.x_mm = roundMm((slot.x_mm || 0) + dx);
+      slot.y_mm = roundMm((slot.y_mm || 0) + dy);
+    });
+
+    if (opts.push !== false) pushHistory();
+    refreshSelectionAfterEdit();
+    return true;
   }
 
   function groupSlotsByRow(slots) {
@@ -2372,6 +2532,30 @@
       toggleLiveSpacing();
       syncSettingsToLayout();
     });
+    document.getElementById('btn-align-left')?.addEventListener('click', () => alignSelectedSlots('left'));
+    document.getElementById('btn-align-center-x')?.addEventListener('click', () => alignSelectedSlots('center-x'));
+    document.getElementById('btn-align-right')?.addEventListener('click', () => alignSelectedSlots('right'));
+    document.getElementById('btn-align-bottom')?.addEventListener('click', () => alignSelectedSlots('bottom'));
+    document.getElementById('btn-align-center-y')?.addEventListener('click', () => alignSelectedSlots('center-y'));
+    document.getElementById('btn-align-top')?.addEventListener('click', () => alignSelectedSlots('top'));
+    document.getElementById('btn-distribute-x')?.addEventListener('click', () => distributeSelectedSlots('x'));
+    document.getElementById('btn-distribute-y')?.addEventListener('click', () => distributeSelectedSlots('y'));
+    document.getElementById('btn-nudge-up')?.addEventListener('click', () => {
+      const step = getNudgeStep();
+      nudgeSelectedSlots(0, step);
+    });
+    document.getElementById('btn-nudge-down')?.addEventListener('click', () => {
+      const step = getNudgeStep();
+      nudgeSelectedSlots(0, -step);
+    });
+    document.getElementById('btn-nudge-left')?.addEventListener('click', () => {
+      const step = getNudgeStep();
+      nudgeSelectedSlots(-step, 0);
+    });
+    document.getElementById('btn-nudge-right')?.addEventListener('click', () => {
+      const step = getNudgeStep();
+      nudgeSelectedSlots(step, 0);
+    });
     document.getElementById('face-front')?.addEventListener('change', () => setActiveFace('front'));
     document.getElementById('face-back')?.addEventListener('change', () => setActiveFace('back'));
     document.getElementById('btn-duplicate-face')?.addEventListener('click', () => duplicateFrontToBack());
@@ -2471,6 +2655,23 @@
       if ((ev.ctrlKey || ev.metaKey) && ev.key.toLowerCase() === 'z') {
         ev.preventDefault();
         undoHistory();
+        return;
+      }
+
+      const editableTagNames = new Set(['INPUT', 'TEXTAREA', 'SELECT']);
+      if (editableTagNames.has(ev.target?.tagName)) return;
+      const arrowMap = {
+        ArrowUp: [0, 1],
+        ArrowDown: [0, -1],
+        ArrowLeft: [-1, 0],
+        ArrowRight: [1, 0],
+      };
+      if (arrowMap[ev.key]) {
+        const baseStep = getNudgeStep();
+        const multiplier = ev.shiftKey ? 10 : ev.altKey ? 0.1 : 1;
+        const [mx, my] = arrowMap[ev.key];
+        ev.preventDefault();
+        nudgeSelectedSlots(mx * baseStep * multiplier, my * baseStep * multiplier);
       }
     });
   }

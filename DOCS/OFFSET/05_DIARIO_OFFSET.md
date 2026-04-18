@@ -111,3 +111,28 @@ Los calculos usan bounding box simple en mm. Sirven como ayuda operativa rapida,
 - revisar con mas precision la semantica geometrica de `w_mm/h_mm`, `rotation_deg` y bleed por engine
 - mejorar presentacion UX de warnings y errores sin depender tanto de `alert()`
 - decidir cuando conviene empezar micro-refactors internos sin tocar flujos legacy
+
+## 2026-04-18 Inicio Fase 4
+
+### Objetivo
+
+Empezar la fase `fase4-editor-offset-pro` con mejoras profesionales de edicion manual en el Editor Visual IA.
+
+### Mejora implementada
+
+- barra de edicion manual con alineacion de seleccion
+- distribucion horizontal y vertical de tres o mas slots
+- nudge de precision por botones y flechas de teclado
+- paso configurable en milimetros para movimiento fino
+- duplicado y borrado multi-slot
+
+### Alcance tecnico
+
+- solo frontend del Editor Visual IA
+- sin cambios en backend
+- sin cambios en motores de imposicion
+- sin cambios en contrato persistido de `slots[]`
+
+### Observacion importante
+
+Las operaciones nuevas trabajan sobre la caja efectiva del slot, consistente con las ayudas visuales actuales. No reemplazan una validacion geometrica rotada exacta de salida final.

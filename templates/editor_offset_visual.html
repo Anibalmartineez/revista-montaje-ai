@@ -63,6 +63,31 @@
           <button id="btn-spacing-cols" class="btn btn-small" type="button">Solo columnas</button>
           <button id="btn-spacing-live" class="btn btn-small" type="button">LIVE ON</button>
         </div>
+        <div class="control-block manual-tools">
+          <strong>EdiciÃ³n:</strong>
+          <div class="tool-group" aria-label="Alinear selecciÃ³n">
+            <button id="btn-align-left" class="btn btn-small icon-btn" type="button" title="Alinear izquierda">â†¤</button>
+            <button id="btn-align-center-x" class="btn btn-small icon-btn" type="button" title="Centrar horizontal">â†”</button>
+            <button id="btn-align-right" class="btn btn-small icon-btn" type="button" title="Alinear derecha">â†’</button>
+            <button id="btn-align-bottom" class="btn btn-small icon-btn" type="button" title="Alinear abajo">â†§</button>
+            <button id="btn-align-center-y" class="btn btn-small icon-btn" type="button" title="Centrar vertical">â†•</button>
+            <button id="btn-align-top" class="btn btn-small icon-btn" type="button" title="Alinear arriba">â†¥</button>
+          </div>
+          <div class="tool-group" aria-label="Distribuir selecciÃ³n">
+            <button id="btn-distribute-x" class="btn btn-small" type="button" title="Distribuir horizontalmente">Distribuir H</button>
+            <button id="btn-distribute-y" class="btn btn-small" type="button" title="Distribuir verticalmente">Distribuir V</button>
+          </div>
+          <label class="inline-input">Paso
+            <input type="number" id="nudge-step" step="0.1" min="0.1" value="1">
+            <span class="unit">mm</span>
+          </label>
+          <div class="tool-group nudge-pad" aria-label="Mover selecciÃ³n">
+            <button id="btn-nudge-up" class="btn btn-small icon-btn" type="button" title="Mover arriba">â†‘</button>
+            <button id="btn-nudge-left" class="btn btn-small icon-btn" type="button" title="Mover izquierda">â†</button>
+            <button id="btn-nudge-down" class="btn btn-small icon-btn" type="button" title="Mover abajo">â†“</button>
+            <button id="btn-nudge-right" class="btn btn-small icon-btn" type="button" title="Mover derecha">â†’</button>
+          </div>
+        </div>
       </div>
       <div class="zoom-controls">
         <button type="button" id="zoom-out" class="btn btn-small">-</button>

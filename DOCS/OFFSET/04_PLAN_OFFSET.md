@@ -6,10 +6,12 @@ Mapear y estabilizar el flujo real del editor visual IA antes de hacer cambios e
 
 ## Etapa actual
 
+- Fase 4 nueva: `fase4-editor-offset-pro`
 - Sin refactor masivo
 - Sin limpieza agresiva
 - Sin eliminacion de archivos
 - Sin cambio de logica de negocio
+- Foco en herramientas profesionales de edicion manual del Editor Visual IA
 
 ## Plan propuesto por fases
 
@@ -37,7 +39,7 @@ Mapear y estabilizar el flujo real del editor visual IA antes de hacer cambios e
   - `export_settings`
 - documentar que endpoints son canonicos para el editor
 
-### Fase 4. Auditoria tecnica puntual
+### Fase 4 historica. Auditoria tecnica puntual
 
 - revisar coherencia de:
   - bleed
@@ -47,6 +49,22 @@ Mapear y estabilizar el flujo real del editor visual IA antes de hacer cambios e
   - `rotation_deg`
   - `slot_box_final`
 - detectar que reglas se resuelven en frontend y cuales en backend
+
+### Fase 4 actual. Editor Offset PRO
+
+Objetivo de la rama `fase4-editor-offset-pro`:
+
+- mejorar la edicion manual sin tocar flujos legacy
+- sumar herramientas de precision para operadores
+- mantener contrato de layout compatible
+- documentar cada herramienta incorporada
+
+Primer bloque implementado:
+
+- alineacion de seleccion
+- distribucion horizontal y vertical
+- nudge por botones y teclado
+- duplicado/borrado multi-slot
 
 ### Fase 5. Refactor pequeno y seguro
 

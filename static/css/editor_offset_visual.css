@@ -80,6 +80,27 @@ body {
   flex-wrap: wrap;
 }
 
+.manual-tools {
+  flex: 1 1 520px;
+  flex-wrap: wrap;
+}
+
+.tool-group {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.icon-btn {
+  min-width: 30px;
+  text-align: center;
+}
+
+.nudge-pad {
+  display: grid;
+  grid-template-columns: repeat(4, 30px);
+}
+
 .zoom-controls {
   display: inline-flex;
   align-items: center;

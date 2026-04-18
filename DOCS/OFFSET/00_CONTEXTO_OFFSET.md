@@ -41,6 +41,7 @@ El modulo Offset del repo agrupa varios flujos historicos de montaje offset. En 
 - validacion geometrica visual en frontend implementada
 - indicador de distancia util durante drag implementado
 - interaccion click vs drag corregida para mantener seleccion y edicion manual
+- fase 4 iniciada con herramientas pro de edicion manual: alineacion, distribucion, nudge y acciones multi-slot
 
 ## Riesgos principales
 

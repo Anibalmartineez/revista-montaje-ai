@@ -81,6 +81,17 @@ Implementada en frontend:
 - el indicador aparece solo en drag real
 - al terminar el drag, el slot arrastrado queda seleccionado
 
+### Herramientas pro iniciales de edicion manual
+
+Documentadas en `11_HERRAMIENTAS_EDICION_PRO.md`.
+
+Implementado:
+
+- alineacion de seleccion
+- distribucion horizontal y vertical
+- nudge por botones y teclado
+- duplicado y borrado multi-slot
+
 ## Limitaciones conocidas
 
 - siguen coexistiendo flujos offset legacy en el repo
@@ -89,6 +100,7 @@ Implementada en frontend:
 - la validacion geometrica usa bounding box simple, no geometria rotada exacta
 - parte del feedback UX sigue apoyandose en `alert()`
 - no hay schema formal completo del layout ni del slot
+- falta seleccion por marco y edicion masiva avanzada de propiedades
 
 ## Frontera de alcance vigente
 
