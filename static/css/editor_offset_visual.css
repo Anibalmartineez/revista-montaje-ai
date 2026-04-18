@@ -83,22 +83,70 @@ body {
 .manual-tools {
   flex: 1 1 520px;
   flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 10px;
+  background: #eef2f7;
+  border-color: #cbd5e1;
+}
+
+.manual-tools-label {
+  color: #1f2937;
+  font-size: 13px;
+  letter-spacing: 0;
+  margin-right: 2px;
 }
 
 .tool-group {
   display: inline-flex;
   align-items: center;
-  gap: 4px;
+  gap: 5px;
+  padding: 2px 0;
 }
 
-.icon-btn {
-  min-width: 30px;
+.pro-tool-btn {
+  min-height: 30px;
+  min-width: 44px;
+  padding: 6px 9px;
+  border: 1px solid #cbd5e1;
+  background: #fff;
+  color: #111827;
+  font-size: 12px;
+  line-height: 1;
   text-align: center;
+  white-space: nowrap;
+}
+
+.pro-tool-btn:hover {
+  background: #f8fafc;
+  border-color: #94a3b8;
+}
+
+.align-tools .pro-tool-btn {
+  min-width: 54px;
+}
+
+.distribute-tools .pro-tool-btn,
+.nudge-btn {
+  min-width: 82px;
+}
+
+.nudge-step-control {
+  padding-left: 4px;
+  color: #374151;
+  font-weight: 600;
+}
+
+.nudge-step-control input {
+  height: 30px;
+  width: 64px;
+  border: 1px solid #cbd5e1;
+  border-radius: 4px;
+  background: #fff;
 }
 
 .nudge-pad {
-  display: grid;
-  grid-template-columns: repeat(4, 30px);
+  display: inline-flex;
+  flex-wrap: wrap;
 }
 
 .zoom-controls {
