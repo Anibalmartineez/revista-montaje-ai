@@ -384,6 +384,27 @@ Se agregó una validación previa a preview/PDF en `routes.py` mediante `_valida
 - la salida devuelve JSON estructurado con `errors[]` y `warnings[]`
 - el frontend del editor ahora informa esos problemas al usuario
 
+## Validación geométrica visual en editor
+
+Se agregó además una validación liviana en frontend documentada en `09_VALIDACION_GEOMETRICA.md`.
+
+### Detecta
+
+- slots fuera del pliego total
+- slots fuera del área útil
+- slots invadiendo pinza CTP
+- overlap simple entre slots
+
+### No bloquea
+
+- edición
+- preview
+- PDF final
+
+### Rol
+
+Es una capa de ayuda visual temprana. No reemplaza la validación backend de contrato ni redefine la geometría real de salida.
+
 ## Campos que conviene tratar como congelados por compatibilidad
 
 - `sheet_mm`

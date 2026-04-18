@@ -129,6 +129,58 @@ body {
   user-select: none;
 }
 
+.geometry-validation-panel {
+  border: 1px solid #e5e7eb;
+  background: #f9fafb;
+  border-radius: 8px;
+  padding: 10px 12px;
+}
+
+.geometry-validation-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 8px;
+}
+
+.geometry-validation-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.geometry-validation-empty {
+  color: #6b7280;
+  font-size: 13px;
+}
+
+.geometry-validation-item {
+  border-radius: 6px;
+  padding: 8px 10px;
+  font-size: 13px;
+  line-height: 1.35;
+  border: 1px solid #e5e7eb;
+  background: #fff;
+}
+
+.geometry-validation-item strong {
+  display: inline-block;
+  margin-right: 6px;
+}
+
+.geometry-validation-item.error {
+  border-color: #ef4444;
+  background: #fef2f2;
+  color: #991b1b;
+}
+
+.geometry-validation-item.warning {
+  border-color: #f59e0b;
+  background: #fffbeb;
+  color: #92400e;
+}
+
 .sheet {
   position: relative;
   background: repeating-linear-gradient(
@@ -176,6 +228,31 @@ body {
 .slot.selected {
   border-color: #ef4444;
   box-shadow: 0 0 0 2px rgba(239, 68, 68, 0.4);
+}
+
+.slot.geometry-error {
+  border-color: #dc2626;
+  background: rgba(220, 38, 38, 0.12);
+  box-shadow: 0 0 0 2px rgba(220, 38, 38, 0.2);
+}
+
+.slot.geometry-warning {
+  border-color: #f59e0b;
+  background: rgba(245, 158, 11, 0.14);
+  box-shadow: 0 0 0 2px rgba(245, 158, 11, 0.18);
+}
+
+.slot.selected.geometry-warning,
+.slot.selected.geometry-error {
+  box-shadow:
+    0 0 0 2px rgba(239, 68, 68, 0.35),
+    0 0 0 4px rgba(245, 158, 11, 0.14);
+}
+
+.slot.selected.geometry-error {
+  box-shadow:
+    0 0 0 2px rgba(239, 68, 68, 0.35),
+    0 0 0 4px rgba(220, 38, 38, 0.18);
 }
 
 .slot .handle {

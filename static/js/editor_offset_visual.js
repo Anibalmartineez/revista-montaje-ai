@@ -8,6 +8,8 @@
   const slotForm = document.getElementById('slot-form');
   const slotNone = document.getElementById('slot-none');
   const uploadForm = document.getElementById('upload-form');
+  const geometryValidationSummaryEl = document.getElementById('geometry-validation-summary');
+  const geometryValidationListEl = document.getElementById('geometry-validation-list');
 
   const state = {
     layout: {},
@@ -28,6 +30,11 @@
       spacingX_mm: 4,
       spacingY_mm: 3,
       live: true,
+    },
+    geometryValidation: {
+      errors: [],
+      warnings: [],
+      bySlot: {},
     },
   };
 
@@ -626,6 +633,173 @@
     while (el.firstChild) el.removeChild(el.firstChild);
   }
 
+  function getSimpleSlotBox(slot) {
+    return {
+      x: Number(slot.x_mm || 0),
+      y: Number(slot.y_mm || 0),
+      w: Number(slot.w_mm || 0),
+      h: Number(slot.h_mm || 0),
+    };
+  }
+
+  function validateGeometry(layout) {
+    const result = {
+      errors: [],
+      warnings: [],
+      bySlot: {},
+    };
+
+    if (!layout || !Array.isArray(layout.slots)) {
+      return result;
+    }
+
+    const sheet = Array.isArray(layout.sheet_mm) ? layout.sheet_mm : [0, 0];
+    const margins = Array.isArray(layout.margins_mm) ? layout.margins_mm : [0, 0, 0, 0];
+    const sheetW = Number(sheet[0] || 0);
+    const sheetH = Number(sheet[1] || 0);
+    const [marginLeft, marginRight, marginTop, marginBottom] = margins.map((value) => Number(value || 0));
+    const usableLeft = marginLeft;
+    const usableRight = sheetW - marginRight;
+    const usableBottom = marginBottom;
+    const usableTop = sheetH - marginTop;
+    const ctp = layout.ctp || {};
+    const gripperEnabled = !!ctp.enabled;
+    const gripper = Number(ctp.gripper_mm || 0);
+
+    const addIssue = (level, type, slotId, message, extra = {}) => {
+      const issue = { type, slot_id: slotId, message, ...extra };
+      if (level === 'error') {
+        result.errors.push(issue);
+      } else {
+        result.warnings.push(issue);
+      }
+
+      if (!slotId) return;
+      if (!result.bySlot[slotId]) {
+        result.bySlot[slotId] = { level, issues: [issue] };
+        return;
+      }
+      result.bySlot[slotId].issues.push(issue);
+      if (result.bySlot[slotId].level !== 'error' && level === 'error') {
+        result.bySlot[slotId].level = 'error';
+      }
+    };
+
+    const slots = layout.slots.filter((slot) => slot && typeof slot === 'object');
+
+    slots.forEach((slot) => {
+      const slotId = slot.id || '(sin id)';
+      const face = slot.face || 'front';
+      const { x, y, w, h } = getSimpleSlotBox(slot);
+      const right = x + w;
+      const top = y + h;
+
+      if (x < 0 || y < 0 || right > sheetW || top > sheetH) {
+        addIssue(
+          'error',
+          'OUT_OF_SHEET',
+          slotId,
+          `Slot ${slotId} (${face}) está fuera del pliego total.`,
+          { face },
+        );
+      }
+
+      if (x < usableLeft || y < usableBottom || right > usableRight || top > usableTop) {
+        addIssue(
+          'warning',
+          'OUT_OF_USABLE_AREA',
+          slotId,
+          `Slot ${slotId} (${face}) invade márgenes o sale del área útil del pliego.`,
+          { face },
+        );
+      }
+
+      if (gripperEnabled && y < gripper) {
+        addIssue(
+          'warning',
+          'GRIPPER',
+          slotId,
+          `Slot ${slotId} (${face}) invade la zona de pinza/CTP (${gripper} mm).`,
+          { face },
+        );
+      }
+    });
+
+    for (let i = 0; i < slots.length; i += 1) {
+      const a = slots[i];
+      const boxA = getSimpleSlotBox(a);
+      const aRight = boxA.x + boxA.w;
+      const aTop = boxA.y + boxA.h;
+      for (let j = i + 1; j < slots.length; j += 1) {
+        const b = slots[j];
+        const faceA = a.face || 'front';
+        const faceB = b.face || 'front';
+        if (faceA !== faceB) continue;
+        const boxB = getSimpleSlotBox(b);
+        const bRight = boxB.x + boxB.w;
+        const bTop = boxB.y + boxB.h;
+        const overlaps = boxA.x < bRight && aRight > boxB.x && boxA.y < bTop && aTop > boxB.y;
+        if (!overlaps) continue;
+
+        addIssue(
+          'warning',
+          'OVERLAP',
+          a.id || '(sin id)',
+          `Slot ${a.id || '(sin id)'} (${faceA}) se superpone con ${b.id || '(sin id)'}.`,
+          { face: faceA, other_slot_id: b.id || '(sin id)' },
+        );
+        addIssue(
+          'warning',
+          'OVERLAP',
+          b.id || '(sin id)',
+          `Slot ${b.id || '(sin id)'} (${faceB}) se superpone con ${a.id || '(sin id)'}.`,
+          { face: faceB, other_slot_id: a.id || '(sin id)' },
+        );
+      }
+    }
+
+    return result;
+  }
+
+  function refreshGeometryValidation() {
+    state.geometryValidation = validateGeometry(state.layout);
+    return state.geometryValidation;
+  }
+
+  function renderGeometryValidationPanel() {
+    if (!geometryValidationSummaryEl || !geometryValidationListEl) return;
+
+    const validation = state.geometryValidation || { errors: [], warnings: [], bySlot: {} };
+    const activeFace = state.activeFace || 'front';
+    const visibleErrors = validation.errors.filter((issue) => !issue.face || issue.face === activeFace);
+    const visibleWarnings = validation.warnings.filter((issue) => !issue.face || issue.face === activeFace);
+    const visibleIssues = visibleErrors.concat(visibleWarnings);
+
+    if (!visibleIssues.length) {
+      geometryValidationSummaryEl.textContent = `Cara ${activeFace}: sin problemas geométricos`;
+      geometryValidationListEl.innerHTML = '<div class="geometry-validation-empty">No se detectaron conflictos geométricos en la cara visible.</div>';
+      return;
+    }
+
+    geometryValidationSummaryEl.textContent = `Cara ${activeFace}: ${visibleErrors.length} errores, ${visibleWarnings.length} advertencias`;
+    clearChildren(geometryValidationListEl);
+
+    visibleIssues.slice(0, 12).forEach((issue) => {
+      const item = document.createElement('div');
+      const isError = visibleErrors.includes(issue);
+      item.className = `geometry-validation-item ${isError ? 'error' : 'warning'}`;
+      item.innerHTML = `<strong>${issue.type}</strong>${issue.message}`;
+      geometryValidationListEl.appendChild(item);
+    });
+
+    if (visibleIssues.length > 12) {
+      const more = document.createElement('div');
+      more.className = 'geometry-validation-empty';
+      more.textContent = `Hay ${visibleIssues.length - 12} problemas adicionales en esta cara.`;
+      geometryValidationListEl.appendChild(more);
+    }
+  }
+
   function initSheetControls() {
     const layout = state.layout;
     if (!layout.sheet_mm) {
@@ -638,6 +812,7 @@
   }
 
   function renderSheet() {
+    refreshGeometryValidation();
     const [sheetW, sheetH] = state.layout.sheet_mm;
     sheetEl.style.width = `${mmToPx(sheetW)}px`;
     sheetEl.style.height = `${mmToPx(sheetH)}px`;
@@ -652,9 +827,18 @@
       const slotEl = document.createElement('div');
       slotEl.className = 'slot';
       if (slot.locked) slotEl.classList.add('locked');
+      const geometryIssue = state.geometryValidation?.bySlot?.[slot.id];
+      if (geometryIssue?.level === 'error') {
+        slotEl.classList.add('geometry-error');
+      } else if (geometryIssue?.level === 'warning') {
+        slotEl.classList.add('geometry-warning');
+      }
       const isSelectedSet = state.selectedSlots && state.selectedSlots.has(slot.id);
       if (isSelectedSet || (state.selectedSlot && state.selectedSlot.id === slot.id)) {
         slotEl.classList.add('selected');
+      }
+      if (geometryIssue?.issues?.length) {
+        slotEl.title = geometryIssue.issues.map((issue) => issue.message).join('\n');
       }
       slotEl.dataset.slotId = slot.id;
       const renderBox = getSlotRenderBox(slot);
@@ -678,6 +862,7 @@
     });
     updateHandleScale();
     applyZoom();
+    renderGeometryValidationPanel();
   }
 
   function renderCtpGuideOverlay() {
@@ -1885,6 +2070,13 @@
       alert('No hay slots en el pliego. Crea o genera los cuadros antes de generar la preview/PDF.');
       return;
     }
+    const geometry = refreshGeometryValidation();
+    renderGeometryValidationPanel();
+    if (geometry.errors.length || geometry.warnings.length) {
+      alert(
+        `Advertencia geométrica antes de la preview:\n- ${geometry.errors.length} errores\n- ${geometry.warnings.length} advertencias\nRevisa el panel debajo del pliego para más detalle.`,
+      );
+    }
     await saveLayout();
     const res = await fetch(`/editor_offset/preview/${window.JOB_ID}`, { method: 'POST' });
     const data = await res.json();
@@ -1907,6 +2099,13 @@
     if (!state.layout.slots || state.layout.slots.length === 0) {
       alert('No hay slots en el pliego. Crea o genera los cuadros antes de generar la preview/PDF.');
       return;
+    }
+    const geometry = refreshGeometryValidation();
+    renderGeometryValidationPanel();
+    if (geometry.errors.length || geometry.warnings.length) {
+      alert(
+        `Advertencia geométrica antes del PDF:\n- ${geometry.errors.length} errores\n- ${geometry.warnings.length} advertencias\nRevisa el panel debajo del pliego para más detalle.`,
+      );
     }
     await saveLayout();
     const res = await fetch(`/editor_offset/generar_pdf/${window.JOB_ID}`, { method: 'POST' });
