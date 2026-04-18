@@ -52,22 +52,62 @@ Se abre rama enfocada solo en modulo de montaje offset, especialmente en el edit
 
 ### Mejora implementada
 
-- validación geométrica visual en el editor
-- indicador flotante de distancia útil durante drag manual de slots
+- validacion geometrica visual en el editor
+- indicador flotante de distancia util durante drag manual de slots
 
-### Qué hace el indicador
+### Que hace el indicador
 
-- muestra distancia al margen útil más cercano
-- muestra distancia al slot vecino más cercano de la misma cara
-- si CTP está activo, muestra distancia a la zona de pinza
+- muestra distancia al margen util mas cercano
+- muestra distancia al slot vecino mas cercano de la misma cara
+- si CTP esta activo, muestra distancia a la zona de pinza
 
-### Alcance técnico
+### Alcance tecnico
 
 - solo frontend
 - sin cambios en backend
-- sin cambios en motores de imposición
+- sin cambios en motores de imposicion
 - sin cambios en contratos persistidos
 
-### Observación importante
+### Observacion importante
 
-Los cálculos usan bounding box simple en mm. Sirven como ayuda operativa rápida, no como verificación geométrica exacta de salida final.
+Los calculos usan bounding box simple en mm. Sirven como ayuda operativa rapida, no como verificacion geometrica exacta de salida final.
+
+## 2026-04-18 Cierre de fase
+
+### Resumen de lo realizado
+
+- auditoria del flujo real del editor visual IA
+- documentacion del mapa del editor
+- congelamiento del contrato de layout
+- congelamiento del subcontrato de slots
+- validacion backend antes de preview y PDF
+- validacion geometrica visual en frontend
+- indicador de distancia util durante drag
+- correccion de UX para distinguir click simple vs drag real y preservar seleccion manual
+- consolidacion documental del modulo para continuidad
+
+### Pruebas realizadas
+
+- verificacion del flujo y contratos mediante lectura cruzada de:
+  - `routes.py`
+  - `static/js/editor_offset_visual.js`
+  - `templates/editor_offset_visual.html`
+  - `montaje_offset_inteligente.py`
+- revision de ejemplos reales de `layout_constructor.json`
+- compilacion Python previa sobre `routes.py` durante la fase de validacion backend
+- verificacion manual del cableado frontend y de la documentacion consolidada
+
+### Estado resultante
+
+- el Editor Visual IA quedo con contexto tecnico claro y trazable
+- el contrato de datos principal quedo documentado
+- la salida tiene validacion minima previa en backend
+- el editor tiene asistencia visual y geometrica adicional en frontend
+- la interaccion de edicion manual quedo estable tras el ajuste click vs drag
+
+### Pendientes
+
+- formalizar mejor schema y validaciones profundas del layout
+- revisar con mas precision la semantica geometrica de `w_mm/h_mm`, `rotation_deg` y bleed por engine
+- mejorar presentacion UX de warnings y errores sin depender tanto de `alert()`
+- decidir cuando conviene empezar micro-refactors internos sin tocar flujos legacy

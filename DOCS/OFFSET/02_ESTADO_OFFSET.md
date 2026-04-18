@@ -1,124 +1,120 @@
 # 02 ESTADO OFFSET
 
-## Estado actual observado
+## Estado actual real
 
-Hoy conviven varios flujos offset dentro del repo. No forman un unico modulo limpio; son varias generaciones de UI y motores que comparten conceptos parecidos.
+Hoy el repo sigue teniendo varios flujos offset coexistiendo, pero el **Editor Visual IA** ya quedo delimitado, auditado y documentado como subsistema propio dentro del modulo.
 
-## Flujos detectados
+## Flujo bajo foco en esta fase
 
-### 1. Editor visual IA nuevo
+### Editor visual IA nuevo
 
-- Ruta: `GET /editor_offset_visual`
-- Template: `templates/editor_offset_visual.html`
-- JS principal: `static/js/editor_offset_visual.js`
-- Backend principal: `routes.py`
-- Motor de salida: `montaje_offset_inteligente.py`
-- Motor de nesting auxiliar: `engines/nesting_pro_engine.py`
+- ruta: `GET /editor_offset_visual`
+- template: `templates/editor_offset_visual.html`
+- frontend principal: `static/js/editor_offset_visual.js`
+- estilos principales: `static/css/editor_offset_visual.css`
+- backend de orquestacion: `routes.py`
+- motor de salida final: `montaje_offset_inteligente.py`
+- motor de nesting auxiliar: `engines/nesting_pro_engine.py`
 
-Este es el flujo objetivo de esta rama.
+Este fue el unico flujo trabajado funcionalmente en esta fase.
 
-### 2. Montaje offset clasico
+## Capacidades actuales confirmadas
 
-- Ruta: `/montaje_offset`
-- Template: `templates/montaje_offset.html`
-- Backend/motor: `routes.py` + `montaje_offset.py`
+- carga y persistencia por job via `layout_constructor.json`
+- definicion de pliego, margenes y caras frente/dorso
+- alta y edicion de trabajos logicos
+- subida de PDFs y metadata por diseno
+- generacion de slots por IA de trabajos logicos
+- imposicion `repeat`, `nesting` y `hybrid`
+- edicion manual de slots
+- agrupacion y desagrupacion de slots
+- duplicado de frente a dorso
+- ajustes CTP desde frontend
+- preview y PDF final desde layout persistido
 
-Es otro flujo distinto. No es el editor visual IA.
+## Validaciones implementadas
 
-### 3. Montaje offset inteligente anterior
+### Backend antes de preview/PDF
 
-- Ruta: `/montaje_offset_inteligente`
-- Template: `templates/montaje_offset_inteligente.html`
-- Backend/motor: `routes.py` + `montaje_offset_inteligente.py`
+Documentadas en `08_VALIDACION_SALIDA.md`.
 
-Comparte el motor inteligente, pero no es la misma UI del editor visual IA constructor.
+Implementadas:
 
-### 4. Imposicion offset automatica
+- unicidad de `designs[].ref`
+- unicidad de `slots[].id`
+- verificacion de `slots[].design_ref`
+- validacion basica de `slot.face`
+- validacion numerica minima de campos criticos
+- ancho y alto mayores que cero
+- warnings para `logical_work_id` no resuelto
+- warnings para cara `back` declarada sin slots de dorso
 
-- Ruta: `/imposicion_offset_auto`
-- Template: `templates/imposicion_offset_auto.html`
-- Backend/motor: `routes.py` + `imposicion_offset_auto.py`
+### Frontend visual
 
-Es un flujo aparte para calcular layouts automaticos por cantidad/formato.
+Documentadas en `09_VALIDACION_GEOMETRICA.md`.
 
-### 5. Montaje offset personalizado PRO
+Implementadas:
 
-- Entrada desde `routes.py`
-- Motor: `montaje_offset_personalizado.py`
+- fuera de pliego total
+- fuera de area util
+- invasion de zona de pinza CTP
+- overlap simple por bounding box
 
-Tambien es otro flujo separado.
+## Mejoras UX implementadas
 
-## Modulos realmente usados por el editor visual IA
+### Indicador de distancia util durante drag
 
-### Usados directamente
+Documentado en `10_INDICADOR_DISTANCIA_UTIL.md`.
 
-- `routes.py`
+Implementado:
+
+- distancia al margen util mas cercano
+- distancia al slot vecino mas cercano de la misma cara
+- distancia a pinza si CTP esta activo
+
+### Correccion de interaccion click vs drag
+
+Implementada en frontend:
+
+- click simple vuelve a seleccionar el slot normalmente
+- drag solo comienza despues de un umbral minimo de movimiento
+- el indicador aparece solo en drag real
+- al terminar el drag, el slot arrastrado queda seleccionado
+
+## Limitaciones conocidas
+
+- siguen coexistiendo flujos offset legacy en el repo
+- `routes.py` continua concentrando mucha orquestacion
+- la semantica de `w_mm/h_mm` sigue siendo sensible y depende del engine
+- la validacion geometrica usa bounding box simple, no geometria rotada exacta
+- parte del feedback UX sigue apoyandose en `alert()`
+- no hay schema formal completo del layout ni del slot
+
+## Frontera de alcance vigente
+
+### Dentro del alcance de continuidad
+
+- `/editor_offset_visual`
 - `templates/editor_offset_visual.html`
 - `static/js/editor_offset_visual.js`
 - `static/css/editor_offset_visual.css`
+- endpoints `/editor_offset/*` y `/editor_offset_visual/apply_imposition`
 - `montaje_offset_inteligente.py`
 - `engines/nesting_pro_engine.py`
 
-### Importados en `routes.py` pero no usados por este editor en su flujo principal
+### Fuera del alcance por ahora
 
+- `/montaje_offset`
+- `/montaje_offset_inteligente`
+- `/imposicion_offset_auto`
 - `montaje_offset.py`
 - `montaje_offset_personalizado.py`
 - `imposicion_offset_auto.py`
 - `montaje.py`
 
-## Responsabilidad real por capa
+## Foco siguiente sugerido
 
-### UI y estado interactivo
-
-- `static/js/editor_offset_visual.js`
-
-### Contrato de entrada/salida del editor
-
-- `routes.py`
-
-### Persistencia por job
-
-- `static/constructor_offset_jobs/<job_id>/layout_constructor.json`
-
-### Calculo de slots automaticos por IA de trabajos logicos
-
-- `routes._generate_slots_with_ai`
-- `montaje_offset_inteligente.realizar_montaje_inteligente`
-
-### Motores de imposicion desde el editor
-
-- Repeat: `routes._build_step_repeat_slots`
-- Nesting: `engines.nesting_pro_engine.compute_nesting`
-- Hybrid: `routes._repeat_pattern_over_sheet`
-
-### Render de preview y PDF final
-
-- `montaje_offset_inteligente.montar_offset_desde_layout`
-- `montaje_offset_inteligente.realizar_montaje_inteligente`
-
-## Conclusiones de estado
-
-- El editor visual IA nuevo ya tiene flujo propio y persistencia propia.
-- El repo todavia mezcla varios motores offset que resuelven problemas parecidos.
-- Antes de refactorizar conviene congelar el flujo real del editor y definir frontera entre:
-  - constructor visual nuevo
-  - pantallas offset legacy
-  - motores reutilizables
-
-## Decision operativa para esta rama
-
-En esta rama conviene trabajar con esta frontera:
-
-- Dentro del alcance:
-  - `/editor_offset_visual`
-  - su template
-  - su JS/CSS
-  - endpoints `/editor_offset/*` y `/editor_offset_visual/apply_imposition`
-  - `montaje_offset_inteligente.py`
-  - `engines/nesting_pro_engine.py`
-
-- Fuera del alcance por ahora:
-  - `/montaje_offset`
-  - `/montaje_offset_inteligente`
-  - `/imposicion_offset_auto`
-  - motores legacy salvo analisis de solapamiento
+1. auditar semantica geometrica exacta de slots y rotaciones en salida final
+2. endurecer schema y validaciones del contrato sin romper compatibilidad
+3. mejorar surfacing de errores y warnings del editor sin refactor masivo
+4. recien luego evaluar micro-refactors internos
