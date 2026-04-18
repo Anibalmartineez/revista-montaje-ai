@@ -255,6 +255,37 @@ body {
     0 0 0 4px rgba(220, 38, 38, 0.18);
 }
 
+.distance-indicator {
+  position: absolute;
+  min-width: 160px;
+  max-width: 220px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  background: rgba(17, 24, 39, 0.92);
+  color: #f9fafb;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  box-shadow: 0 8px 20px rgba(15, 23, 42, 0.22);
+  pointer-events: none;
+  z-index: 30;
+}
+
+.distance-indicator-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 10px;
+  font-size: 12px;
+  line-height: 1.35;
+}
+
+.distance-indicator-row + .distance-indicator-row {
+  margin-top: 4px;
+}
+
+.distance-indicator-label {
+  color: #cbd5e1;
+}
+
 .slot .handle {
   position: absolute;
   width: 4px;

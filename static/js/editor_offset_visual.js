@@ -36,6 +36,14 @@
       warnings: [],
       bySlot: {},
     },
+    distanceIndicator: {
+      active: false,
+      slotId: null,
+      face: 'front',
+      x_mm: 0,
+      y_mm: 0,
+      items: [],
+    },
   };
 
   const history = {
@@ -800,6 +808,126 @@
     }
   }
 
+  function formatSignedDistance(value) {
+    const rounded = Number(value || 0).toFixed(1);
+    return `${rounded} mm`;
+  }
+
+  function rectDistance(boxA, boxB) {
+    const dx = Math.max(boxB.x - (boxA.x + boxA.w), boxA.x - (boxB.x + boxB.w), 0);
+    const dy = Math.max(boxB.y - (boxA.y + boxA.h), boxA.y - (boxB.y + boxB.h), 0);
+    return Math.sqrt(dx * dx + dy * dy);
+  }
+
+  function updateDistanceIndicator(slot) {
+    if (!slot || dragState.isHandle) {
+      state.distanceIndicator = {
+        active: false,
+        slotId: null,
+        face: state.activeFace || 'front',
+        x_mm: 0,
+        y_mm: 0,
+        items: [],
+      };
+      return;
+    }
+
+    const sheet = Array.isArray(state.layout.sheet_mm) ? state.layout.sheet_mm : [0, 0];
+    const margins = Array.isArray(state.layout.margins_mm) ? state.layout.margins_mm : [0, 0, 0, 0];
+    const [sheetW, sheetH] = sheet.map((value) => Number(value || 0));
+    const [marginLeft, marginRight, marginTop, marginBottom] = margins.map((value) => Number(value || 0));
+    const usableLeft = marginLeft;
+    const usableRight = sheetW - marginRight;
+    const usableBottom = marginBottom;
+    const usableTop = sheetH - marginTop;
+    const box = getSimpleSlotBox(slot);
+    const face = slot.face || state.activeFace || 'front';
+
+    const marginCandidates = [
+      { label: 'Margen útil izq.', value: box.x - usableLeft },
+      { label: 'Margen útil der.', value: usableRight - (box.x + box.w) },
+      { label: 'Margen útil inf.', value: box.y - usableBottom },
+      { label: 'Margen útil sup.', value: usableTop - (box.y + box.h) },
+    ];
+    marginCandidates.sort((a, b) => Math.abs(a.value) - Math.abs(b.value));
+    const nearestMargin = marginCandidates[0];
+
+    let nearestNeighbor = null;
+    (state.layout.slots || []).forEach((other) => {
+      if (!other || other.id === slot.id) return;
+      if ((other.face || 'front') !== face) return;
+      const otherBox = getSimpleSlotBox(other);
+      const distance = rectDistance(box, otherBox);
+      if (!nearestNeighbor || distance < nearestNeighbor.distance) {
+        nearestNeighbor = {
+          id: other.id || '(sin id)',
+          distance,
+        };
+      }
+    });
+
+    const items = [
+      {
+        label: nearestMargin.label,
+        value: formatSignedDistance(nearestMargin.value),
+      },
+      {
+        label: 'Slot vecino',
+        value: nearestNeighbor
+          ? `${nearestNeighbor.id}: ${formatSignedDistance(nearestNeighbor.distance)}`
+          : 'Sin vecino',
+      },
+    ];
+
+    const ctp = state.layout.ctp || {};
+    if (ctp.enabled) {
+      const gripper = Number(ctp.gripper_mm || 0);
+      items.push({
+        label: 'Zona de pinza',
+        value: formatSignedDistance(box.y - gripper),
+      });
+    }
+
+    state.distanceIndicator = {
+      active: true,
+      slotId: slot.id || null,
+      face,
+      x_mm: box.x + box.w + 6,
+      y_mm: box.y + box.h + 6,
+      items,
+    };
+  }
+
+  function renderDistanceIndicator() {
+    if (!state.distanceIndicator?.active) return;
+    if ((state.distanceIndicator.face || 'front') !== (state.activeFace || 'front')) return;
+
+    const indicator = document.createElement('div');
+    indicator.className = 'distance-indicator';
+    indicator.style.left = `${mmToPx(state.distanceIndicator.x_mm)}px`;
+    indicator.style.bottom = `${mmToPx(state.distanceIndicator.y_mm)}px`;
+
+    state.distanceIndicator.items.forEach((item) => {
+      const row = document.createElement('div');
+      row.className = 'distance-indicator-row';
+      row.innerHTML = `<span class="distance-indicator-label">${item.label}</span><strong>${item.value}</strong>`;
+      indicator.appendChild(row);
+    });
+
+    sheetEl.appendChild(indicator);
+  }
+
+  function hideDistanceIndicator() {
+    state.distanceIndicator = {
+      active: false,
+      slotId: null,
+      face: state.activeFace || 'front',
+      x_mm: 0,
+      y_mm: 0,
+      items: [],
+    };
+  }
+
   function initSheetControls() {
     const layout = state.layout;
     if (!layout.sheet_mm) {
@@ -862,6 +990,7 @@
     });
     updateHandleScale();
     applyZoom();
+    renderDistanceIndicator();
     renderGeometryValidationPanel();
   }
 
@@ -1769,6 +1898,7 @@
     dragState.groupSlots = groupSlots;
     dragState.groupInitialPositions = groupInitialPositions;
     dragState.moved = false;
+    updateDistanceIndicator(slot);
 
     const moveHandler = (moveEv) => moveDrag(moveEv);
     const upHandler = (upEv) => endDrag(upEv);
@@ -1827,7 +1957,9 @@
       if (state.spacingSettings.live) {
         applySpacing('all', { render: false, push: false, face: slot.face || state.activeFace });
       }
+      updateDistanceIndicator(slot);
     } else {
+      hideDistanceIndicator();
       if (handleType.includes('b')) {
         slot.h_mm = Math.max(5, initSlot.h_mm + dy);
       }
@@ -1871,6 +2003,9 @@
     if (dragState.moved) {
       pushHistory();
     }
+
+    hideDistanceIndicator();
+    renderSheet();
 
     dragState.active = false;
     dragState.pointerId = null;

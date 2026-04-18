@@ -47,3 +47,27 @@ Se abre rama enfocada solo en modulo de montaje offset, especialmente en el edit
 
 - documentar contrato exacto de `layout_constructor.json`
 - luego auditar en detalle bleed / crop / face / ctp / export mode
+
+## 2026-04-18
+
+### Mejora implementada
+
+- validación geométrica visual en el editor
+- indicador flotante de distancia útil durante drag manual de slots
+
+### Qué hace el indicador
+
+- muestra distancia al margen útil más cercano
+- muestra distancia al slot vecino más cercano de la misma cara
+- si CTP está activo, muestra distancia a la zona de pinza
+
+### Alcance técnico
+
+- solo frontend
+- sin cambios en backend
+- sin cambios en motores de imposición
+- sin cambios en contratos persistidos
+
+### Observación importante
+
+Los cálculos usan bounding box simple en mm. Sirven como ayuda operativa rápida, no como verificación geométrica exacta de salida final.
