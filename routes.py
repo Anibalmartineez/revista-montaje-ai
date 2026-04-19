@@ -1055,6 +1055,41 @@ def editor_offset_apply_imposition():
     return jsonify({"ok": True, "layout": layout})
 
 
+@routes_bp.post("/ai/step_repeat_action")
+def ai_step_repeat_action():
+    payload = request.get_json(silent=True) or {}
+    prompt = payload.get("prompt") or request.form.get("prompt") or ""
+    raw_layout = payload.get("layout_json", request.form.get("layout_json"))
+
+    if raw_layout is None:
+        raw_layout = payload.get("layout")
+
+    if isinstance(raw_layout, str):
+        try:
+            layout = json.loads(raw_layout)
+        except json.JSONDecodeError:
+            return _json_error("layout_json invalido.")
+    elif isinstance(raw_layout, dict):
+        layout = raw_layout
+    else:
+        return _json_error("layout_json faltante.")
+
+    if not str(prompt).strip():
+        return _json_error("prompt faltante.")
+
+    try:
+        from ai_agent.agent_controller import handle_agent_request
+
+        result = handle_agent_request(prompt, layout)
+    except Exception as exc:
+        current_app.logger.exception("Fallo en agente Step & Repeat")
+        return _json_error(f"Fallo en agente Step & Repeat: {str(exc)}", 500)
+
+    response = {"ok": bool(result.get("success"))}
+    response.update(result)
+    return jsonify(response)
+
+
 @routes_bp.route("/editor_offset/preview/<job_id>", methods=["POST"])
 def editor_offset_preview(job_id: str):
     safe_job_id = _safe_job_id(job_id)
