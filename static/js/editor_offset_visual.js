@@ -1122,6 +1122,31 @@
     renderSlotForm();
   }
 
+  function getUsableSheetBounds() {
+    const sheet = state.layout.sheet_mm || [0, 0];
+    const margins = state.layout.margins_mm || [0, 0, 0, 0];
+    const [left = 0, right = 0, top = 0, bottom = 0] = margins;
+    const sheetW = Number(sheet[0] || 0);
+    const sheetH = Number(sheet[1] || 0);
+    return {
+      minX: Number(left || 0),
+      maxX: Math.max(Number(left || 0), sheetW - Number(right || 0)),
+      minY: Number(bottom || 0),
+      maxY: Math.max(Number(bottom || 0), sheetH - Number(top || 0)),
+    };
+  }
+
+  function selectAllSlotsOnActiveFace() {
+    const activeFace = state.activeFace || 'front';
+    const slots = (state.layout.slots || []).filter((slot) => (slot.face || 'front') === activeFace);
+    if (!slots.length) return false;
+    state.selectedSlots = new Set(slots.map((slot) => slot.id));
+    state.selectedSlot = slots[0] || null;
+    renderSheet();
+    renderSlotForm();
+    return true;
+  }
+
   function renderSlotForm() {
     const slot = state.selectedSlot || (state.selectedSlots && state.selectedSlots.size > 0
       ? state.layout.slots.find((s) => state.selectedSlots.has(s.id))
@@ -1558,6 +1583,27 @@
 
     pushHistory();
     refreshSelectionAfterEdit();
+  }
+
+  function centerSelectedBlock(axis = 'both') {
+    const slots = getSelectedSlots({ editableOnly: true });
+    if (!slots.length) return false;
+
+    const bounds = getSelectionBounds(slots);
+    const usable = getUsableSheetBounds();
+    const targetMinX = usable.minX + ((usable.maxX - usable.minX) - (bounds.maxX - bounds.minX)) / 2;
+    const targetMinY = usable.minY + ((usable.maxY - usable.minY) - (bounds.maxY - bounds.minY)) / 2;
+    const dx = axis === 'y' ? 0 : targetMinX - bounds.minX;
+    const dy = axis === 'x' ? 0 : targetMinY - bounds.minY;
+
+    slots.forEach((slot) => {
+      slot.x_mm = roundMm((slot.x_mm || 0) + dx);
+      slot.y_mm = roundMm((slot.y_mm || 0) + dy);
+    });
+
+    pushHistory();
+    refreshSelectionAfterEdit();
+    return true;
   }
 
   function getNudgeStep() {
@@ -2546,6 +2592,10 @@
       toggleLiveSpacing();
       syncSettingsToLayout();
     });
+    document.getElementById('btn-select-active-face')?.addEventListener('click', selectAllSlotsOnActiveFace);
+    document.getElementById('btn-center-selection-x')?.addEventListener('click', () => centerSelectedBlock('x'));
+    document.getElementById('btn-center-selection-y')?.addEventListener('click', () => centerSelectedBlock('y'));
+    document.getElementById('btn-center-selection-both')?.addEventListener('click', () => centerSelectedBlock('both'));
     document.getElementById('btn-align-left')?.addEventListener('click', () => alignSelectedSlots('left'));
     document.getElementById('btn-align-center-x')?.addEventListener('click', () => alignSelectedSlots('center-x'));
     document.getElementById('btn-align-right')?.addEventListener('click', () => alignSelectedSlots('right'));
@@ -2674,6 +2724,11 @@
 
       const editableTagNames = new Set(['INPUT', 'TEXTAREA', 'SELECT']);
       if (editableTagNames.has(ev.target?.tagName)) return;
+      if ((ev.ctrlKey || ev.metaKey) && ev.key.toLowerCase() === 'a') {
+        ev.preventDefault();
+        selectAllSlotsOnActiveFace();
+        return;
+      }
       const arrowMap = {
         ArrowUp: [0, 1],
         ArrowDown: [0, -1],

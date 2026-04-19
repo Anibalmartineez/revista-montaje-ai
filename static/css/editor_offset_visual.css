@@ -125,6 +125,15 @@ body {
   min-width: 54px;
 }
 
+.block-tools .pro-tool-btn {
+  min-width: 86px;
+}
+
+.block-tools #btn-select-active-face,
+.block-tools #btn-center-selection-both {
+  min-width: 116px;
+}
+
 .distribute-tools .pro-tool-btn,
 .nudge-btn {
   min-width: 82px;
