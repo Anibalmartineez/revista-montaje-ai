@@ -1062,17 +1062,19 @@ def montar_pliego_offset_inteligente(
             slot_box_final = bool(p.get("slot_box_final"))
             final_w_mm = float(p["w_mm"])
             final_h_mm = float(p["h_mm"])
+            rot_deg = int(p.get("rot_deg", p.get("rot", 0)) or 0) % 360
+            swapped = rot_deg in (90, 270)
             if slot_box_final:
                 bleed_effective = min(
                     float(bleed_effective),
                     final_w_mm / 2.0 if final_w_mm > 0 else 0.0,
                     final_h_mm / 2.0 if final_h_mm > 0 else 0.0,
                 )
-            base_w_mm = final_w_mm
-            base_h_mm = final_h_mm
+            source_w_mm = final_w_mm
+            source_h_mm = final_h_mm
             if slot_box_final:
-                base_w_mm = max(0.1, final_w_mm - 2 * bleed_effective)
-                base_h_mm = max(0.1, final_h_mm - 2 * bleed_effective)
+                source_w_mm = max(0.1, (final_h_mm if swapped else final_w_mm) - 2 * bleed_effective)
+                source_h_mm = max(0.1, (final_w_mm if swapped else final_h_mm) - 2 * bleed_effective)
 
             posiciones.append(
                 {
@@ -1080,21 +1082,30 @@ def montar_pliego_offset_inteligente(
                     "file_idx": idx,        # clave estable para enlazar al PDF correcto
                     "x": float(p["x_mm"]),
                     "y": float(p["y_mm"]),
-                    "ancho": base_w_mm,  # TRIM
-                    "alto": base_h_mm,  # TRIM
-                    "rot_deg": int(p.get("rot_deg", p.get("rot", 0)) or 0) % 360,
+                    "ancho": source_w_mm,  # TRIM en orientacion fuente
+                    "alto": source_h_mm,  # TRIM en orientacion fuente
+                    "rot_deg": rot_deg,
                     "bleed_mm": float(bleed_effective) if bleed_effective is not None else 0.0,
-                    "source_w_mm": base_w_mm,
-                    "source_h_mm": base_h_mm,
+                    "source_w_mm": source_w_mm,
+                    "source_h_mm": source_h_mm,
+                    "slot_box_final": slot_box_final,
+                    "slot_w_mm": final_w_mm,
+                    "slot_h_mm": final_h_mm,
                 }
             )
 
         # opcionalmente centrar
         if centrar and posiciones and not ctp_enabled:
+            def _occupied_size(pp):
+                bleed = pp.get("bleed_mm", sangrado)
+                if pp.get("slot_box_final"):
+                    return float(pp.get("slot_w_mm", 0)), float(pp.get("slot_h_mm", 0))
+                return pp["ancho"] + 2 * bleed, pp["alto"] + 2 * bleed
+
             min_x = min(pp["x"] for pp in posiciones)
-            max_x = max(pp["x"] + pp["ancho"] + 2 * pp.get("bleed_mm", sangrado) for pp in posiciones)
+            max_x = max(pp["x"] + _occupied_size(pp)[0] for pp in posiciones)
             min_y = min(pp["y"] for pp in posiciones)
-            max_y = max(pp["y"] + pp["alto"] + 2 * pp.get("bleed_mm", sangrado) for pp in posiciones)
+            max_y = max(pp["y"] + _occupied_size(pp)[1] for pp in posiciones)
             usado_w = max_x - min_x
             usado_h = max_y - min_y
             desplaz_x = (ancho_pliego - usado_w) / 2 - min_x
@@ -1310,9 +1321,13 @@ def montar_pliego_offset_inteligente(
                 bleed_mm = float(bleed_mm)
             except Exception:
                 bleed_mm = sangrado
-            w_mm = w_base + 2 * (bleed_mm or 0)
-            h_mm = h_base + 2 * (bleed_mm or 0)
             rot_deg = int(p.get("rot_deg", p.get("rot", 0)) or 0) % 360
+            if p.get("slot_box_final"):
+                w_mm = float(p.get("slot_w_mm", p.get("w_mm", w_base)))
+                h_mm = float(p.get("slot_h_mm", p.get("h_mm", h_base)))
+            else:
+                w_mm = w_base + 2 * (bleed_mm or 0)
+                h_mm = h_base + 2 * (bleed_mm or 0)
 
             idx = p.get("file_idx")
             if idx is None:
@@ -1397,8 +1412,12 @@ def montar_pliego_offset_inteligente(
             bleed_effective = p.get("bleed_mm", sangrado)
             if bleed_effective is None:
                 bleed_effective = 0.0
-            w_mm = p["ancho"] + 2 * bleed_effective
-            h_mm = p["alto"] + 2 * bleed_effective
+            if p.get("slot_box_final"):
+                w_mm = float(p.get("slot_w_mm", p["ancho"] + 2 * bleed_effective))
+                h_mm = float(p.get("slot_h_mm", p["alto"] + 2 * bleed_effective))
+            else:
+                w_mm = p["ancho"] + 2 * bleed_effective
+                h_mm = p["alto"] + 2 * bleed_effective
             posiciones_normalizadas.append(
                 {
                     "file_idx": idx,
@@ -1497,24 +1516,24 @@ def montar_pliego_offset_inteligente(
         y_base_mm = float(pos.get("y_mm", pos.get("y", 0.0)))
         rot = int(pos.get("rot_deg") or 0) % 360
         swapped = rot in (90, 270)
+        slot_box_final = bool(pos.get("slot_box_final"))
 
-        cx_mm = x_base_mm + base_w_mm / 2.0
-        cy_mm = y_base_mm + base_h_mm / 2.0
+        source_w_mm = float(pos.get("source_w_mm", base_w_mm))
+        source_h_mm = float(pos.get("source_h_mm", base_h_mm))
 
-        source_w_mm = float(pos.get("source_w_mm", base_h_mm if swapped else base_w_mm))
-        source_h_mm = float(pos.get("source_h_mm", base_w_mm if swapped else base_h_mm))
-
-        draw_w_mm = base_w_mm + 2 * bleed_effective
-        draw_h_mm = base_h_mm + 2 * bleed_effective
         source_draw_w_mm = source_w_mm + 2 * bleed_effective
         source_draw_h_mm = source_h_mm + 2 * bleed_effective
-        trim_w_mm = base_w_mm
-        trim_h_mm = base_h_mm
 
-        eff_draw_w_mm = draw_h_mm if swapped else draw_w_mm
-        eff_draw_h_mm = draw_w_mm if swapped else draw_h_mm
-        eff_trim_w_mm = trim_h_mm if swapped else trim_w_mm
-        eff_trim_h_mm = trim_w_mm if swapped else trim_h_mm
+        eff_draw_w_mm = source_draw_h_mm if swapped else source_draw_w_mm
+        eff_draw_h_mm = source_draw_w_mm if swapped else source_draw_h_mm
+        if slot_box_final:
+            eff_draw_w_mm = float(pos.get("slot_w_mm", eff_draw_w_mm))
+            eff_draw_h_mm = float(pos.get("slot_h_mm", eff_draw_h_mm))
+        eff_trim_w_mm = max(0.1, eff_draw_w_mm - 2 * bleed_effective)
+        eff_trim_h_mm = max(0.1, eff_draw_h_mm - 2 * bleed_effective)
+
+        cx_mm = x_base_mm + eff_draw_w_mm / 2.0
+        cy_mm = y_base_mm + eff_draw_h_mm / 2.0
 
         x_draw_mm = cx_mm - eff_draw_w_mm / 2.0
         y_draw_mm = cy_mm - eff_draw_h_mm / 2.0

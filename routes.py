@@ -835,6 +835,44 @@ def _design_dimensions(design: Dict, layout: Dict) -> tuple[float, float, float]
     return width + 2 * bleed, height + 2 * bleed, bleed
 
 
+def _repeat_capacity(
+    slot_w: float,
+    slot_h: float,
+    usable_w: float,
+    usable_h: float,
+    gap_x: float,
+    gap_y: float,
+) -> tuple[int, int, int]:
+    if slot_w <= 0 or slot_h <= 0 or usable_w <= 0 or usable_h <= 0:
+        return 0, 0, 0
+    cols = int((usable_w + gap_x) // (slot_w + gap_x)) if slot_w + gap_x > 0 else 0
+    rows = int((usable_h + gap_y) // (slot_h + gap_y)) if slot_h + gap_y > 0 else 0
+    cols = max(0, cols)
+    rows = max(0, rows)
+    return cols, rows, cols * rows
+
+
+def _choose_repeat_orientation(
+    piece_w: float,
+    piece_h: float,
+    forms: int,
+    allow_rotation: bool,
+    usable_w: float,
+    remaining_h: float,
+    gap_x: float,
+    gap_y: float,
+) -> tuple[float, float, int, int]:
+    cols_0, _, capacity_0 = _repeat_capacity(piece_w, piece_h, usable_w, remaining_h, gap_x, gap_y)
+    if not allow_rotation or capacity_0 >= forms:
+        return piece_w, piece_h, 0, cols_0
+
+    cols_90, _, capacity_90 = _repeat_capacity(piece_h, piece_w, usable_w, remaining_h, gap_x, gap_y)
+    if capacity_90 > capacity_0:
+        return piece_h, piece_w, 90, cols_90
+
+    return piece_w, piece_h, 0, cols_0
+
+
 def _slots_from_nesting_result(result: NestingResult, layout: Dict) -> List[Dict]:
     active_face = layout.get("active_face") or "front"
     slots: List[Dict] = []
@@ -871,34 +909,43 @@ def _build_step_repeat_slots(layout: Dict) -> List[Dict]:
     slots: List[Dict] = []
     active_face = layout.get("active_face") or "front"
 
-    cursor_x = left
     cursor_y = bottom
-    row_height = 0.0
+    sheet_top = bottom + usable_h
 
     for design in designs:
         piece_w, piece_h, bleed = _design_dimensions(design, layout)
         allow_rotation = bool(design.get("allow_rotation", True))
         forms = max(1, int(design.get("forms_per_plate") or 1))
+        remaining_h = sheet_top - cursor_y
+        slot_w, slot_h, rot, cols = _choose_repeat_orientation(
+            piece_w,
+            piece_h,
+            forms,
+            allow_rotation,
+            usable_w,
+            remaining_h,
+            gap_x,
+            gap_y,
+        )
+        if cols <= 0:
+            return slots
 
-        for _ in range(forms):
-            slot_w, slot_h, rot = piece_w, piece_h, 0
-            if cursor_x + slot_w > left + usable_w and allow_rotation and (cursor_x + piece_h) <= (left + usable_w):
-                slot_w, slot_h = piece_h, piece_w
-                rot = 90
+        rows_used = 0
+        for idx in range(forms):
+            col = idx % cols
+            row = idx // cols
+            x_mm = left + col * (slot_w + gap_x)
+            y_mm = cursor_y + row * (slot_h + gap_y)
 
-            if cursor_x + slot_w > left + usable_w:
-                cursor_x = left
-                cursor_y += row_height + gap_y
-                row_height = 0.0
-
-            if cursor_y + slot_h > bottom + usable_h:
+            if x_mm + slot_w > left + usable_w + 1e-6 or y_mm + slot_h > sheet_top + 1e-6:
                 return slots
+            rows_used = max(rows_used, row + 1)
 
             slots.append(
                 {
                     "id": f"sr_{len(slots)}",
-                    "x_mm": cursor_x,
-                    "y_mm": cursor_y,
+                    "x_mm": x_mm,
+                    "y_mm": y_mm,
                     "w_mm": slot_w,
                     "h_mm": slot_h,
                     "rotation_deg": rot,
@@ -911,12 +958,8 @@ def _build_step_repeat_slots(layout: Dict) -> List[Dict]:
                 }
             )
 
-            cursor_x += slot_w + gap_x
-            row_height = max(row_height, slot_h)
-
-        cursor_x = left
-        cursor_y += row_height + gap_y
-        row_height = 0.0
+        if rows_used:
+            cursor_y += rows_used * slot_h + max(0, rows_used - 1) * gap_y + gap_y
 
     return slots
 
