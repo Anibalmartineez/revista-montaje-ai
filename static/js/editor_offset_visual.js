@@ -73,6 +73,21 @@
     upHandler: null,
   };
 
+  const boxSelectState = {
+    active: false,
+    pointerId: null,
+    startClientX: 0,
+    startClientY: 0,
+    startPx: null,
+    currentPx: null,
+    additive: false,
+    moved: false,
+    rectEl: null,
+    moveHandler: null,
+    upHandler: null,
+    suppressClickClear: false,
+  };
+
   function getSelectedSlot() {
     if (!state.selectedSlot && state.selectedSlots && state.selectedSlots.size > 0) {
       const firstSelectedId = state.selectedSlots.values().next().value;
@@ -822,6 +837,155 @@
     }
   }
 
+  function sheetPointFromEvent(ev) {
+    const rect = sheetEl.getBoundingClientRect();
+    const zoom = state.zoom || 1;
+    const xPx = (ev.clientX - rect.left) / zoom;
+    const yPx = (ev.clientY - rect.top) / zoom;
+    return {
+      xPx,
+      yPx,
+      xMm: xPx / state.scale,
+      yMm: ((state.layout.sheet_mm?.[1] || 0) - yPx / state.scale),
+    };
+  }
+
+  function getBoxSelectionRectMm() {
+    if (!boxSelectState.startPx || !boxSelectState.currentPx) return null;
+    const [sheetW, sheetH] = state.layout.sheet_mm || [0, 0];
+    const minXPx = Math.min(boxSelectState.startPx.xPx, boxSelectState.currentPx.xPx);
+    const maxXPx = Math.max(boxSelectState.startPx.xPx, boxSelectState.currentPx.xPx);
+    const minYPx = Math.min(boxSelectState.startPx.yPx, boxSelectState.currentPx.yPx);
+    const maxYPx = Math.max(boxSelectState.startPx.yPx, boxSelectState.currentPx.yPx);
+    return {
+      minX: Math.max(0, minXPx / state.scale),
+      maxX: Math.min(sheetW, maxXPx / state.scale),
+      minY: Math.max(0, sheetH - maxYPx / state.scale),
+      maxY: Math.min(sheetH, sheetH - minYPx / state.scale),
+    };
+  }
+
+  function renderBoxSelectionRect() {
+    if (!boxSelectState.rectEl || !boxSelectState.startPx || !boxSelectState.currentPx) return;
+    const minX = Math.min(boxSelectState.startPx.xPx, boxSelectState.currentPx.xPx);
+    const maxX = Math.max(boxSelectState.startPx.xPx, boxSelectState.currentPx.xPx);
+    const minY = Math.min(boxSelectState.startPx.yPx, boxSelectState.currentPx.yPx);
+    const maxY = Math.max(boxSelectState.startPx.yPx, boxSelectState.currentPx.yPx);
+    boxSelectState.rectEl.style.left = `${minX}px`;
+    boxSelectState.rectEl.style.top = `${minY}px`;
+    boxSelectState.rectEl.style.width = `${maxX - minX}px`;
+    boxSelectState.rectEl.style.height = `${maxY - minY}px`;
+  }
+
+  function clearBoxSelectionRect() {
+    if (boxSelectState.rectEl?.parentNode) {
+      boxSelectState.rectEl.parentNode.removeChild(boxSelectState.rectEl);
+    }
+    boxSelectState.rectEl = null;
+    sheetEl?.classList.remove('box-selecting');
+  }
+
+  function resetBoxSelectState() {
+    clearBoxSelectionRect();
+    boxSelectState.active = false;
+    boxSelectState.pointerId = null;
+    boxSelectState.startPx = null;
+    boxSelectState.currentPx = null;
+    boxSelectState.additive = false;
+    boxSelectState.moved = false;
+    boxSelectState.moveHandler = null;
+    boxSelectState.upHandler = null;
+  }
+
+  function selectSlotsInBox() {
+    const rect = getBoxSelectionRectMm();
+    if (!rect) return;
+    const activeFace = state.activeFace || 'front';
+    const matchedIds = (state.layout.slots || [])
+      .filter((slot) => (slot.face || 'front') === activeFace)
+      .filter((slot) => rectsIntersect(rect, slotFootprintRect(slot)))
+      .map((slot) => slot.id);
+
+    const nextSelection = boxSelectState.additive ? new Set(state.selectedSlots || []) : new Set();
+    matchedIds.forEach((id) => nextSelection.add(id));
+    state.selectedSlots = nextSelection;
+    const firstSelectedId = state.selectedSlots.values().next().value;
+    state.selectedSlot = firstSelectedId
+      ? (state.layout.slots || []).find((slot) => slot.id === firstSelectedId) || null
+      : null;
+    renderSheet();
+    renderSlotForm();
+  }
+
+  function startBoxSelect(ev) {
+    if (!sheetEl || dragState.active) return;
+    if (typeof ev.button === 'number' && ev.button !== 0) return;
+    if (ev.target.closest?.('.slot')) return;
+    if (ev.target !== sheetEl) return;
+
+    const point = sheetPointFromEvent(ev);
+    boxSelectState.active = true;
+    boxSelectState.pointerId = ev.pointerId;
+    boxSelectState.startClientX = ev.clientX;
+    boxSelectState.startClientY = ev.clientY;
+    boxSelectState.startPx = point;
+    boxSelectState.currentPx = point;
+    boxSelectState.additive = !!(ev.shiftKey || ev.ctrlKey || ev.metaKey);
+    boxSelectState.moved = false;
+    boxSelectState.rectEl = document.createElement('div');
+    boxSelectState.rectEl.className = 'box-selection-rect';
+    sheetEl.appendChild(boxSelectState.rectEl);
+    sheetEl.classList.add('box-selecting');
+    renderBoxSelectionRect();
+
+    const moveHandler = (moveEv) => moveBoxSelect(moveEv);
+    const upHandler = (upEv) => endBoxSelect(upEv);
+    boxSelectState.moveHandler = moveHandler;
+    boxSelectState.upHandler = upHandler;
+    if (sheetEl.setPointerCapture && ev.pointerId != null) {
+      sheetEl.setPointerCapture(ev.pointerId);
+    }
+    document.addEventListener('pointermove', moveHandler);
+    document.addEventListener('pointerup', upHandler);
+    document.addEventListener('pointercancel', upHandler);
+  }
+
+  function moveBoxSelect(ev) {
+    if (!boxSelectState.active) return;
+    if (boxSelectState.pointerId != null && ev.pointerId !== boxSelectState.pointerId) return;
+    const dragDistancePx = Math.hypot(ev.clientX - boxSelectState.startClientX, ev.clientY - boxSelectState.startClientY);
+    if (!boxSelectState.moved && dragDistancePx < DRAG_THRESHOLD_PX) {
+      return;
+    }
+    ev.preventDefault();
+    boxSelectState.moved = true;
+    boxSelectState.currentPx = sheetPointFromEvent(ev);
+    renderBoxSelectionRect();
+  }
+
+  function endBoxSelect(ev) {
+    if (!boxSelectState.active) return;
+    if (boxSelectState.pointerId != null && ev.pointerId !== boxSelectState.pointerId) return;
+    document.removeEventListener('pointermove', boxSelectState.moveHandler);
+    document.removeEventListener('pointerup', boxSelectState.upHandler);
+    document.removeEventListener('pointercancel', boxSelectState.upHandler);
+    if (sheetEl?.releasePointerCapture && boxSelectState.pointerId != null) {
+      try {
+        sheetEl.releasePointerCapture(boxSelectState.pointerId);
+      } catch (err) {
+        // Ignore browsers that already released capture.
+      }
+    }
+
+    if (boxSelectState.moved) {
+      ev.preventDefault();
+      boxSelectState.currentPx = sheetPointFromEvent(ev);
+      boxSelectState.suppressClickClear = true;
+      selectSlotsInBox();
+    }
+    resetBoxSelectState();
+  }
+
   function formatSignedDistance(value) {
     const rounded = Number(value || 0).toFixed(1);
     return `${rounded} mm`;
@@ -1111,6 +1275,20 @@
     });
     slot.x_mm = roundMm(coords.x);
     slot.y_mm = roundMm(coords.y);
+  }
+
+  function rectsIntersect(a, b) {
+    return a.minX <= b.maxX && a.maxX >= b.minX && a.minY <= b.maxY && a.maxY >= b.minY;
+  }
+
+  function slotFootprintRect(slot) {
+    const box = getEffectiveSlotBox(slot);
+    return {
+      minX: box.x,
+      maxX: box.x + box.effW,
+      minY: box.y,
+      maxY: box.y + box.effH,
+    };
   }
 
   function refreshSelectionAfterEdit() {
@@ -2674,6 +2852,7 @@
         applyZoom();
       });
     }
+    sheetEl?.addEventListener('pointerdown', startBoxSelect);
     document.getElementById('sheet-w')?.addEventListener('change', () => {
       const w = parseFloat(document.getElementById('sheet-w').value || '0');
       if (w > 0) {
@@ -2711,6 +2890,10 @@
       }
     });
     document.addEventListener('click', (ev) => {
+      if (boxSelectState.suppressClickClear) {
+        boxSelectState.suppressClickClear = false;
+        return;
+      }
       if (ev.target === sheetCanvas || ev.target === sheetEl) {
         state.selectedSlot = null;
         state.selectedSlots = new Set();

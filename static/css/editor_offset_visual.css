@@ -304,6 +304,20 @@ body {
   user-select: none;
 }
 
+.sheet.box-selecting {
+  cursor: crosshair;
+}
+
+.box-selection-rect {
+  position: absolute;
+  border: 1px solid #2563eb;
+  background: rgba(37, 99, 235, 0.14);
+  box-shadow: 0 0 0 1px rgba(37, 99, 235, 0.16);
+  box-sizing: border-box;
+  pointer-events: none;
+  z-index: 40;
+}
+
 .ctp-guide {
   position: absolute;
   left: 0;
