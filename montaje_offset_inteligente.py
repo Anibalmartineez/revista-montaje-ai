@@ -917,6 +917,33 @@ def montar_pliego_offset_inteligente(
     ancho_util = ancho_pliego - margen_izq - margen_der
     alto_util = alto_pliego - margen_sup - margen_inf
 
+    def _position_occupied_size(pos: dict) -> tuple[float, float]:
+        bleed = pos.get("bleed_mm", sangrado)
+        try:
+            bleed = float(bleed)
+        except Exception:
+            bleed = float(sangrado or 0)
+        if pos.get("slot_box_final"):
+            return float(pos.get("slot_w_mm", 0)), float(pos.get("slot_h_mm", 0))
+        return float(pos["ancho"]) + 2 * bleed, float(pos["alto"]) + 2 * bleed
+
+    def _center_positions_in_usable_area(posiciones_obj: list[dict]) -> None:
+        if not posiciones_obj:
+            return
+        min_x = min(p["x"] for p in posiciones_obj)
+        max_x = max(p["x"] + _position_occupied_size(p)[0] for p in posiciones_obj)
+        min_y = min(p["y"] for p in posiciones_obj)
+        max_y = max(p["y"] + _position_occupied_size(p)[1] for p in posiciones_obj)
+        used_w = max_x - min_x
+        used_h = max_y - min_y
+        target_x = margen_izq + max(0.0, (ancho_util - used_w) / 2)
+        target_y = margen_inf + max(0.0, (alto_util - used_h) / 2)
+        dx = target_x - min_x
+        dy = target_y - min_y
+        for p in posiciones_obj:
+            p["x"] += dx
+            p["y"] += dy
+
     if estrategia == "maxrects":
         preferir_horizontal = False
         alinear_filas = False
@@ -1096,23 +1123,7 @@ def montar_pliego_offset_inteligente(
 
         # opcionalmente centrar
         if centrar and posiciones and not ctp_enabled:
-            def _occupied_size(pp):
-                bleed = pp.get("bleed_mm", sangrado)
-                if pp.get("slot_box_final"):
-                    return float(pp.get("slot_w_mm", 0)), float(pp.get("slot_h_mm", 0))
-                return pp["ancho"] + 2 * bleed, pp["alto"] + 2 * bleed
-
-            min_x = min(pp["x"] for pp in posiciones)
-            max_x = max(pp["x"] + _occupied_size(pp)[0] for pp in posiciones)
-            min_y = min(pp["y"] for pp in posiciones)
-            max_y = max(pp["y"] + _occupied_size(pp)[1] for pp in posiciones)
-            usado_w = max_x - min_x
-            usado_h = max_y - min_y
-            desplaz_x = (ancho_pliego - usado_w) / 2 - min_x
-            desplaz_y = (alto_pliego - usado_h) / 2 - min_y
-            for pp in posiciones:
-                pp["x"] += desplaz_x
-                pp["y"] += desplaz_y
+            _center_positions_in_usable_area(posiciones)
 
         # Sobrantes no aplican aquí (el usuario decide)
         sobrantes = []
@@ -1257,23 +1268,11 @@ def montar_pliego_offset_inteligente(
                 if y_cursor - margen_inf < unit_h:
                     break
 
-    if centrar and posiciones and not (ctp_enabled and posiciones_manual):
-        min_x = min(p["x"] for p in posiciones)
-        max_x = max(p["x"] + p["ancho"] + 2 * sangrado for p in posiciones)
-        min_y = min(p["y"] for p in posiciones)
-        max_y = max(p["y"] + p["alto"] + 2 * sangrado for p in posiciones)
-        usado_w = max_x - min_x
-        usado_h = max_y - min_y
-        espacio_h = ancho_pliego - usado_w
-        espacio_v = alto_pliego - usado_h
-        desplaz_x = espacio_h / 2 - min_x
-        desplaz_y = espacio_v / 2 - min_y
-        for p in posiciones:
-            p["x"] += desplaz_x
-            p["y"] += desplaz_y
+    if centrar and posiciones and not ctp_enabled and not posiciones_manual:
+        _center_positions_in_usable_area(posiciones)
 
     area_usada = sum(
-        (p["ancho"] + 2 * sangrado) * (p["alto"] + 2 * sangrado) for p in posiciones
+        _position_occupied_size(p)[0] * _position_occupied_size(p)[1] for p in posiciones
     )
 
     total_disenos = sum(c[1] for c in diseños)
