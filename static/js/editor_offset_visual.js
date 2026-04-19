@@ -10,6 +10,7 @@
   const uploadForm = document.getElementById('upload-form');
   const geometryValidationSummaryEl = document.getElementById('geometry-validation-summary');
   const geometryValidationListEl = document.getElementById('geometry-validation-list');
+  let aiResultLayout = null;
 
   const state = {
     layout: {},
@@ -2612,6 +2613,111 @@
     }
   }
 
+  function formatAiResponse(data) {
+    if (!data || data.ok === false) {
+      return (data && (data.message || data.error)) || 'No se pudo ejecutar la accion.';
+    }
+    const parts = [data.message || 'Accion ejecutada.'];
+    const analysis = data.data && data.data.analysis;
+    if (analysis) {
+      parts.push(
+        `Slots: ${analysis.slot_count}`,
+        `Aprovechamiento: ${analysis.aprovechamiento_pct}%`,
+      );
+      if (analysis.area_libre_mm2 !== undefined) {
+        parts.push(`Area libre: ${analysis.area_libre_mm2} mm2`);
+      }
+    }
+    return parts.filter(Boolean).join('\n');
+  }
+
+  function refreshEditorAfterLayoutReplace() {
+    ensureEngineDefaults();
+    ensureCtpDefaults();
+    ensureExportDefaults();
+    normalizeDesignDefaults();
+    normalizeLayoutFaces();
+    state.snapSettings = {
+      ...state.snapSettings,
+      ...(state.layout.snapSettings || state.layout.snap_settings || {}),
+    };
+    state.spacingSettings = {
+      ...state.spacingSettings,
+      ...(state.layout.spacingSettings || state.layout.spacing_settings || {}),
+    };
+    state.selectedSlot = null;
+    state.selectedSlots = new Set();
+    initSheetControls();
+    renderWorks();
+    renderDesigns();
+    renderSnapControls();
+    renderSpacingControls();
+    renderExportSettings();
+    renderImpositionControls();
+    syncCtpUIFromLayout();
+    recalcScale();
+    renderSheet();
+    renderSlotForm();
+    renderFaceToggle();
+  }
+
+  async function runAiAssistant() {
+    const promptEl = document.getElementById('ai-prompt');
+    const responseEl = document.getElementById('ai-response');
+    const applyBtn = document.getElementById('btn-ai-apply');
+    const runBtn = document.getElementById('btn-ai-run');
+    if (!promptEl || !responseEl || !applyBtn) return;
+
+    const prompt = promptEl.value.trim();
+    if (!prompt) {
+      responseEl.innerText = 'Escribi una instruccion.';
+      return;
+    }
+
+    aiResultLayout = null;
+    applyBtn.hidden = true;
+    responseEl.innerText = 'Procesando...';
+    if (runBtn) runBtn.disabled = true;
+
+    try {
+      syncSettingsToLayout();
+      const res = await fetch('/ai/step_repeat_action', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          prompt,
+          layout_json: state.layout,
+        }),
+      });
+      const data = await res.json();
+      responseEl.innerText = formatAiResponse(data);
+
+      if (data.layout) {
+        aiResultLayout = data.layout;
+        applyBtn.hidden = false;
+      }
+    } catch (err) {
+      console.error(err);
+      responseEl.innerText = 'Error al ejecutar la IA.';
+    } finally {
+      if (runBtn) runBtn.disabled = false;
+    }
+  }
+
+  function applyAiAssistantLayout() {
+    const responseEl = document.getElementById('ai-response');
+    const applyBtn = document.getElementById('btn-ai-apply');
+    if (!aiResultLayout) return;
+
+    state.layout = aiResultLayout;
+    aiResultLayout = null;
+    refreshEditorAfterLayoutReplace();
+    pushHistory();
+
+    if (applyBtn) applyBtn.hidden = true;
+    if (responseEl) responseEl.innerText = 'Cambios aplicados.';
+  }
+
   async function requestPreview() {
     if (!state.layout.slots || state.layout.slots.length === 0) {
       alert('No hay slots en el pliego. Crea o genera los cuadros antes de generar la preview/PDF.');
@@ -2735,6 +2841,8 @@
     document.getElementById('btn-pdf').addEventListener('click', requestPdf);
     document.getElementById('btn-auto').addEventListener('click', requestAutoLayout);
     document.getElementById('btn-apply-imposition')?.addEventListener('click', applyImpositionEngine);
+    document.getElementById('btn-ai-run')?.addEventListener('click', runAiAssistant);
+    document.getElementById('btn-ai-apply')?.addEventListener('click', applyAiAssistantLayout);
     document.getElementById('btn-apply-gap').addEventListener('click', applyGapToSlots);
     document.getElementById('btn-ctp-apply')?.addEventListener('click', applyCtpAlignment);
     document.getElementById('btn-ctp-disable')?.addEventListener('click', disableCtpAdjustments);

@@ -186,6 +186,16 @@
         </div>
       </details>
 
+      <section class="ai-panel" aria-labelledby="ai-panel-title">
+        <h4 id="ai-panel-title">Asistente IA</h4>
+        <textarea id="ai-prompt" placeholder="Ej: optimizar layout"></textarea>
+        <div class="ai-actions">
+          <button id="btn-ai-run" class="btn btn-secondary btn-small" type="button">Ejecutar</button>
+          <button id="btn-ai-apply" class="btn btn-primary btn-small" type="button" hidden>Aplicar cambios</button>
+        </div>
+        <div id="ai-response" aria-live="polite"></div>
+      </section>
+
       <details class="panel-accordion panel-advanced">
         <summary>Ajustes avanzados de slots</summary>
         <section class="panel-block" id="step-repeat-panel">
