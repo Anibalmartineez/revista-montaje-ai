@@ -1548,23 +1548,45 @@ def montar_pliego_offset_inteligente(
             if getattr(img, "mode", "") == "RGBA":
                 draw_kwargs["mask"] = "auto"
 
-            cx_pt = mm_to_pt(cx_mm)
-            cy_pt = mm_to_pt(cy_mm)
             draw_w_pt = mm_to_pt(source_draw_w_mm)
             draw_h_pt = mm_to_pt(source_draw_h_mm)
 
             c.saveState()
-            c.translate(cx_pt, cy_pt)
-            if rot:
-                c.rotate(-rot)
-            c.drawImage(
-                ImageReader(img),
-                -draw_w_pt / 2.0,
-                -draw_h_pt / 2.0,
-                width=draw_w_pt,
-                height=draw_h_pt,
-                **draw_kwargs,
-            )
+            if slot_box_final:
+                c.translate(x_pt, y_pt)
+                if rot:
+                    c.rotate(-rot)
+                draw_x_pt = 0.0
+                draw_y_pt = 0.0
+                if rot == 90:
+                    draw_x_pt = -draw_w_pt
+                elif rot == 180:
+                    draw_x_pt = -draw_w_pt
+                    draw_y_pt = -draw_h_pt
+                elif rot == 270:
+                    draw_y_pt = -draw_h_pt
+                c.drawImage(
+                    ImageReader(img),
+                    draw_x_pt,
+                    draw_y_pt,
+                    width=draw_w_pt,
+                    height=draw_h_pt,
+                    **draw_kwargs,
+                )
+            else:
+                cx_pt = mm_to_pt(cx_mm)
+                cy_pt = mm_to_pt(cy_mm)
+                c.translate(cx_pt, cy_pt)
+                if rot:
+                    c.rotate(-rot)
+                c.drawImage(
+                    ImageReader(img),
+                    -draw_w_pt / 2.0,
+                    -draw_h_pt / 2.0,
+                    width=draw_w_pt,
+                    height=draw_h_pt,
+                    **draw_kwargs,
+                )
             c.restoreState()
 
         bleed_eff = bleed_effective

@@ -285,20 +285,17 @@
     const rotation = ((slot.rotation_deg || 0) % 360 + 360) % 360;
     const cx = x + baseW / 2;
     const cy = y + baseH / 2;
-    const swapped = rotation === 90 || rotation === 270;
-    const effW = swapped ? baseH : baseW;
-    const effH = swapped ? baseW : baseH;
 
     return {
       rotation,
       baseW,
       baseH,
-      effW,
-      effH,
+      effW: baseW,
+      effH: baseH,
       cx,
       cy,
-      x: cx - effW / 2,
-      y: cy - effH / 2,
+      x,
+      y,
     };
   }
 
@@ -992,7 +989,10 @@
       slotEl.style.width = `${mmToPx(renderBox.w)}px`;
       slotEl.style.height = `${mmToPx(renderBox.h)}px`;
       slotEl.style.transformOrigin = 'center';
-      slotEl.style.transform = `rotate(${renderBox.rotation}deg)`;
+      slotEl.style.transform = 'none';
+      if (renderBox.rotation) {
+        slotEl.dataset.rotation = String(renderBox.rotation);
+      }
 
       // Handles de esquina desactivados, el usuario escala solo desde el panel lateral.
 
@@ -1843,13 +1843,10 @@
     frontSlots.forEach((slot) => {
       const baseW = Number(slot.w_mm || 0);
       const baseH = Number(slot.h_mm || 0);
-      const rot = ((slot.rotation_deg || 0) % 360 + 360) % 360;
-      const width = rot === 90 || rot === 270 ? baseH : baseW;
-      const height = rot === 90 || rot === 270 ? baseW : baseH;
       const x0 = Number(slot.x_mm || 0);
       const y0 = Number(slot.y_mm || 0);
-      const x1 = x0 + width;
-      const y1 = y0 + height;
+      const x1 = x0 + baseW;
+      const y1 = y0 + baseH;
       minX = Math.min(minX, x0);
       maxX = Math.max(maxX, x1);
       minY = Math.min(minY, y0);
