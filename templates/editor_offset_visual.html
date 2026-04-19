@@ -65,33 +65,36 @@
         </div>
         <div class="control-block manual-tools">
           <strong class="manual-tools-label">Edici&oacute;n:</strong>
-          <div class="tool-group block-tools" aria-label="Seleccionar y centrar bloque">
+          <div class="manual-tools-main">
+            <span class="tool-section-label">Acciones r&aacute;pidas</span>
             <button id="btn-select-active-face" class="btn btn-small pro-tool-btn" type="button" title="Seleccionar todos los slots de la cara activa">Seleccionar todo</button>
-            <button id="btn-center-selection-x" class="btn btn-small pro-tool-btn" type="button" title="Centrar bloque horizontalmente en el &aacute;rea &uacute;til">Centrar H</button>
-            <button id="btn-center-selection-y" class="btn btn-small pro-tool-btn" type="button" title="Centrar bloque verticalmente en el &aacute;rea &uacute;til">Centrar V</button>
             <button id="btn-center-selection-both" class="btn btn-small pro-tool-btn" type="button" title="Centrar bloque en ambos ejes">Centrar bloque</button>
+            <label class="inline-input nudge-step-control">Paso
+              <input type="number" id="nudge-step" step="0.1" min="0.1" value="1">
+              <span class="unit">mm</span>
+            </label>
+            <div class="tool-group nudge-pad" aria-label="Mover selecci&oacute;n">
+              <button id="btn-nudge-left" class="btn btn-small pro-tool-btn nudge-btn" type="button" title="Mover izquierda">&larr;</button>
+              <button id="btn-nudge-up" class="btn btn-small pro-tool-btn nudge-btn" type="button" title="Mover arriba">&uarr;</button>
+              <button id="btn-nudge-down" class="btn btn-small pro-tool-btn nudge-btn" type="button" title="Mover abajo">&darr;</button>
+              <button id="btn-nudge-right" class="btn btn-small pro-tool-btn nudge-btn" type="button" title="Mover derecha">&rarr;</button>
+            </div>
+            <button id="btn-manual-advanced-toggle" class="btn btn-small pro-tool-btn advanced-toggle" type="button" aria-expanded="false" aria-controls="manual-advanced-tools">&#9881; Avanzado</button>
           </div>
-          <div class="tool-group align-tools" aria-label="Alinear selecci&oacute;n">
-            <button id="btn-align-left" class="btn btn-small pro-tool-btn" type="button" title="Alinear izquierda">Izq</button>
-            <button id="btn-align-center-x" class="btn btn-small pro-tool-btn" type="button" title="Centrar horizontal">Centro H</button>
-            <button id="btn-align-right" class="btn btn-small pro-tool-btn" type="button" title="Alinear derecha">Der</button>
-            <button id="btn-align-bottom" class="btn btn-small pro-tool-btn" type="button" title="Alinear abajo">Abajo</button>
-            <button id="btn-align-center-y" class="btn btn-small pro-tool-btn" type="button" title="Centrar vertical">Centro V</button>
-            <button id="btn-align-top" class="btn btn-small pro-tool-btn" type="button" title="Alinear arriba">Arriba</button>
-          </div>
-          <div class="tool-group distribute-tools" aria-label="Distribuir selecci&oacute;n">
-            <button id="btn-distribute-x" class="btn btn-small pro-tool-btn" type="button" title="Distribuir horizontalmente">Distribuir H</button>
-            <button id="btn-distribute-y" class="btn btn-small pro-tool-btn" type="button" title="Distribuir verticalmente">Distribuir V</button>
-          </div>
-          <label class="inline-input nudge-step-control">Paso
-            <input type="number" id="nudge-step" step="0.1" min="0.1" value="1">
-            <span class="unit">mm</span>
-          </label>
-          <div class="tool-group nudge-pad" aria-label="Mover selecci&oacute;n">
-            <button id="btn-nudge-left" class="btn btn-small pro-tool-btn nudge-btn" type="button" title="Mover izquierda">Izquierda</button>
-            <button id="btn-nudge-up" class="btn btn-small pro-tool-btn nudge-btn" type="button" title="Mover arriba">Arriba</button>
-            <button id="btn-nudge-down" class="btn btn-small pro-tool-btn nudge-btn" type="button" title="Mover abajo">Abajo</button>
-            <button id="btn-nudge-right" class="btn btn-small pro-tool-btn nudge-btn" type="button" title="Mover derecha">Derecha</button>
+          <div id="manual-advanced-tools" class="manual-advanced-tools hidden">
+            <span class="tool-section-label">Alineaci&oacute;n y distribuci&oacute;n</span>
+            <div class="tool-group align-tools" aria-label="Alinear selecci&oacute;n">
+              <button id="btn-align-left" class="btn btn-small pro-tool-btn" type="button" title="Alinear izquierda">Izq</button>
+              <button id="btn-align-center-x" class="btn btn-small pro-tool-btn" type="button" title="Centrar horizontal">Centro H</button>
+              <button id="btn-align-right" class="btn btn-small pro-tool-btn" type="button" title="Alinear derecha">Der</button>
+              <button id="btn-align-bottom" class="btn btn-small pro-tool-btn" type="button" title="Alinear abajo">Abajo</button>
+              <button id="btn-align-center-y" class="btn btn-small pro-tool-btn" type="button" title="Centrar vertical">Centro V</button>
+              <button id="btn-align-top" class="btn btn-small pro-tool-btn" type="button" title="Alinear arriba">Arriba</button>
+            </div>
+            <div class="tool-group distribute-tools" aria-label="Distribuir selecci&oacute;n">
+              <button id="btn-distribute-x" class="btn btn-small pro-tool-btn" type="button" title="Distribuir horizontalmente">Distribuir H</button>
+              <button id="btn-distribute-y" class="btn btn-small pro-tool-btn" type="button" title="Distribuir verticalmente">Distribuir V</button>
+            </div>
           </div>
         </div>
       </div>

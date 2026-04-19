@@ -2596,6 +2596,13 @@
     document.getElementById('btn-center-selection-x')?.addEventListener('click', () => centerSelectedBlock('x'));
     document.getElementById('btn-center-selection-y')?.addEventListener('click', () => centerSelectedBlock('y'));
     document.getElementById('btn-center-selection-both')?.addEventListener('click', () => centerSelectedBlock('both'));
+    document.getElementById('btn-manual-advanced-toggle')?.addEventListener('click', (ev) => {
+      const panel = document.getElementById('manual-advanced-tools');
+      if (!panel) return;
+      const isOpening = panel.classList.contains('hidden');
+      panel.classList.toggle('hidden', !isOpening);
+      ev.currentTarget.setAttribute('aria-expanded', String(isOpening));
+    });
     document.getElementById('btn-align-left')?.addEventListener('click', () => alignSelectedSlots('left'));
     document.getElementById('btn-align-center-x')?.addEventListener('click', () => alignSelectedSlots('center-x'));
     document.getElementById('btn-align-right')?.addEventListener('click', () => alignSelectedSlots('right'));
