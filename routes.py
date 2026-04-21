@@ -1090,6 +1090,43 @@ def ai_step_repeat_action():
     return jsonify(response)
 
 
+@routes_bp.post("/ai/step_repeat_action_openai")
+def ai_step_repeat_action_openai():
+    payload = request.get_json(silent=True) or {}
+    prompt = payload.get("prompt") or request.form.get("prompt") or ""
+    raw_layout = payload.get("layout_json", request.form.get("layout_json"))
+
+    if raw_layout is None:
+        raw_layout = payload.get("layout")
+
+    if isinstance(raw_layout, str):
+        try:
+            layout = json.loads(raw_layout)
+        except json.JSONDecodeError:
+            return _json_error("layout_json invalido.")
+    elif isinstance(raw_layout, dict):
+        layout = raw_layout
+    else:
+        return _json_error("layout_json faltante.")
+
+    if not str(prompt).strip():
+        return _json_error("prompt faltante.")
+
+    try:
+        from ai_agent.openai_tool_bridge import run_openai_step_repeat_assistant
+
+        result = run_openai_step_repeat_assistant(prompt, layout)
+    except ImportError:
+        current_app.logger.exception("OpenAI SDK no disponible para agente Step & Repeat")
+        return _json_error("OpenAI SDK no esta disponible en este entorno.", 500)
+    except Exception:
+        current_app.logger.exception("Fallo en agente OpenAI Step & Repeat")
+        return _json_error("Fallo en agente OpenAI Step & Repeat.", 500)
+
+    status = 200 if result.get("ok") else 422
+    return jsonify(result), status
+
+
 @routes_bp.route("/editor_offset/preview/<job_id>", methods=["POST"])
 def editor_offset_preview(job_id: str):
     safe_job_id = _safe_job_id(job_id)

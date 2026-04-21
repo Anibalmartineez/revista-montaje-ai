@@ -2618,6 +2618,10 @@
       return (data && (data.message || data.error)) || 'No se pudo ejecutar la accion.';
     }
     const parts = [data.message || 'Accion ejecutada.'];
+    const toolUsed = data.tool_used || (data.raw_tool_result && data.raw_tool_result.tool);
+    if (toolUsed) {
+      parts.push(`Tool: ${toolUsed}`);
+    }
     const analysis = data.data && data.data.analysis;
     if (analysis) {
       parts.push(
@@ -2681,7 +2685,7 @@
 
     try {
       syncSettingsToLayout();
-      const res = await fetch('/ai/step_repeat_action', {
+      const res = await fetch('/ai/step_repeat_action_openai', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
