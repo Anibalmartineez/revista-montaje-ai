@@ -41,19 +41,55 @@ El modulo Offset del repo agrupa varios flujos historicos de montaje offset. En 
 - validacion geometrica visual en frontend implementada
 - indicador de distancia util durante drag implementado
 - interaccion click vs drag corregida para mantener seleccion y edicion manual
-- fase 4 iniciada con herramientas pro de edicion manual: alineacion, distribucion, nudge y acciones multi-slot
+- fase 4 avanzada con herramientas pro de edicion manual:
+  - seleccion multiple
+  - alineacion y distribucion
+  - nudge por botones y teclado
+  - paso configurable en mm
+  - multiplicadores `Shift x10` y `Alt x0.1`
+  - duplicado y borrado multi-slot
+  - seleccion por marco
+  - seleccion de toda la cara activa
+  - centrado de bloque
+- toolbar PRO simplificada:
+  - acciones rapidas visibles
+  - herramientas tecnicas en panel avanzado colapsable
+- Step & Repeat PRO corregido en puntos criticos:
+  - `bleed_mm = 0` se respeta como valor explicito
+  - spacing real desde `spacingSettings.spacingX_mm` y `spacingSettings.spacingY_mm`
+  - rotacion inteligente solo cuando mejora capacidad
+  - `slot.w_mm/h_mm` consolidado como footprint final del slot
+  - `rotation_deg` consolidado como orientacion del contenido
+  - PDF sin stretch y con centrado global consistente
+- base de agente IA creada:
+  - carpeta `ai_agent/`
+  - tools repeat
+  - controller simple
+  - endpoint `POST /ai/step_repeat_action`
+- panel "Asistente IA" integrado al editor:
+  - prompt
+  - ejecucion contra backend
+  - respuesta visible
+  - aplicacion manual del layout devuelto
 
 ## Riesgos principales
 
-- semantica fragil de `slots[].w_mm/h_mm` segun engine
+- coexistencia de semanticas historicas de `slots[].w_mm/h_mm` en flujos legacy
+- riesgo de regresion si nuevos motores no respetan que en `repeat` `w_mm/h_mm` son footprint final
 - enlace blando `slots[].design_ref -> designs[].ref`
 - diferencias entre estado en memoria, JSON persistido y estado reinterpretado por preview/PDF
 - coexistencia con flujos offset legacy dentro del mismo repo
-- validaciones aun parciales en consistencia semantica y geometria exacta
+- validaciones aun parciales en schema formal y consistencia semantica profunda
+- la base IA todavia no usa LLM ni tool calls reales de OpenAI; por ahora mapea prompts simples a tools locales
 
 ## Proximos pasos sugeridos
 
-1. auditar la semantica geometrica exacta de `w_mm/h_mm + rotation_deg + bleed`
-2. formalizar un schema mas estricto del layout y de slots sin romper compatibilidad
-3. mejorar el surfacing de warnings y errores en UI sin depender tanto de `alert()`
-4. recien despues evaluar micro-refactors internos en frontend y orquestacion
+1. formalizar un schema mas estricto del layout y de slots sin romper compatibilidad
+2. agregar tests de regresion para repeat:
+   - `bleed_mm = 0`
+   - spacing
+   - rotacion 0/90
+   - PDF normal vs CTP
+3. conectar el agente IA a tool calls reales de OpenAI manteniendo el controller actual como capa intermedia
+4. mejorar el surfacing de warnings y errores en UI sin depender tanto de `alert()`
+5. evaluar micro-refactors internos solo despues de cubrir los casos criticos de salida final

@@ -260,6 +260,16 @@ Luego:
 
 Esta decisión ocurre en dos niveles.
 
+### Regla consolidada Fase 4 para `repeat`
+
+Para slots generados por Step & Repeat PRO:
+
+- `slot.w_mm / slot.h_mm` = caja final ocupada por el slot en el pliego
+- `rotation_deg` = orientacion del contenido del diseno
+- si `rotation_deg` es `90` o `270`, `w_mm/h_mm` ya deben venir intercambiados
+- el frontend no debe rotar la caja externa otra vez
+- el render PDF debe colocar el contenido dentro de esa caja final
+
 ### Nivel 1. En `montar_offset_desde_layout()`
 
 #### Si `has_bleed` del work es `True`
@@ -277,6 +287,7 @@ Esta decisión ocurre en dos niveles.
 Comentario real del código:
 
 - para `repeat`, el slot ya representa la caja final con bleed incluido
+- si `bleed_mm = 0`, la caja final coincide con el tamano real del PDF/diseno
 
 #### Si engine es `nesting` o `hybrid`
 
@@ -315,6 +326,7 @@ Impacta directamente:
 - fallback global del layout
 - además se usa como `bleed_layout`
 - en `nesting/hybrid` se resta desde `w_mm/h_mm` para obtener trim
+- no debe pisar `bleed_mm = 0` cuando ese valor viene explicitamente desde el diseno o slot
 
 ### `designs[].bleed_mm`
 
@@ -322,6 +334,11 @@ Impacta directamente:
 - influye antes:
   - al construir slots automáticos repeat
   - al nesting
+
+Observacion Fase 4:
+
+- `designs[].bleed_mm = 0` es valor explicito valido
+- `0` no significa "usar fallback"
 
 ### `design_export`
 
@@ -347,6 +364,11 @@ Prioridad real:
 3. `slot.bleed_mm`
 4. `work.default_bleed_mm`
 5. `bleed_default_mm`
+
+Observacion Fase 4:
+
+- los valores `0` deben tratarse como explicitos
+- solo debe usarse fallback si el campo esta ausente o es `None`
 
 #### Nivel 2. Rama manual
 
@@ -407,8 +429,13 @@ Se puede guardar un layout visualmente “en dorso” pero sin slots `face = "ba
 
 - `rot = int(pos.get("rot_deg") or 0) % 360`
 - si `rot in (90, 270)`:
-  - se considera intercambio de ancho/alto efectivos
-  - se recalcula la caja efectiva desde el centro
+  - el contenido se rota dentro de la caja final ya resuelta
+  - no se debe estirar la imagen
+  - se aplica traslacion explicita para que el contenido quede completo dentro del slot
+
+### Regla de compatibilidad
+
+En `repeat`, `rotation_deg` no significa "rotar el contenedor visual". El contenedor ya esta expresado por `w_mm/h_mm` como footprint final. La rotacion afecta al contenido fuente.
 
 ## 12. Diferencias entre slots generados por repeat, nesting, hybrid y edición manual
 
@@ -426,7 +453,9 @@ Características:
 - `crop_marks = True`
 - `locked = False`
 - `face = active_face`
-- `w_mm/h_mm` incluyen bleed en la caja del slot
+- `w_mm/h_mm` representan footprint final del slot
+- `rotation_deg` representa orientacion del contenido
+- cuando rota 90/270, `w_mm/h_mm` ya se intercambian en la generacion
 - en salida:
   - `slot_box_final = True`
 

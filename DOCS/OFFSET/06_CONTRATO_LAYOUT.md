@@ -28,6 +28,16 @@ Congelar el contrato tecnico real actual de `layout_constructor.json` y del pipe
 8. `POST /editor_offset/preview/<job_id>` y `POST /editor_offset/generar_pdf/<job_id>` no reciben el layout en el body.
 9. Preview/PDF releen el layout desde disco y lo consumen con `montar_offset_desde_layout()`.
 
+### Capa operativa IA
+
+La Fase 4 agrega una capa intermedia no persistente:
+
+- `POST /ai/step_repeat_action`
+- `ai_agent/agent_controller.py`
+- `ai_agent/tools_repeat.py`
+
+Esta ruta recibe un `layout_json`, ejecuta una tool y devuelve un layout sugerido. No reemplaza por si sola el layout persistido: el frontend solo actualiza `state.layout` si el usuario confirma con `Aplicar cambios`.
+
 ## Diferencia entre estados
 
 ### Estado en memoria del frontend
@@ -249,9 +259,9 @@ Eso significa que el backend tolera esos campos en `related_work`, pero la UI ac
 - `id`: identificador estable del slot
 - `x_mm`: coordenada horizontal en mm
 - `y_mm`: coordenada vertical en mm
-- `w_mm`: ancho base del slot
-- `h_mm`: alto base del slot
-- `rotation_deg`: rotacion del slot
+- `w_mm`: ancho del slot; en `repeat` representa footprint final
+- `h_mm`: alto del slot; en `repeat` representa footprint final
+- `rotation_deg`: orientacion del contenido del diseno
 - `logical_work_id`: referencia opcional a `works[].id`
 - `bleed_mm`: bleed local del slot
 - `crop_marks`: marcas de corte locales
@@ -367,7 +377,14 @@ Eso significa que el backend tolera esos campos en `related_work`, pero la UI ac
 - tipo: objeto
 - semantica:
   - UX y ayudas de reacomodo
-- no impacta preview/PDF directamente
+  - fuente real de separacion para Step & Repeat PRO
+- campos:
+  - `spacingX_mm`
+  - `spacingY_mm`
+  - `live`
+- observacion:
+  - `spacingSettings.spacingX_mm` y `spacingSettings.spacingY_mm` impactan la generacion de slots `repeat`
+  - no impactan preview/PDF por si mismos; impactan la salida final a traves de los slots ya generados
 
 ## Clasificacion de campos
 
@@ -469,8 +486,8 @@ Eso significa que el backend tolera esos campos en `related_work`, pero la UI ac
 | `slots[]` | frontend edición, auto layout, impose | render visual, preview/PDF | es el bloque más crítico del sistema |
 | `slots[].x_mm` | frontend drag/form, auto engines | render visual, preview/PDF | mueve pieza real |
 | `slots[].y_mm` | frontend drag/form, auto engines | render visual, preview/PDF | mueve pieza real |
-| `slots[].w_mm` | frontend form, auto engines | render visual, preview/PDF | cambia tamaño base o caja final |
-| `slots[].h_mm` | frontend form, auto engines | render visual, preview/PDF | cambia tamaño base o caja final |
+| `slots[].w_mm` | frontend form, auto engines | render visual, preview/PDF | en `repeat` representa footprint final del slot |
+| `slots[].h_mm` | frontend form, auto engines | render visual, preview/PDF | en `repeat` representa footprint final del slot |
 | `slots[].rotation_deg` | frontend form/engines | render visual, preview/PDF | desalineación inmediata si cambia semántica |
 | `slots[].design_ref` | frontend slot form/asignación, engines | preview/PDF | si falta no se renderiza ese slot |
 | `slots[].logical_work_id` | frontend slot form, auto layout | preview/PDF bleed/has_bleed | altera trim y bleed efectivos |
@@ -482,7 +499,7 @@ Eso significa que el backend tolera esos campos en `related_work`, pero la UI ac
 | `design_export` | frontend export panel | preview/PDF | cambia bleed/crop por diseño |
 | `ctp` | frontend CTP panel | guide overlay, preview/PDF final | afecta pinza, bloqueo y marcas técnicas |
 | `snapSettings` | frontend snap panel | frontend snap | impacto UX, no salida final |
-| `spacingSettings` | frontend spacing panel | frontend spacing/live spacing | impacto UX, no salida final |
+| `spacingSettings` | frontend spacing panel | frontend spacing/live spacing, repeat | impacta separacion de slots al generar `repeat` |
 
 ## Qué parte del frontend escribe o modifica cada bloque
 
@@ -557,6 +574,14 @@ Eso significa que el backend tolera esos campos en `related_work`, pero la UI ac
 - `updateSpacingSettingsFromUI()`
 - `toggleLiveSpacing()`
 
+### Capa `ai_agent/`
+
+- `POST /ai/step_repeat_action` lee un layout enviado por el frontend
+- `handle_agent_request()` decide una tool por prompt simple
+- las tools pueden devolver un layout sugerido
+- el layout sugerido no se guarda automaticamente
+- el contrato base de `layout_constructor.json` no cambia por integrar IA
+
 ## Qué endpoints backend leen o escriben cada bloque
 
 | Bloque | Escrito por backend | Leído por backend |
@@ -568,7 +593,8 @@ Eso significa que el backend tolera esos campos en `related_work`, pero la UI ac
 | `faces` / `active_face` | `save`, `auto_layout`, `apply_imposition`, normalización en carga | apply_imposition, preview/PDF |
 | `export_settings` / `design_export` | `save` | preview/PDF |
 | `ctp` | `save` | preview/PDF |
-| `snapSettings` / `spacingSettings` | `save` | solo roundtrip y restauración UI |
+| `snapSettings` | `save` | solo roundtrip y restauracion UI |
+| `spacingSettings` | `save` | restauracion UI y generacion `repeat` |
 
 ## Qué funciones Python consumen el layout para preview/PDF
 
@@ -597,6 +623,7 @@ Eso significa que el backend tolera esos campos en `related_work`, pero la UI ac
 6. `slots[].x_mm` y `y_mm` usan origen bottom-left.
 7. `rotation_deg` y `rot_deg` representan la misma idea.
 8. `repeat` usa `w_mm/h_mm` como caja final del slot.
+   - En `repeat`, `rotation_deg` representa orientacion del contenido y no debe reinterpretar la caja externa.
 9. `nesting/hybrid` no siguen exactamente la misma semantica de caja final.
 10. `export_settings.crop_marks` global pisa overrides por diseño y slot.
 11. `saveLayout()` ocurre antes de preview/PDF.
@@ -622,6 +649,7 @@ Eso significa que el backend tolera esos campos en `related_work`, pero la UI ac
 - filtra slots por cara
 - traduce `rotation_deg` a `rot_deg`
 - decide si `w_mm/h_mm` son trim o caja final segun engine
+  - en `repeat`, debe respetarlos como caja final/footprint
 
 ## Partes frágiles del contrato
 
@@ -636,6 +664,13 @@ La UI y el backend comparten nombre/semantica, pero no hay validación estricta.
 ### `w_mm` / `h_mm`
 
 Su interpretación cambia según engine y bleed. Es uno de los puntos más sensibles del contrato.
+
+En Fase 4 quedo consolidada la regla para `repeat`:
+
+- `slot.w_mm / slot.h_mm` = footprint final del slot en el pliego
+- `rotation_deg` = orientacion del contenido
+- el frontend no debe rotar otra vez la caja externa
+- el PDF debe ubicar el contenido dentro de esa caja final
 
 ### `face`
 

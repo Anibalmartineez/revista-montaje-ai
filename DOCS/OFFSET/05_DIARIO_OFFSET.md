@@ -136,3 +136,170 @@ Empezar la fase `fase4-editor-offset-pro` con mejoras profesionales de edicion m
 ### Observacion importante
 
 Las operaciones nuevas trabajan sobre la caja efectiva del slot, consistente con las ayudas visuales actuales. No reemplazan una validacion geometrica rotada exacta de salida final.
+
+## Fase 4 - Consolidacion de herramientas PRO
+
+### Fix visual de toolbar
+
+Se corrigio la barra PRO de edicion manual:
+
+- eliminacion de textos rotos por encoding en etiquetas y botones
+- `Edicion` vuelve a verse de forma legible
+- botones de alineacion con etiquetas claras:
+  - Izq
+  - Centro H
+  - Der
+  - Abajo
+  - Centro V
+  - Arriba
+- nudge con controles direccionales claros
+- mejora de espaciado, tamanos y alineacion del control `Paso` + `mm`
+
+### Herramientas de bloque
+
+Se agregaron acciones para operar sobre selecciones completas:
+
+- seleccionar todos los slots de la cara activa
+- atajo `Ctrl/Cmd + A` fuera de inputs
+- centrar horizontalmente la seleccion
+- centrar verticalmente la seleccion
+- centrar bloque completo
+
+El centrado usa el bounding box real del grupo y el area util del pliego. Los slots bloqueados quedan protegidos segun la misma politica de herramientas editables.
+
+### Refactor UX de barra PRO
+
+La barra principal quedo simplificada:
+
+- visibles:
+  - seleccionar todo
+  - centrar bloque
+  - paso en mm
+  - nudge
+- ocultas en panel avanzado:
+  - alineacion relativa
+  - distribucion horizontal/vertical
+
+La logica existente de align, distribute, nudge y seleccion no se elimino; solo se reorganizo visualmente.
+
+### Seleccion por marco
+
+Se implemento drag select / box select sobre el pliego:
+
+- empieza solo desde area vacia
+- muestra rectangulo azul semitransparente
+- selecciona slots de la cara activa por interseccion de bbox
+- `Shift/Ctrl/Cmd + drag` suma a la seleccion actual
+- no interfiere con click simple ni drag de slots
+- usa `slot.w_mm/h_mm` como footprint visual real
+
+## Fase 4 - Correcciones profundas de Step & Repeat PRO
+
+### Bleed y spacing
+
+Se corrigio un bug donde `bleed_mm = 0` caia al fallback `bleed_default_mm = 3` por uso de truthiness.
+
+Estado resultante:
+
+- `bleed_mm = 0` es valor explicito valido
+- repeat no infla el slot si el PDF ya trae sangrado incorporado
+- `slot.bleed_mm` refleja el bleed realmente usado
+- `slot.w_mm/h_mm` reflejan la caja final esperada
+- repeat toma separacion desde:
+  - `spacingSettings.spacingX_mm`
+  - `spacingSettings.spacingY_mm`
+
+### Rotacion inteligente
+
+Se corrigio la estrategia de rotacion en repeat:
+
+- compara capacidad sin rotacion vs con rotacion
+- no rota si todo entra sin rotar
+- rota solo si mejora capacidad
+- si rota 90/270, intercambia `w_mm/h_mm`
+- las posiciones de grid se calculan con dimensiones ya rotadas
+
+Caso importante documentado:
+
+- diseno 100x50
+- 35 formas
+- permitir rotacion
+- resultado esperado: layout limpio 5x7 con `rotation_deg = 0`
+
+### Semantica consolidada de slot rotado
+
+Queda consolidada esta regla:
+
+- `slot.w_mm / slot.h_mm` = caja final ocupada por el slot en el pliego
+- `rotation_deg` = orientacion del contenido del diseno
+- el frontend no debe volver a rotar la caja externa si `w_mm/h_mm` ya representan footprint final
+- el render PDF debe rotar el contenido dentro de esa caja final, con traslacion correcta
+
+### Render PDF sin stretch
+
+Se corrigio el render de contenido rotado:
+
+- no se fuerza resize deformante
+- se respeta la proporcion original
+- se aplican compensaciones explicitas para 90/180/270
+- el contenido queda dentro de la caja final del slot
+
+### Centrado global del PDF normal
+
+Se corrigio un bug donde el PDF normal podia quedar desplazado aunque CTP lo centrara bien.
+
+Conclusion del bug:
+
+- el problema ya no era geometria individual del slot
+- habia un segundo centrado generico que no respetaba el footprint final consolidado
+
+Estado resultante:
+
+- el bbox global usa `slot.w_mm/h_mm` como caja final
+- repeat y posiciones manuales no pasan por un segundo centrado incorrecto
+- el bloque se centra dentro del area util del pliego
+- el PDF normal ya no depende del flujo CTP para quedar completo y centrado
+
+## Fase 4 - Base IA Step & Repeat PRO
+
+### Backend de agente por tools
+
+Se creo una capa intermedia desacoplada en `ai_agent/`:
+
+- `schemas.py`
+- `tools_repeat.py`
+- `agent_controller.py`
+
+Tools iniciales:
+
+- `analizar_layout(layout)`
+- `generar_repeat(layout, config)`
+- `optimizar_repeat(layout)`
+- `centrar_layout(layout)`
+- `aplicar_reglas_repeat(layout, reglas)`
+
+Tambien se agrego:
+
+- `POST /ai/step_repeat_action`
+
+La capa no integra todavia OpenAI API. Por ahora interpreta prompts simples y despacha a tools locales reales.
+
+### Panel IA en frontend
+
+Se integro un panel "Asistente IA" dentro del Editor Visual IA:
+
+- textarea para prompt
+- boton `Ejecutar`
+- respuesta visible
+- boton `Aplicar cambios`
+
+Regla importante:
+
+- ejecutar una accion no reemplaza `state.layout`
+- el layout devuelto solo se aplica cuando el usuario confirma con `Aplicar cambios`
+
+### Estado de continuidad
+
+La base queda preparada para el flujo futuro:
+
+`OpenAI -> tool call -> agent_controller -> tools reales -> layout sugerido -> aplicacion manual por usuario`

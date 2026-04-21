@@ -31,6 +31,18 @@ Este fue el unico flujo trabajado funcionalmente en esta fase.
 - duplicado de frente a dorso
 - ajustes CTP desde frontend
 - preview y PDF final desde layout persistido
+- Step & Repeat PRO corregido para:
+  - respetar `bleed_mm = 0`
+  - usar spacing global del editor
+  - elegir rotacion solo si mejora capacidad
+  - intercambiar `w_mm/h_mm` cuando rota
+  - evitar stretch en PDF
+  - centrar el bloque correctamente en PDF normal
+- seleccion avanzada:
+  - seleccionar toda la cara activa
+  - centrado horizontal, vertical y completo de bloque
+  - seleccion por marco desde area vacia
+- panel de Asistente IA conectado a `POST /ai/step_repeat_action`
 
 ## Validaciones implementadas
 
@@ -90,17 +102,66 @@ Implementado:
 - alineacion de seleccion
 - distribucion horizontal y vertical
 - nudge por botones y teclado
+- paso configurable en mm
+- `Shift` multiplica el paso por 10
+- `Alt` reduce el paso a 0.1x
 - duplicado y borrado multi-slot
+- proteccion de slots bloqueados
+
+### Herramientas de bloque y seleccion avanzada
+
+Implementado:
+
+- seleccionar todos los slots de la cara activa
+- `Ctrl/Cmd + A` cuando el foco no esta en inputs
+- centrar seleccion en eje horizontal
+- centrar seleccion en eje vertical
+- centrar bloque completo
+- calculo de bbox con footprint real del slot
+- seleccion por marco con rectangulo visual
+- `Shift/Ctrl/Cmd + drag` suma seleccion
+- drag select solo empieza desde area vacia del pliego
+
+### UX de toolbar PRO
+
+Implementado:
+
+- correccion de textos rotos por encoding en la barra PRO
+- etiquetas legibles para herramientas de alineacion y nudge
+- barra principal simplificada con:
+  - seleccionar todo
+  - centrar bloque
+  - paso + nudge
+- panel avanzado colapsable para alineacion y distribucion
+
+### Base IA Step & Repeat PRO
+
+Implementado:
+
+- carpeta `ai_agent/`
+- schemas `ToolRequest` y `ToolResponse`
+- tools repeat:
+  - `analizar_layout(layout)`
+  - `generar_repeat(layout, config)`
+  - `optimizar_repeat(layout)`
+  - `centrar_layout(layout)`
+  - `aplicar_reglas_repeat(layout, reglas)`
+- controller simple `handle_agent_request(prompt, layout)`
+- endpoint `POST /ai/step_repeat_action`
+- panel frontend "Asistente IA"
+- aplicacion del layout devuelto solo al confirmar con "Aplicar cambios"
 
 ## Limitaciones conocidas
 
 - siguen coexistiendo flujos offset legacy en el repo
 - `routes.py` continua concentrando mucha orquestacion
-- la semantica de `w_mm/h_mm` sigue siendo sensible y depende del engine
+- la semantica de `w_mm/h_mm` ya quedo consolidada para `repeat`, pero sigue siendo punto sensible frente a otros engines y flujos legacy
 - la validacion geometrica usa bounding box simple, no geometria rotada exacta
 - parte del feedback UX sigue apoyandose en `alert()`
 - no hay schema formal completo del layout ni del slot
-- falta seleccion por marco y edicion masiva avanzada de propiedades
+- no hay tests automatizados especificos para todos los casos recientes de repeat/rotacion/PDF
+- la IA integrada es una base por tools locales y prompt simple; todavia no hay OpenAI tool calling conectado
+- falta edicion masiva avanzada de propiedades de slots
 
 ## Frontera de alcance vigente
 
@@ -126,7 +187,13 @@ Implementado:
 
 ## Foco siguiente sugerido
 
-1. auditar semantica geometrica exacta de slots y rotaciones en salida final
+1. cubrir con pruebas o fixtures los bugs corregidos de repeat:
+   - bleed 0
+   - spacing
+   - rotacion inteligente
+   - PDF sin stretch
+   - centrado global normal
 2. endurecer schema y validaciones del contrato sin romper compatibilidad
-3. mejorar surfacing de errores y warnings del editor sin refactor masivo
-4. recien luego evaluar micro-refactors internos
+3. conectar OpenAI tool calls sobre la capa `ai_agent/`
+4. mejorar surfacing de errores y warnings del editor sin refactor masivo
+5. recien luego evaluar micro-refactors internos
