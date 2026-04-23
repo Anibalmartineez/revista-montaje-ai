@@ -1088,6 +1088,125 @@ def _append_step_repeat_slots_in_bounds(
             cursor_y += rows_used * slot_h + max(0, rows_used - 1) * gap_y + gap_y
 
 
+def _candidate_positions_for_fill(
+    bounds: tuple[float, float, float, float],
+    slot_w: float,
+    slot_h: float,
+    gap_x: float,
+    gap_y: float,
+) -> List[tuple[float, float]]:
+    left, bottom, usable_w, usable_h = bounds
+    if slot_w <= 0 or slot_h <= 0 or usable_w <= 0 or usable_h <= 0:
+        return []
+    max_x = left + usable_w - slot_w
+    max_y = bottom + usable_h - slot_h
+    if max_x < left - 1e-6 or max_y < bottom - 1e-6:
+        return []
+
+    step_x = max(slot_w + gap_x, slot_w, 1.0)
+    step_y = max(slot_h + gap_y, slot_h, 1.0)
+
+    xs: List[float] = []
+    x = left
+    while x <= max_x + 1e-6:
+        xs.append(x)
+        x += step_x
+    if not xs or abs(xs[-1] - max_x) > 1e-6:
+        xs.append(max_x)
+
+    ys: List[float] = []
+    y = bottom
+    while y <= max_y + 1e-6:
+        ys.append(y)
+        y += step_y
+    if not ys or abs(ys[-1] - max_y) > 1e-6:
+        ys.append(max_y)
+
+    candidates: List[tuple[float, float]] = []
+    seen: set[tuple[int, int]] = set()
+
+    def add_candidate(x_pos: float, y_pos: float) -> None:
+        key = (round(x_pos * 1000), round(y_pos * 1000))
+        if key in seen:
+            return
+        seen.add(key)
+        candidates.append((x_pos, y_pos))
+
+    # Trayectorias simples: abajo-arriba, arriba-abajo, por columnas y desde el centro.
+    for y_pos in ys:
+        for x_pos in xs:
+            add_candidate(x_pos, y_pos)
+    for y_pos in reversed(ys):
+        for x_pos in xs:
+            add_candidate(x_pos, y_pos)
+    for x_pos in xs:
+        for y_pos in ys:
+            add_candidate(x_pos, y_pos)
+
+    center_x = left + max(0.0, usable_w - slot_w) / 2.0
+    center_y = bottom + max(0.0, usable_h - slot_h) / 2.0
+    grid_points = [(x_pos, y_pos) for y_pos in ys for x_pos in xs]
+    for x_pos, y_pos in sorted(
+        grid_points,
+        key=lambda point: (abs(point[0] - center_x) + abs(point[1] - center_y), point[1], point[0]),
+    ):
+        add_candidate(x_pos, y_pos)
+
+    return candidates
+
+
+def _append_fill_slots_smart(
+    slots: List[Dict],
+    designs: List[Dict],
+    layout: Dict,
+    bounds: tuple[float, float, float, float],
+    gap_x: float,
+    gap_y: float,
+    active_face: str,
+) -> None:
+    left, bottom, usable_w, usable_h = bounds
+    if usable_w <= 0 or usable_h <= 0:
+        return
+
+    for design in designs:
+        piece_w, piece_h, bleed = _design_dimensions(design, layout)
+        allow_rotation = bool(design.get("allow_rotation", True))
+        forms = max(1, int(design.get("forms_per_plate") or 1))
+        slot_w, slot_h, rot, _ = _choose_repeat_orientation(
+            piece_w,
+            piece_h,
+            forms,
+            allow_rotation,
+            usable_w,
+            usable_h,
+            gap_x,
+            gap_y,
+        )
+        candidates = _candidate_positions_for_fill((left, bottom, usable_w, usable_h), slot_w, slot_h, gap_x, gap_y)
+        placed = 0
+        for x_mm, y_mm in candidates:
+            if placed >= forms:
+                break
+            candidate = {
+                "id": f"sr_{len(slots)}",
+                "x_mm": x_mm,
+                "y_mm": y_mm,
+                "w_mm": slot_w,
+                "h_mm": slot_h,
+                "rotation_deg": rot,
+                "logical_work_id": design.get("work_id"),
+                "bleed_mm": bleed,
+                "crop_marks": True,
+                "locked": False,
+                "design_ref": design.get("ref"),
+                "face": active_face,
+            }
+            if _slot_overlaps_existing(candidate, slots):
+                continue
+            slots.append(candidate)
+            placed += 1
+
+
 def _build_step_repeat_slots(layout: Dict) -> List[Dict]:
     designs = _ordered_repeat_designs(layout)
     if not designs:
@@ -1137,7 +1256,7 @@ def _build_step_repeat_slots(layout: Dict) -> List[Dict]:
         avoid_existing=True,
     )
 
-    _append_step_repeat_slots_in_bounds(
+    _append_fill_slots_smart(
         slots,
         zone_groups.get("fill", []),
         layout,
@@ -1145,7 +1264,6 @@ def _build_step_repeat_slots(layout: Dict) -> List[Dict]:
         gap_x,
         gap_y,
         active_face,
-        avoid_existing=True,
     )
 
     return slots
