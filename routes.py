@@ -901,6 +901,60 @@ def _ordered_repeat_designs(layout: Dict) -> List[Dict]:
     ]
 
 
+def _design_repeat_zone(design: Dict) -> str:
+    zone = str(design.get("preferred_zone") or "auto").strip().lower()
+    if zone not in REPEAT_DESIGN_ZONES:
+        zone = "auto"
+    if zone == "fill" or design.get("repeat_role") == "fill":
+        return "fill"
+    return zone
+
+
+def _group_designs_by_zone(designs: List[Dict]) -> Dict[str, List[Dict]]:
+    groups = {zone: [] for zone in ["auto", "top", "bottom", "left", "right", "center", "fill"]}
+    for design in designs:
+        groups.setdefault(_design_repeat_zone(design), []).append(design)
+    return groups
+
+
+def _get_zone_bounds(layout: Dict, zone: str) -> tuple[float, float, float, float]:
+    usable_w, usable_h, left, _, _, bottom = _sheet_area(layout)
+    top_band_h = usable_h * 0.25
+    bottom_band_h = usable_h * 0.25
+    middle_bottom = bottom + bottom_band_h
+    middle_h = max(0.0, usable_h - top_band_h - bottom_band_h)
+    side_w = usable_w * 0.25
+
+    if zone == "top":
+        return left, bottom + usable_h - top_band_h, usable_w, top_band_h
+    if zone == "bottom":
+        return left, bottom, usable_w, bottom_band_h
+    if zone == "left":
+        return left, middle_bottom, side_w, middle_h
+    if zone == "right":
+        return left + usable_w - side_w, middle_bottom, side_w, middle_h
+    if zone == "center":
+        return left + side_w, middle_bottom, max(0.0, usable_w - 2 * side_w), middle_h
+    return left, bottom, usable_w, usable_h
+
+
+def _slot_overlaps_existing(candidate: Dict, existing_slots: List[Dict]) -> bool:
+    x = _first_numeric(candidate.get("x_mm"), default=0.0)
+    y = _first_numeric(candidate.get("y_mm"), default=0.0)
+    w = _first_numeric(candidate.get("w_mm"), default=0.0)
+    h = _first_numeric(candidate.get("h_mm"), default=0.0)
+    right = x + w
+    top = y + h
+    for slot in existing_slots:
+        sx = _first_numeric(slot.get("x_mm"), default=0.0)
+        sy = _first_numeric(slot.get("y_mm"), default=0.0)
+        sr = sx + _first_numeric(slot.get("w_mm"), default=0.0)
+        st = sy + _first_numeric(slot.get("h_mm"), default=0.0)
+        if x < sr and right > sx and y < st and top > sy:
+            return True
+    return False
+
+
 def _repeat_capacity(
     slot_w: float,
     slot_h: float,
@@ -962,18 +1016,19 @@ def _slots_from_nesting_result(result: NestingResult, layout: Dict) -> List[Dict
     return slots
 
 
-def _build_step_repeat_slots(layout: Dict) -> List[Dict]:
-    designs = _ordered_repeat_designs(layout)
-    if not designs:
-        raise ValueError("No hay diseños configurados para aplicar Step & Repeat.")
-    usable_w, usable_h, left, _, _, bottom = _sheet_area(layout)
+def _append_step_repeat_slots_in_bounds(
+    slots: List[Dict],
+    designs: List[Dict],
+    layout: Dict,
+    bounds: tuple[float, float, float, float],
+    gap_x: float,
+    gap_y: float,
+    active_face: str,
+    avoid_existing: bool = False,
+) -> None:
+    left, bottom, usable_w, usable_h = bounds
     if usable_w <= 0 or usable_h <= 0:
-        return []
-
-    # Bleed define el tamaño del slot; el gap del layout define la separación entre slots.
-    gap_x, gap_y = _layout_spacing_gaps(layout)
-    slots: List[Dict] = []
-    active_face = layout.get("active_face") or "front"
+        return
 
     cursor_y = bottom
     sheet_top = bottom + usable_h
@@ -994,38 +1049,104 @@ def _build_step_repeat_slots(layout: Dict) -> List[Dict]:
             gap_y,
         )
         if cols <= 0:
-            return slots
+            return
 
         rows_used = 0
-        for idx in range(forms):
+        placed = 0
+        idx = 0
+        while placed < forms:
             col = idx % cols
             row = idx // cols
             x_mm = left + col * (slot_w + gap_x)
             y_mm = cursor_y + row * (slot_h + gap_y)
 
             if x_mm + slot_w > left + usable_w + 1e-6 or y_mm + slot_h > sheet_top + 1e-6:
-                return slots
+                return
             rows_used = max(rows_used, row + 1)
 
-            slots.append(
-                {
-                    "id": f"sr_{len(slots)}",
-                    "x_mm": x_mm,
-                    "y_mm": y_mm,
-                    "w_mm": slot_w,
-                    "h_mm": slot_h,
-                    "rotation_deg": rot,
-                    "logical_work_id": design.get("work_id"),
-                    "bleed_mm": bleed,
-                    "crop_marks": True,
-                    "locked": False,
-                    "design_ref": design.get("ref"),
-                    "face": active_face,
-                }
-            )
+            candidate = {
+                "id": f"sr_{len(slots)}",
+                "x_mm": x_mm,
+                "y_mm": y_mm,
+                "w_mm": slot_w,
+                "h_mm": slot_h,
+                "rotation_deg": rot,
+                "logical_work_id": design.get("work_id"),
+                "bleed_mm": bleed,
+                "crop_marks": True,
+                "locked": False,
+                "design_ref": design.get("ref"),
+                "face": active_face,
+            }
+
+            if not avoid_existing or not _slot_overlaps_existing(candidate, slots):
+                slots.append(candidate)
+                placed += 1
+            idx += 1
 
         if rows_used:
             cursor_y += rows_used * slot_h + max(0, rows_used - 1) * gap_y + gap_y
+
+
+def _build_step_repeat_slots(layout: Dict) -> List[Dict]:
+    designs = _ordered_repeat_designs(layout)
+    if not designs:
+        raise ValueError("No hay diseños configurados para aplicar Step & Repeat.")
+    usable_w, usable_h, left, _, _, bottom = _sheet_area(layout)
+    if usable_w <= 0 or usable_h <= 0:
+        return []
+
+    # Bleed define el tamaño del slot; el gap del layout define la separación entre slots.
+    gap_x, gap_y = _layout_spacing_gaps(layout)
+    slots: List[Dict] = []
+    active_face = layout.get("active_face") or "front"
+
+    zone_groups = _group_designs_by_zone(designs)
+    explicit_zones = ["top", "bottom", "left", "right", "center", "fill"]
+    if not any(zone_groups[zone] for zone in explicit_zones):
+        _append_step_repeat_slots_in_bounds(
+            slots,
+            designs,
+            layout,
+            (left, bottom, usable_w, usable_h),
+            gap_x,
+            gap_y,
+            active_face,
+        )
+        return slots
+
+    for zone in ["top", "left", "center", "right", "bottom"]:
+        _append_step_repeat_slots_in_bounds(
+            slots,
+            zone_groups.get(zone, []),
+            layout,
+            _get_zone_bounds(layout, zone),
+            gap_x,
+            gap_y,
+            active_face,
+        )
+
+    _append_step_repeat_slots_in_bounds(
+        slots,
+        zone_groups.get("auto", []),
+        layout,
+        (left, bottom, usable_w, usable_h),
+        gap_x,
+        gap_y,
+        active_face,
+        avoid_existing=True,
+    )
+
+    _append_step_repeat_slots_in_bounds(
+        slots,
+        zone_groups.get("fill", []),
+        layout,
+        (left, bottom, usable_w, usable_h),
+        gap_x,
+        gap_y,
+        active_face,
+        avoid_existing=True,
+    )
 
     return slots
 
