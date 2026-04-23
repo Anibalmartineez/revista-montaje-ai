@@ -210,6 +210,15 @@
     return parsed;
   }
 
+  function appendOptions(select, options) {
+    options.forEach((value) => {
+      const option = document.createElement('option');
+      option.value = value;
+      option.textContent = value;
+      select.appendChild(option);
+    });
+  }
+
   function normalizeDesignDefaults() {
     state.layout.designs = (state.layout.designs || []).map((d) => ({
       ...d,
@@ -1570,6 +1579,60 @@
       rotationLabel.appendChild(rotationInput);
       rotationLabel.append(' Permitir rotación');
       grid.appendChild(rotationLabel);
+
+      const priorityLabel = document.createElement('label');
+      priorityLabel.textContent = 'Prioridad';
+      const priorityInput = document.createElement('input');
+      priorityInput.type = 'number';
+      priorityInput.step = '1';
+      priorityInput.value = normalizeRepeatDesignPriority(d.priority);
+      priorityInput.addEventListener('input', () => {
+        d.priority = normalizeRepeatDesignPriority(priorityInput.value);
+      });
+      priorityInput.addEventListener('change', () => {
+        const normalized = normalizeRepeatDesignPriority(priorityInput.value);
+        priorityInput.value = normalized;
+        d.priority = normalized;
+        pushHistory();
+      });
+      priorityLabel.appendChild(priorityInput);
+      grid.appendChild(priorityLabel);
+
+      const zoneLabel = document.createElement('label');
+      zoneLabel.textContent = 'Zona preferida';
+      const zoneSelect = document.createElement('select');
+      appendOptions(zoneSelect, ['auto', 'top', 'bottom', 'left', 'right', 'center', 'fill']);
+      zoneSelect.value = normalizeRepeatDesignChoice(d.preferred_zone, REPEAT_DESIGN_ZONES, 'auto');
+      zoneSelect.addEventListener('change', () => {
+        d.preferred_zone = normalizeRepeatDesignChoice(zoneSelect.value, REPEAT_DESIGN_ZONES, 'auto');
+        pushHistory();
+      });
+      zoneLabel.appendChild(zoneSelect);
+      grid.appendChild(zoneLabel);
+
+      const flowLabel = document.createElement('label');
+      flowLabel.textContent = 'Flujo preferido';
+      const flowSelect = document.createElement('select');
+      appendOptions(flowSelect, ['auto', 'horizontal', 'vertical']);
+      flowSelect.value = normalizeRepeatDesignChoice(d.preferred_flow, REPEAT_DESIGN_FLOWS, 'auto');
+      flowSelect.addEventListener('change', () => {
+        d.preferred_flow = normalizeRepeatDesignChoice(flowSelect.value, REPEAT_DESIGN_FLOWS, 'auto');
+        pushHistory();
+      });
+      flowLabel.appendChild(flowSelect);
+      grid.appendChild(flowLabel);
+
+      const roleLabel = document.createElement('label');
+      roleLabel.textContent = 'Rol repeat';
+      const roleSelect = document.createElement('select');
+      appendOptions(roleSelect, ['primary', 'secondary', 'fill']);
+      roleSelect.value = normalizeRepeatDesignChoice(d.repeat_role, REPEAT_DESIGN_ROLES, 'secondary');
+      roleSelect.addEventListener('change', () => {
+        d.repeat_role = normalizeRepeatDesignChoice(roleSelect.value, REPEAT_DESIGN_ROLES, 'secondary');
+        pushHistory();
+      });
+      roleLabel.appendChild(roleSelect);
+      grid.appendChild(roleLabel);
 
       li.appendChild(grid);
       designsListEl.appendChild(li);
