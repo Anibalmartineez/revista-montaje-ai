@@ -254,6 +254,41 @@ def _ensure_faces_fields(layout: Dict) -> tuple[Dict, bool]:
     return layout, changed
 
 
+REPEAT_DESIGN_DEFAULT_PRIORITY = 100
+REPEAT_DESIGN_ZONES = {"auto", "top", "bottom", "left", "right", "center", "fill"}
+REPEAT_DESIGN_FLOWS = {"auto", "horizontal", "vertical"}
+REPEAT_DESIGN_ROLES = {"primary", "secondary", "fill"}
+
+
+def _normalize_repeat_design_metadata(design: Dict) -> bool:
+    changed = False
+
+    raw_priority = design.get("priority")
+    try:
+        priority = float(raw_priority)
+        if not math.isfinite(priority):
+            raise ValueError
+    except (TypeError, ValueError):
+        priority = float(REPEAT_DESIGN_DEFAULT_PRIORITY)
+    if raw_priority != priority:
+        design["priority"] = priority
+        changed = True
+
+    def _normalize_choice(field: str, allowed: set[str], default: str) -> None:
+        nonlocal changed
+        value = str(design.get(field) or default).strip().lower()
+        if value not in allowed:
+            value = default
+        if design.get(field) != value:
+            design[field] = value
+            changed = True
+
+    _normalize_choice("preferred_zone", REPEAT_DESIGN_ZONES, "auto")
+    _normalize_choice("preferred_flow", REPEAT_DESIGN_FLOWS, "auto")
+    _normalize_choice("repeat_role", REPEAT_DESIGN_ROLES, "secondary")
+    return changed
+
+
 def _ensure_imposition_fields(layout: Dict) -> tuple[Dict, bool]:
     changed = False
     if not isinstance(layout, dict):
@@ -272,6 +307,8 @@ def _ensure_imposition_fields(layout: Dict) -> tuple[Dict, bool]:
 
     designs = layout.get("designs", [])
     for design in designs:
+        if not isinstance(design, dict):
+            continue
         if "forms_per_plate" not in design:
             design["forms_per_plate"] = 1
             changed = True
@@ -280,6 +317,8 @@ def _ensure_imposition_fields(layout: Dict) -> tuple[Dict, bool]:
             changed = True
         if "bleed_mm" not in design:
             design["bleed_mm"] = layout.get("bleed_default_mm", 0)
+            changed = True
+        if _normalize_repeat_design_metadata(design):
             changed = True
 
     return layout, changed
@@ -725,6 +764,10 @@ def editor_offset_upload(job_id: str):
                 "bleed_mm": round(_first_numeric(bleed_mm, default=0.0), 3),
                 "allow_rotation": allow_rotation,
                 "forms_per_plate": max(1, forms_per_plate),
+                "priority": REPEAT_DESIGN_DEFAULT_PRIORITY,
+                "preferred_zone": "auto",
+                "preferred_flow": "auto",
+                "repeat_role": "secondary",
             }
         )
 
@@ -835,6 +878,29 @@ def _design_dimensions(design: Dict, layout: Dict) -> tuple[float, float, float]
     return width + 2 * bleed, height + 2 * bleed, bleed
 
 
+def _ordered_repeat_designs(layout: Dict) -> List[Dict]:
+    designs = layout.get("designs") or []
+    normalized: List[tuple[int, Dict]] = []
+    for idx, design in enumerate(designs):
+        if not isinstance(design, dict):
+            continue
+        item = dict(design)
+        _normalize_repeat_design_metadata(item)
+        normalized.append((idx, item))
+
+    return [
+        design
+        for _, design in sorted(
+            normalized,
+            key=lambda pair: (
+                1 if pair[1].get("repeat_role") == "fill" else 0,
+                _first_numeric(pair[1].get("priority"), default=REPEAT_DESIGN_DEFAULT_PRIORITY),
+                pair[0],
+            ),
+        )
+    ]
+
+
 def _repeat_capacity(
     slot_w: float,
     slot_h: float,
@@ -897,7 +963,7 @@ def _slots_from_nesting_result(result: NestingResult, layout: Dict) -> List[Dict
 
 
 def _build_step_repeat_slots(layout: Dict) -> List[Dict]:
-    designs = layout.get("designs") or []
+    designs = _ordered_repeat_designs(layout)
     if not designs:
         raise ValueError("No hay diseños configurados para aplicar Step & Repeat.")
     usable_w, usable_h, left, _, _, bottom = _sheet_area(layout)

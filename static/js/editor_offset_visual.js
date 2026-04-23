@@ -194,6 +194,22 @@
     }
   }
 
+  const REPEAT_DESIGN_DEFAULT_PRIORITY = 100;
+  const REPEAT_DESIGN_ZONES = new Set(['auto', 'top', 'bottom', 'left', 'right', 'center', 'fill']);
+  const REPEAT_DESIGN_FLOWS = new Set(['auto', 'horizontal', 'vertical']);
+  const REPEAT_DESIGN_ROLES = new Set(['primary', 'secondary', 'fill']);
+
+  function normalizeRepeatDesignChoice(value, allowed, fallback) {
+    const normalized = String(value || fallback).trim().toLowerCase();
+    return allowed.has(normalized) ? normalized : fallback;
+  }
+
+  function normalizeRepeatDesignPriority(value) {
+    const parsed = parseFloat(value);
+    if (!Number.isFinite(parsed)) return REPEAT_DESIGN_DEFAULT_PRIORITY;
+    return parsed;
+  }
+
   function normalizeDesignDefaults() {
     state.layout.designs = (state.layout.designs || []).map((d) => ({
       ...d,
@@ -202,6 +218,10 @@
       bleed_mm: d.bleed_mm ?? state.layout.bleed_default_mm ?? 0,
       allow_rotation: d.allow_rotation !== false,
       forms_per_plate: Math.max(1, parseInt(d.forms_per_plate || '1', 10)),
+      priority: normalizeRepeatDesignPriority(d.priority),
+      preferred_zone: normalizeRepeatDesignChoice(d.preferred_zone, REPEAT_DESIGN_ZONES, 'auto'),
+      preferred_flow: normalizeRepeatDesignChoice(d.preferred_flow, REPEAT_DESIGN_FLOWS, 'auto'),
+      repeat_role: normalizeRepeatDesignChoice(d.repeat_role, REPEAT_DESIGN_ROLES, 'secondary'),
     }));
   }
 
