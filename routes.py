@@ -1406,8 +1406,11 @@ def _build_step_repeat_slots(layout: Dict) -> List[Dict]:
     group_ranges: Dict[str, Dict] = {}
 
     zone_groups = _group_designs_by_zone(designs)
-    explicit_zones = ["top", "bottom", "left", "right", "center", "fill"]
-    if not any(zone_groups[zone] for zone in explicit_zones):
+    zonal_order = ["top", "left", "center", "right", "bottom"]
+    has_zonal_designs = any(zone_groups.get(zone) for zone in zonal_order)
+    has_fill_designs = bool(zone_groups.get("fill"))
+
+    if not has_zonal_designs and not has_fill_designs:
         _append_step_repeat_slots_in_bounds(
             slots,
             designs,
@@ -1419,25 +1422,26 @@ def _build_step_repeat_slots(layout: Dict) -> List[Dict]:
         )
         return slots
 
-    for zone in ["top", "left", "center", "right", "bottom"]:
-        group_info = _append_step_repeat_slots_in_bounds(
-            slots,
-            zone_groups.get(zone, []),
-            layout,
-            _get_zone_bounds(layout, zone),
-            gap_x,
-            gap_y,
-            active_face,
-        )
-        if group_info:
-            group_ranges[zone] = group_info
+    if has_zonal_designs:
+        for zone in zonal_order:
+            group_info = _append_step_repeat_slots_in_bounds(
+                slots,
+                zone_groups.get(zone, []),
+                layout,
+                _get_zone_bounds(layout, zone),
+                gap_x,
+                gap_y,
+                active_face,
+            )
+            if group_info:
+                group_ranges[zone] = group_info
 
-    _compact_vertical_zone_groups(
-        slots,
-        group_ranges,
-        (left, bottom, usable_w, usable_h),
-        max(0.0, _first_numeric(gap_y, layout.get("gap_default_mm"), default=5.0)),
-    )
+        _compact_vertical_zone_groups(
+            slots,
+            group_ranges,
+            (left, bottom, usable_w, usable_h),
+            max(0.0, _first_numeric(gap_y, layout.get("gap_default_mm"), default=5.0)),
+        )
 
     _append_step_repeat_slots_in_bounds(
         slots,
