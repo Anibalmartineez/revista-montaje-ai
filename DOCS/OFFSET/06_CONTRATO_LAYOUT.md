@@ -252,7 +252,8 @@ Eso significa que el backend tolera esos campos en `related_work`, pero la UI ac
   - `left`
   - `right`
   - `center`
-- `fill` sigue existiendo internamente, pero no aparece como opcion visible en el select de ubicacion
+- `fill` no debe considerarse una ubicacion visible ni recomendada para `preferred_zone`
+- si aparece en layouts historicos, debe leerse como compatibilidad interna, no como uso recomendado de UI
 
 ### `slots`
 
@@ -497,14 +498,16 @@ Eso significa que el backend tolera esos campos en `related_work`, pero la UI ac
 - vive en `designs[]`
 - se edita en la UI actual como `Ubicacion`
 - el backend lo usa como preferencia principal de inicio para agrupar y ubicar disenos en Step & Repeat PRO inteligente
-- zonas soportadas hoy:
+- opciones visibles y recomendadas hoy:
   - `auto`
   - `top`
   - `bottom`
   - `left`
   - `right`
   - `center`
-  - `fill` internamente
+- `fill` no debe considerarse parte de la ubicacion visible
+- `fill` pertenece principalmente a `repeat_role` como comportamiento de relleno
+- si algun layout viejo trae `preferred_zone = "fill"`, se considera compatibilidad interna heredada y no uso recomendado
 
 ### `priority`
 

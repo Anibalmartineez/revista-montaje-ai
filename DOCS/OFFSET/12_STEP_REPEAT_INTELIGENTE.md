@@ -226,4 +226,4 @@ La Fase 5 mantiene compatibilidad:
    - `forms_per_plate`
    - `preferred_zone`
    - reglas repeat estables
-5. Reci en una fase posterior evaluar packing mas avanzado si sigue haciendo falta.
+5. Recién en una fase posterior evaluar packing mas avanzado si sigue haciendo falta.
