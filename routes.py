@@ -103,6 +103,13 @@ routes_bp = Blueprint("routes", __name__)
 heavy_lock = Lock()
 openai_client = OpenAI(api_key=os.environ.get("OPENAI_API_KEY"))
 
+
+class IncompleteImpositionError(ValueError):
+    def __init__(self, message: str, details: List[Dict] | None = None):
+        super().__init__(message)
+        self.details = details or []
+
+
 def _json_error(msg, code=422, **payload):
     body = {"ok": False, "error": msg}
     body.update(payload)
@@ -1039,6 +1046,39 @@ def _slot_overlaps_existing(candidate: Dict, existing_slots: List[Dict]) -> bool
     return False
 
 
+def _repeat_requested_vs_placed(designs: List[Dict], slots: List[Dict]) -> List[Dict]:
+    placed_by_ref: Dict[str, int] = {}
+    for slot in slots:
+        ref = slot.get("design_ref")
+        if ref is None:
+            continue
+        ref_key = str(ref)
+        placed_by_ref[ref_key] = placed_by_ref.get(ref_key, 0) + 1
+
+    summary: List[Dict] = []
+    for design in designs:
+        if not isinstance(design, dict):
+            continue
+        ref = design.get("ref")
+        if ref is None:
+            continue
+        ref_key = str(ref)
+        requested = max(1, int(design.get("forms_per_plate") or 1))
+        placed = int(placed_by_ref.get(ref_key, 0))
+        missing = max(0, requested - placed)
+        summary.append(
+            {
+                "design_ref": ref_key,
+                "filename": design.get("filename"),
+                "preferred_zone": design.get("preferred_zone") or "auto",
+                "requested_forms": requested,
+                "placed_forms": placed,
+                "missing_forms": missing,
+            }
+        )
+    return summary
+
+
 def _repeat_capacity(
     slot_w: float,
     slot_h: float,
@@ -1367,12 +1407,14 @@ def _compact_vertical_zone_groups(
         present.append({"zone": zone, "start": info["start"], "end": info["end"], "bbox": bbox})
 
     if len(present) < 2:
+        # No hay suficientes grupos verticales para compactar de forma segura.
         return
 
     total_height = sum(group["bbox"][3] - group["bbox"][1] for group in present)
     packed_height = total_height + max(0, len(present) - 1) * max(0.0, min_gap_y)
     left, bottom, usable_w, usable_h = usable_bounds
     if packed_height > usable_h + 1e-6:
+        # El bloque compacto no entra completo dentro del area util.
         return
 
     target_y = bottom + max(0.0, usable_h - packed_height) / 2.0
@@ -1383,6 +1425,7 @@ def _compact_vertical_zone_groups(
         dy = target_y - min_y
         translated = _translated_group_slots(slots, group["start"], group["end"], 0.0, dy)
         if not _can_place_translated_group(slots, group["start"], group["end"], translated, usable_bounds):
+            # Se cancela la compactacion si algun grupo colisiona o sale del area util.
             return
         moved_groups.append((group, translated))
         target_y += height + max(0.0, min_gap_y)
@@ -1420,6 +1463,20 @@ def _build_step_repeat_slots(layout: Dict) -> List[Dict]:
             gap_y,
             active_face,
         )
+        placement_summary = _repeat_requested_vs_placed(designs, slots)
+        incomplete = [item for item in placement_summary if item["missing_forms"] > 0]
+        if incomplete:
+            messages = []
+            for item in incomplete:
+                design_name = item.get("filename") or item.get("design_ref")
+                messages.append(
+                    f"Diseño {design_name}: solicitadas {item['requested_forms']}, "
+                    f"colocadas {item['placed_forms']}, faltan {item['missing_forms']}."
+                )
+            raise IncompleteImpositionError(
+                "No entran todas las formas solicitadas en el pliego. " + " ".join(messages),
+                details=incomplete,
+            )
         return slots
 
     if has_zonal_designs:
@@ -1463,6 +1520,21 @@ def _build_step_repeat_slots(layout: Dict) -> List[Dict]:
         gap_y,
         active_face,
     )
+
+    placement_summary = _repeat_requested_vs_placed(designs, slots)
+    incomplete = [item for item in placement_summary if item["missing_forms"] > 0]
+    if incomplete:
+        messages = []
+        for item in incomplete:
+            design_name = item.get("filename") or item.get("design_ref")
+            messages.append(
+                f"Diseño {design_name}: solicitadas {item['requested_forms']}, "
+                f"colocadas {item['placed_forms']}, faltan {item['missing_forms']}."
+            )
+        raise IncompleteImpositionError(
+            "No entran todas las formas solicitadas en el pliego. " + " ".join(messages),
+            details=incomplete,
+        )
 
     return slots
 
@@ -1550,6 +1622,14 @@ def editor_offset_apply_imposition():
 
     try:
         slots = _apply_imposition_engine(layout, selected_engine)
+    except IncompleteImpositionError as exc:
+        current_app.logger.warning(
+            "Imposicion incompleta en Step & Repeat PRO para job %s: %s | details=%s",
+            job_id,
+            str(exc),
+            exc.details,
+        )
+        return _json_error(str(exc), details=exc.details)
     except ValueError as exc:
         return _json_error(str(exc))
 
