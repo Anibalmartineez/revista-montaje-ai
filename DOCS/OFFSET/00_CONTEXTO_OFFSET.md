@@ -71,6 +71,32 @@ El modulo Offset del repo agrupa varios flujos historicos de montaje offset. En 
   - ejecucion contra backend
   - respuesta visible
   - aplicacion manual del layout devuelto
+- fase 5 consolidada para Step & Repeat PRO Inteligente:
+  - metadata por diseno para repeat
+  - `preferred_zone` como control principal visible en UI
+  - `priority` automatico derivado por backend
+  - `repeat_role` automatico derivado por backend
+  - `preferred_flow` reservado para futuro, pero inactivo
+  - `repeat_manual_overrides` para distinguir overrides historicos/manuales
+  - zonas reales basicas:
+    - `top`
+    - `bottom`
+    - `left`
+    - `right`
+    - `center`
+    - `auto`
+  - `fill` inteligente para ocupar huecos utiles al final
+  - compactacion vertical segura de grupos zonales
+  - UI simplificada en lista de disenos:
+    - se mantiene visible `Ubicacion`
+    - se ocultan prioridad, rol repeat y flujo
+    - textos amigables:
+      - `Automatico`
+      - `Arriba`
+      - `Abajo`
+      - `Izquierda`
+      - `Derecha`
+      - `Centro`
 
 ## Riesgos principales
 
@@ -81,6 +107,9 @@ El modulo Offset del repo agrupa varios flujos historicos de montaje offset. En 
 - coexistencia con flujos offset legacy dentro del mismo repo
 - validaciones aun parciales en schema formal y consistencia semantica profunda
 - la base IA todavia no usa LLM ni tool calls reales de OpenAI; por ahora mapea prompts simples a tools locales
+- `preferred_flow` sigue en contrato pero todavia no participa en decisiones reales del motor
+- la compactacion actual de grupos zonales es solo vertical
+- `fill` mejoro aprovechamiento de huecos, pero sigue sin packing avanzado
 
 ## Proximos pasos sugeridos
 
@@ -92,4 +121,5 @@ El modulo Offset del repo agrupa varios flujos historicos de montaje offset. En 
    - PDF normal vs CTP
 3. conectar el agente IA a tool calls reales de OpenAI manteniendo el controller actual como capa intermedia
 4. mejorar el surfacing de warnings y errores en UI sin depender tanto de `alert()`
-5. evaluar micro-refactors internos solo despues de cubrir los casos criticos de salida final
+5. extender compactacion a casos horizontales `left/center/right` solo si se mantiene segura
+6. evaluar micro-refactors internos solo despues de cubrir los casos criticos de salida final

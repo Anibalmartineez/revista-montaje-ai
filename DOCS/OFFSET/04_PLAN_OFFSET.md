@@ -6,16 +6,17 @@ Consolidar el Editor Visual IA como flujo operativo profesional del modulo Offse
 
 ## Etapa actual
 
-- Fase 4 nueva: `fase4-editor-offset-pro`
+- Rama actual documentada: `fase5-step-repeat-inteligente`
 - Sin refactor masivo
 - Sin limpieza agresiva
 - Sin eliminacion de archivos
-- Cambios acotados sobre Editor Visual IA y correcciones puntuales de repeat/salida final
-- Foco en:
-  - herramientas profesionales de edicion manual
-  - estabilidad de Step & Repeat PRO
-  - UX de seleccion y toolbar
-  - base de agente IA desacoplada
+- Cambios acotados sobre Editor Visual IA y Step & Repeat PRO
+- Foco real de esta etapa:
+  - automatizacion del motor repeat por diseno
+  - zonas preferidas reales como preferencia de inicio
+  - UI de disenos simplificada
+  - mejor aprovechamiento de huecos con `fill`
+  - compactacion vertical segura de grupos
 
 ## Plan propuesto por fases
 
@@ -102,21 +103,53 @@ Objetivo:
 - ampliar tools con acciones verificables y reversibles
 - registrar respuestas y sugerencias de forma no destructiva hasta que el usuario aplique cambios
 
-### Fase 5. Refactor pequeno y seguro
+### Fase 5. Step & Repeat PRO Inteligente
 
-Solo despues de cerrar Fase 1 a Fase 4:
+Estado real de esta rama:
 
-- extraer helpers pequeños con cobertura
-- aislar naming y contratos
-- reducir duplicacion con cambios minimos
+- Fase 5.1.a:
+  - metadata por diseno para repeat
+  - ordenamiento base compatible con layouts viejos
+- Fase 5.1.b:
+  - UI minima inicial para preferencias por diseno
+- Fase 5.2:
+  - zonas reales basicas por bandas
+- Fase 5.3:
+  - `fill` inteligente para huecos utiles restantes
+- Fase 5.4:
+  - simplificacion UX:
+    - solo queda visible `Ubicacion`
+    - `priority`, `repeat_role` y `preferred_flow` pasan a logica interna
+  - textos amigables en UI
+  - `preferred_flow` reservado pero inactivo
+- Fase 5.5:
+  - compactacion vertical segura de grupos zonales
+
+Decisiones consolidadas:
+
+- `preferred_zone` es el control principal visible
+- `priority` y `repeat_role` se derivan automaticamente cuando no hay override manual
+- `preferred_flow` se conserva en contrato pero no participa todavia del motor
+- `slot.w_mm/h_mm` sigue siendo footprint final en `repeat`
+- `rotation_deg` sigue siendo orientacion del contenido
+
+### Fase 6 sugerida. IA operativa sobre motor inteligente
+
+Objetivo:
+
+- exponer al agente IA solo controles estables del motor inteligente
+- evitar que la IA manipule numerica o geometria sin guardrails
+- usar `preferred_zone`, `forms_per_plate` y reglas repeat como superficie principal
+- dejar packing complejo y optimizaciones profundas para una fase posterior
 
 ## Priorizacion sugerida
 
 1. Mantener documentados los contratos despues de cada cambio de semantica
-2. Agregar fixtures o pruebas de regresion para Step & Repeat PRO
+2. Agregar fixtures o pruebas de regresion para Step & Repeat PRO inteligente
 3. Conectar OpenAI tool calls sobre `ai_agent/`
 4. Mejorar feedback no bloqueante de errores/warnings
-5. Recien despues evaluar micro-refactors
+5. Evaluar compactacion horizontal solo si mantiene seguridad
+6. Recien despues evaluar micro-refactors
 
 ## Cambios explicitamente postergados
 

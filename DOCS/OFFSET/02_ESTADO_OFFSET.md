@@ -43,6 +43,13 @@ Este fue el unico flujo trabajado funcionalmente en esta fase.
   - centrado horizontal, vertical y completo de bloque
   - seleccion por marco desde area vacia
 - panel de Asistente IA conectado a `POST /ai/step_repeat_action`
+- Step & Repeat PRO Inteligente en Fase 5:
+  - metadata por diseno persistida y normalizada
+  - ordenamiento base por `forms_per_plate`, prioridad y rol derivado
+  - `preferred_zone` editable desde UI
+  - zonas reales basicas para `top`, `bottom`, `left`, `right`, `center`, `auto`
+  - `fill` inteligente al final para aprovechar huecos restantes
+  - compactacion vertical segura para grupos `top/center/bottom`
 
 ## Validaciones implementadas
 
@@ -151,6 +158,58 @@ Implementado:
 - panel frontend "Asistente IA"
 - aplicacion del layout devuelto solo al confirmar con "Aplicar cambios"
 
+### UI actual de disenos en Fase 5
+
+Implementado:
+
+- `Formas/pliego`
+- `Ancho`
+- `Alto`
+- `Bleed`
+- `Permitir rotacion`
+- `Ubicacion`
+
+No visibles al usuario final:
+
+- `priority`
+- `repeat_role`
+- `preferred_flow`
+
+Detalles confirmados:
+
+- el select visible usa textos amigables:
+  - `Automatico`
+  - `Arriba`
+  - `Abajo`
+  - `Izquierda`
+  - `Derecha`
+  - `Centro`
+- internamente los values siguen siendo:
+  - `auto`
+  - `top`
+  - `bottom`
+  - `left`
+  - `right`
+  - `center`
+- `fill` no aparece como opcion visible de ubicacion
+
+### Automatismos backend Fase 5
+
+Implementado en `routes.py`:
+
+- `priority` automatico si no hay override manual
+- `repeat_role` automatico si no hay override manual
+- `preferred_flow` reservado pero inactivo
+- `repeat_manual_overrides` para distinguir valores historicos/manuales de defaults automaticos
+
+Reglas actuales observadas:
+
+- mayor `forms_per_plate` tiende a quedar primero
+- el diseno principal puede quedar como `primary`
+- zonas explicitas se respetan por encima del rol derivado
+- `fill` se usa al final para ocupar espacio restante
+- si todo esta en `auto`, se conserva el comportamiento legacy
+
 ## Limitaciones conocidas
 
 - siguen coexistiendo flujos offset legacy en el repo
@@ -162,6 +221,10 @@ Implementado:
 - no hay tests automatizados especificos para todos los casos recientes de repeat/rotacion/PDF
 - la IA integrada es una base por tools locales y prompt simple; todavia no hay OpenAI tool calling conectado
 - falta edicion masiva avanzada de propiedades de slots
+- `preferred_flow` existe en contrato pero todavia no tiene efecto real en el motor
+- no hay compactacion horizontal de grupos zonales
+- la compactacion actual solo intenta casos verticales `top/center/bottom`
+- `fill` mejorado no reemplaza un packing real
 
 ## Frontera de alcance vigente
 
@@ -196,4 +259,5 @@ Implementado:
 2. endurecer schema y validaciones del contrato sin romper compatibilidad
 3. conectar OpenAI tool calls sobre la capa `ai_agent/`
 4. mejorar surfacing de errores y warnings del editor sin refactor masivo
-5. recien luego evaluar micro-refactors internos
+5. medir con casos reales si la heuristica automatica de `repeat_role` necesita ajuste
+6. recien luego evaluar micro-refactors internos

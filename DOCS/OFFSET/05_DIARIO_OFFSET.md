@@ -303,3 +303,58 @@ Regla importante:
 La base queda preparada para el flujo futuro:
 
 `OpenAI -> tool call -> agent_controller -> tools reales -> layout sugerido -> aplicacion manual por usuario`
+
+## 2026-04-22 / 2026-04-23 Fase 5 - Step & Repeat PRO Inteligente
+
+### Objetivo general
+
+Volver mas util el motor Step & Repeat PRO del Editor Visual IA sin pasar a packing complejo ni romper compatibilidad con Fase 4.
+
+### Implementaciones reales cerradas en la rama
+
+- metadata persistida por diseno para repeat:
+  - `priority`
+  - `preferred_zone`
+  - `preferred_flow`
+  - `repeat_role`
+  - `repeat_manual_overrides`
+- ordenamiento base y compatibilidad con layouts viejos
+- UI minima inicial para preferencias por diseno
+- zonas reales basicas por bandas
+- `fill` inteligente para huecos utiles restantes
+- simplificacion UX:
+  - queda visible solo `Ubicacion`
+  - se ocultan:
+    - `priority`
+    - `repeat_role`
+    - `preferred_flow`
+- textos amigables en UI:
+  - `Automatico`
+  - `Arriba`
+  - `Abajo`
+  - `Izquierda`
+  - `Derecha`
+  - `Centro`
+- `preferred_flow` reservado pero inactivo
+- compactacion vertical segura de grupos zonales
+
+### Reglas consolidadas de producto y motor
+
+- `preferred_zone` pasa a ser el control principal visible para el usuario
+- `priority` y `repeat_role` se derivan automaticamente cuando no hay override manual
+- `preferred_flow` se conserva en contrato, pero no participa del motor
+- `fill` se procesa al final para ocupar huecos utiles
+- si todo esta en `auto`, se mantiene comportamiento legacy
+
+### Semanticas que se mantuvieron intactas
+
+- `slot.w_mm / slot.h_mm` siguen siendo footprint final en `repeat`
+- `rotation_deg` sigue siendo orientacion del contenido
+- no se toco semantica de preview/PDF ni `montaje_offset_inteligente.py`
+
+### Limitaciones abiertas al cierre de Fase 5
+
+- no hay compactacion horizontal
+- no hay packing avanzado
+- `preferred_flow` no tiene implementacion funcional todavia
+- la heuristica de `repeat_role` automatico puede requerir ajuste con casos reales

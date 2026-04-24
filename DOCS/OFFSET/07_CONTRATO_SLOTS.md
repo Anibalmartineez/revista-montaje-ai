@@ -456,8 +456,19 @@ Características:
 - `w_mm/h_mm` representan footprint final del slot
 - `rotation_deg` representa orientacion del contenido
 - cuando rota 90/270, `w_mm/h_mm` ya se intercambian en la generacion
+- en Fase 5 pueden venir de grupos zonales compactados sin cambiar su semantica
 - en salida:
   - `slot_box_final = True`
+
+### Observacion Fase 5 sobre semantica
+
+Las mejoras de Step & Repeat PRO Inteligente no cambian el contrato de `slots[]`:
+
+- las zonas preferred y la compactacion solo alteran `x_mm` / `y_mm`
+- `fill` inteligente solo altera posicion final de slots nuevos
+- `w_mm/h_mm` siguen representando footprint final
+- `rotation_deg` sigue representando orientacion del contenido
+- preview/PDF siguen leyendo los slots `repeat` con `slot_box_final = True`
 
 ### Slots `nesting`
 

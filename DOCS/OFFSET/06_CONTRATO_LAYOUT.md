@@ -213,7 +213,16 @@ Eso significa que el backend tolera esos campos en `related_work`, pero la UI ac
   "height_mm": 297,
   "bleed_mm": 3,
   "allow_rotation": false,
-  "forms_per_plate": 4
+  "forms_per_plate": 4,
+  "priority": 1,
+  "preferred_zone": "auto",
+  "preferred_flow": "auto",
+  "repeat_role": "secondary",
+  "repeat_manual_overrides": {
+    "priority": false,
+    "preferred_flow": false,
+    "repeat_role": false
+  }
 }
 ```
 
@@ -226,6 +235,24 @@ Eso significa que el backend tolera esos campos en `related_work`, pero la UI ac
 - `bleed_mm`: bleed asociado al diseño
 - `allow_rotation`: habilita rotacion para motores auto
 - `forms_per_plate`: cantidad declarada de formas por pliego
+- `priority`: prioridad interna de repeat; hoy se deriva automaticamente si no hay override manual
+- `preferred_zone`: preferencia de ubicacion para Step & Repeat PRO inteligente
+- `preferred_flow`: campo reservado para futuro; hoy se conserva pero no participa del motor
+- `repeat_role`: rol interno de repeat; hoy se deriva automaticamente si no hay override manual
+- `repeat_manual_overrides`: marca si ciertos campos repeat vienen de decision manual/historica o de defaults automaticos
+
+#### observaciones Fase 5
+
+- en la UI actual solo `preferred_zone` queda visible
+- `priority`, `repeat_role` y `preferred_flow` quedan ocultos al usuario final
+- `preferred_zone` usa textos amigables en UI, pero persiste values internos:
+  - `auto`
+  - `top`
+  - `bottom`
+  - `left`
+  - `right`
+  - `center`
+- `fill` sigue existiendo internamente, pero no aparece como opcion visible en el select de ubicacion
 
 ### `slots`
 
@@ -418,6 +445,11 @@ Eso significa que el backend tolera esos campos en `related_work`, pero la UI ac
 - `designs[].bleed_mm` si falta se rellena desde `bleed_default_mm`
 - `designs[].allow_rotation` si falta se normaliza a `true`
 - `designs[].forms_per_plate` si falta se normaliza a `1`
+- `designs[].priority` si falta se completa y luego puede derivarse automaticamente
+- `designs[].preferred_zone` si falta se normaliza a `"auto"`
+- `designs[].preferred_flow` si falta se normaliza a `"auto"`
+- `designs[].repeat_role` si falta se normaliza a `"secondary"`
+- `designs[].repeat_manual_overrides` si falta se construye automaticamente
 - `slots[].face` si falta se normaliza a `"front"`
 - `faces` si falta se normaliza a `["front"]`
 - `active_face` si falta se normaliza a la primera cara
@@ -460,6 +492,57 @@ Eso significa que el backend tolera esos campos en `related_work`, pero la UI ac
 - motores repeat lo usan para generar cantidad de slots
 - backend garantiza default `1`
 
+### `preferred_zone`
+
+- vive en `designs[]`
+- se edita en la UI actual como `Ubicacion`
+- el backend lo usa como preferencia principal de inicio para agrupar y ubicar disenos en Step & Repeat PRO inteligente
+- zonas soportadas hoy:
+  - `auto`
+  - `top`
+  - `bottom`
+  - `left`
+  - `right`
+  - `center`
+  - `fill` internamente
+
+### `priority`
+
+- vive en `designs[]`
+- ya no se edita en la UI actual
+- el backend puede derivarlo automaticamente segun `forms_per_plate` y ranking interno
+- si existe override manual/historico, se respeta
+
+### `repeat_role`
+
+- vive en `designs[]`
+- ya no se edita en la UI actual
+- el backend puede derivarlo automaticamente como:
+  - `primary`
+  - `secondary`
+  - `fill`
+- zonas explicitas siguen teniendo prioridad por encima del rol derivado
+
+### `preferred_flow`
+
+- vive en `designs[]`
+- ya no se edita en la UI actual
+- queda reservado para compatibilidad futura
+- si un layout viejo trae valor manual, se conserva
+- hoy no participa en decisiones reales del motor
+
+### `repeat_manual_overrides`
+
+- vive en `designs[]`
+- bloque interno no visible en UI
+- guarda banderas booleanas para:
+  - `priority`
+  - `preferred_flow`
+  - `repeat_role`
+- se usa para distinguir:
+  - defaults automaticos actuales
+  - overrides manuales o historicos
+
 ### `allow_rotation`
 
 - vive en `designs[]`
@@ -483,6 +566,11 @@ Eso significa que el backend tolera esos campos en `related_work`, pero la UI ac
 | `designs[].bleed_mm` | backend upload/defaults, frontend edición | `_design_dimensions`, preview/PDF fallbacks | cambia caja final y trim |
 | `designs[].forms_per_plate` | backend upload/defaults, frontend edición | repeat | cambia cantidad de slots generados |
 | `designs[].allow_rotation` | backend upload/defaults, frontend edición | repeat/nesting | cambia aprovechamiento del pliego |
+| `designs[].preferred_zone` | backend defaults, frontend edición | repeat inteligente | cambia zona de inicio preferida del grupo |
+| `designs[].priority` | backend defaults/derivacion | repeat inteligente | cambia orden relativo si hay override o ranking automatico |
+| `designs[].repeat_role` | backend defaults/derivacion | repeat inteligente | decide flujo principal vs `fill` |
+| `designs[].preferred_flow` | backend/frontend contrato | hoy no se usa | reservado para futuro |
+| `designs[].repeat_manual_overrides` | backend/frontend normalizacion | backend repeat | decide si derivar o respetar valor historico/manual |
 | `slots[]` | frontend edición, auto layout, impose | render visual, preview/PDF | es el bloque más crítico del sistema |
 | `slots[].x_mm` | frontend drag/form, auto engines | render visual, preview/PDF | mueve pieza real |
 | `slots[].y_mm` | frontend drag/form, auto engines | render visual, preview/PDF | mueve pieza real |
@@ -528,6 +616,7 @@ Eso significa que el backend tolera esos campos en `related_work`, pero la UI ac
   - `height_mm`
   - `bleed_mm`
   - `allow_rotation`
+  - `preferred_zone`
 
 ### `slots`
 

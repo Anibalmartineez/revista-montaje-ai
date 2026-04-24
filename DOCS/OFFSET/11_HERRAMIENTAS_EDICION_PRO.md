@@ -163,6 +163,36 @@ Con la semantica consolidada de Fase 4:
 - `rotation_deg` representa orientacion del contenido
 - las herramientas de seleccion, bbox, centrado y drag select trabajan sobre el footprint final
 
+## Relacion con UI de disenos en Fase 5
+
+La Fase 5 simplifica el panel de disenos del editor, pero no cambia las herramientas manuales PRO de slots.
+
+Estado visible actual para cada diseno:
+
+- `Formas/pliego`
+- `Ancho`
+- `Alto`
+- `Bleed`
+- `Permitir rotacion`
+- `Ubicacion`
+
+`Ubicacion` usa textos amigables:
+
+- `Automatico`
+- `Arriba`
+- `Abajo`
+- `Izquierda`
+- `Derecha`
+- `Centro`
+
+No visibles en UI:
+
+- `priority`
+- `repeat_role`
+- `preferred_flow`
+
+Esos campos siguen existiendo en el contrato y el backend los usa o reserva internamente, pero el operador ya no los toca desde la lista de disenos.
+
 ## Pendientes sugeridos de edicion PRO
 
 1. Agregar panel de propiedades para edicion masiva de rotacion, bleed, marcas y lock.
