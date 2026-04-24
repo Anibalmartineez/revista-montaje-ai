@@ -1109,10 +1109,12 @@ def _append_step_repeat_slots_in_bounds(
     gap_y: float,
     active_face: str,
     avoid_existing: bool = False,
-) -> None:
+) -> Dict | None:
     left, bottom, usable_w, usable_h = bounds
     if usable_w <= 0 or usable_h <= 0:
-        return
+        return None
+
+    group_start = len(slots)
 
     cursor_y = bottom
     sheet_top = bottom + usable_h
@@ -1133,7 +1135,7 @@ def _append_step_repeat_slots_in_bounds(
             gap_y,
         )
         if cols <= 0:
-            return
+            return None
 
         rows_used = 0
         placed = 0
@@ -1145,7 +1147,7 @@ def _append_step_repeat_slots_in_bounds(
             y_mm = cursor_y + row * (slot_h + gap_y)
 
             if x_mm + slot_w > left + usable_w + 1e-6 or y_mm + slot_h > sheet_top + 1e-6:
-                return
+                return None
             rows_used = max(rows_used, row + 1)
 
             candidate = {
@@ -1170,6 +1172,15 @@ def _append_step_repeat_slots_in_bounds(
 
         if rows_used:
             cursor_y += rows_used * slot_h + max(0, rows_used - 1) * gap_y + gap_y
+
+    group_end = len(slots)
+    if group_end <= group_start:
+        return None
+    return {
+        "start": group_start,
+        "end": group_end,
+        "bounds": bounds,
+    }
 
 
 def _candidate_positions_for_fill(
@@ -1291,6 +1302,95 @@ def _append_fill_slots_smart(
             placed += 1
 
 
+def _slot_group_bbox(slots: List[Dict], start: int, end: int) -> tuple[float, float, float, float] | None:
+    group = slots[start:end]
+    if not group:
+        return None
+    min_x = min(_first_numeric(slot.get("x_mm"), default=0.0) for slot in group)
+    min_y = min(_first_numeric(slot.get("y_mm"), default=0.0) for slot in group)
+    max_x = max(_first_numeric(slot.get("x_mm"), default=0.0) + _first_numeric(slot.get("w_mm"), default=0.0) for slot in group)
+    max_y = max(_first_numeric(slot.get("y_mm"), default=0.0) + _first_numeric(slot.get("h_mm"), default=0.0) for slot in group)
+    return min_x, min_y, max_x, max_y
+
+
+def _translated_group_slots(slots: List[Dict], start: int, end: int, dx: float, dy: float) -> List[Dict]:
+    translated: List[Dict] = []
+    for slot in slots[start:end]:
+        translated.append(
+            {
+                **slot,
+                "x_mm": _first_numeric(slot.get("x_mm"), default=0.0) + dx,
+                "y_mm": _first_numeric(slot.get("y_mm"), default=0.0) + dy,
+            }
+        )
+    return translated
+
+
+def _can_place_translated_group(
+    slots: List[Dict],
+    start: int,
+    end: int,
+    translated_slots: List[Dict],
+    usable_bounds: tuple[float, float, float, float],
+) -> bool:
+    left, bottom, usable_w, usable_h = usable_bounds
+    right = left + usable_w
+    top = bottom + usable_h
+    others = slots[:start] + slots[end:]
+
+    for slot in translated_slots:
+        x = _first_numeric(slot.get("x_mm"), default=0.0)
+        y = _first_numeric(slot.get("y_mm"), default=0.0)
+        w = _first_numeric(slot.get("w_mm"), default=0.0)
+        h = _first_numeric(slot.get("h_mm"), default=0.0)
+        if x < left - 1e-6 or y < bottom - 1e-6 or x + w > right + 1e-6 or y + h > top + 1e-6:
+            return False
+        if _slot_overlaps_existing(slot, others):
+            return False
+    return True
+
+
+def _compact_vertical_zone_groups(
+    slots: List[Dict],
+    group_ranges: Dict[str, Dict],
+    usable_bounds: tuple[float, float, float, float],
+    min_gap_y: float,
+) -> None:
+    present = []
+    for zone in ["bottom", "center", "top"]:
+        info = group_ranges.get(zone)
+        if not info:
+            continue
+        bbox = _slot_group_bbox(slots, info["start"], info["end"])
+        if not bbox:
+            continue
+        present.append({"zone": zone, "start": info["start"], "end": info["end"], "bbox": bbox})
+
+    if len(present) < 2:
+        return
+
+    total_height = sum(group["bbox"][3] - group["bbox"][1] for group in present)
+    packed_height = total_height + max(0, len(present) - 1) * max(0.0, min_gap_y)
+    left, bottom, usable_w, usable_h = usable_bounds
+    if packed_height > usable_h + 1e-6:
+        return
+
+    target_y = bottom + max(0.0, usable_h - packed_height) / 2.0
+    moved_groups = []
+    for group in present:
+        min_x, min_y, max_x, max_y = group["bbox"]
+        height = max_y - min_y
+        dy = target_y - min_y
+        translated = _translated_group_slots(slots, group["start"], group["end"], 0.0, dy)
+        if not _can_place_translated_group(slots, group["start"], group["end"], translated, usable_bounds):
+            return
+        moved_groups.append((group, translated))
+        target_y += height + max(0.0, min_gap_y)
+
+    for group, translated in moved_groups:
+        slots[group["start"]:group["end"]] = translated
+
+
 def _build_step_repeat_slots(layout: Dict) -> List[Dict]:
     designs = _ordered_repeat_designs(layout)
     if not designs:
@@ -1303,6 +1403,7 @@ def _build_step_repeat_slots(layout: Dict) -> List[Dict]:
     gap_x, gap_y = _layout_spacing_gaps(layout)
     slots: List[Dict] = []
     active_face = layout.get("active_face") or "front"
+    group_ranges: Dict[str, Dict] = {}
 
     zone_groups = _group_designs_by_zone(designs)
     explicit_zones = ["top", "bottom", "left", "right", "center", "fill"]
@@ -1319,7 +1420,7 @@ def _build_step_repeat_slots(layout: Dict) -> List[Dict]:
         return slots
 
     for zone in ["top", "left", "center", "right", "bottom"]:
-        _append_step_repeat_slots_in_bounds(
+        group_info = _append_step_repeat_slots_in_bounds(
             slots,
             zone_groups.get(zone, []),
             layout,
@@ -1328,6 +1429,15 @@ def _build_step_repeat_slots(layout: Dict) -> List[Dict]:
             gap_y,
             active_face,
         )
+        if group_info:
+            group_ranges[zone] = group_info
+
+    _compact_vertical_zone_groups(
+        slots,
+        group_ranges,
+        (left, bottom, usable_w, usable_h),
+        max(0.0, _first_numeric(gap_y, layout.get("gap_default_mm"), default=5.0)),
+    )
 
     _append_step_repeat_slots_in_bounds(
         slots,
