@@ -210,6 +210,22 @@
     return parsed;
   }
 
+  function normalizeRepeatManualOverrides(d) {
+    const current = (d && typeof d.repeat_manual_overrides === 'object' && d.repeat_manual_overrides) || {};
+    const normalized = {
+      priority: typeof current.priority === 'boolean'
+        ? current.priority
+        : normalizeRepeatDesignPriority(d?.priority) !== REPEAT_DESIGN_DEFAULT_PRIORITY,
+      preferred_flow: typeof current.preferred_flow === 'boolean'
+        ? current.preferred_flow
+        : normalizeRepeatDesignChoice(d?.preferred_flow, REPEAT_DESIGN_FLOWS, 'auto') !== 'auto',
+      repeat_role: typeof current.repeat_role === 'boolean'
+        ? current.repeat_role
+        : normalizeRepeatDesignChoice(d?.repeat_role, REPEAT_DESIGN_ROLES, 'secondary') !== 'secondary',
+    };
+    return normalized;
+  }
+
   function appendOptions(select, options) {
     options.forEach((value) => {
       const option = document.createElement('option');
@@ -231,6 +247,7 @@
       preferred_zone: normalizeRepeatDesignChoice(d.preferred_zone, REPEAT_DESIGN_ZONES, 'auto'),
       preferred_flow: normalizeRepeatDesignChoice(d.preferred_flow, REPEAT_DESIGN_FLOWS, 'auto'),
       repeat_role: normalizeRepeatDesignChoice(d.repeat_role, REPEAT_DESIGN_ROLES, 'secondary'),
+      repeat_manual_overrides: normalizeRepeatManualOverrides(d),
     }));
   }
 
@@ -1580,26 +1597,8 @@
       rotationLabel.append(' Permitir rotación');
       grid.appendChild(rotationLabel);
 
-      const priorityLabel = document.createElement('label');
-      priorityLabel.textContent = 'Prioridad';
-      const priorityInput = document.createElement('input');
-      priorityInput.type = 'number';
-      priorityInput.step = '1';
-      priorityInput.value = normalizeRepeatDesignPriority(d.priority);
-      priorityInput.addEventListener('input', () => {
-        d.priority = normalizeRepeatDesignPriority(priorityInput.value);
-      });
-      priorityInput.addEventListener('change', () => {
-        const normalized = normalizeRepeatDesignPriority(priorityInput.value);
-        priorityInput.value = normalized;
-        d.priority = normalized;
-        pushHistory();
-      });
-      priorityLabel.appendChild(priorityInput);
-      grid.appendChild(priorityLabel);
-
       const zoneLabel = document.createElement('label');
-      zoneLabel.textContent = 'Zona preferida';
+      zoneLabel.textContent = 'Ubicación';
       const zoneSelect = document.createElement('select');
       appendOptions(zoneSelect, ['auto', 'top', 'bottom', 'left', 'right', 'center', 'fill']);
       zoneSelect.value = normalizeRepeatDesignChoice(d.preferred_zone, REPEAT_DESIGN_ZONES, 'auto');
@@ -1609,30 +1608,6 @@
       });
       zoneLabel.appendChild(zoneSelect);
       grid.appendChild(zoneLabel);
-
-      const flowLabel = document.createElement('label');
-      flowLabel.textContent = 'Flujo preferido';
-      const flowSelect = document.createElement('select');
-      appendOptions(flowSelect, ['auto', 'horizontal', 'vertical']);
-      flowSelect.value = normalizeRepeatDesignChoice(d.preferred_flow, REPEAT_DESIGN_FLOWS, 'auto');
-      flowSelect.addEventListener('change', () => {
-        d.preferred_flow = normalizeRepeatDesignChoice(flowSelect.value, REPEAT_DESIGN_FLOWS, 'auto');
-        pushHistory();
-      });
-      flowLabel.appendChild(flowSelect);
-      grid.appendChild(flowLabel);
-
-      const roleLabel = document.createElement('label');
-      roleLabel.textContent = 'Rol repeat';
-      const roleSelect = document.createElement('select');
-      appendOptions(roleSelect, ['primary', 'secondary', 'fill']);
-      roleSelect.value = normalizeRepeatDesignChoice(d.repeat_role, REPEAT_DESIGN_ROLES, 'secondary');
-      roleSelect.addEventListener('change', () => {
-        d.repeat_role = normalizeRepeatDesignChoice(roleSelect.value, REPEAT_DESIGN_ROLES, 'secondary');
-        pushHistory();
-      });
-      roleLabel.appendChild(roleSelect);
-      grid.appendChild(roleLabel);
 
       li.appendChild(grid);
       designsListEl.appendChild(li);

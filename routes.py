@@ -260,8 +260,45 @@ REPEAT_DESIGN_FLOWS = {"auto", "horizontal", "vertical"}
 REPEAT_DESIGN_ROLES = {"primary", "secondary", "fill"}
 
 
+def _normalize_repeat_manual_overrides(design: Dict) -> bool:
+    changed = False
+    overrides = design.get("repeat_manual_overrides")
+    if not isinstance(overrides, dict):
+        overrides = {}
+        changed = True
+
+    default_markers = {
+        "priority": REPEAT_DESIGN_DEFAULT_PRIORITY,
+        "preferred_flow": "auto",
+        "repeat_role": "secondary",
+    }
+    normalized: Dict[str, bool] = {}
+    for field, default_value in default_markers.items():
+        raw = overrides.get(field)
+        if isinstance(raw, bool):
+            normalized[field] = raw
+            continue
+        current = design.get(field)
+        if field == "priority":
+            try:
+                current = float(current)
+            except (TypeError, ValueError):
+                current = float(REPEAT_DESIGN_DEFAULT_PRIORITY)
+            normalized[field] = bool(current != float(default_value))
+        else:
+            normalized[field] = str(current or default_value).strip().lower() != str(default_value)
+        changed = True
+
+    if design.get("repeat_manual_overrides") != normalized:
+        design["repeat_manual_overrides"] = normalized
+        changed = True
+    return changed
+
+
 def _normalize_repeat_design_metadata(design: Dict) -> bool:
     changed = False
+    if _normalize_repeat_manual_overrides(design):
+        changed = True
 
     raw_priority = design.get("priority")
     try:
@@ -768,6 +805,11 @@ def editor_offset_upload(job_id: str):
                 "preferred_zone": "auto",
                 "preferred_flow": "auto",
                 "repeat_role": "secondary",
+                "repeat_manual_overrides": {
+                    "priority": False,
+                    "preferred_flow": False,
+                    "repeat_role": False,
+                },
             }
         )
 
@@ -888,6 +930,49 @@ def _ordered_repeat_designs(layout: Dict) -> List[Dict]:
         _normalize_repeat_design_metadata(item)
         normalized.append((idx, item))
 
+    if normalized:
+        max_forms = max(max(1, int(pair[1].get("forms_per_plate") or 1)) for pair in normalized)
+        max_area = max(
+            max(0.0, _first_numeric(pair[1].get("width_mm"), default=0.0))
+            * max(0.0, _first_numeric(pair[1].get("height_mm"), default=0.0))
+            for pair in normalized
+        )
+        ranked = sorted(
+            normalized,
+            key=lambda pair: (
+                -max(1, int(pair[1].get("forms_per_plate") or 1)),
+                pair[0],
+            ),
+        )
+        primary_idx = ranked[0][0]
+
+        next_priority = 1
+        for idx, design in ranked:
+            overrides = design.get("repeat_manual_overrides") or {}
+            forms = max(1, int(design.get("forms_per_plate") or 1))
+            area = (
+                max(0.0, _first_numeric(design.get("width_mm"), default=0.0))
+                * max(0.0, _first_numeric(design.get("height_mm"), default=0.0))
+            )
+            zone = str(design.get("preferred_zone") or "auto").strip().lower()
+
+            if not overrides.get("preferred_flow"):
+                design["preferred_flow"] = "horizontal" if _first_numeric(design.get("width_mm"), default=0.0) >= _first_numeric(design.get("height_mm"), default=0.0) else "vertical"
+
+            if not overrides.get("repeat_role"):
+                auto_role = "secondary"
+                if idx == primary_idx:
+                    auto_role = "primary"
+                elif zone == "fill":
+                    auto_role = "fill"
+                elif zone == "auto" and forms == 1 and max_forms >= 3 and area > 0 and max_area > 0 and area <= max_area * 0.5:
+                    auto_role = "fill"
+                design["repeat_role"] = auto_role
+
+            if not overrides.get("priority"):
+                design["priority"] = float(next_priority)
+                next_priority += 1
+
     return [
         design
         for _, design in sorted(
@@ -905,6 +990,8 @@ def _design_repeat_zone(design: Dict) -> str:
     zone = str(design.get("preferred_zone") or "auto").strip().lower()
     if zone not in REPEAT_DESIGN_ZONES:
         zone = "auto"
+    if zone not in {"auto", "fill"}:
+        return zone
     if zone == "fill" or design.get("repeat_role") == "fill":
         return "fill"
     return zone
