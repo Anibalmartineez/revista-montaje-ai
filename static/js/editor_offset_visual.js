@@ -227,10 +227,12 @@
   }
 
   function appendOptions(select, options) {
-    options.forEach((value) => {
+    options.forEach((entry) => {
       const option = document.createElement('option');
+      const value = typeof entry === 'object' && entry !== null ? entry.value : entry;
+      const label = typeof entry === 'object' && entry !== null ? entry.label : entry;
       option.value = value;
-      option.textContent = value;
+      option.textContent = label;
       select.appendChild(option);
     });
   }
@@ -1600,7 +1602,14 @@
       const zoneLabel = document.createElement('label');
       zoneLabel.textContent = 'Ubicación';
       const zoneSelect = document.createElement('select');
-      appendOptions(zoneSelect, ['auto', 'top', 'bottom', 'left', 'right', 'center', 'fill']);
+      appendOptions(zoneSelect, [
+        { label: 'Automático', value: 'auto' },
+        { label: 'Arriba', value: 'top' },
+        { label: 'Abajo', value: 'bottom' },
+        { label: 'Izquierda', value: 'left' },
+        { label: 'Derecha', value: 'right' },
+        { label: 'Centro', value: 'center' },
+      ]);
       zoneSelect.value = normalizeRepeatDesignChoice(d.preferred_zone, REPEAT_DESIGN_ZONES, 'auto');
       zoneSelect.addEventListener('change', () => {
         d.preferred_zone = normalizeRepeatDesignChoice(zoneSelect.value, REPEAT_DESIGN_ZONES, 'auto');
