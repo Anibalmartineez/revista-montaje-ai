@@ -956,9 +956,6 @@ def _ordered_repeat_designs(layout: Dict) -> List[Dict]:
             )
             zone = str(design.get("preferred_zone") or "auto").strip().lower()
 
-            if not overrides.get("preferred_flow"):
-                design["preferred_flow"] = "horizontal" if _first_numeric(design.get("width_mm"), default=0.0) >= _first_numeric(design.get("height_mm"), default=0.0) else "vertical"
-
             if not overrides.get("repeat_role"):
                 auto_role = "secondary"
                 if idx == primary_idx:
