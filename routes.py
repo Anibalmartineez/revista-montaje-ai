@@ -1309,6 +1309,81 @@ def _candidate_positions_for_fill(
     return candidates
 
 
+def _estimate_repeat_group_height(
+    designs: List[Dict],
+    layout: Dict,
+    usable_w: float,
+    usable_h: float,
+    gap_x: float,
+    gap_y: float,
+) -> float | None:
+    if usable_w <= 0 or usable_h <= 0:
+        return None
+
+    total_h = 0.0
+    remaining_h = usable_h
+    for design in designs:
+        piece_w, piece_h, _ = _design_dimensions(design, layout)
+        allow_rotation = bool(design.get("allow_rotation", True))
+        forms = max(1, int(design.get("forms_per_plate") or 1))
+        slot_w, slot_h, _, cols = _choose_repeat_orientation(
+            piece_w,
+            piece_h,
+            forms,
+            allow_rotation,
+            usable_w,
+            remaining_h,
+            gap_x,
+            gap_y,
+        )
+        if cols <= 0:
+            return None
+        rows = int(math.ceil(forms / cols))
+        block_h = rows * slot_h + max(0, rows - 1) * gap_y + gap_y
+        if block_h > remaining_h + 1e-6:
+            return None
+        total_h += block_h
+        remaining_h = max(0.0, usable_h - total_h)
+    return total_h
+
+
+def _expanded_vertical_zone_bounds(
+    layout: Dict,
+    zone_groups: Dict[str, List[Dict]],
+    gap_x: float,
+    gap_y: float,
+) -> Dict[str, tuple[float, float, float, float]] | None:
+    usable_w, usable_h, left, _, _, bottom = _sheet_area(layout)
+    if usable_w <= 0 or usable_h <= 0:
+        return None
+
+    vertical_order = ["bottom", "center", "top"]
+    heights: Dict[str, float] = {}
+    present = [zone for zone in vertical_order if zone_groups.get(zone)]
+    if len(present) < 2:
+        return None
+
+    for zone in present:
+        height = _estimate_repeat_group_height(zone_groups.get(zone, []), layout, usable_w, usable_h, gap_x, gap_y)
+        if height is None:
+            return None
+        heights[zone] = height
+
+    packed_height = sum(heights[zone] for zone in present)
+    if packed_height > usable_h + 1e-6:
+        return None
+
+    start_y = bottom + max(0.0, usable_h - packed_height) / 2.0
+    bounds: Dict[str, tuple[float, float, float, float]] = {}
+    current_y = start_y
+    for zone in vertical_order:
+        if zone not in heights:
+            continue
+        bounds[zone] = (left, current_y, usable_w, heights[zone])
+        current_y += heights[zone]
+    return bounds
+
+
 def _append_fill_slots_smart(
     slots: List[Dict],
     designs: List[Dict],
@@ -1528,6 +1603,63 @@ def _build_step_repeat_slots(layout: Dict) -> List[Dict]:
             (left, bottom, usable_w, usable_h),
             max(0.0, _first_numeric(gap_y, layout.get("gap_default_mm"), default=5.0)),
         )
+
+        vertical_retry_allowed = (
+            not zone_groups.get("left")
+            and not zone_groups.get("right")
+            and any(zone_groups.get(zone) for zone in ["top", "center", "bottom"])
+        )
+        zonal_summary = _repeat_requested_vs_placed(designs, slots, placement_attempts)
+        zonal_incomplete = [
+            item
+            for item in zonal_summary
+            if item["missing_forms"] > 0 and str(item.get("preferred_zone") or "auto") in {"top", "center", "bottom"}
+        ]
+
+        if vertical_retry_allowed and zonal_incomplete:
+            expanded_bounds = _expanded_vertical_zone_bounds(layout, zone_groups, gap_x, gap_y)
+            if expanded_bounds:
+                retry_slots: List[Dict] = []
+                retry_group_ranges: Dict[str, Dict] = {}
+                retry_attempts: Dict[str, int] = {}
+                retry_failed = False
+
+                for zone in ["bottom", "center", "top"]:
+                    if not zone_groups.get(zone):
+                        continue
+                    group_info = _append_step_repeat_slots_in_bounds(
+                        retry_slots,
+                        zone_groups.get(zone, []),
+                        layout,
+                        expanded_bounds[zone],
+                        gap_x,
+                        gap_y,
+                        active_face,
+                        placement_attempts=retry_attempts,
+                    )
+                    if group_info:
+                        retry_group_ranges[zone] = group_info
+                    else:
+                        retry_failed = True
+                        break
+
+                if not retry_failed:
+                    _compact_vertical_zone_groups(
+                        retry_slots,
+                        retry_group_ranges,
+                        (left, bottom, usable_w, usable_h),
+                        max(0.0, _first_numeric(gap_y, layout.get("gap_default_mm"), default=5.0)),
+                    )
+                    retry_summary = _repeat_requested_vs_placed(designs, retry_slots, retry_attempts)
+                    retry_incomplete = [
+                        item
+                        for item in retry_summary
+                        if item["missing_forms"] > 0 and str(item.get("preferred_zone") or "auto") in {"top", "center", "bottom"}
+                    ]
+                    if not retry_incomplete:
+                        slots = retry_slots
+                        group_ranges = retry_group_ranges
+                        placement_attempts = retry_attempts
 
     _append_step_repeat_slots_in_bounds(
         slots,
