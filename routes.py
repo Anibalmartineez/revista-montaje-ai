@@ -2,6 +2,7 @@ import os
 import base64
 import io
 import math
+from copy import deepcopy
 import fitz
 import uuid
 import tempfile
@@ -1046,7 +1047,11 @@ def _slot_overlaps_existing(candidate: Dict, existing_slots: List[Dict]) -> bool
     return False
 
 
-def _repeat_requested_vs_placed(designs: List[Dict], slots: List[Dict]) -> List[Dict]:
+def _repeat_requested_vs_placed(
+    designs: List[Dict],
+    slots: List[Dict],
+    placement_attempts: Dict[str, int] | None = None,
+) -> List[Dict]:
     placed_by_ref: Dict[str, int] = {}
     for slot in slots:
         ref = slot.get("design_ref")
@@ -1065,6 +1070,8 @@ def _repeat_requested_vs_placed(designs: List[Dict], slots: List[Dict]) -> List[
         ref_key = str(ref)
         requested = max(1, int(design.get("forms_per_plate") or 1))
         placed = int(placed_by_ref.get(ref_key, 0))
+        if placement_attempts:
+            placed = max(placed, int(placement_attempts.get(ref_key, 0)))
         missing = max(0, requested - placed)
         summary.append(
             {
@@ -1149,6 +1156,7 @@ def _append_step_repeat_slots_in_bounds(
     gap_y: float,
     active_face: str,
     avoid_existing: bool = False,
+    placement_attempts: Dict[str, int] | None = None,
 ) -> Dict | None:
     left, bottom, usable_w, usable_h = bounds
     if usable_w <= 0 or usable_h <= 0:
@@ -1160,6 +1168,7 @@ def _append_step_repeat_slots_in_bounds(
     sheet_top = bottom + usable_h
 
     for design in designs:
+        design_ref = str(design.get("ref") or "")
         piece_w, piece_h, bleed = _design_dimensions(design, layout)
         allow_rotation = bool(design.get("allow_rotation", True))
         forms = max(1, int(design.get("forms_per_plate") or 1))
@@ -1175,11 +1184,14 @@ def _append_step_repeat_slots_in_bounds(
             gap_y,
         )
         if cols <= 0:
+            if placement_attempts is not None and design_ref:
+                placement_attempts[design_ref] = max(placement_attempts.get(design_ref, 0), 0)
             return None
 
         rows_used = 0
         placed = 0
         idx = 0
+        design_slots: List[Dict] = []
         while placed < forms:
             col = idx % cols
             row = idx // cols
@@ -1187,11 +1199,13 @@ def _append_step_repeat_slots_in_bounds(
             y_mm = cursor_y + row * (slot_h + gap_y)
 
             if x_mm + slot_w > left + usable_w + 1e-6 or y_mm + slot_h > sheet_top + 1e-6:
+                if placement_attempts is not None and design_ref:
+                    placement_attempts[design_ref] = max(placement_attempts.get(design_ref, 0), placed)
                 return None
             rows_used = max(rows_used, row + 1)
 
             candidate = {
-                "id": f"sr_{len(slots)}",
+                "id": f"sr_{len(slots) + len(design_slots)}",
                 "x_mm": x_mm,
                 "y_mm": y_mm,
                 "w_mm": slot_w,
@@ -1205,10 +1219,15 @@ def _append_step_repeat_slots_in_bounds(
                 "face": active_face,
             }
 
-            if not avoid_existing or not _slot_overlaps_existing(candidate, slots):
-                slots.append(candidate)
+            target_slots = slots + design_slots if avoid_existing else design_slots
+            if not avoid_existing or not _slot_overlaps_existing(candidate, target_slots):
+                design_slots.append(candidate)
                 placed += 1
             idx += 1
+
+        if placement_attempts is not None and design_ref:
+            placement_attempts[design_ref] = max(placement_attempts.get(design_ref, 0), placed)
+        slots.extend(design_slots)
 
         if rows_used:
             cursor_y += rows_used * slot_h + max(0, rows_used - 1) * gap_y + gap_y
@@ -1298,12 +1317,14 @@ def _append_fill_slots_smart(
     gap_x: float,
     gap_y: float,
     active_face: str,
+    placement_attempts: Dict[str, int] | None = None,
 ) -> None:
     left, bottom, usable_w, usable_h = bounds
     if usable_w <= 0 or usable_h <= 0:
         return
 
     for design in designs:
+        design_ref = str(design.get("ref") or "")
         piece_w, piece_h, bleed = _design_dimensions(design, layout)
         allow_rotation = bool(design.get("allow_rotation", True))
         forms = max(1, int(design.get("forms_per_plate") or 1))
@@ -1319,11 +1340,12 @@ def _append_fill_slots_smart(
         )
         candidates = _candidate_positions_for_fill((left, bottom, usable_w, usable_h), slot_w, slot_h, gap_x, gap_y)
         placed = 0
+        design_slots: List[Dict] = []
         for x_mm, y_mm in candidates:
             if placed >= forms:
                 break
             candidate = {
-                "id": f"sr_{len(slots)}",
+                "id": f"sr_{len(slots) + len(design_slots)}",
                 "x_mm": x_mm,
                 "y_mm": y_mm,
                 "w_mm": slot_w,
@@ -1336,10 +1358,14 @@ def _append_fill_slots_smart(
                 "design_ref": design.get("ref"),
                 "face": active_face,
             }
-            if _slot_overlaps_existing(candidate, slots):
+            if _slot_overlaps_existing(candidate, slots + design_slots):
                 continue
-            slots.append(candidate)
+            design_slots.append(candidate)
             placed += 1
+        if placement_attempts is not None and design_ref:
+            placement_attempts[design_ref] = max(placement_attempts.get(design_ref, 0), placed)
+        if placed == forms:
+            slots.extend(design_slots)
 
 
 def _slot_group_bbox(slots: List[Dict], start: int, end: int) -> tuple[float, float, float, float] | None:
@@ -1447,6 +1473,7 @@ def _build_step_repeat_slots(layout: Dict) -> List[Dict]:
     slots: List[Dict] = []
     active_face = layout.get("active_face") or "front"
     group_ranges: Dict[str, Dict] = {}
+    placement_attempts: Dict[str, int] = {}
 
     zone_groups = _group_designs_by_zone(designs)
     zonal_order = ["top", "left", "center", "right", "bottom"]
@@ -1462,8 +1489,9 @@ def _build_step_repeat_slots(layout: Dict) -> List[Dict]:
             gap_x,
             gap_y,
             active_face,
+            placement_attempts=placement_attempts,
         )
-        placement_summary = _repeat_requested_vs_placed(designs, slots)
+        placement_summary = _repeat_requested_vs_placed(designs, slots, placement_attempts)
         incomplete = [item for item in placement_summary if item["missing_forms"] > 0]
         if incomplete:
             messages = []
@@ -1489,6 +1517,7 @@ def _build_step_repeat_slots(layout: Dict) -> List[Dict]:
                 gap_x,
                 gap_y,
                 active_face,
+                placement_attempts=placement_attempts,
             )
             if group_info:
                 group_ranges[zone] = group_info
@@ -1509,6 +1538,7 @@ def _build_step_repeat_slots(layout: Dict) -> List[Dict]:
         gap_y,
         active_face,
         avoid_existing=True,
+        placement_attempts=placement_attempts,
     )
 
     _append_fill_slots_smart(
@@ -1519,9 +1549,10 @@ def _build_step_repeat_slots(layout: Dict) -> List[Dict]:
         gap_x,
         gap_y,
         active_face,
+        placement_attempts=placement_attempts,
     )
 
-    placement_summary = _repeat_requested_vs_placed(designs, slots)
+    placement_summary = _repeat_requested_vs_placed(designs, slots, placement_attempts)
     incomplete = [item for item in placement_summary if item["missing_forms"] > 0]
     if incomplete:
         messages = []
@@ -1621,7 +1652,9 @@ def editor_offset_apply_imposition():
     layout["imposition_engine"] = selected_engine
 
     try:
-        slots = _apply_imposition_engine(layout, selected_engine)
+        layout_for_engine = deepcopy(layout)
+        layout_for_engine["slots"] = []
+        slots = _apply_imposition_engine(layout_for_engine, selected_engine)
     except IncompleteImpositionError as exc:
         current_app.logger.warning(
             "Imposicion incompleta en Step & Repeat PRO para job %s: %s | details=%s",
