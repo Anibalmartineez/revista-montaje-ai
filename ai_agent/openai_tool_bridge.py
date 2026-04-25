@@ -12,7 +12,7 @@ from ai_agent.tools_repeat import (
 
 
 # Cambiar el modelo aca si se quiere probar otro perfil/costo.
-OPENAI_STEP_REPEAT_MODEL = os.environ.get("OPENAI_STEP_REPEAT_MODEL", "gpt-5.4-mini")
+OPENAI_STEP_REPEAT_MODEL = os.environ.get("OPENAI_STEP_REPEAT_MODEL", "gpt-5.5")
 
 # Ajustar estas instrucciones para cambiar el comportamiento global del asistente.
 SYSTEM_PROMPT = """
