@@ -42,7 +42,7 @@ Este fue el unico flujo trabajado funcionalmente en esta fase.
   - seleccionar toda la cara activa
   - centrado horizontal, vertical y completo de bloque
   - seleccion por marco desde area vacia
-- panel de Asistente IA conectado a `POST /ai/step_repeat_action`
+- panel de Asistente IA conectado a `POST /ai/step_repeat_action_openai`
 - Step & Repeat PRO Inteligente en Fase 5:
   - metadata por diseno persistida y normalizada
   - ordenamiento base por `forms_per_plate`, prioridad y rol derivado
@@ -160,7 +160,9 @@ Implementado:
   - `aplicar_reglas_repeat(layout, reglas)`
 - controller simple `handle_agent_request(prompt, layout)`
 - endpoint `POST /ai/step_repeat_action`
+- endpoint `POST /ai/step_repeat_action_openai`
 - panel frontend "Asistente IA"
+- OpenAI se inicializa solo al ejecutar la accion IA; sin `OPENAI_API_KEY`, el editor sigue funcionando y la IA devuelve error claro
 - aplicacion del layout devuelto solo al confirmar con "Aplicar cambios"
 
 ### UI actual de disenos en Fase 5
@@ -233,7 +235,7 @@ Reglas actuales observadas:
 - parte del feedback UX sigue apoyandose en `alert()`
 - no hay schema formal completo del layout ni del slot
 - no hay tests automatizados especificos para todos los casos recientes de repeat/rotacion/PDF
-- la IA integrada es una base por tools locales y prompt simple; todavia no hay OpenAI tool calling conectado
+- la IA del panel actual usa OpenAI tool calling sobre tools locales; tambien sigue existiendo el endpoint local simple `/ai/step_repeat_action`
 - falta edicion masiva avanzada de propiedades de slots
 - `preferred_flow` existe en contrato pero todavia no tiene efecto real en el motor
 - no hay compactacion horizontal de grupos zonales

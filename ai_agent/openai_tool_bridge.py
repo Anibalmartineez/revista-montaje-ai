@@ -242,8 +242,8 @@ def _call_local_tool(name: str, args: Dict[str, Any], request_layout: Dict[str, 
     return TOOL_DISPATCH[name](request_layout, args)
 
 
-def run_openai_step_repeat_assistant(prompt: str, layout: Dict[str, Any]) -> Dict[str, Any]:
-    if not os.environ.get("OPENAI_API_KEY"):
+def run_openai_step_repeat_assistant(prompt: str, layout: Dict[str, Any], client: Optional[Any] = None) -> Dict[str, Any]:
+    if client is None and not os.environ.get("OPENAI_API_KEY"):
         return {
             "ok": False,
             "error": "OPENAI_API_KEY no esta configurada.",
@@ -254,9 +254,10 @@ def run_openai_step_repeat_assistant(prompt: str, layout: Dict[str, Any]) -> Dic
             "error": "layout_json debe ser un objeto JSON.",
         }
 
-    from openai import OpenAI
+    if client is None:
+        from openai import OpenAI
 
-    client = OpenAI(api_key=os.environ.get("OPENAI_API_KEY"))
+        client = OpenAI(api_key=os.environ.get("OPENAI_API_KEY"))
     user_payload = {
         "prompt": prompt,
         "layout": layout,

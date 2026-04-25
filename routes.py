@@ -102,7 +102,13 @@ chat_historial = []
 routes_bp = Blueprint("routes", __name__)
 
 heavy_lock = Lock()
-openai_client = OpenAI(api_key=os.environ.get("OPENAI_API_KEY"))
+
+
+def get_openai_client():
+    api_key = os.environ.get("OPENAI_API_KEY")
+    if not api_key:
+        raise RuntimeError("OPENAI_API_KEY no configurada")
+    return OpenAI(api_key=api_key)
 
 
 class IncompleteImpositionError(ValueError):
@@ -1861,9 +1867,12 @@ def ai_step_repeat_action_openai():
         return _json_error("prompt faltante.")
 
     try:
+        client = get_openai_client()
         from ai_agent.openai_tool_bridge import run_openai_step_repeat_assistant
 
-        result = run_openai_step_repeat_assistant(prompt, layout)
+        result = run_openai_step_repeat_assistant(prompt, layout, client=client)
+    except RuntimeError as exc:
+        return _json_error(str(exc), 400)
     except ImportError:
         current_app.logger.exception("OpenAI SDK no disponible para agente Step & Repeat")
         return _json_error("OpenAI SDK no esta disponible en este entorno.", 500)
@@ -2044,13 +2053,19 @@ Si la instrucción es ambigua o no estás seguro, devolvé "actions": [] y expli
     ]
 
     try:
-        completion = openai_client.chat.completions.create(
+        client = get_openai_client()
+        completion = client.chat.completions.create(
             model="gpt-4.1-mini",
             response_format={"type": "json_object"},
             messages=messages,
         )
         content = completion.choices[0].message.content
         data = json.loads(content)
+    except RuntimeError as exc:
+        data = {
+            "assistant_message": str(exc),
+            "actions": [],
+        }
     except Exception:
         current_app.logger.exception("Fallo en editor_chat con OpenAI")
         data = {

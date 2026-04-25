@@ -2763,6 +2763,11 @@
       const data = await res.json();
       responseEl.innerText = formatAiResponse(data);
 
+      if (data.ok === false) {
+        if (data.error) alert(data.error);
+        return;
+      }
+
       if (data.layout) {
         aiResultLayout = data.layout;
         applyBtn.hidden = false;

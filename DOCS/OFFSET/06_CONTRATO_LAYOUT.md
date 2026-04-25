@@ -38,6 +38,8 @@ La Fase 4 agrega una capa intermedia no persistente:
 
 Esta ruta recibe un `layout_json`, ejecuta una tool y devuelve un layout sugerido. No reemplaza por si sola el layout persistido: el frontend solo actualiza `state.layout` si el usuario confirma con `Aplicar cambios`.
 
+El panel IA actual usa `POST /ai/step_repeat_action_openai`, que inicializa OpenAI solo al ejecutar la accion. Si falta `OPENAI_API_KEY`, devuelve error y no altera el layout.
+
 ## Diferencia entre estados
 
 ### Estado en memoria del frontend
@@ -669,6 +671,7 @@ Eso significa que el backend tolera esos campos en `related_work`, pero la UI ac
 ### Capa `ai_agent/`
 
 - `POST /ai/step_repeat_action` lee un layout enviado por el frontend
+- `POST /ai/step_repeat_action_openai` lee el mismo contrato y ejecuta tools locales via OpenAI tool calling
 - `handle_agent_request()` decide una tool por prompt simple
 - las tools pueden devolver un layout sugerido
 - el layout sugerido no se guarda automaticamente

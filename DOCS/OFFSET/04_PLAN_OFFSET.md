@@ -92,6 +92,7 @@ Bloques implementados:
   - centrado global correcto en PDF normal
 - base `ai_agent/` con tools repeat y controller
 - endpoint `POST /ai/step_repeat_action`
+- endpoint `POST /ai/step_repeat_action_openai` para el panel actual con OpenAI lazy
 - panel "Asistente IA" integrado al editor
 
 ### Fase 4 siguiente. IA operativa guiada
@@ -152,7 +153,7 @@ Objetivo:
 
 1. Mantener documentados los contratos despues de cada cambio de semantica
 2. Agregar fixtures o pruebas de regresion para Step & Repeat PRO inteligente
-3. Conectar OpenAI tool calls sobre `ai_agent/`
+3. Endurecer guardrails y pruebas del flujo OpenAI tool calling sobre `ai_agent/`
 4. Mejorar feedback no bloqueante de errores/warnings
 5. Evaluar compactacion o expansion horizontal solo si mantiene seguridad
 6. Recien despues evaluar micro-refactors

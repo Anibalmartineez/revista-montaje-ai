@@ -71,6 +71,7 @@ El modulo Offset del repo agrupa varios flujos historicos de montaje offset. En 
   - ejecucion contra backend
   - respuesta visible
   - aplicacion manual del layout devuelto
+  - la UI actual usa `/ai/step_repeat_action_openai` y requiere `OPENAI_API_KEY` solo al ejecutar IA
 - fase 5 consolidada para Step & Repeat PRO Inteligente:
   - metadata por diseno para repeat
   - `preferred_zone` como control principal visible en UI
@@ -106,7 +107,7 @@ El modulo Offset del repo agrupa varios flujos historicos de montaje offset. En 
 - diferencias entre estado en memoria, JSON persistido y estado reinterpretado por preview/PDF
 - coexistencia con flujos offset legacy dentro del mismo repo
 - validaciones aun parciales en schema formal y consistencia semantica profunda
-- la base IA todavia no usa LLM ni tool calls reales de OpenAI; por ahora mapea prompts simples a tools locales
+- existe endpoint local `/ai/step_repeat_action`, pero el panel actual usa `/ai/step_repeat_action_openai`; si falta `OPENAI_API_KEY`, solo falla la accion IA y el editor sigue funcionando
 - `preferred_flow` sigue en contrato pero todavia no participa en decisiones reales del motor
 - la compactacion actual de grupos zonales es solo vertical
 - `fill` mejoro aprovechamiento de huecos, pero sigue sin packing avanzado
