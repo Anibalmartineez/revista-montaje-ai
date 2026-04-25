@@ -1,9 +1,11 @@
+import re
 from copy import deepcopy
 from typing import Any, Dict, Iterable, List, Optional, Tuple
 
 
 EPSILON = 1e-6
 REPEAT_VISIBLE_ZONES = {"auto", "top", "bottom", "left", "right", "center"}
+DIMENSION_REF_RE = re.compile(r"(\d+(?:[\.,]\d+)?)\s*(?:x|por)\s*(\d+(?:[\.,]\d+)?)", re.IGNORECASE)
 
 
 def _to_float(value: Any, default: float = 0.0) -> float:
@@ -151,6 +153,8 @@ def generar_repeat(layout: Dict[str, Any], config: Optional[Dict[str, Any]] = No
     from routes import _build_step_repeat_slots
 
     updated["slots"] = _build_step_repeat_slots(updated)
+    updated.setdefault("ai_agent", {})["layout_change_type"] = "layout_with_slots"
+    updated.setdefault("ai_agent", {})["last_repeat_slot_count"] = len(updated.get("slots") or [])
     return updated
 
 
@@ -196,10 +200,44 @@ def _design_label(design: Dict[str, Any]) -> str:
     return str(design.get("ref") or design.get("filename") or design.get("work_id") or "")
 
 
+def _dimension_ref(value: str) -> Optional[Tuple[float, float]]:
+    match = DIMENSION_REF_RE.search(str(value or ""))
+    if not match:
+        return None
+    return _to_float(match.group(1).replace(",", ".")), _to_float(match.group(2).replace(",", "."))
+
+
+def _design_dimensions(design: Dict[str, Any]) -> Optional[Tuple[float, float]]:
+    width = _to_float(
+        design.get("width_mm")
+        if design.get("width_mm") is not None
+        else design.get("w_mm")
+        if design.get("w_mm") is not None
+        else design.get("ancho_mm")
+    )
+    height = _to_float(
+        design.get("height_mm")
+        if design.get("height_mm") is not None
+        else design.get("h_mm")
+        if design.get("h_mm") is not None
+        else design.get("alto_mm")
+    )
+    if width <= EPSILON or height <= EPSILON:
+        return None
+    return width, height
+
+
+def _same_dimensions(a: Tuple[float, float], b: Tuple[float, float], tolerance: float = 0.25) -> bool:
+    direct = abs(a[0] - b[0]) <= tolerance and abs(a[1] - b[1]) <= tolerance
+    rotated = abs(a[0] - b[1]) <= tolerance and abs(a[1] - b[0]) <= tolerance
+    return direct or rotated
+
+
 def _find_design(layout: Dict[str, Any], design_ref: str) -> Dict[str, Any] | None:
     target = str(design_ref or "").strip()
     if not target:
         return None
+    target_dims = _dimension_ref(target)
     for design in layout.get("designs") or []:
         if not isinstance(design, dict):
             continue
@@ -210,6 +248,13 @@ def _find_design(layout: Dict[str, Any], design_ref: str) -> Dict[str, Any] | No
         }
         if target in candidates:
             return design
+    if target_dims:
+        for design in layout.get("designs") or []:
+            if not isinstance(design, dict):
+                continue
+            dims = _design_dimensions(design)
+            if dims and _same_dimensions(target_dims, dims):
+                return design
     return None
 
 
@@ -227,13 +272,20 @@ def set_design_zone(layout: Dict[str, Any], design_ref: str, preferred_zone: str
         "design_ref": _design_label(design),
         "preferred_zone": zone,
     }
+    updated.setdefault("ai_agent", {})["layout_change_type"] = "metadata_only"
     return updated
 
 
 def set_design_zones(layout: Dict[str, Any], zones_by_design: Dict[str, str]) -> Dict[str, Any]:
     updated = deepcopy(layout)
+    changes = []
     for design_ref, zone in (zones_by_design or {}).items():
         updated = set_design_zone(updated, str(design_ref), str(zone))
+        last_change = updated.get("ai_agent", {}).get("last_zone_change")
+        if isinstance(last_change, dict):
+            changes.append(last_change)
+    updated.setdefault("ai_agent", {})["last_zone_changes"] = changes
+    updated.setdefault("ai_agent", {})["layout_change_type"] = "metadata_only"
     return updated
 
 
@@ -278,7 +330,9 @@ def centrar_layout(layout: Dict[str, Any]) -> Dict[str, Any]:
 def optimizar_repeat(layout: Dict[str, Any]) -> Dict[str, Any]:
     try:
         generated = generar_repeat(layout, {})
-        return centrar_layout(generated)
+        centered = centrar_layout(generated)
+        centered.setdefault("ai_agent", {})["layout_change_type"] = "layout_with_slots"
+        return centered
     except Exception as original_error:
         retry = deepcopy(layout)
         changed = False
@@ -298,7 +352,9 @@ def optimizar_repeat(layout: Dict[str, Any]) -> Dict[str, Any]:
             "strategy": "reset_preferred_zones_to_auto",
             "reason": _repeat_error_payload(original_error),
         }
-        return centrar_layout(generated)
+        centered = centrar_layout(generated)
+        centered.setdefault("ai_agent", {})["layout_change_type"] = "layout_with_slots"
+        return centered
 
 
 def aplicar_reglas_repeat(layout: Dict[str, Any], reglas: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:

@@ -11,6 +11,7 @@
   const geometryValidationSummaryEl = document.getElementById('geometry-validation-summary');
   const geometryValidationListEl = document.getElementById('geometry-validation-list');
   let aiResultLayout = null;
+  let aiResultChangeType = null;
 
   const state = {
     layout: {},
@@ -2685,9 +2686,28 @@
       return (data && (data.message || data.error)) || 'No se pudo ejecutar la accion.';
     }
     const parts = [data.message || 'Accion ejecutada.'];
+    const toolsUsed = Array.isArray(data.tools_used) ? data.tools_used.filter(Boolean) : [];
     const toolUsed = data.tool_used || (data.raw_tool_result && data.raw_tool_result.tool);
-    if (toolUsed) {
+    if (toolsUsed.length) {
+      parts.push(`Tools: ${toolsUsed.join(' -> ')}`);
+    } else if (toolUsed) {
       parts.push(`Tool: ${toolUsed}`);
+    }
+    const zoneLabels = {
+      auto: 'Automatico',
+      top: 'Arriba',
+      bottom: 'Abajo',
+      left: 'Izquierda',
+      right: 'Derecha',
+      center: 'Centro',
+    };
+    const zoneChanges = data.data && Array.isArray(data.data.zone_changes) ? data.data.zone_changes : [];
+    if (zoneChanges.length) {
+      parts.push(
+        `Zonas: ${zoneChanges
+          .map((change) => `${change.design_ref || 'Diseno'} -> ${zoneLabels[change.preferred_zone] || change.preferred_zone || 'Automatico'}`)
+          .join(', ')}`,
+      );
     }
     const analysis = data.data && data.data.analysis;
     if (analysis) {
@@ -2700,6 +2720,13 @@
       }
     }
     return parts.filter(Boolean).join('\n');
+  }
+
+  function getAiLayoutChangeType(data) {
+    if (data && data.layout_change_type) return data.layout_change_type;
+    const layoutMeta = data && data.layout && data.layout.ai_agent;
+    if (layoutMeta && layoutMeta.layout_change_type) return layoutMeta.layout_change_type;
+    return null;
   }
 
   function refreshEditorAfterLayoutReplace() {
@@ -2746,6 +2773,7 @@
     }
 
     aiResultLayout = null;
+    aiResultChangeType = null;
     applyBtn.hidden = true;
     responseEl.innerText = 'Procesando...';
     if (runBtn) runBtn.disabled = true;
@@ -2770,8 +2798,13 @@
 
       if (data.layout && typeof data.layout === 'object') {
         aiResultLayout = data.layout;
+        aiResultChangeType = getAiLayoutChangeType(data);
         applyBtn.hidden = false;
-        responseEl.innerText = `${responseEl.innerText}\n\nCambios listos para aplicar.`;
+        if (aiResultChangeType === 'metadata_only') {
+          responseEl.innerText = `${responseEl.innerText}\n\nPreferencias listas para aplicar. No se regeneraron slots.`;
+        } else {
+          responseEl.innerText = `${responseEl.innerText}\n\nCambios listos para aplicar.`;
+        }
       }
     } catch (err) {
       console.error(err);
@@ -2788,11 +2821,15 @@
 
     state.layout = aiResultLayout;
     aiResultLayout = null;
+    const appliedChangeType = aiResultChangeType;
+    aiResultChangeType = null;
     refreshEditorAfterLayoutReplace();
     pushHistory();
 
     if (applyBtn) applyBtn.hidden = true;
-    if (responseEl) responseEl.innerText = 'Cambios aplicados.';
+    if (responseEl) {
+      responseEl.innerText = appliedChangeType === 'metadata_only' ? 'Preferencias aplicadas.' : 'Cambios aplicados.';
+    }
   }
 
   async function requestPreview() {

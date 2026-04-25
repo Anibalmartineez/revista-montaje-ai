@@ -1,5 +1,7 @@
 import json
 import os
+import re
+import unicodedata
 from typing import Any, Callable, Dict, List, Optional
 
 from ai_agent.tools_repeat import (
@@ -30,10 +32,44 @@ El motor ya maneja compactacion vertical, expansion vertical top/center/bottom, 
 Si un repeat falla por IncompleteImpositionError, lee details, explica que diseno no entra y sugiere cambios concretos.
 Si una zona explicita no entra pero auto podria resolverlo, puedes probar set_design_zone con auto y luego generar_repeat u optimizar_repeat.
 Usa centrar_layout solo para slots existentes; para rehacer Step & Repeat usa generar_repeat u optimizar_repeat.
+Si el usuario pide cambiar zonas de dos o mas disenos en una misma instruccion, usa set_design_zones; no hagas solo un set_design_zone parcial.
+Si el usuario ademas pide generar, regenerar, recalcular, repeat, montaje o respetar cantidades, ejecuta generar_repeat despues de set_design_zone o set_design_zones.
+Si el usuario solo pide cambiar una zona y no pide regenerar, no prometas Step & Repeat generado: devuelve solo el cambio de metadata.
+Si el usuario identifica disenos por medidas como 50x40 o 100x50, usa esa medida literal como design_ref.
 Prioriza acciones simples, reversibles y seguras.
 Si la intencion no esta clara, responde breve sin tool call.
 No apliques cambios directamente al sistema; solo devolve resultados para revision del usuario.
 """.strip()
+
+
+DIMENSION_PROMPT_RE = re.compile(r"(\d+(?:[\.,]\d+)?)\s*x\s*(\d+(?:[\.,]\d+)?)", re.IGNORECASE)
+ZONE_WORDS = {
+    "auto": "auto",
+    "automatico": "auto",
+    "automatica": "auto",
+    "arriba": "top",
+    "top": "top",
+    "abajo": "bottom",
+    "bottom": "bottom",
+    "izquierda": "left",
+    "left": "left",
+    "derecha": "right",
+    "right": "right",
+    "centro": "center",
+    "center": "center",
+}
+GENERATE_TERMS = (
+    "genera",
+    "generar",
+    "regenera",
+    "regenerar",
+    "recalcula",
+    "recalcular",
+    "repeat",
+    "montaje",
+    "motor",
+    "cantidades",
+)
 
 
 def _layout_schema() -> Dict[str, Any]:
@@ -108,14 +144,14 @@ OPENAI_TOOLS: List[Dict[str, Any]] = [
     {
         "type": "function",
         "name": "set_design_zone",
-        "description": "Cambia preferred_zone de un diseno. Usar antes de generar_repeat cuando el usuario pide Arriba, Abajo, Centro, Izquierda, Derecha o Automatico.",
+        "description": "Cambia preferred_zone de un solo diseno. Para dos o mas cambios en la misma instruccion, usar set_design_zones.",
         "parameters": {
             "type": "object",
             "properties": {
                 "layout": _layout_schema(),
                 "design_ref": {
                     "type": "string",
-                    "description": "ref, filename o work_id del diseno a modificar.",
+                    "description": "ref, filename, work_id o medidas como 50x40 del diseno a modificar.",
                 },
                 "preferred_zone": {
                     "type": "string",
@@ -130,14 +166,14 @@ OPENAI_TOOLS: List[Dict[str, Any]] = [
     {
         "type": "function",
         "name": "set_design_zones",
-        "description": "Cambia preferred_zone de varios disenos en una sola operacion.",
+        "description": "Cambia preferred_zone de varios disenos en una sola operacion. Usar cuando el usuario menciona dos o mas disenos/zonas.",
         "parameters": {
             "type": "object",
             "properties": {
                 "layout": _layout_schema(),
                 "zones_by_design": {
                     "type": "object",
-                    "description": "Mapa design_ref -> preferred_zone. Zonas permitidas: auto, top, bottom, left, right, center.",
+                    "description": "Mapa design_ref -> preferred_zone. design_ref puede ser ref, filename, work_id o medidas como 50x40.",
                     "additionalProperties": {
                         "type": "string",
                         "enum": ["auto", "top", "bottom", "left", "right", "center"],
@@ -226,6 +262,159 @@ def _analysis_for_layout(layout: Optional[Dict[str, Any]]) -> Optional[Dict[str,
         return analizar_layout(layout)
     except Exception:
         return None
+
+
+def _layout_change_type(layout: Optional[Dict[str, Any]]) -> Optional[str]:
+    if not isinstance(layout, dict):
+        return None
+    ai_agent = layout.get("ai_agent")
+    if not isinstance(ai_agent, dict):
+        return None
+    value = ai_agent.get("layout_change_type")
+    return str(value) if value else None
+
+
+def _plain_text(value: str) -> str:
+    normalized = unicodedata.normalize("NFD", str(value or ""))
+    return "".join(char for char in normalized if unicodedata.category(char) != "Mn").lower()
+
+
+def _zone_from_text(text: str) -> Optional[str]:
+    plain = _plain_text(text)
+    for word, zone in ZONE_WORDS.items():
+        if re.search(rf"\b{re.escape(word)}\b", plain):
+            return zone
+    return None
+
+
+def _wants_repeat_generation(prompt: str) -> bool:
+    plain = _plain_text(prompt)
+    return any(term in plain for term in GENERATE_TERMS)
+
+
+def _design_key(design: Dict[str, Any]) -> Optional[str]:
+    for key in ("ref", "filename", "work_id"):
+        value = design.get(key)
+        if value:
+            return str(value)
+    return None
+
+
+def _zone_assignments_from_prompt(prompt: str, layout: Dict[str, Any]) -> Dict[str, str]:
+    plain = _plain_text(prompt)
+    all_zone = _zone_from_text(plain) if "todos" in plain and "diseno" in plain else None
+    if all_zone:
+        assignments: Dict[str, str] = {}
+        for design in layout.get("designs") or []:
+            if not isinstance(design, dict):
+                continue
+            key = _design_key(design)
+            if key:
+                assignments[key] = all_zone
+        return assignments
+
+    matches = list(DIMENSION_PROMPT_RE.finditer(plain))
+    assignments = {}
+    for index, match in enumerate(matches):
+        next_start = matches[index + 1].start() if index + 1 < len(matches) else len(plain)
+        segment = plain[match.end() : next_start]
+        zone = _zone_from_text(segment)
+        if not zone:
+            continue
+        width = match.group(1).replace(",", ".")
+        height = match.group(2).replace(",", ".")
+        assignments[f"{width}x{height}"] = zone
+    return assignments
+
+
+def _zone_summary(layout: Dict[str, Any]) -> List[Dict[str, str]]:
+    changes = layout.get("ai_agent", {}).get("last_zone_changes") if isinstance(layout.get("ai_agent"), dict) else None
+    if isinstance(changes, list) and changes:
+        return [item for item in changes if isinstance(item, dict)]
+    change = layout.get("ai_agent", {}).get("last_zone_change") if isinstance(layout.get("ai_agent"), dict) else None
+    if isinstance(change, dict):
+        return [change]
+    return []
+
+
+def _format_zone_summary(changes: List[Dict[str, str]]) -> str:
+    parts = []
+    for change in changes:
+        ref = change.get("design_ref") or "diseno"
+        zone = change.get("preferred_zone") or "auto"
+        parts.append(f"{ref}: {zone}")
+    return ", ".join(parts)
+
+
+def _direct_zone_intent_result(prompt: str, layout: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+    assignments = _zone_assignments_from_prompt(prompt, layout)
+    if not assignments:
+        return None
+
+    wants_generation = _wants_repeat_generation(prompt)
+    tools_used: List[str] = []
+    try:
+        if len(assignments) == 1:
+            design_ref, zone = next(iter(assignments.items()))
+            working_layout = set_design_zone(layout, design_ref, zone)
+            tools_used.append("set_design_zone")
+        else:
+            working_layout = set_design_zones(layout, assignments)
+            tools_used.append("set_design_zones")
+
+        if wants_generation:
+            tools_used.append("generar_repeat")
+            working_layout = generar_repeat(working_layout, {})
+            zone_changes = _zone_summary(working_layout)
+            zone_text = _format_zone_summary(zone_changes)
+            message = "Zonas actualizadas y Step & Repeat regenerado respetando forms_per_plate."
+            if zone_text:
+                message = f"Zonas actualizadas ({zone_text}) y Step & Repeat regenerado respetando forms_per_plate."
+            return {
+                "ok": True,
+                "message": message,
+                "layout": working_layout,
+                "tool_used": "generar_repeat",
+                "layout_tool_used": "generar_repeat",
+                "tools_used": tools_used,
+                "layout_change_type": _layout_change_type(working_layout),
+                "raw_tool_result": {"success": True, "message": "Flujo directo de zonas y repeat ejecutado."},
+                "data": {
+                    "zone_changes": zone_changes,
+                    "analysis": _analysis_for_layout(working_layout),
+                },
+            }
+
+        zone_changes = _zone_summary(working_layout)
+        zone_text = _format_zone_summary(zone_changes)
+        message = "Zona preferida actualizada. No se regeneraron slots porque la instruccion no pidio generar repeat."
+        if zone_text:
+            message = f"Zona preferida actualizada ({zone_text}). No se regeneraron slots porque la instruccion no pidio generar repeat."
+        return {
+            "ok": True,
+            "message": message,
+            "layout": working_layout,
+            "tool_used": tools_used[-1],
+            "layout_tool_used": tools_used[-1],
+            "tools_used": tools_used,
+            "layout_change_type": _layout_change_type(working_layout),
+            "raw_tool_result": {"success": True, "message": "Cambio de metadata ejecutado."},
+            "data": {"zone_changes": zone_changes},
+        }
+    except Exception as exc:
+        failure = _repeat_failure_result(exc, "No se pudo completar la instruccion IA.")
+        return {
+            "ok": False,
+            "error": failure["message"],
+            "message": failure["message"],
+            "layout": None,
+            "tool_used": tools_used[-1] if tools_used else None,
+            "layout_tool_used": None,
+            "tools_used": tools_used,
+            "layout_change_type": None,
+            "raw_tool_result": _safe_tool_output(failure),
+            "data": failure.get("data"),
+        }
 
 
 def _repeat_failure_result(exc: Exception, fallback_message: str = "No se pudo ejecutar Step & Repeat PRO.") -> Dict[str, Any]:
@@ -359,6 +548,7 @@ def _safe_tool_output(result: Dict[str, Any]) -> Dict[str, Any]:
         "success": bool(result.get("success")),
         "message": result.get("message") or "",
         "has_layout": isinstance(layout, dict),
+        "layout_change_type": _layout_change_type(layout),
         "analysis": analysis,
         "data": result.get("data") if isinstance(result.get("data"), dict) else None,
     }
@@ -383,6 +573,10 @@ def run_openai_step_repeat_assistant(prompt: str, layout: Dict[str, Any], client
             "ok": False,
             "error": "layout_json debe ser un objeto JSON.",
         }
+
+    direct_result = _direct_zone_intent_result(prompt, layout)
+    if direct_result is not None:
+        return direct_result
 
     if client is None:
         from openai import OpenAI
@@ -420,6 +614,7 @@ def run_openai_step_repeat_assistant(prompt: str, layout: Dict[str, Any], client
             "message": _response_text(response) or "No se ejecuto ninguna tool.",
             "layout": None,
             "tool_used": None,
+            "layout_change_type": None,
             "raw_tool_result": None,
         }
 
@@ -480,6 +675,7 @@ def run_openai_step_repeat_assistant(prompt: str, layout: Dict[str, Any], client
         "layout": layout_result if isinstance(layout_result, dict) else None,
         "tool_used": tool_used,
         "layout_tool_used": latest_layout_tool,
+        "layout_change_type": _layout_change_type(layout_result),
         "raw_tool_result": raw_tool_result,
         "data": last_result.get("data") if last_result else None,
     }
