@@ -1366,7 +1366,9 @@ def _expanded_vertical_zone_bounds(
     vertical_order = ["bottom", "center", "top"]
     heights: Dict[str, float] = {}
     present = [zone for zone in vertical_order if zone_groups.get(zone)]
-    if len(present) < 2:
+    if not present:
+        return None
+    if len(present) == 1 and present[0] != "center":
         return None
 
     for zone in present:
