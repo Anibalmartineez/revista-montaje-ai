@@ -88,6 +88,15 @@ El modulo Offset del repo agrupa varios flujos historicos de montaje offset. En 
     - `auto`
   - `fill` inteligente para ocupar huecos utiles al final
   - compactacion vertical segura de grupos zonales
+  - expansion vertical segura para zonas verticales:
+    - `top`
+    - `bottom`
+    - `center`
+    - multiples disenos en la misma zona vertical (`top/top`, `bottom/bottom`, `center/center`)
+  - compactacion final segura que integra grupos `auto` cuando conviven con zonas verticales
+  - validacion estricta de `forms_per_plate` contra slots realmente colocados
+  - error bloqueante `IncompleteImpositionError` para montajes incompletos
+  - generacion atomica por diseno y aislamiento de corridas
   - UI simplificada en lista de disenos:
     - se mantiene visible `Ubicacion`
     - se ocultan prioridad, rol repeat y flujo
@@ -98,6 +107,17 @@ El modulo Offset del repo agrupa varios flujos historicos de montaje offset. En 
       - `Izquierda`
       - `Derecha`
       - `Centro`
+- capa IA actualizada para Fase 5:
+  - `set_design_zone`
+  - `set_design_zones`
+  - `generar_repeat`
+  - `validar_repeat`
+  - `optimizar_repeat` con retry controlado
+  - soporte para identificar disenos por dimensiones como `50x40`
+  - encadenamiento de tools y preservacion del ultimo layout generado
+- frontend IA distingue:
+  - `metadata_only`: cambios de preferencias sin slots regenerados
+  - `layout_with_slots`: layout aplicable con slots recalculados
 
 ## Riesgos principales
 
@@ -111,6 +131,9 @@ El modulo Offset del repo agrupa varios flujos historicos de montaje offset. En 
 - `preferred_flow` sigue en contrato pero todavia no participa en decisiones reales del motor
 - la compactacion actual de grupos zonales es solo vertical
 - `fill` mejoro aprovechamiento de huecos, pero sigue sin packing avanzado
+- no existe expansion/compactacion horizontal equivalente para `left/right`
+- todavia no hay modo `maximize` ni sistema formal de modos de repeat
+- la IA puede sugerir y devolver layouts, pero la aplicacion sigue requiriendo confirmacion del usuario
 
 ## Proximos pasos sugeridos
 
@@ -119,8 +142,11 @@ El modulo Offset del repo agrupa varios flujos historicos de montaje offset. En 
    - `bleed_mm = 0`
    - spacing
    - rotacion 0/90
-   - PDF normal vs CTP
-3. conectar el agente IA a tool calls reales de OpenAI manteniendo el controller actual como capa intermedia
-4. mejorar el surfacing de warnings y errores en UI sin depender tanto de `alert()`
-5. extender compactacion a casos horizontales `left/center/right` solo si se mantiene segura
+   - zonas verticales `top/bottom/center`
+   - multiples disenos en la misma zona
+   - `auto` combinado con zonas verticales
+   - errores `IncompleteImpositionError`
+3. mejorar el surfacing de warnings y errores en UI sin depender tanto de `alert()`
+4. extender compactacion/expansion a casos horizontales `left/right` solo si se mantiene segura
+5. evaluar un sistema de modos (`exact`, `maximize`, etc.) sin romper la semantica actual
 6. evaluar micro-refactors internos solo despues de cubrir los casos criticos de salida final

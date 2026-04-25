@@ -457,6 +457,12 @@ Características:
 - `rotation_deg` representa orientacion del contenido
 - cuando rota 90/270, `w_mm/h_mm` ya se intercambian en la generacion
 - en Fase 5 pueden venir de grupos zonales compactados sin cambiar su semantica
+- en Fase 5 pueden venir de zonas verticales expandidas:
+  - `top`
+  - `bottom`
+  - `center`
+  - varios disenos en la misma zona vertical
+- pueden venir de una compactacion final que integra `auto` con zonas verticales
 - en salida:
   - `slot_box_final = True`
 
@@ -465,6 +471,8 @@ Características:
 Las mejoras de Step & Repeat PRO Inteligente no cambian el contrato de `slots[]`:
 
 - las zonas preferred y la compactacion solo alteran `x_mm` / `y_mm`
+- la expansion vertical solo altera bounds efectivos y posiciones `x_mm` / `y_mm`
+- la compactacion final con `auto` solo traslada grupos si es seguro
 - `fill` inteligente solo altera posicion final de slots nuevos
 - `w_mm/h_mm` siguen representando footprint final
 - `rotation_deg` sigue representando orientacion del contenido
@@ -710,6 +718,19 @@ Si algo de eso cambia sin congelar compatibilidad, preview y PDF pueden divergir
 - las mejoras de zonas no cambian la semantica del slot:
   - compactacion vertical solo altera `x_mm` / `y_mm`
   - expansion vertical solo altera `x_mm` / `y_mm` y bounds efectivos del grupo
+  - integracion de `auto` con zonas verticales solo traslada grupos ya generados
   - `fill` inteligente solo altera posiciones finales de slots nuevos
 - `w_mm/h_mm` siguen siendo footprint final
 - `rotation_deg` sigue siendo orientacion del contenido
+
+## Aclaracion Fase 5 sobre grupos y seguridad
+
+Las compactaciones nuevas no cambian la cantidad de slots ni su tamano:
+
+- no recalculan `w_mm/h_mm`
+- no modifican `rotation_deg`
+- no cambian `design_ref`
+- no mueven slots fuera del area util
+- no aceptan colisiones entre grupos
+
+Si una compactacion o expansion no es segura, el motor conserva la distribucion previa o falla con `IncompleteImpositionError` si faltan formas.

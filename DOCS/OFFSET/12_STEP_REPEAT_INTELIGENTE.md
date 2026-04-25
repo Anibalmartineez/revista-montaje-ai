@@ -32,10 +32,52 @@ La Fase 5 implementa:
 - `fill` inteligente
 - compactacion vertical segura de grupos zonales
 - expansion vertical inteligente para `top/center/bottom`
+- expansion vertical de una sola zona:
+  - `top` anclado hacia arriba
+  - `bottom` anclado hacia abajo
+  - `center` centrado
+- expansion vertical para multiples disenos dentro de la misma zona:
+  - `top/top`
+  - `bottom/bottom`
+  - `center/center`
+- compactacion final segura que integra `auto` con zonas verticales explicitas
 - validacion estricta de formas solicitadas vs colocadas
 - error bloqueante para montajes incompletos
 - generacion atomica por diseno
 - aislamiento de ejecuciones entre corridas
+- capa IA/tools alineada con el motor Fase 5
+- frontend IA con distincion `metadata_only` vs `layout_with_slots`
+
+## Estado real del sistema Fase 5
+
+### Que hace bien hoy
+
+- respeta `forms_per_plate` como cantidad exacta
+- falla con error claro si no entran todas las formas
+- mantiene `auto/auto` como flujo legacy
+- interpreta `preferred_zone` como preferencia de inicio, no como carcel rigida
+- resuelve casos verticales comunes:
+  - `top/bottom`
+  - `top/center/bottom`
+  - `center` solo
+  - varios disenos en `top`
+  - varios disenos en `bottom`
+  - varios disenos en `center`
+  - zona vertical + `auto`
+- protege la salida final:
+  - no cambia `slot.w_mm/h_mm`
+  - no cambia `rotation_deg`
+  - no toca preview/PDF
+
+### Que no hace todavia
+
+- no hace packing avanzado
+- no tiene modo `maximize`
+- no tiene sistema formal de modos
+- no usa `preferred_flow`
+- no expande horizontalmente `left/right`
+- no compacta horizontalmente `left/right/center`
+- `fill` sigue siendo heuristico
 
 ## Que ve hoy el usuario en la interfaz
 
@@ -175,6 +217,20 @@ Esto corrige casos donde:
 
 - `auto/auto` entraba
 - pero `bottom/top` fallaba injustificadamente por rigidez de bandas
+- `center` fallaba aunque en `auto` entrara
+- varios disenos en `top` o `bottom` quedaban atrapados en su banda inicial
+
+### 4.c Expansion de una sola zona vertical
+
+Cuando una sola zona vertical contiene uno o varios disenos y la banda inicial no alcanza, el motor puede calcular un bounds expandido usando mas altura del area util.
+
+Anclajes actuales:
+
+- `top`: bloque expandido hacia arriba
+- `bottom`: bloque expandido hacia abajo
+- `center`: bloque expandido centrado
+
+Esto mantiene la intencion de ubicacion sin convertir la zona en packing libre.
 
 ### 5. Fill inteligente
 
@@ -200,6 +256,7 @@ Despues de crear grupos zonales explicitos, el backend intenta compactar:
 
 - `top + bottom`
 - `top + center + bottom`
+- `top`, `center` o `bottom` con `auto` en una compactacion final segura
 
 La compactacion:
 
@@ -211,6 +268,22 @@ La compactacion:
 - si no es segura, deja el layout original
 
 Esto mejora casos donde `top` y `bottom` dejaban demasiado vacio en el centro.
+
+### 6.c Integracion de `auto` con zonas verticales
+
+Si hay zonas verticales explicitas y tambien disenos `auto`, el flujo real es:
+
+1. generar zonas explicitas
+2. aplicar expansion/compactacion vertical zonal si hace falta
+3. generar `auto` evitando colisiones
+4. registrar el rango de slots generado por `auto`
+5. intentar una compactacion final segura de:
+   - `top`
+   - `center`
+   - `bottom`
+   - `auto`
+
+Si todos los disenos estan en `auto`, este paso no corre y se conserva el comportamiento legacy.
 
 ### 6.b Diferencia entre compactacion y expansion
 
@@ -262,6 +335,67 @@ Flujo ya validado en pruebas sinteticas:
 - volver a `auto/auto` OK
 - si no entra realmente, el motor falla con detalle por diseno
 
+## Capa IA y tools Fase 5
+
+### Tools disponibles relevantes
+
+- `analizar_layout(layout)`
+- `generar_repeat(layout, config)`
+- `optimizar_repeat(layout)`
+- `centrar_layout(layout)`
+- `aplicar_reglas_repeat(layout, reglas)`
+- `set_design_zone(layout, design_ref, preferred_zone)`
+- `set_design_zones(layout, zones_by_design)`
+- `validar_repeat(layout)`
+
+### Flujo real
+
+1. El usuario escribe un prompt en el panel IA.
+2. El frontend envia `prompt` y `layout_json`.
+3. `openai_tool_bridge.py` decide o ejecuta tools locales.
+4. Las tools llaman al motor real de `routes.py` cuando hay que generar repeat.
+5. La respuesta devuelve:
+   - mensaje
+   - tools usadas
+   - layout sugerido si corresponde
+   - analisis o errores
+6. El frontend solo aplica el layout si el usuario confirma con `Aplicar cambios`.
+
+### Capacidades actuales
+
+- cambiar una zona con `set_design_zone`
+- cambiar varias zonas con `set_design_zones`
+- regenerar Step & Repeat despues de cambiar zonas
+- validar sin aplicar
+- interpretar `IncompleteImpositionError`
+- hacer retry controlado en `optimizar_repeat` reseteando zonas explicitas a `auto` si corresponde
+- identificar disenos por:
+  - `ref`
+  - `filename`
+  - `work_id`
+  - dimensiones tipo `50x40`
+
+### Fixes IA ya incorporados
+
+- se preserva el ultimo layout generado aunque luego se ejecute una tool de analisis
+- prompts con multiples zonas pueden usar `set_design_zones`
+- si el prompt pide generar/repetir/montaje, se ejecuta `generar_repeat` despues de cambiar zonas
+- si solo se cambia metadata, no se promete un montaje regenerado
+
+## Frontend IA
+
+El frontend distingue:
+
+- `metadata_only`
+  - cambia preferencias del layout
+  - no regenera slots
+  - muestra mensaje de preferencias listas
+- `layout_with_slots`
+  - trae slots recalculados
+  - muestra cambios listos para aplicar
+
+Tambien muestra la cadena de tools usadas cuando el backend la devuelve.
+
 ## Semanticas que NO cambiaron
 
 Se mantienen congeladas:
@@ -288,6 +422,8 @@ La Fase 5 mantiene compatibilidad:
 - `preferred_flow` no funciona todavia
 - `fill` mejoro mucho el aprovechamiento de huecos, pero sigue siendo heuristico
 - la heuristica de `repeat_role` automatico puede requerir ajuste con casos reales
+- no existe modo `maximize`
+- no hay sistema formal de modos
 
 ## Proximos pasos recomendados
 
@@ -302,4 +438,14 @@ La Fase 5 mantiene compatibilidad:
    - `forms_per_plate`
    - `preferred_zone`
    - reglas repeat estables
-6. ReciÃ©n en una fase posterior evaluar packing mas avanzado si sigue haciendo falta.
+
+## Proximos pasos agregados tras la ultima auditoria
+
+- agregar pruebas para IA/tools:
+  - multiples zonas en un prompt
+  - `set_design_zones` seguido de `generar_repeat`
+  - errores `IncompleteImpositionError`
+  - `metadata_only` vs `layout_with_slots`
+- evaluar sistema de modos (`exact`, `maximize`) solo con contrato y tests
+- mantener `preferred_flow` documentado como reservado hasta que exista implementacion real
+- recien en una fase posterior evaluar packing mas avanzado si sigue haciendo falta

@@ -40,6 +40,14 @@ Esta ruta recibe un `layout_json`, ejecuta una tool y devuelve un layout sugerid
 
 El panel IA actual usa `POST /ai/step_repeat_action_openai`, que inicializa OpenAI solo al ejecutar la accion. Si falta `OPENAI_API_KEY`, devuelve error y no altera el layout.
 
+En Fase 5, la capa IA trabaja sobre el mismo contrato de layout y no inventa geometria propia. Las tools relevantes devuelven:
+
+- layouts con `ai_agent.layout_change_type = "metadata_only"` cuando solo cambian preferencias
+- layouts con `ai_agent.layout_change_type = "layout_with_slots"` cuando regeneran Step & Repeat y devuelven slots
+- errores del motor, incluyendo `IncompleteImpositionError`, sin aplicar layouts incompletos
+
+El bridge OpenAI puede encadenar tools y conserva el ultimo layout generado para que una tool posterior de analisis no pierda los slots ya calculados.
+
 ## Diferencia entre estados
 
 ### Estado en memoria del frontend
@@ -256,6 +264,11 @@ Eso significa que el backend tolera esos campos en `related_work`, pero la UI ac
   - `center`
 - `fill` no debe considerarse una ubicacion visible ni recomendada para `preferred_zone`
 - si aparece en layouts historicos, debe leerse como compatibilidad interna, no como uso recomendado de UI
+- las zonas verticales son preferencias de inicio, no bandas rigidas:
+  - `top`, `bottom` y `center` pueden expandirse verticalmente si la banda inicial no alcanza
+  - varios disenos en la misma zona vertical tambien pueden expandirse como bloque
+  - `auto` puede compactarse al final con zonas verticales explicitas
+- `left/right` siguen sin expansion horizontal equivalente
 
 ### `slots`
 
@@ -676,6 +689,14 @@ Eso significa que el backend tolera esos campos en `related_work`, pero la UI ac
 - las tools pueden devolver un layout sugerido
 - el layout sugerido no se guarda automaticamente
 - el contrato base de `layout_constructor.json` no cambia por integrar IA
+- tools Fase 5 relevantes:
+  - `set_design_zone`
+  - `set_design_zones`
+  - `generar_repeat`
+  - `validar_repeat`
+  - `optimizar_repeat`
+- `set_design_zone(s)` puede resolver disenos por `ref`, `filename`, `work_id` o dimensiones como `50x40`
+- `layout_change_type` dentro de `layout.ai_agent` permite distinguir cambios de metadata de layouts con slots
 
 ## Qué endpoints backend leen o escriben cada bloque
 
@@ -870,3 +891,6 @@ Por compatibilidad, el layout debe tratarse como contrato congelado hasta que ex
 - `POST /editor_offset_visual/apply_imposition` no debe aplicar layouts parciales
 - si el backend devuelve `ok: false`, el frontend no debe reemplazar `state.layout`
 - el motor trabaja sobre copia aislada del layout y regenera desde `designs[]`
+- antes de llamar al motor, el endpoint usa una copia del layout y fuerza `slots = []`
+- esto evita que una corrida fallida o slots previos contaminen la siguiente generacion
+- el resultado solo reemplaza `layout["slots"]` si el motor devuelve una lista completa y valida

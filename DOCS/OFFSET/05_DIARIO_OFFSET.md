@@ -410,3 +410,60 @@ Volver mas util el motor Step & Repeat PRO del Editor Visual IA sin pasar a pack
 - no existe expansion horizontal equivalente para `left/right`
 - `fill` sigue siendo heuristico
 - `preferred_flow` sigue reservado e inactivo
+
+## 2026-04-25 Actualizacion real Fase 5 - Motor, IA y frontend
+
+### Problemas corregidos en Step & Repeat PRO
+
+- `center` podia quedar demasiado rigido:
+  - un diseno en `center` podia fallar aunque en `auto` entrara
+  - se corrigio permitiendo expansion vertical de `center` como zona unica
+- `top/top` y `bottom/bottom` podian fallar por quedar encerrados en la banda inicial:
+  - ahora una zona vertical unica puede expandirse si geometricamente cabe
+  - `top` queda anclado hacia arriba
+  - `bottom` queda anclado hacia abajo
+  - `center` queda centrado
+- `auto` quedaba fuera de la compactacion vertical:
+  - cuando convive con `top`, `center` o `bottom`, se registra su rango de slots
+  - se intenta una compactacion final segura de grupos verticales + `auto`
+- se mantiene el comportamiento legacy si todos los disenos estan en `auto`
+
+### Garantias conservadas
+
+- `forms_per_plate` sigue siendo estricto
+- si faltan formas, se devuelve `IncompleteImpositionError`
+- el motor no acepta montajes incompletos silenciosamente
+- `slot.w_mm / slot.h_mm` siguen siendo footprint final
+- `rotation_deg` sigue siendo orientacion del contenido
+- no se tocaron preview/PDF ni `montaje_offset_inteligente.py`
+
+### IA/tools actualizadas
+
+- `set_design_zone` cambia una zona por diseno
+- `set_design_zones` permite multiples cambios de zona en una misma instruccion
+- `generar_repeat` devuelve layout completo con slots regenerados
+- `validar_repeat` interpreta errores del motor sin aplicar layout
+- `optimizar_repeat` conserva retry controlado, incluyendo reset de zonas a `auto` si corresponde
+- el bridge de OpenAI encadena tools y conserva el ultimo layout generado
+- la IA puede identificar disenos por:
+  - `ref`
+  - `filename`
+  - `work_id`
+  - dimensiones tipo `50x40`
+
+### Frontend IA
+
+- el panel distingue:
+  - `metadata_only`: preferencias listas, sin slots regenerados
+  - `layout_with_slots`: cambios visuales listos para aplicar
+- se muestran tools usadas cuando la respuesta IA las incluye
+- no se debe presentar como montaje generado un cambio que solo modifica metadata
+
+### Limitaciones que siguen abiertas
+
+- no hay expansion horizontal para `left/right`
+- no hay compactacion horizontal completa
+- no hay packing avanzado
+- no existe modo `maximize`
+- `preferred_flow` sigue reservado e inactivo
+- no hay sistema formal de modos; el motor actual es exacto respecto de `forms_per_plate`

@@ -17,6 +17,9 @@ Consolidar el Editor Visual IA como flujo operativo profesional del modulo Offse
   - UI de disenos simplificada
   - mejor aprovechamiento de huecos con `fill`
   - compactacion vertical segura de grupos
+  - expansion vertical segura de zonas como preferencia, no carcel
+  - integracion de `auto` con grupos verticales
+  - alineacion de IA/tools con el motor Fase 5
 
 ## Plan propuesto por fases
 
@@ -131,6 +134,30 @@ Estado real de esta rama:
   - generacion atomica por diseno
   - aislamiento de ejecuciones para evitar contaminacion entre corridas
   - expansion vertical inteligente de zonas `top/center/bottom`
+- Fase 5.7:
+  - correccion de `center` rigido
+  - expansion vertical para una sola zona `center`
+  - expansion vertical para multiples disenos dentro de la misma zona:
+    - `top/top`
+    - `bottom/bottom`
+    - `center/center`
+  - mantenimiento de anclaje:
+    - `top` hacia arriba
+    - `bottom` hacia abajo
+    - `center` centrado
+- Fase 5.8:
+  - compactacion final segura que incluye `auto` cuando convive con `top/center/bottom`
+  - preservacion del comportamiento legacy cuando todo esta en `auto`
+- Fase 5.9:
+  - tools IA alineadas con el motor:
+    - `set_design_zone`
+    - `set_design_zones`
+    - `generar_repeat`
+    - `validar_repeat`
+    - `optimizar_repeat`
+  - soporte de referencias por dimensiones como `50x40`
+  - encadenamiento de tools y preservacion del layout generado
+  - distincion frontend entre `metadata_only` y `layout_with_slots`
 
 Decisiones consolidadas:
 
@@ -139,14 +166,15 @@ Decisiones consolidadas:
 - `preferred_flow` se conserva en contrato pero no participa todavia del motor
 - `slot.w_mm/h_mm` sigue siendo footprint final en `repeat`
 - `rotation_deg` sigue siendo orientacion del contenido
+- el modo actual es exacto respecto de `forms_per_plate`; no existe todavia modo `maximize`
 
 ### Fase 6 sugerida. IA operativa sobre motor inteligente
 
 Objetivo:
 
-- exponer al agente IA solo controles estables del motor inteligente
-- evitar que la IA manipule numerica o geometria sin guardrails
-- usar `preferred_zone`, `forms_per_plate` y reglas repeat como superficie principal
+- consolidar guardrails y pruebas de la IA sobre controls estables del motor inteligente
+- evitar que la IA manipule numerica o geometria sin validacion del motor
+- usar `preferred_zone`, `forms_per_plate` y tools repeat como superficie principal
 - dejar packing complejo y optimizaciones profundas para una fase posterior
 
 ## Priorizacion sugerida
@@ -155,8 +183,9 @@ Objetivo:
 2. Agregar fixtures o pruebas de regresion para Step & Repeat PRO inteligente
 3. Endurecer guardrails y pruebas del flujo OpenAI tool calling sobre `ai_agent/`
 4. Mejorar feedback no bloqueante de errores/warnings
-5. Evaluar compactacion o expansion horizontal solo si mantiene seguridad
-6. Recien despues evaluar micro-refactors
+5. Evaluar sistema de modos (`exact`, `maximize`, etc.) sin romper el contrato actual
+6. Evaluar compactacion o expansion horizontal solo si mantiene seguridad
+7. Recien despues evaluar micro-refactors
 
 ## Cambios explicitamente postergados
 
@@ -167,6 +196,8 @@ Objetivo:
 - redisenar persistencia por job
 - permitir que IA modifique persistencia sin confirmacion del usuario
 - cambiar el contrato base de `layout_constructor.json` sin migracion
+- documentar `preferred_flow` como funcional antes de implementarlo
+- declarar soporte de expansion horizontal `left/right` antes de tener motor y pruebas
 
 ## Criterio de seguridad para siguientes pasos
 

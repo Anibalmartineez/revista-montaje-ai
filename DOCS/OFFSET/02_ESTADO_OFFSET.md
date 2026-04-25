@@ -51,6 +51,11 @@ Este fue el unico flujo trabajado funcionalmente en esta fase.
   - `fill` inteligente al final para aprovechar huecos restantes
   - compactacion vertical segura para grupos `top/center/bottom`
   - expansion vertical inteligente para `top/center/bottom` cuando la banda inicial no alcanza
+  - expansion vertical de una sola zona cuando contiene uno o varios disenos:
+    - `top/top` anclado hacia arriba
+    - `bottom/bottom` anclado hacia abajo
+    - `center/center` centrado
+  - compactacion final segura que integra grupos `auto` cuando conviven con zonas verticales
   - validacion estricta de `forms_per_plate` por diseno
   - error bloqueante si faltan formas solicitadas
   - generacion atomica por diseno para evitar slots parciales
@@ -158,12 +163,18 @@ Implementado:
   - `optimizar_repeat(layout)`
   - `centrar_layout(layout)`
   - `aplicar_reglas_repeat(layout, reglas)`
+  - `set_design_zone(layout, design_ref, preferred_zone)`
+  - `set_design_zones(layout, zones_by_design)`
+  - `validar_repeat(layout)`
 - controller simple `handle_agent_request(prompt, layout)`
 - endpoint `POST /ai/step_repeat_action`
 - endpoint `POST /ai/step_repeat_action_openai`
 - panel frontend "Asistente IA"
 - OpenAI se inicializa solo al ejecutar la accion IA; sin `OPENAI_API_KEY`, el editor sigue funcionando y la IA devuelve error claro
 - aplicacion del layout devuelto solo al confirmar con "Aplicar cambios"
+- la IA puede resolver disenos por `ref`, `filename`, `work_id` o dimensiones tipo `50x40`
+- el bridge conserva el ultimo layout generado aunque luego se ejecute una tool de analisis
+- el frontend muestra las tools usadas y diferencia cambios de metadata de layouts con slots regenerados
 
 ### UI actual de disenos en Fase 5
 
@@ -222,6 +233,8 @@ Reglas actuales observadas:
 - `preferred_zone` funciona como preferencia de inicio:
   - primero se intenta la banda zonal normal
   - si `top/center/bottom` no entran completos y la geometria lo permite, se intenta expansion vertical antes de fallar
+  - si varios disenos comparten `top`, `bottom` o `center`, esa zona puede expandirse verticalmente antes de fallar
+  - si hay zona vertical explicita mas disenos `auto`, el motor intenta una compactacion final segura para formar un bloque mas natural
 - `apply_imposition` no debe aplicar layouts incompletos:
   - backend devuelve `ok: false`
   - frontend no reemplaza `state.layout` en ese caso
@@ -239,9 +252,11 @@ Reglas actuales observadas:
 - falta edicion masiva avanzada de propiedades de slots
 - `preferred_flow` existe en contrato pero todavia no tiene efecto real en el motor
 - no hay compactacion horizontal de grupos zonales
-- la compactacion actual solo intenta casos verticales `top/center/bottom`
+- la compactacion actual solo intenta casos verticales `top/center/bottom` y `auto` combinado con esas zonas
 - `left/right` no tienen expansion horizontal equivalente todavia
 - `fill` mejorado no reemplaza un packing real
+- no existe modo `maximize`; el comportamiento actual es exacto respecto de `forms_per_plate`
+- no hay sistema formal de modos aun
 
 ## Frontera de alcance vigente
 
@@ -273,8 +288,13 @@ Reglas actuales observadas:
    - rotacion inteligente
    - PDF sin stretch
    - centrado global normal
+   - zonas verticales y multiples disenos en la misma zona
+   - `auto` combinado con zonas verticales
 2. endurecer schema y validaciones del contrato sin romper compatibilidad
-3. conectar OpenAI tool calls sobre la capa `ai_agent/`
+3. agregar pruebas para IA/tools:
+   - multiples zonas en una instruccion
+   - generacion posterior a `set_design_zones`
+   - preservacion del layout generado en el bridge
 4. mejorar surfacing de errores y warnings del editor sin refactor masivo
 5. medir con casos reales si la heuristica automatica de `repeat_role` necesita ajuste
-6. recien luego evaluar micro-refactors internos
+6. evaluar modos futuros y expansion horizontal solo con pruebas de regresion

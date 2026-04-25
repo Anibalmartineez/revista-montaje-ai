@@ -192,3 +192,27 @@ Implementado en `routes.py` como:
 - la generacion de slots por diseno es atomica
 - no deben quedar slots parciales en una corrida fallida
 - el backend trabaja sobre copia aislada del layout y fuerza regeneracion desde `designs[]`
+
+### Casos Fase 5 cubiertos por la validacion estricta
+
+La validacion aplica tambien cuando el motor intenta resolver:
+
+- zonas verticales expandidas `top`, `bottom`, `center`
+- varios disenos en una misma zona vertical (`top/top`, `bottom/bottom`, `center/center`)
+- grupos `auto` compactados con zonas verticales explicitas
+- `fill` inteligente al final
+
+En todos los casos la regla final es la misma:
+
+- si `placed_forms < requested_forms`, el layout no es valido
+- el backend devuelve `ok: false`
+- el frontend no reemplaza `state.layout`
+
+### Validacion desde IA/tools
+
+La tool `validar_repeat(layout)` ejecuta el motor y devuelve:
+
+- `ok: true` si todas las formas solicitadas entran
+- `ok: false` con el payload del error si el motor lanza `IncompleteImpositionError`
+
+Las tools que generan layout (`generar_repeat`, `optimizar_repeat`) no deben ocultar ese error. Si el motor falla, la respuesta IA debe explicar el detalle y no devolver un layout aplicable.
