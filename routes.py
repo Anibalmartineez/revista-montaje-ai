@@ -1543,6 +1543,83 @@ def _compact_vertical_zone_groups(
         slots[group["start"]:group["end"]] = translated
 
 
+def _translated_groups_are_safe(
+    slots: List[Dict],
+    translated_groups: List[tuple[Dict, List[Dict]]],
+    usable_bounds: tuple[float, float, float, float],
+) -> bool:
+    left, bottom, usable_w, usable_h = usable_bounds
+    right = left + usable_w
+    top = bottom + usable_h
+    moving_indices: set[int] = set()
+    for group, _ in translated_groups:
+        moving_indices.update(range(group["start"], group["end"]))
+    outside_slots = [slot for idx, slot in enumerate(slots) if idx not in moving_indices]
+
+    translated_slots: List[Dict] = []
+    for _, group_slots in translated_groups:
+        translated_slots.extend(group_slots)
+
+    checked: List[Dict] = []
+    for slot in translated_slots:
+        x = _first_numeric(slot.get("x_mm"), default=0.0)
+        y = _first_numeric(slot.get("y_mm"), default=0.0)
+        w = _first_numeric(slot.get("w_mm"), default=0.0)
+        h = _first_numeric(slot.get("h_mm"), default=0.0)
+        if x < left - 1e-6 or y < bottom - 1e-6 or x + w > right + 1e-6 or y + h > top + 1e-6:
+            return False
+        if _slot_overlaps_existing(slot, outside_slots) or _slot_overlaps_existing(slot, checked):
+            return False
+        checked.append(slot)
+    return True
+
+
+def _compact_vertical_zonal_and_auto_groups(
+    slots: List[Dict],
+    group_ranges: Dict[str, Dict],
+    usable_bounds: tuple[float, float, float, float],
+    min_gap_y: float,
+) -> None:
+    if not group_ranges.get("auto") or not any(group_ranges.get(zone) for zone in ["bottom", "center", "top"]):
+        return
+
+    present = []
+    for zone in ["bottom", "center", "top", "auto"]:
+        info = group_ranges.get(zone)
+        if not info:
+            continue
+        bbox = _slot_group_bbox(slots, info["start"], info["end"])
+        if not bbox:
+            continue
+        present.append({"zone": zone, "start": info["start"], "end": info["end"], "bbox": bbox})
+
+    if len(present) < 2:
+        return
+
+    present.sort(key=lambda group: (group["bbox"][1], group["bbox"][0]))
+    total_height = sum(group["bbox"][3] - group["bbox"][1] for group in present)
+    packed_height = total_height + max(0, len(present) - 1) * max(0.0, min_gap_y)
+    left, bottom, usable_w, usable_h = usable_bounds
+    if packed_height > usable_h + 1e-6:
+        return
+
+    target_y = bottom + max(0.0, usable_h - packed_height) / 2.0
+    translated_groups: List[tuple[Dict, List[Dict]]] = []
+    for group in present:
+        min_x, min_y, max_x, max_y = group["bbox"]
+        height = max_y - min_y
+        dy = target_y - min_y
+        translated = _translated_group_slots(slots, group["start"], group["end"], 0.0, dy)
+        translated_groups.append((group, translated))
+        target_y += height + max(0.0, min_gap_y)
+
+    if not _translated_groups_are_safe(slots, translated_groups, usable_bounds):
+        return
+
+    for group, translated in translated_groups:
+        slots[group["start"]:group["end"]] = translated
+
+
 def _build_step_repeat_slots(layout: Dict) -> List[Dict]:
     designs = _ordered_repeat_designs(layout)
     if not designs:
@@ -1669,7 +1746,7 @@ def _build_step_repeat_slots(layout: Dict) -> List[Dict]:
                         group_ranges = retry_group_ranges
                         placement_attempts = retry_attempts
 
-    _append_step_repeat_slots_in_bounds(
+    auto_group_info = _append_step_repeat_slots_in_bounds(
         slots,
         zone_groups.get("auto", []),
         layout,
@@ -1680,6 +1757,21 @@ def _build_step_repeat_slots(layout: Dict) -> List[Dict]:
         avoid_existing=True,
         placement_attempts=placement_attempts,
     )
+    if auto_group_info:
+        group_ranges["auto"] = auto_group_info
+
+    if (
+        any(zone_groups.get(zone) for zone in ["top", "center", "bottom"])
+        and zone_groups.get("auto")
+        and not zone_groups.get("left")
+        and not zone_groups.get("right")
+    ):
+        _compact_vertical_zonal_and_auto_groups(
+            slots,
+            group_ranges,
+            (left, bottom, usable_w, usable_h),
+            max(0.0, _first_numeric(gap_y, layout.get("gap_default_mm"), default=5.0)),
+        )
 
     _append_fill_slots_smart(
         slots,
