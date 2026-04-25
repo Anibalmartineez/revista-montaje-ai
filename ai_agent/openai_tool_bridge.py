@@ -427,6 +427,8 @@ def run_openai_step_repeat_assistant(prompt: str, layout: Dict[str, Any], client
     last_result: Optional[Dict[str, Any]] = None
     tool_used: Optional[str] = None
     working_layout = layout
+    latest_layout_result: Optional[Dict[str, Any]] = None
+    latest_layout_tool: Optional[str] = None
 
     for call in calls:
         tool_used = getattr(call, "name", None)
@@ -435,6 +437,8 @@ def run_openai_step_repeat_assistant(prompt: str, layout: Dict[str, Any], client
             last_result = _call_local_tool(tool_used, args, working_layout)
             if isinstance(last_result.get("layout"), dict):
                 working_layout = last_result["layout"]
+                latest_layout_result = working_layout
+                latest_layout_tool = tool_used
             output = _safe_tool_output(last_result)
         except Exception as exc:
             output = {
@@ -468,13 +472,14 @@ def run_openai_step_repeat_assistant(prompt: str, layout: Dict[str, Any], client
     if not message and last_result:
         message = last_result.get("message") or "Accion IA ejecutada."
 
-    layout_result = last_result.get("layout") if last_result else None
+    layout_result = latest_layout_result
     raw_tool_result = _safe_tool_output(last_result or {})
     return {
         "ok": bool(last_result and last_result.get("success")),
         "message": message,
         "layout": layout_result if isinstance(layout_result, dict) else None,
         "tool_used": tool_used,
+        "layout_tool_used": latest_layout_tool,
         "raw_tool_result": raw_tool_result,
         "data": last_result.get("data") if last_result else None,
     }

@@ -2768,9 +2768,10 @@
         return;
       }
 
-      if (data.layout) {
+      if (data.layout && typeof data.layout === 'object') {
         aiResultLayout = data.layout;
         applyBtn.hidden = false;
+        responseEl.innerText = `${responseEl.innerText}\n\nCambios listos para aplicar.`;
       }
     } catch (err) {
       console.error(err);
