@@ -7,6 +7,7 @@ from ai_agent.tools_repeat import (
     centrar_layout,
     generar_repeat,
     optimizar_repeat,
+    validar_repeat,
 )
 
 
@@ -28,6 +29,15 @@ def handle_agent_request(prompt: str, layout: Dict[str, Any]) -> Dict[str, Any]:
             {"analysis": analysis, "tool": "analizar_layout"},
         ).to_dict()
 
+    if "validar" in normalized:
+        result = validar_repeat(layout)
+        return ToolResponse(
+            bool(result.get("ok")),
+            layout,
+            result.get("message") or "Validacion repeat ejecutada.",
+            {"validation": result, "tool": "validar_repeat"},
+        ).to_dict()
+
     if "centrar" in normalized:
         centered = centrar_layout(layout)
         return ToolResponse(
@@ -38,7 +48,15 @@ def handle_agent_request(prompt: str, layout: Dict[str, Any]) -> Dict[str, Any]:
         ).to_dict()
 
     if "optimizar" in normalized or "mejorar" in normalized:
-        optimized = optimizar_repeat(layout)
+        try:
+            optimized = optimizar_repeat(layout)
+        except Exception as exc:
+            return ToolResponse(
+                False,
+                layout,
+                str(exc),
+                {"details": getattr(exc, "details", []), "tool": "optimizar_repeat"},
+            ).to_dict()
         return ToolResponse(
             True,
             optimized,
@@ -47,7 +65,15 @@ def handle_agent_request(prompt: str, layout: Dict[str, Any]) -> Dict[str, Any]:
         ).to_dict()
 
     if "repeat" in normalized or "repetir" in normalized or "generar" in normalized:
-        generated = generar_repeat(layout, {})
+        try:
+            generated = generar_repeat(layout, {})
+        except Exception as exc:
+            return ToolResponse(
+                False,
+                layout,
+                str(exc),
+                {"details": getattr(exc, "details", []), "tool": "generar_repeat"},
+            ).to_dict()
         return ToolResponse(
             True,
             generated,
@@ -62,6 +88,14 @@ def handle_agent_request(prompt: str, layout: Dict[str, Any]) -> Dict[str, Any]:
             ruled,
             "Reglas repeat aplicadas.",
             {"analysis": analizar_layout(ruled), "tool": "aplicar_reglas_repeat"},
+        ).to_dict()
+
+    if "zona" in normalized or "ubicacion" in normalized or "ubicación" in normalized:
+        return ToolResponse(
+            False,
+            layout,
+            "Para cambiar zonas por IA usa el asistente OpenAI con una instruccion que indique diseno y ubicacion.",
+            {"tool": "set_design_zone", "available_zones": ["auto", "top", "bottom", "left", "right", "center"]},
         ).to_dict()
 
     return ToolResponse(

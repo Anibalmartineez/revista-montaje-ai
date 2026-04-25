@@ -3,6 +3,7 @@ from typing import Any, Dict, Iterable, List, Optional, Tuple
 
 
 EPSILON = 1e-6
+REPEAT_VISIBLE_ZONES = {"auto", "top", "bottom", "left", "right", "center"}
 
 
 def _to_float(value: Any, default: float = 0.0) -> float:
@@ -153,6 +154,105 @@ def generar_repeat(layout: Dict[str, Any], config: Optional[Dict[str, Any]] = No
     return updated
 
 
+def _repeat_error_payload(exc: Exception) -> Dict[str, Any]:
+    details = getattr(exc, "details", None)
+    payload = {
+        "error_type": exc.__class__.__name__,
+        "message": str(exc),
+        "details": details if isinstance(details, list) else [],
+    }
+    if payload["details"]:
+        payload["summary"] = [
+            {
+                "design_ref": item.get("design_ref"),
+                "requested_forms": item.get("requested_forms"),
+                "placed_forms": item.get("placed_forms"),
+                "missing_forms": item.get("missing_forms"),
+                "preferred_zone": item.get("preferred_zone"),
+            }
+            for item in payload["details"]
+            if isinstance(item, dict)
+        ]
+    return payload
+
+
+def _repeat_error_message(exc: Exception) -> str:
+    details = getattr(exc, "details", None)
+    if not isinstance(details, list) or not details:
+        return str(exc)
+    parts = []
+    for item in details:
+        if not isinstance(item, dict):
+            continue
+        ref = item.get("filename") or item.get("design_ref")
+        parts.append(
+            f"{ref}: solicitadas {item.get('requested_forms')}, "
+            f"colocadas {item.get('placed_forms')}, faltan {item.get('missing_forms')}"
+        )
+    return "No entran todas las formas solicitadas. " + "; ".join(parts)
+
+
+def _design_label(design: Dict[str, Any]) -> str:
+    return str(design.get("ref") or design.get("filename") or design.get("work_id") or "")
+
+
+def _find_design(layout: Dict[str, Any], design_ref: str) -> Dict[str, Any] | None:
+    target = str(design_ref or "").strip()
+    if not target:
+        return None
+    for design in layout.get("designs") or []:
+        if not isinstance(design, dict):
+            continue
+        candidates = {
+            str(design.get("ref") or ""),
+            str(design.get("filename") or ""),
+            str(design.get("work_id") or ""),
+        }
+        if target in candidates:
+            return design
+    return None
+
+
+def set_design_zone(layout: Dict[str, Any], design_ref: str, preferred_zone: str) -> Dict[str, Any]:
+    zone = str(preferred_zone or "auto").strip().lower()
+    if zone not in REPEAT_VISIBLE_ZONES:
+        raise ValueError("preferred_zone debe ser: auto, top, bottom, left, right o center.")
+
+    updated = deepcopy(layout)
+    design = _find_design(updated, design_ref)
+    if design is None:
+        raise ValueError(f"No se encontro el diseno '{design_ref}'.")
+    design["preferred_zone"] = zone
+    updated.setdefault("ai_agent", {})["last_zone_change"] = {
+        "design_ref": _design_label(design),
+        "preferred_zone": zone,
+    }
+    return updated
+
+
+def set_design_zones(layout: Dict[str, Any], zones_by_design: Dict[str, str]) -> Dict[str, Any]:
+    updated = deepcopy(layout)
+    for design_ref, zone in (zones_by_design or {}).items():
+        updated = set_design_zone(updated, str(design_ref), str(zone))
+    return updated
+
+
+def validar_repeat(layout: Dict[str, Any]) -> Dict[str, Any]:
+    try:
+        generated = generar_repeat(layout, {})
+    except Exception as exc:
+        return {
+            "ok": False,
+            "message": _repeat_error_message(exc),
+            "error": _repeat_error_payload(exc),
+        }
+    return {
+        "ok": True,
+        "message": "Todas las formas solicitadas entran con Step & Repeat PRO.",
+        "analysis": analizar_layout(generated),
+    }
+
+
 def centrar_layout(layout: Dict[str, Any]) -> Dict[str, Any]:
     updated = deepcopy(layout)
     slots = _target_slots(updated, include_locked=False)
@@ -178,9 +278,27 @@ def centrar_layout(layout: Dict[str, Any]) -> Dict[str, Any]:
 def optimizar_repeat(layout: Dict[str, Any]) -> Dict[str, Any]:
     try:
         generated = generar_repeat(layout, {})
-    except Exception:
-        generated = deepcopy(layout)
-    return centrar_layout(generated)
+        return centrar_layout(generated)
+    except Exception as original_error:
+        retry = deepcopy(layout)
+        changed = False
+        for design in retry.get("designs") or []:
+            if not isinstance(design, dict):
+                continue
+            if str(design.get("preferred_zone") or "auto").lower() != "auto":
+                design["preferred_zone"] = "auto"
+                changed = True
+        if not changed:
+            raise
+        try:
+            generated = generar_repeat(retry, {})
+        except Exception:
+            raise original_error
+        generated.setdefault("ai_agent", {})["last_retry"] = {
+            "strategy": "reset_preferred_zones_to_auto",
+            "reason": _repeat_error_payload(original_error),
+        }
+        return centrar_layout(generated)
 
 
 def aplicar_reglas_repeat(layout: Dict[str, Any], reglas: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
@@ -196,5 +314,9 @@ def aplicar_reglas_repeat(layout: Dict[str, Any], reglas: Optional[Dict[str, Any
     zona_sugerida = reglas.get("zona_sugerida")
     if zona_sugerida is not None:
         updated.setdefault("ai_agent", {})["zona_sugerida"] = zona_sugerida
+
+    zones = reglas.get("zonas_por_diseno") or reglas.get("preferred_zones")
+    if isinstance(zones, dict):
+        updated = set_design_zones(updated, zones)
 
     return updated

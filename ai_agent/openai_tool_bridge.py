@@ -8,6 +8,9 @@ from ai_agent.tools_repeat import (
     centrar_layout,
     generar_repeat,
     optimizar_repeat,
+    set_design_zone,
+    set_design_zones,
+    validar_repeat,
 )
 
 
@@ -17,10 +20,17 @@ OPENAI_STEP_REPEAT_MODEL = os.environ.get("OPENAI_STEP_REPEAT_MODEL", "gpt-5.5")
 # Ajustar estas instrucciones para cambiar el comportamiento global del asistente.
 SYSTEM_PROMPT = """
 Sos un asistente de preprensa offset enfocado en Step & Repeat PRO.
-Debes usar tools locales para analizar, centrar, optimizar o regenerar layouts.
+Debes usar tools locales para analizar, cambiar zonas por diseno, validar, optimizar o regenerar layouts.
 No inventes layouts manualmente.
 Si necesitas modificar el montaje, llama a la tool adecuada.
-Prioriza acciones simples y seguras.
+El motor actual respeta forms_per_plate como cantidad exacta: no aceptes menos formas que las solicitadas.
+preferred_zone es una preferencia de inicio por diseno. Valores permitidos para el usuario: auto, top, bottom, left, right, center.
+preferred_flow esta reservado e inactivo: no lo uses para decidir.
+El motor ya maneja compactacion vertical, expansion vertical top/center/bottom, fill inteligente y validacion estricta.
+Si un repeat falla por IncompleteImpositionError, lee details, explica que diseno no entra y sugiere cambios concretos.
+Si una zona explicita no entra pero auto podria resolverlo, puedes probar set_design_zone con auto y luego generar_repeat u optimizar_repeat.
+Usa centrar_layout solo para slots existentes; para rehacer Step & Repeat usa generar_repeat u optimizar_repeat.
+Prioriza acciones simples, reversibles y seguras.
 Si la intencion no esta clara, responde breve sin tool call.
 No apliques cambios directamente al sistema; solo devolve resultados para revision del usuario.
 """.strip()
@@ -83,13 +93,69 @@ OPENAI_TOOLS: List[Dict[str, Any]] = [
     {
         "type": "function",
         "name": "generar_repeat",
-        "description": "Regenera Step & Repeat PRO usando el motor repeat existente.",
+        "description": "Regenera Step & Repeat PRO usando el motor actual de Fase 5, con zonas, fill, expansion vertical y validacion estricta.",
         "parameters": {
             "type": "object",
             "properties": {
                 "layout": _layout_schema(),
                 "config": _open_object_schema("Overrides opcionales para generar repeat."),
             },
+            "required": ["layout"],
+            "additionalProperties": False,
+        },
+        "strict": False,
+    },
+    {
+        "type": "function",
+        "name": "set_design_zone",
+        "description": "Cambia preferred_zone de un diseno. Usar antes de generar_repeat cuando el usuario pide Arriba, Abajo, Centro, Izquierda, Derecha o Automatico.",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "layout": _layout_schema(),
+                "design_ref": {
+                    "type": "string",
+                    "description": "ref, filename o work_id del diseno a modificar.",
+                },
+                "preferred_zone": {
+                    "type": "string",
+                    "enum": ["auto", "top", "bottom", "left", "right", "center"],
+                },
+            },
+            "required": ["layout", "design_ref", "preferred_zone"],
+            "additionalProperties": False,
+        },
+        "strict": False,
+    },
+    {
+        "type": "function",
+        "name": "set_design_zones",
+        "description": "Cambia preferred_zone de varios disenos en una sola operacion.",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "layout": _layout_schema(),
+                "zones_by_design": {
+                    "type": "object",
+                    "description": "Mapa design_ref -> preferred_zone. Zonas permitidas: auto, top, bottom, left, right, center.",
+                    "additionalProperties": {
+                        "type": "string",
+                        "enum": ["auto", "top", "bottom", "left", "right", "center"],
+                    },
+                },
+            },
+            "required": ["layout", "zones_by_design"],
+            "additionalProperties": False,
+        },
+        "strict": False,
+    },
+    {
+        "type": "function",
+        "name": "validar_repeat",
+        "description": "Prueba Step & Repeat PRO sin devolver layout aplicado. Informa si entran todas las formas o details de IncompleteImpositionError.",
+        "parameters": {
+            "type": "object",
+            "properties": {"layout": _layout_schema()},
             "required": ["layout"],
             "additionalProperties": False,
         },
@@ -162,6 +228,25 @@ def _analysis_for_layout(layout: Optional[Dict[str, Any]]) -> Optional[Dict[str,
         return None
 
 
+def _repeat_failure_result(exc: Exception, fallback_message: str = "No se pudo ejecutar Step & Repeat PRO.") -> Dict[str, Any]:
+    details = getattr(exc, "details", None)
+    message = str(exc) or fallback_message
+    return {
+        "success": False,
+        "layout": None,
+        "message": message,
+        "data": {
+            "error_type": exc.__class__.__name__,
+            "details": details if isinstance(details, list) else [],
+            "suggestions": [
+                "Reducir forms_per_plate del diseno que no entra.",
+                "Cambiar preferred_zone a auto para permitir al motor usar mas area util.",
+                "Aumentar pliego util o reducir bleed/spacing si corresponde al trabajo real.",
+            ],
+        },
+    }
+
+
 def _execute_analizar(layout: Dict[str, Any], args: Dict[str, Any]) -> Dict[str, Any]:
     analysis = analizar_layout(layout)
     return {
@@ -183,7 +268,10 @@ def _execute_centrar(layout: Dict[str, Any], args: Dict[str, Any]) -> Dict[str, 
 
 
 def _execute_optimizar(layout: Dict[str, Any], args: Dict[str, Any]) -> Dict[str, Any]:
-    next_layout = optimizar_repeat(layout)
+    try:
+        next_layout = optimizar_repeat(layout)
+    except Exception as exc:
+        return _repeat_failure_result(exc, "No se pudo optimizar Step & Repeat PRO.")
     return {
         "success": True,
         "layout": next_layout,
@@ -194,7 +282,10 @@ def _execute_optimizar(layout: Dict[str, Any], args: Dict[str, Any]) -> Dict[str
 
 def _execute_generar(layout: Dict[str, Any], args: Dict[str, Any]) -> Dict[str, Any]:
     config = args.get("config") if isinstance(args.get("config"), dict) else {}
-    next_layout = generar_repeat(layout, config)
+    try:
+        next_layout = generar_repeat(layout, config)
+    except Exception as exc:
+        return _repeat_failure_result(exc, "No se pudo generar Step & Repeat PRO.")
     return {
         "success": True,
         "layout": next_layout,
@@ -214,11 +305,49 @@ def _execute_reglas(layout: Dict[str, Any], args: Dict[str, Any]) -> Dict[str, A
     }
 
 
+def _execute_set_zone(layout: Dict[str, Any], args: Dict[str, Any]) -> Dict[str, Any]:
+    next_layout = set_design_zone(
+        layout,
+        str(args.get("design_ref") or ""),
+        str(args.get("preferred_zone") or "auto"),
+    )
+    return {
+        "success": True,
+        "layout": next_layout,
+        "message": "Zona preferida actualizada. Ejecuta generar_repeat para regenerar slots con esta preferencia.",
+        "data": {"tool": "set_design_zone"},
+    }
+
+
+def _execute_set_zones(layout: Dict[str, Any], args: Dict[str, Any]) -> Dict[str, Any]:
+    zones = args.get("zones_by_design") if isinstance(args.get("zones_by_design"), dict) else {}
+    next_layout = set_design_zones(layout, zones)
+    return {
+        "success": True,
+        "layout": next_layout,
+        "message": "Zonas preferidas actualizadas. Ejecuta generar_repeat para regenerar slots con estas preferencias.",
+        "data": {"tool": "set_design_zones"},
+    }
+
+
+def _execute_validar_repeat(layout: Dict[str, Any], args: Dict[str, Any]) -> Dict[str, Any]:
+    result = validar_repeat(layout)
+    return {
+        "success": True,
+        "layout": None,
+        "message": result.get("message") or "Validacion repeat ejecutada.",
+        "data": result,
+    }
+
+
 TOOL_DISPATCH: Dict[str, Callable[[Dict[str, Any], Dict[str, Any]], Dict[str, Any]]] = {
     "analizar_layout": _execute_analizar,
     "centrar_layout": _execute_centrar,
     "optimizar_repeat": _execute_optimizar,
     "generar_repeat": _execute_generar,
+    "set_design_zone": _execute_set_zone,
+    "set_design_zones": _execute_set_zones,
+    "validar_repeat": _execute_validar_repeat,
     "aplicar_reglas_repeat": _execute_reglas,
 }
 
@@ -231,6 +360,7 @@ def _safe_tool_output(result: Dict[str, Any]) -> Dict[str, Any]:
         "message": result.get("message") or "",
         "has_layout": isinstance(layout, dict),
         "analysis": analysis,
+        "data": result.get("data") if isinstance(result.get("data"), dict) else None,
     }
 
 
@@ -296,12 +426,15 @@ def run_openai_step_repeat_assistant(prompt: str, layout: Dict[str, Any], client
     conversation: List[Any] = input_items + [_output_item_to_input(item) for item in getattr(response, "output", [])]
     last_result: Optional[Dict[str, Any]] = None
     tool_used: Optional[str] = None
+    working_layout = layout
 
     for call in calls:
         tool_used = getattr(call, "name", None)
         args = _parse_tool_args(call)
         try:
-            last_result = _call_local_tool(tool_used, args, layout)
+            last_result = _call_local_tool(tool_used, args, working_layout)
+            if isinstance(last_result.get("layout"), dict):
+                working_layout = last_result["layout"]
             output = _safe_tool_output(last_result)
         except Exception as exc:
             output = {
