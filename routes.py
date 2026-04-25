@@ -1368,8 +1368,6 @@ def _expanded_vertical_zone_bounds(
     present = [zone for zone in vertical_order if zone_groups.get(zone)]
     if not present:
         return None
-    if len(present) == 1 and present[0] != "center":
-        return None
 
     for zone in present:
         height = _estimate_repeat_group_height(zone_groups.get(zone, []), layout, usable_w, usable_h, gap_x, gap_y)
@@ -1380,6 +1378,17 @@ def _expanded_vertical_zone_bounds(
     packed_height = sum(heights[zone] for zone in present)
     if packed_height > usable_h + 1e-6:
         return None
+
+    if len(present) == 1:
+        zone = present[0]
+        height = heights[zone]
+        if zone == "top":
+            start_y = bottom + max(0.0, usable_h - height)
+        elif zone == "bottom":
+            start_y = bottom
+        else:
+            start_y = bottom + max(0.0, usable_h - height) / 2.0
+        return {zone: (left, start_y, usable_w, height)}
 
     start_y = bottom + max(0.0, usable_h - packed_height) / 2.0
     bounds: Dict[str, tuple[float, float, float, float]] = {}
