@@ -10,6 +10,7 @@ Problema que resuelve:
 - no habia preferencias claras por diseno
 - la UI exponia demasiados controles tecnicos para algo que debia ser mas automatico
 - al usar zonas preferidas podian quedar huecos grandes sin aprovechar
+- podia aceptar montajes incompletos si no se validaba estrictamente la cantidad solicitada
 
 ## Estado final real en esta rama
 
@@ -30,6 +31,11 @@ La Fase 5 implementa:
   - `auto`
 - `fill` inteligente
 - compactacion vertical segura de grupos zonales
+- expansion vertical inteligente para `top/center/bottom`
+- validacion estricta de formas solicitadas vs colocadas
+- error bloqueante para montajes incompletos
+- generacion atomica por diseno
+- aislamiento de ejecuciones entre corridas
 
 ## Que ve hoy el usuario en la interfaz
 
@@ -75,6 +81,7 @@ Hoy el backend hace esto:
 - `priority` se deriva automaticamente si no hay override manual
 - `repeat_role` se deriva automaticamente si no hay override manual
 - `preferred_flow` se conserva en contrato pero no se usa
+- `forms_per_plate` se respeta como objetivo estricto
 
 ## Campos nuevos relevantes en `designs[]`
 
@@ -155,6 +162,20 @@ Regla clave:
 
 - las zonas actuan como preferencia de inicio, no como semantica nueva de slot
 
+### 4.b Expansion vertical inteligente
+
+Para `top`, `center` y `bottom` el flujo real ya no se queda solo con la banda inicial:
+
+1. primero se intenta la zona preferida normal
+2. si no entran todas las formas, el motor calcula si esos grupos caben como bloque vertical dentro del area util completa
+3. si caben, reconstruye bounds expandidos y reintenta
+4. luego vuelve a compactar verticalmente
+
+Esto corrige casos donde:
+
+- `auto/auto` entraba
+- pero `bottom/top` fallaba injustificadamente por rigidez de bandas
+
 ### 5. Fill inteligente
 
 Los disenos `fill` se procesan al final.
@@ -191,6 +212,56 @@ La compactacion:
 
 Esto mejora casos donde `top` y `bottom` dejaban demasiado vacio en el centro.
 
+### 6.b Diferencia entre compactacion y expansion
+
+- compactacion vertical:
+  - acerca grupos ya colocados
+  - no cambia el area originalmente asignada a la zona
+- expansion vertical:
+  - se usa cuando `top/center/bottom` no entran completos en la banda inicial
+  - les permite usar mas altura del area util si geometricamente cabe
+  - sigue siendo segura: no sale del area util ni acepta colisiones
+
+### 7. Validacion estricta de formas
+
+El motor ya no acepta montajes incompletos silenciosamente.
+
+Por cada diseno calcula:
+
+- `requested_forms`
+- `placed_forms`
+- `missing_forms`
+
+Si algun diseno queda incompleto:
+
+- se lanza `IncompleteImpositionError`
+- `apply_imposition` responde:
+  - `ok: false`
+  - `error`
+  - `details`
+- el frontend no debe reemplazar `state.layout`
+
+### 8. Generacion atomica y aislamiento
+
+Cada diseno arma primero sus slots en una lista local.
+
+Solo cuando ese diseno entra completo:
+
+- sus slots se agregan al resultado final
+
+Ademas:
+
+- la ejecucion del motor trabaja sobre copia aislada del layout
+- se limpia `slots` antes de regenerar
+- un error anterior no debe contaminar la siguiente corrida
+
+Flujo ya validado en pruebas sinteticas:
+
+- `auto/auto` OK
+- `bottom/top` OK si geometricamente cabe tras expansion
+- volver a `auto/auto` OK
+- si no entra realmente, el motor falla con detalle por diseno
+
 ## Semanticas que NO cambiaron
 
 Se mantienen congeladas:
@@ -212,6 +283,7 @@ La Fase 5 mantiene compatibilidad:
 ## Limitaciones actuales
 
 - no hay compactacion horizontal para `left/center/right`
+- no hay expansion horizontal equivalente para `left/right`
 - no hay packing avanzado
 - `preferred_flow` no funciona todavia
 - `fill` mejoro mucho el aprovechamiento de huecos, pero sigue siendo heuristico
@@ -220,10 +292,14 @@ La Fase 5 mantiene compatibilidad:
 ## Proximos pasos recomendados
 
 1. Agregar pruebas de regresion para casos zonales y `fill`.
-2. Medir con ejemplos reales si conviene ajustar heuristica de `repeat_role`.
-3. Evaluar compactacion horizontal segura.
-4. Mantener a la IA trabajando sobre:
+2. Agregar pruebas de regresion para:
+   - `requested_forms / placed_forms / missing_forms`
+   - `IncompleteImpositionError`
+   - reruns despues de error
+3. Medir con ejemplos reales si conviene ajustar heuristica de `repeat_role`.
+4. Evaluar compactacion o expansion horizontal segura.
+5. Mantener a la IA trabajando sobre:
    - `forms_per_plate`
    - `preferred_zone`
    - reglas repeat estables
-5. Recién en una fase posterior evaluar packing mas avanzado si sigue haciendo falta.
+6. ReciÃ©n en una fase posterior evaluar packing mas avanzado si sigue haciendo falta.

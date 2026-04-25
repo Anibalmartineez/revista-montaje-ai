@@ -50,6 +50,11 @@ Este fue el unico flujo trabajado funcionalmente en esta fase.
   - zonas reales basicas para `top`, `bottom`, `left`, `right`, `center`, `auto`
   - `fill` inteligente al final para aprovechar huecos restantes
   - compactacion vertical segura para grupos `top/center/bottom`
+  - expansion vertical inteligente para `top/center/bottom` cuando la banda inicial no alcanza
+  - validacion estricta de `forms_per_plate` por diseno
+  - error bloqueante si faltan formas solicitadas
+  - generacion atomica por diseno para evitar slots parciales
+  - aislamiento de ejecuciones para que un error anterior no contamine la siguiente corrida
 
 ## Validaciones implementadas
 
@@ -209,6 +214,15 @@ Reglas actuales observadas:
 - zonas explicitas se respetan por encima del rol derivado
 - `fill` se usa al final para ocupar espacio restante
 - si todo esta en `auto`, se conserva el comportamiento legacy
+- `forms_per_plate` ya no se trata como intencion blanda:
+  - si no entran todas las formas solicitadas, el motor falla
+  - el error informa `requested_forms`, `placed_forms` y `missing_forms`
+- `preferred_zone` funciona como preferencia de inicio:
+  - primero se intenta la banda zonal normal
+  - si `top/center/bottom` no entran completos y la geometria lo permite, se intenta expansion vertical antes de fallar
+- `apply_imposition` no debe aplicar layouts incompletos:
+  - backend devuelve `ok: false`
+  - frontend no reemplaza `state.layout` en ese caso
 
 ## Limitaciones conocidas
 
@@ -224,6 +238,7 @@ Reglas actuales observadas:
 - `preferred_flow` existe en contrato pero todavia no tiene efecto real en el motor
 - no hay compactacion horizontal de grupos zonales
 - la compactacion actual solo intenta casos verticales `top/center/bottom`
+- `left/right` no tienen expansion horizontal equivalente todavia
 - `fill` mejorado no reemplaza un packing real
 
 ## Frontera de alcance vigente

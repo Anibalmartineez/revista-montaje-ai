@@ -700,3 +700,16 @@ La zona más frágil hoy es esta:
 - `slot_box_final` implícito por engine
 
 Si algo de eso cambia sin congelar compatibilidad, preview y PDF pueden divergir del editor aunque el JSON siga “pareciendo válido”.
+
+## Aclaraciones Fase 5 sobre slots `repeat`
+
+- la generacion por diseno es atomica:
+  - cada diseno arma primero sus slots en memoria local
+  - solo se agregan al resultado final si entra completo
+  - no deben quedar slots parciales si ese diseno falla
+- las mejoras de zonas no cambian la semantica del slot:
+  - compactacion vertical solo altera `x_mm` / `y_mm`
+  - expansion vertical solo altera `x_mm` / `y_mm` y bounds efectivos del grupo
+  - `fill` inteligente solo altera posiciones finales de slots nuevos
+- `w_mm/h_mm` siguen siendo footprint final
+- `rotation_deg` sigue siendo orientacion del contenido

@@ -358,3 +358,55 @@ Volver mas util el motor Step & Repeat PRO del Editor Visual IA sin pasar a pack
 - no hay packing avanzado
 - `preferred_flow` no tiene implementacion funcional todavia
 - la heuristica de `repeat_role` automatico puede requerir ajuste con casos reales
+
+## 2026-04-23 / 2026-04-24 Correcciones finales Fase 5
+
+### Problemas corregidos
+
+- el motor podia aceptar montajes incompletos si no entraban todas las formas solicitadas
+- `top/bottom` podia fallar por bandas demasiado rigidas aunque el mismo pliego entrara en `auto/auto`
+- una corrida con error no debia contaminar la siguiente ejecucion
+
+### Cambios reales implementados
+
+- validacion estricta por diseno:
+  - `requested_forms`
+  - `placed_forms`
+  - `missing_forms`
+- error especifico `IncompleteImpositionError`
+- respuesta JSON bloqueante en `apply_imposition`:
+  - `ok: false`
+  - `error`
+  - `details`
+- generacion atomica por diseno:
+  - los slots se arman primero en memoria local
+  - solo se agregan al resultado si el diseno entra completo
+- aislamiento de ejecuciones:
+  - el backend trabaja sobre copia aislada del layout
+  - fuerza `slots = []` antes de regenerar
+- expansion vertical inteligente:
+  - primero se intenta la banda preferida normal
+  - luego, para `top/center/bottom`, se puede expandir hacia el centro
+  - si el bloque expandido entra geometricamente, se reconstruye y se compacta
+
+### Diferencia consolidada
+
+- compactacion vertical:
+  - acerca grupos ya colocados
+- expansion vertical:
+  - permite que `top/center/bottom` usen mas altura util si la banda inicial no alcanza
+
+### Flujo validado
+
+- `auto/auto` OK
+- `bottom/top` puede entrar si geometricamente cabe tras expansion vertical
+- volver a `auto/auto` OK
+- si realmente no entra todo:
+  - el motor falla
+  - no aplica layout incompleto
+
+### Pendientes que quedan abiertos
+
+- no existe expansion horizontal equivalente para `left/right`
+- `fill` sigue siendo heuristico
+- `preferred_flow` sigue reservado e inactivo

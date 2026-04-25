@@ -124,6 +124,12 @@ Estado real de esta rama:
   - `preferred_flow` reservado pero inactivo
 - Fase 5.5:
   - compactacion vertical segura de grupos zonales
+- Fase 5.6:
+  - validacion estricta de formas solicitadas vs colocadas
+  - error bloqueante para montajes incompletos
+  - generacion atomica por diseno
+  - aislamiento de ejecuciones para evitar contaminacion entre corridas
+  - expansion vertical inteligente de zonas `top/center/bottom`
 
 Decisiones consolidadas:
 
@@ -148,7 +154,7 @@ Objetivo:
 2. Agregar fixtures o pruebas de regresion para Step & Repeat PRO inteligente
 3. Conectar OpenAI tool calls sobre `ai_agent/`
 4. Mejorar feedback no bloqueante de errores/warnings
-5. Evaluar compactacion horizontal solo si mantiene seguridad
+5. Evaluar compactacion o expansion horizontal solo si mantiene seguridad
 6. Recien despues evaluar micro-refactors
 
 ## Cambios explicitamente postergados

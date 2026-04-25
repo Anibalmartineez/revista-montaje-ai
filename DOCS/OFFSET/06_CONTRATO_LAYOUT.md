@@ -849,3 +849,21 @@ Por compatibilidad, el layout debe tratarse como contrato congelado hasta que ex
 - schema formal
 - validadores de referencias cruzadas
 - decisión explícita sobre semántica de `w_mm/h_mm`, `rotation_deg`, `bleed` y `face`
+
+## Aclaraciones Fase 5 sobre `repeat`
+
+### `forms_per_plate`
+
+- en `designs[]` sigue siendo cantidad declarada de formas por pliego
+- en Step & Repeat PRO Inteligente ya no se trata como intencion blanda
+- el motor calcula por diseno:
+  - `requested_forms`
+  - `placed_forms`
+  - `missing_forms`
+- si `missing_forms > 0`, la imposicion falla y no debe aceptarse como valida
+
+### `apply_imposition`
+
+- `POST /editor_offset_visual/apply_imposition` no debe aplicar layouts parciales
+- si el backend devuelve `ok: false`, el frontend no debe reemplazar `state.layout`
+- el motor trabaja sobre copia aislada del layout y regenera desde `designs[]`

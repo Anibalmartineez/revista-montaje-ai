@@ -136,3 +136,59 @@ Se elimina la omisión silenciosa de slots inválidos en los dos flujos más sen
 - PDF final
 
 Ahora el sistema falla de forma explícita cuando el contrato persistido ya no alcanza para producir una salida confiable.
+
+## Validacion adicional en imposicion automatica Fase 5
+
+Ademas de preview/PDF, el endpoint:
+
+- `POST /editor_offset_visual/apply_imposition`
+
+ahora tiene una validacion especifica para Step & Repeat PRO Inteligente.
+
+### Regla
+
+`forms_per_plate` ya no se trata como intencion blanda.
+
+Para cada diseno, el motor calcula:
+
+- `requested_forms`
+- `placed_forms`
+- `missing_forms`
+
+Si algun diseno queda con `missing_forms > 0`:
+
+- la imposicion falla
+- no se acepta el montaje parcial
+- el backend devuelve error bloqueante
+
+### Error especifico
+
+Implementado en `routes.py` como:
+
+- `IncompleteImpositionError`
+
+### Respuesta JSON esperada
+
+```json
+{
+  "ok": false,
+  "error": "No entran todas las formas solicitadas en el pliego. Diseno A: solicitadas 60, colocadas 30, faltan 30.",
+  "details": [
+    {
+      "design_ref": "A",
+      "filename": "diseno_a.pdf",
+      "preferred_zone": "top",
+      "requested_forms": 60,
+      "placed_forms": 30,
+      "missing_forms": 30
+    }
+  ]
+}
+```
+
+### Garantias implementadas
+
+- no se aplica layout incompleto en frontend si `ok: false`
+- la generacion de slots por diseno es atomica
+- no deben quedar slots parciales en una corrida fallida
+- el backend trabaja sobre copia aislada del layout y fuerza regeneracion desde `designs[]`
