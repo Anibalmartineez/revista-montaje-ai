@@ -2515,6 +2515,11 @@
     slot.rotation_deg = parseFloat(document.getElementById('slot-rot').value || '0');
     slot.bleed_mm = parseFloat(document.getElementById('slot-bleed').value || '0');
     slot.crop_marks = document.getElementById('slot-crop').checked;
+    slot.export_overrides = {
+      ...(slot.export_overrides || {}),
+      bleed_mm: true,
+      crop_marks: true,
+    };
     slot.locked = document.getElementById('slot-locked').checked;
     slot.logical_work_id = document.getElementById('slot-work').value || null;
     slot.design_ref = document.getElementById('slot-design').value || null;
