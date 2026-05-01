@@ -460,6 +460,58 @@ Ejemplos:
 }
 ```
 
+## Fase 6.6: orientacion cabeza con cabeza
+
+La Fase 6.6 agrega metadatos visuales para representar la orientacion cabeza con cabeza sin cambiar el orden numerico ya validado.
+
+Los arrays base se mantienen para compatibilidad:
+
+- `frente`
+- `dorso`
+- `cara`
+
+Ademas, cada cara puede traer una estructura visual paralela:
+
+- `frente_visual`
+- `dorso_visual`
+- `cara_visual`
+
+Ejemplo:
+
+```json
+{
+  "frente": [5, 12, 9, 8, 4, 13, 16, 1],
+  "frente_visual": [
+    {"pagina": 5, "rotacion": 180},
+    {"pagina": 12, "rotacion": 180},
+    {"pagina": 9, "rotacion": 180},
+    {"pagina": 8, "rotacion": 180},
+    {"pagina": 4, "rotacion": 0},
+    {"pagina": 13, "rotacion": 0},
+    {"pagina": 16, "rotacion": 0},
+    {"pagina": 1, "rotacion": 0}
+  ]
+}
+```
+
+Regla visual:
+
+- fila superior: `rotacion = 180`
+- fila inferior: `rotacion = 0`
+
+Esto aplica a:
+
+- `cuadernillo_8`
+- `cuadernillo_16`
+- `vyv_4`
+- `vyv_8`
+
+VYV sigue siendo una sola `cara`, sin `frente` ni `dorso`. La metadata `cara_visual` permite mostrar esa cara unica con la orientacion correcta.
+
+La tapa completa puede traer `frente_visual` y `dorso_visual` con rotacion `0`; por ahora no participa en la logica cabeza con cabeza.
+
+Esta fase sigue sin generar PDF. Solo mejora la simulacion visual dentro del Editor Visual IA.
+
 ## Limitaciones actuales
 
 - Solo existe cosido a caballete.

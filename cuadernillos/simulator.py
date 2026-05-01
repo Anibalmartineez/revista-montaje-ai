@@ -51,45 +51,65 @@ def _mapear_patron(paginas, patron):
     return [paginas[idx - 1] for idx in patron]
 
 
+def _paginas_visual(paginas):
+    mitad = len(paginas) // 2
+    return [
+        {"pagina": pagina, "rotacion": 180 if idx < mitad else 0}
+        for idx, pagina in enumerate(paginas)
+    ]
+
+
 def _cuadernillo_8(pliego_num, paginas):
+    frente = _mapear_patron(paginas, PATRON_8_FRENTE)
+    dorso = _mapear_patron(paginas, PATRON_8_DORSO)
     return {
         "pliego": pliego_num,
         "tipo": "cuadernillo_8",
         "modo": "cuadernillo_8",
         "paginas_por_cara": 4,
-        "frente": _mapear_patron(paginas, PATRON_8_FRENTE),
-        "dorso": _mapear_patron(paginas, PATRON_8_DORSO),
+        "frente": frente,
+        "dorso": dorso,
+        "frente_visual": _paginas_visual(frente),
+        "dorso_visual": _paginas_visual(dorso),
     }
 
 
 def _cuadernillo_16(pliego_num, paginas):
+    frente = _mapear_patron(paginas, PATRON_16_FRENTE)
+    dorso = _mapear_patron(paginas, PATRON_16_DORSO)
     return {
         "pliego": pliego_num,
         "tipo": "cuadernillo_16",
         "modo": "cuadernillo_16",
         "paginas_por_cara": 8,
-        "frente": _mapear_patron(paginas, PATRON_16_FRENTE),
-        "dorso": _mapear_patron(paginas, PATRON_16_DORSO),
+        "frente": frente,
+        "dorso": dorso,
+        "frente_visual": _paginas_visual(frente),
+        "dorso_visual": _paginas_visual(dorso),
     }
 
 
 def _vyv_4(pliego_num, pages):
+    cara = _mapear_patron(pages, PATRON_VYV_4_CARA)
     return {
         "pliego": pliego_num,
         "tipo": "vyv_4",
         "modo": "vyv_4_paginas",
         "paginas_por_cara": 4,
-        "cara": _mapear_patron(pages, PATRON_VYV_4_CARA),
+        "cara": cara,
+        "cara_visual": _paginas_visual(cara),
     }
 
 
 def _vyv_8(pliego_num, pages):
+    cara = _mapear_patron(pages, PATRON_VYV_8_CARA)
     return {
         "pliego": pliego_num,
         "tipo": "vyv_8",
         "modo": "vyv_8_paginas",
         "paginas_por_cara": 8,
-        "cara": _mapear_patron(pages, PATRON_VYV_8_CARA),
+        "cara": cara,
+        "cara_visual": _paginas_visual(cara),
     }
 
 
@@ -207,6 +227,14 @@ def _simular_tapa_completa(
         "paginas": [total_final, 1, 2, total_final - 1],
         "frente": [total_final, 1],
         "dorso": [2, total_final - 1],
+        "frente_visual": [
+            {"pagina": total_final, "rotacion": 0},
+            {"pagina": 1, "rotacion": 0},
+        ],
+        "dorso_visual": [
+            {"pagina": 2, "rotacion": 0},
+            {"pagina": total_final - 1, "rotacion": 0},
+        ],
     }
     tripa = {
         "paginas_inicio": 3,

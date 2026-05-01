@@ -2839,17 +2839,25 @@
 
   function renderCuadernilloPages(pages) {
     return (pages || [])
-      .map((pageNumber) => {
+      .map((pageItem) => {
+        const isVisualPage = pageItem && typeof pageItem === 'object';
+        const pageNumber = isVisualPage ? pageItem.pagina : pageItem;
+        const rotation = isVisualPage ? Number(pageItem.rotacion || 0) : 0;
         const isBlank = pageNumber === 'BLANCO';
-        return `<span class="cuadernillo-page${isBlank ? ' cuadernillo-page-blank' : ''}">${pageNumber}</span>`;
+        const rotationClass = rotation === 180 ? ' pagina-rotada-180' : ' pagina-rotada-0';
+        return `
+          <span class="cuadernillo-page${isBlank ? ' cuadernillo-page-blank' : ''}">
+            <span class="cuadernillo-page-number${rotationClass}">${pageNumber}</span>
+          </span>
+        `;
       })
       .join('');
   }
 
   function getCuadernilloPagesClass(pliego) {
     const paginasPorCara = Number(pliego?.paginas_por_cara || 4);
-    if (paginasPorCara === 8) return 'cuadernillo-pages cuadernillo-pages-8';
-    return 'cuadernillo-pages cuadernillo-pages-4';
+    if (paginasPorCara === 8) return 'cuadernillo-pages cuadernillo-pages-8 cuadernillo-grid-2x4';
+    return 'cuadernillo-pages cuadernillo-pages-4 cuadernillo-grid-2x2';
   }
 
   function getCuadernilloModeLabel(pliego) {
@@ -2870,8 +2878,9 @@
         const caraUnica = Array.isArray(pliego.cara)
           ? `
             <div class="cuadernillo-face cuadernillo-single-face">
-              <strong>Cara unica</strong>
-              <div class="${pagesClass}">${renderCuadernilloPages(pliego.cara)}</div>
+              <strong>Cara unica VYV</strong>
+              <span class="cuadernillo-orientation-label">Orientacion: cabeza con cabeza</span>
+              <div class="${pagesClass}">${renderCuadernilloPages(pliego.cara_visual || pliego.cara)}</div>
             </div>
           `
           : '';
@@ -2879,11 +2888,13 @@
           ? `
             <div class="cuadernillo-face cuadernillo-front">
               <strong>Frente</strong>
-              <div class="${pagesClass}">${renderCuadernilloPages(pliego.frente)}</div>
+              <span class="cuadernillo-orientation-label">Orientacion: cabeza con cabeza</span>
+              <div class="${pagesClass}">${renderCuadernilloPages(pliego.frente_visual || pliego.frente)}</div>
             </div>
             <div class="cuadernillo-face cuadernillo-back">
               <strong>Dorso</strong>
-              <div class="${pagesClass}">${renderCuadernilloPages(pliego.dorso)}</div>
+              <span class="cuadernillo-orientation-label">Orientacion: cabeza con cabeza</span>
+              <div class="${pagesClass}">${renderCuadernilloPages(pliego.dorso_visual || pliego.dorso)}</div>
             </div>
           `
           : '';
@@ -2910,11 +2921,11 @@
         <h4>TAPA</h4>
         <div class="cuadernillo-face cuadernillo-front">
           <strong>Frente</strong>
-          <div class="cuadernillo-pages cuadernillo-pages-cover">${renderCuadernilloPages(tapa.frente)}</div>
+          <div class="cuadernillo-pages cuadernillo-pages-cover">${renderCuadernilloPages(tapa.frente_visual || tapa.frente)}</div>
         </div>
         <div class="cuadernillo-face cuadernillo-back">
           <strong>Dorso</strong>
-          <div class="cuadernillo-pages cuadernillo-pages-cover">${renderCuadernilloPages(tapa.dorso)}</div>
+          <div class="cuadernillo-pages cuadernillo-pages-cover">${renderCuadernilloPages(tapa.dorso_visual || tapa.dorso)}</div>
         </div>
       </section>
     `;
