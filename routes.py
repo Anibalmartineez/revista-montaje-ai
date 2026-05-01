@@ -81,6 +81,7 @@ from diagnostico_flexo import (
     obtener_coeficientes_material,
 )
 from simulador_riesgos import simular_riesgos
+from cuadernillos.simulator import CuadernilloSimulationError, simular_cuadernillo
 
 # Carpeta de subidas dentro de ``static`` para persistir archivos entre
 # formularios y poder servirlos directamente.
@@ -749,6 +750,16 @@ def editor_offset_save():
     job_dir = _constructor_job_dir(job_id)
     _save_constructor_layout(job_dir, layout)
     return jsonify({"ok": True, "job_id": job_id})
+
+
+@routes_bp.route("/editor_offset/cuadernillos/simular", methods=["POST"])
+def editor_offset_cuadernillos_simular():
+    payload = request.get_json(silent=True) or {}
+    try:
+        resultado = simular_cuadernillo(payload)
+    except CuadernilloSimulationError as exc:
+        return _json_error(str(exc), 422)
+    return jsonify({"ok": True, "simulacion": resultado})
 
 
 @routes_bp.route("/editor_offset/upload/<job_id>", methods=["POST"])

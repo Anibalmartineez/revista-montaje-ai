@@ -2837,6 +2837,71 @@
     }
   }
 
+  function renderCuadernilloPages(pages) {
+    return (pages || [])
+      .map((pageNumber) => `<span class="cuadernillo-page">${pageNumber}</span>`)
+      .join('');
+  }
+
+  function renderCuadernilloSimulation(simulacion) {
+    const resultEl = document.getElementById('cuadernillo-resultado');
+    if (!resultEl) return;
+    const resumen = [
+      `Original: ${simulacion.total_paginas_original}`,
+      `Final: ${simulacion.total_paginas_final}`,
+      `Blancas: ${simulacion.blancas_agregadas}`,
+    ].join(' | ');
+    const pliegos = (simulacion.pliegos || [])
+      .map(
+        (pliego) => `
+          <article class="cuadernillo-card">
+            <h4>Pliego ${pliego.pliego}</h4>
+            <div class="cuadernillo-face cuadernillo-front">
+              <strong>Frente</strong>
+              <div class="cuadernillo-pages">${renderCuadernilloPages(pliego.frente)}</div>
+            </div>
+            <div class="cuadernillo-face cuadernillo-back">
+              <strong>Dorso</strong>
+              <div class="cuadernillo-pages">${renderCuadernilloPages(pliego.dorso)}</div>
+            </div>
+          </article>
+        `
+      )
+      .join('');
+    resultEl.innerHTML = `<p class="cuadernillo-summary">${resumen}</p>${pliegos}`;
+  }
+
+  async function simularCuadernillo() {
+    const resultEl = document.getElementById('cuadernillo-resultado');
+    const totalInput = document.getElementById('cuadernillo-total-paginas');
+    const paginasPorCaraSelect = document.getElementById('cuadernillo-paginas-por-cara');
+    const tipoSelect = document.getElementById('cuadernillo-tipo');
+    if (!resultEl || !totalInput || !paginasPorCaraSelect || !tipoSelect) return;
+
+    resultEl.textContent = 'Simulando...';
+    const payload = {
+      total_paginas: parseInt(totalInput.value, 10),
+      paginas_por_cara: parseInt(paginasPorCaraSelect.value, 10),
+      tipo_encuadernacion: tipoSelect.value,
+    };
+
+    try {
+      const res = await fetch('/editor_offset/cuadernillos/simular', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.ok) {
+        resultEl.innerHTML = `<p class="cuadernillo-error">${data.error || 'No se pudo simular el cuadernillo.'}</p>`;
+        return;
+      }
+      renderCuadernilloSimulation(data.simulacion);
+    } catch (err) {
+      resultEl.innerHTML = '<p class="cuadernillo-error">No se pudo conectar con el simulador.</p>';
+    }
+  }
+
   async function requestPreview() {
     if (!state.layout.slots || state.layout.slots.length === 0) {
       alert('No hay slots en el pliego. Crea o genera los cuadros antes de generar la preview/PDF.');
@@ -2962,6 +3027,7 @@
     document.getElementById('btn-apply-imposition')?.addEventListener('click', applyImpositionEngine);
     document.getElementById('btn-ai-run')?.addEventListener('click', runAiAssistant);
     document.getElementById('btn-ai-apply')?.addEventListener('click', applyAiAssistantLayout);
+    document.getElementById('btn-cuadernillo-simular')?.addEventListener('click', simularCuadernillo);
     document.getElementById('btn-apply-gap').addEventListener('click', applyGapToSlots);
     document.getElementById('btn-ctp-apply')?.addEventListener('click', applyCtpAlignment);
     document.getElementById('btn-ctp-disable')?.addEventListener('click', disableCtpAdjustments);

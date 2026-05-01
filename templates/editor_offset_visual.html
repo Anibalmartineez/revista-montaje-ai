@@ -186,6 +186,27 @@
         </div>
       </details>
 
+      <details class="panel-accordion panel-cuadernillos" open>
+        <summary>Simulador de Cuadernillos</summary>
+        <div class="cuadernillo-panel">
+          <label>Cantidad de p&aacute;ginas
+            <input type="number" id="cuadernillo-total-paginas" min="1" step="1" value="32">
+          </label>
+          <label>P&aacute;ginas por cara
+            <select id="cuadernillo-paginas-por-cara">
+              <option value="4" selected>4</option>
+            </select>
+          </label>
+          <label>Encuadernaci&oacute;n
+            <select id="cuadernillo-tipo">
+              <option value="cosido_caballete" selected>Cosido a caballete</option>
+            </select>
+          </label>
+          <button id="btn-cuadernillo-simular" class="btn btn-secondary" type="button">Simular cuadernillo</button>
+          <div id="cuadernillo-resultado" class="cuadernillo-resultado" aria-live="polite"></div>
+        </div>
+      </details>
+
       <section class="ai-panel" aria-labelledby="ai-panel-title">
         <h4 id="ai-panel-title">Asistente IA</h4>
         <textarea id="ai-prompt" placeholder="Ej: optimizar layout"></textarea>
