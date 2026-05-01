@@ -100,12 +100,12 @@ No se implementa todavia `tapa_simple`.
 
 ### Regla de tapa completa
 
-Para `total_paginas = N`, primero se normaliza a multiplo de 4 si hace falta. La tapa usa el total final:
+Para `total_paginas = N`, primero se normaliza a multiplo de 4 si hace falta. Desde la correccion posterior a Fase 6.6, la tapa completa separada se maneja como VYV 4 de una sola cara logica.
 
 ```text
 TAPA
-frente: [N, 1]
-dorso:  [2, N-1]
+paginas reales: [N, 1, 2, N-1]
+cara: [N, N-1, 1, 2]
 ```
 
 La tripa empieza en pagina `3` y termina en pagina `N-2`. Esa lista se arma aparte con la misma regla de cosido a caballete, 4 paginas por cara.
@@ -114,8 +114,7 @@ Ejemplo con `N = 32` y `tipo_cuadernillo = 8`:
 
 ```text
 TAPA
-frente: [32, 1]
-dorso:  [2, 31]
+cara: [32, 31, 1, 2]
 
 TRIPA
 paginas 3 a 30
@@ -139,9 +138,16 @@ Si la tripa no cierra multiplo de 4, el simulador completa el final logico con `
   "blancas_agregadas": 0,
   "tapa": {
     "tipo": "tapa_completa",
+    "modo": "vyv_4_tapa",
+    "paginas_por_cara": 4,
     "paginas": [32, 1, 2, 31],
-    "frente": [32, 1],
-    "dorso": [2, 31]
+    "cara": [32, 31, 1, 2],
+    "cara_visual": [
+      {"pagina": 32, "rotacion": 90},
+      {"pagina": 31, "rotacion": -90},
+      {"pagina": 1, "rotacion": 90},
+      {"pagina": 2, "rotacion": -90}
+    ]
   },
   "tripa": {
     "paginas_inicio": 3,
@@ -262,11 +268,11 @@ El flujo sigue siendo:
 
 ### Tapa
 
-La tapa completa se mantiene igual:
+La tapa completa separada se maneja como VYV 4 de una sola cara:
 
 ```text
-frente: [N, 1]
-dorso:  [2, N-1]
+paginas reales: [N, 1, 2, N-1]
+cara: [N, N-1, 1, 2]
 ```
 
 ### Tripa
@@ -414,7 +420,8 @@ Los patrones son relativos a las paginas tomadas por cada cuadernillo.
 
 Ejemplo: una revista de 36 paginas con tapa completa tiene:
 
-- tapa: `[36, 1, 2, 35]`
+- tapa paginas reales: `[36, 1, 2, 35]`
+- tapa cara VYV: `[36, 35, 1, 2]`
 - tripa: `[3..34]`
 - primer cuadernillo 16: `[3,4,5,6,7,8,9,10,27,28,29,30,31,32,33,34]`
 
@@ -518,7 +525,22 @@ Esto aplica a:
 
 VYV sigue siendo una sola `cara`, sin `frente` ni `dorso`. La metadata `cara_visual` permite mostrar esa cara unica con la orientacion correcta.
 
-La tapa completa puede traer `frente_visual` y `dorso_visual` con rotacion `0`; por ahora no participa en la logica cabeza con cabeza.
+La tapa completa tambien se renderiza como VYV 4 de cara unica:
+
+```json
+{
+  "tipo": "tapa_completa",
+  "modo": "vyv_4_tapa",
+  "paginas": [36, 1, 2, 35],
+  "cara": [36, 35, 1, 2],
+  "cara_visual": [
+    {"pagina": 36, "rotacion": 90},
+    {"pagina": 35, "rotacion": -90},
+    {"pagina": 1, "rotacion": 90},
+    {"pagina": 2, "rotacion": -90}
+  ]
+}
+```
 
 Esta fase sigue sin generar PDF. Solo mejora la simulacion visual dentro del Editor Visual IA.
 

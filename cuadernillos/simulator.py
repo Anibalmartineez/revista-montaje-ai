@@ -223,17 +223,11 @@ def _simular_tapa_completa(
     pliegos_tripa = _armar_pliegos_desde_paginas(paginas_tripa_originales, tipo_cuadernillo)
     tapa = {
         "tipo": tipo_tapa,
+        "modo": "vyv_4_tapa",
+        "paginas_por_cara": 4,
         "paginas": [total_final, 1, 2, total_final - 1],
-        "frente": [total_final, 1],
-        "dorso": [2, total_final - 1],
-        "frente_visual": [
-            {"pagina": total_final, "rotacion": 0},
-            {"pagina": 1, "rotacion": 0},
-        ],
-        "dorso_visual": [
-            {"pagina": 2, "rotacion": 0},
-            {"pagina": total_final - 1, "rotacion": 0},
-        ],
+        "cara": [total_final, total_final - 1, 1, 2],
+        "cara_visual": _paginas_visual([total_final, total_final - 1, 1, 2], columnas=2),
     }
     tripa = {
         "paginas_inicio": 3,

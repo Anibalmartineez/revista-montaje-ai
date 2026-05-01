@@ -2918,6 +2918,20 @@
 
   function renderCuadernilloTapa(tapa) {
     if (!tapa) return '';
+    if (Array.isArray(tapa.cara) || Array.isArray(tapa.cara_visual)) {
+      return `
+        <section class="cuadernillo-block cuadernillo-tapa-block tapa-vyv">
+          <h4>TAPA - Cara unica VYV</h4>
+          <div class="cuadernillo-face cuadernillo-single-face">
+            <strong>Cara unica VYV</strong>
+            <span class="cuadernillo-orientation-label">Orientacion: cabeza con cabeza</span>
+            <div class="cuadernillo-pages cuadernillo-pages-4 cuadernillo-grid-2x2">
+              ${renderCuadernilloPages(tapa.cara_visual || tapa.cara)}
+            </div>
+          </div>
+        </section>
+      `;
+    }
     return `
       <section class="cuadernillo-block cuadernillo-tapa-block">
         <h4>TAPA</h4>

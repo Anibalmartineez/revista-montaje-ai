@@ -708,6 +708,10 @@ body {
   background: #fff8e6;
 }
 
+.cuadernillo-tapa-block.tapa-vyv {
+  border: 2px dashed orange;
+}
+
 .cuadernillo-tripa-block {
   display: flex;
   flex-direction: column;

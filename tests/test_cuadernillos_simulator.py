@@ -94,8 +94,8 @@ def test_simular_cuadernillo_32_paginas_tapa_completa():
     result = simular_cuadernillo(_payload(32, tipo_tapa="tapa_completa"))
 
     assert result["tipo_tapa"] == "tapa_completa"
-    assert result["tapa"]["frente"] == [32, 1]
-    assert result["tapa"]["dorso"] == [2, 31]
+    assert result["tapa"]["modo"] == "vyv_4_tapa"
+    assert result["tapa"]["cara"] == [32, 31, 1, 2]
     assert result["tripa"]["paginas_inicio"] == 3
     assert result["tripa"]["paginas_fin"] == 30
     assert result["tripa"]["paginas_original"] == 28
@@ -110,8 +110,7 @@ def test_simular_cuadernillo_32_paginas_tapa_completa():
 def test_simular_cuadernillo_24_paginas_tapa_completa():
     result = simular_cuadernillo(_payload(24, tipo_tapa="tapa_completa"))
 
-    assert result["tapa"]["frente"] == [24, 1]
-    assert result["tapa"]["dorso"] == [2, 23]
+    assert result["tapa"]["cara"] == [24, 23, 1, 2]
     assert result["tripa"]["paginas_inicio"] == 3
     assert result["tripa"]["paginas_fin"] == 22
     assert result["tripa"]["paginas_original"] == 20
@@ -124,8 +123,7 @@ def test_simular_cuadernillo_30_paginas_tapa_completa_normaliza_a_32():
     assert result["total_paginas_original"] == 30
     assert result["total_paginas_final"] == 32
     assert result["blancas_agregadas"] == 2
-    assert result["tapa"]["frente"] == [32, 1]
-    assert result["tapa"]["dorso"] == [2, 31]
+    assert result["tapa"]["cara"] == [32, 31, 1, 2]
 
 
 def test_simular_cuadernillo_pliegos_normales_y_parcial_declaran_paginas_por_cara():
@@ -156,6 +154,22 @@ def test_revista_36_paginas_tapa_completa_cuadernillo_16_usa_extremos():
     assert pliegos[0]["frente"] == [7, 30, 27, 10, 6, 31, 34, 3]
     assert pliegos[0]["dorso"] == [9, 28, 29, 8, 4, 33, 32, 5]
     assert pliegos[1]["frente"] == [15, 22, 19, 18, 14, 23, 26, 11]
+
+
+def test_tapa_completa_36_es_vyv_4_cara_unica():
+    result = simular_cuadernillo(
+        _payload(36, tipo_tapa="tapa_completa", tipo_cuadernillo=16)
+    )
+    tapa = result["tapa"]
+
+    assert tapa["paginas"] == [36, 1, 2, 35]
+    assert tapa["modo"] == "vyv_4_tapa"
+    assert tapa["paginas_por_cara"] == 4
+    assert tapa["cara"] == [36, 35, 1, 2]
+    assert [item["pagina"] for item in tapa["cara_visual"]] == [36, 35, 1, 2]
+    assert [item["rotacion"] for item in tapa["cara_visual"]] == [90, -90, 90, -90]
+    assert result["tripa"]["paginas_inicio"] == 3
+    assert result["tripa"]["paginas_fin"] == 34
 
 
 def test_paginas_por_cara_de_entrada_se_ignora_y_se_deriva():
