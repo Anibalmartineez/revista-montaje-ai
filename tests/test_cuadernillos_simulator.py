@@ -14,14 +14,12 @@ from cuadernillos.simulator import CuadernilloSimulationError, simular_cuadernil
 def _payload(
     total_paginas,
     tipo="cosido_caballete",
-    paginas_por_cara=4,
     tipo_tapa="sin_tapa",
     tipo_cuadernillo=8,
 ):
     return {
         "total_paginas": total_paginas,
         "tipo_encuadernacion": tipo,
-        "paginas_por_cara": paginas_por_cara,
         "tipo_tapa": tipo_tapa,
         "tipo_cuadernillo": tipo_cuadernillo,
     }
@@ -160,6 +158,16 @@ def test_revista_36_paginas_tapa_completa_cuadernillo_16_usa_extremos():
     assert pliegos[0]["frente"] == [34, 3, 32, 5, 30, 7, 28, 9]
     assert pliegos[0]["dorso"] == [4, 33, 6, 31, 8, 29, 10, 27]
     assert pliegos[1]["frente"] == [26, 11, 24, 13, 22, 15, 20, 17]
+
+
+def test_paginas_por_cara_de_entrada_se_ignora_y_se_deriva():
+    payload = _payload(36, tipo_tapa="tapa_completa", tipo_cuadernillo=16)
+    payload["paginas_por_cara"] = 4
+
+    result = simular_cuadernillo(payload)
+
+    assert result["paginas_por_cara"] == 8
+    assert result["tripa"]["pliegos"][0]["paginas_por_cara"] == 8
 
 
 def test_revista_28_paginas_tapa_completa_cuadernillo_16_genera_vyv_8():

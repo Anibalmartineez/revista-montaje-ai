@@ -682,6 +682,16 @@ body {
   font-size: 12px;
 }
 
+.cuadernillo-auto-note {
+  margin: 0 0 8px;
+  padding: 7px 8px;
+  border: 1px solid #d7dee8;
+  border-radius: 6px;
+  background: #f8fafc;
+  color: #475569;
+  font-size: 12px;
+}
+
 .cuadernillo-block {
   border-radius: 8px;
 }

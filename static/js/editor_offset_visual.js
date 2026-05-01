@@ -2944,16 +2944,14 @@
   async function simularCuadernillo() {
     const resultEl = document.getElementById('cuadernillo-resultado');
     const totalInput = document.getElementById('cuadernillo-total-paginas');
-    const paginasPorCaraSelect = document.getElementById('cuadernillo-paginas-por-cara');
     const tipoSelect = document.getElementById('cuadernillo-tipo');
     const tipoTapaSelect = document.getElementById('cuadernillo-tipo-tapa');
     const tipoCuadernilloSelect = document.getElementById('cuadernillo-tipo-cuadernillo');
-    if (!resultEl || !totalInput || !paginasPorCaraSelect || !tipoSelect || !tipoTapaSelect || !tipoCuadernilloSelect) return;
+    if (!resultEl || !totalInput || !tipoSelect || !tipoTapaSelect || !tipoCuadernilloSelect) return;
 
     resultEl.textContent = 'Simulando...';
     const payload = {
       total_paginas: parseInt(totalInput.value, 10),
-      paginas_por_cara: parseInt(paginasPorCaraSelect.value, 10),
       tipo_encuadernacion: tipoSelect.value,
       tipo_tapa: tipoTapaSelect.value,
       tipo_cuadernillo: parseInt(tipoCuadernilloSelect.value, 10),

@@ -2,7 +2,6 @@ import math
 
 
 TIPO_SOPORTADO = "cosido_caballete"
-PAGINAS_POR_CARA_SOPORTADAS = 4
 TIPOS_TAPA_SOPORTADOS = {"sin_tapa", "tapa_completa"}
 TIPOS_CUADERNILLO_SOPORTADOS = {8, 16}
 PAGINA_BLANCA = "BLANCO"
@@ -174,17 +173,13 @@ def _validar_modo(payload):
         raise CuadernilloSimulationError("El payload debe ser un objeto JSON.")
 
     tipo_encuadernacion = payload.get("tipo_encuadernacion")
-    paginas_por_cara = payload.get("paginas_por_cara")
     tipo_tapa = payload.get("tipo_tapa", "sin_tapa")
     tipo_cuadernillo = _validar_tipo_cuadernillo(payload.get("tipo_cuadernillo"))
+    paginas_por_cara = 4 if tipo_cuadernillo == 8 else 8
 
     if tipo_encuadernacion != TIPO_SOPORTADO:
         raise CuadernilloSimulationError(
             "Modo no soportado. Por ahora solo se soporta cosido_caballete."
-        )
-    if paginas_por_cara != PAGINAS_POR_CARA_SOPORTADAS:
-        raise CuadernilloSimulationError(
-            "Modo no soportado. Por ahora solo se soportan 4 paginas por cara."
         )
     if tipo_tapa not in TIPOS_TAPA_SOPORTADOS:
         raise CuadernilloSimulationError(

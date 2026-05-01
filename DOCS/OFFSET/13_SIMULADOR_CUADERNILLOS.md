@@ -19,7 +19,7 @@ Esta fase no modifica el motor offset actual, no toca Step & Repeat PRO, no camb
 Por ahora solo se soporta:
 
 - `tipo_encuadernacion = "cosido_caballete"`
-- `paginas_por_cara = 4`
+- `tipo_cuadernillo = 8` o `16`
 
 El total de paginas debe ser un entero positivo. Si no es multiplo de 4, se agregan paginas blancas hasta cerrar el multiplo de 4 siguiente.
 
@@ -45,11 +45,12 @@ Entrada:
 {
   "total_paginas": 32,
   "tipo_encuadernacion": "cosido_caballete",
-  "paginas_por_cara": 4,
   "tipo_tapa": "sin_tapa",
   "tipo_cuadernillo": 8
 }
 ```
+
+`paginas_por_cara` ya no es un input de usuario. Si aparece en un payload viejo, el backend lo ignora y lo deriva automaticamente desde `tipo_cuadernillo`.
 
 Salida:
 
@@ -239,6 +240,13 @@ La Fase 6.4 agrega un motor configurable con `tipo_cuadernillo`:
 - `8`: cuadernillos de 8 paginas.
 - `16`: cuadernillos de 16 paginas.
 
+`paginas_por_cara` se deriva automaticamente:
+
+- `tipo_cuadernillo = 8` -> `paginas_por_cara = 4`
+- `tipo_cuadernillo = 16` -> `paginas_por_cara = 8`
+
+La UI no muestra selector manual para paginas por cara; solo informa que el valor es automatico.
+
 El flujo sigue siendo:
 
 - siempre cosido a caballete
@@ -348,7 +356,7 @@ La UI debe renderizar los cuadernillos con frente/dorso y los VYV como cara unic
 ## Limitaciones actuales
 
 - Solo existe cosido a caballete.
-- El campo historico `paginas_por_cara` del payload se mantiene en `4`; la cantidad real por cara de cada pliego se informa en `pliegos[].paginas_por_cara`.
+- El campo historico `paginas_por_cara` del payload se ignora; la cantidad real por cara se deriva del tipo de cuadernillo y tambien se informa en `pliegos[].paginas_por_cara`.
 - Solo existen `sin_tapa` y `tapa_completa`.
 - Solo existen cuadernillos configurables de 8 o 16 paginas.
 - No hay `tapa_simple`.
@@ -360,6 +368,6 @@ La UI debe renderizar los cuadernillos con frente/dorso y los VYV como cara unic
 ## Proximos pasos
 
 - Tapa simple.
-- Soporte para 2 y 8 paginas por cara.
+- Nuevos tipos de cuadernillo si produccion los requiere.
 - Modo vuelta y vuelta.
 - Integracion PDF en una fase posterior.
