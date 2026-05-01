@@ -801,8 +801,12 @@ body {
   min-height: 18px;
 }
 
-.pagina-rotada-180 {
-  transform: rotate(180deg);
+.pagina-rotada-90 {
+  transform: rotate(90deg);
+}
+
+.pagina-rotada--90 {
+  transform: rotate(-90deg);
 }
 
 .pagina-rotada-0 {

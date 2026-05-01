@@ -2844,7 +2844,9 @@
         const pageNumber = isVisualPage ? pageItem.pagina : pageItem;
         const rotation = isVisualPage ? Number(pageItem.rotacion || 0) : 0;
         const isBlank = pageNumber === 'BLANCO';
-        const rotationClass = rotation === 180 ? ' pagina-rotada-180' : ' pagina-rotada-0';
+        let rotationClass = ' pagina-rotada-0';
+        if (rotation === 90) rotationClass = ' pagina-rotada-90';
+        if (rotation === -90) rotationClass = ' pagina-rotada--90';
         return `
           <span class="cuadernillo-page${isBlank ? ' cuadernillo-page-blank' : ''}">
             <span class="cuadernillo-page-number${rotationClass}">${pageNumber}</span>

@@ -464,6 +464,8 @@ Ejemplos:
 
 La Fase 6.6 agrega metadatos visuales para representar la orientacion cabeza con cabeza sin cambiar el orden numerico ya validado.
 
+La primera version de esta fase uso una orientacion vertical tipo libro (`180` / `0`) por filas. La correccion vigente usa orientacion lateral real de imprenta: paginas enfrentadas con rotaciones `90` y `-90` por columnas.
+
 Los arrays base se mantienen para compatibilidad:
 
 - `frente`
@@ -482,22 +484,30 @@ Ejemplo:
 {
   "frente": [5, 12, 9, 8, 4, 13, 16, 1],
   "frente_visual": [
-    {"pagina": 5, "rotacion": 180},
-    {"pagina": 12, "rotacion": 180},
-    {"pagina": 9, "rotacion": 180},
-    {"pagina": 8, "rotacion": 180},
-    {"pagina": 4, "rotacion": 0},
-    {"pagina": 13, "rotacion": 0},
-    {"pagina": 16, "rotacion": 0},
-    {"pagina": 1, "rotacion": 0}
+    {"pagina": 5, "rotacion": 90},
+    {"pagina": 12, "rotacion": -90},
+    {"pagina": 9, "rotacion": 90},
+    {"pagina": 8, "rotacion": -90},
+    {"pagina": 4, "rotacion": 90},
+    {"pagina": 13, "rotacion": -90},
+    {"pagina": 16, "rotacion": 90},
+    {"pagina": 1, "rotacion": -90}
   ]
 }
 ```
 
 Regla visual:
 
-- fila superior: `rotacion = 180`
-- fila inferior: `rotacion = 0`
+- layout 2x2:
+  - columna 0: `rotacion = 90`
+  - columna 1: `rotacion = -90`
+- layout 2x4:
+  - columna 0: `rotacion = 90`
+  - columna 1: `rotacion = -90`
+  - columna 2: `rotacion = 90`
+  - columna 3: `rotacion = -90`
+
+La misma alternancia se repite en todas las filas.
 
 Esto aplica a:
 

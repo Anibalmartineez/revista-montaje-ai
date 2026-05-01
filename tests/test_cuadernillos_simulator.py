@@ -234,12 +234,12 @@ def test_cuadernillo_8_incluye_visual_cabeza_con_cabeza():
     pliego = _cuadernillo_8(1, list(range(1, 9)))
 
     assert pliego["frente_visual"] == [
-        {"pagina": 8, "rotacion": 180},
-        {"pagina": 5, "rotacion": 180},
-        {"pagina": 1, "rotacion": 0},
-        {"pagina": 4, "rotacion": 0},
+        {"pagina": 8, "rotacion": 90},
+        {"pagina": 5, "rotacion": -90},
+        {"pagina": 1, "rotacion": 90},
+        {"pagina": 4, "rotacion": -90},
     ]
-    assert [item["rotacion"] for item in pliego["dorso_visual"]] == [180, 180, 0, 0]
+    assert [item["rotacion"] for item in pliego["dorso_visual"]] == [90, -90, 90, -90]
 
 
 def test_cuadernillo_16_incluye_visual_cabeza_con_cabeza():
@@ -249,14 +249,14 @@ def test_cuadernillo_16_incluye_visual_cabeza_con_cabeza():
     assert "dorso_visual" in pliego
     assert [item["pagina"] for item in pliego["frente_visual"]] == pliego["frente"]
     assert [item["rotacion"] for item in pliego["frente_visual"]] == [
-        180,
-        180,
-        180,
-        180,
-        0,
-        0,
-        0,
-        0,
+        90,
+        -90,
+        90,
+        -90,
+        90,
+        -90,
+        90,
+        -90,
     ]
 
 
@@ -265,17 +265,17 @@ def test_vyv_incluye_cara_visual_cabeza_con_cabeza():
     vyv_8 = _vyv_8(1, list(range(1, 9)))
 
     assert [item["pagina"] for item in vyv_4["cara_visual"]] == vyv_4["cara"]
-    assert [item["rotacion"] for item in vyv_4["cara_visual"]] == [180, 180, 0, 0]
+    assert [item["rotacion"] for item in vyv_4["cara_visual"]] == [90, -90, 90, -90]
     assert [item["pagina"] for item in vyv_8["cara_visual"]] == vyv_8["cara"]
     assert [item["rotacion"] for item in vyv_8["cara_visual"]] == [
-        180,
-        180,
-        180,
-        180,
-        0,
-        0,
-        0,
-        0,
+        90,
+        -90,
+        90,
+        -90,
+        90,
+        -90,
+        90,
+        -90,
     ]
 
 
