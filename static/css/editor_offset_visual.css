@@ -682,6 +682,28 @@ body {
   font-size: 12px;
 }
 
+.cuadernillo-block {
+  border-radius: 8px;
+}
+
+.cuadernillo-block > h4 {
+  margin: 0 0 8px;
+  color: #1f2937;
+  font-size: 14px;
+}
+
+.cuadernillo-tapa-block {
+  padding: 10px;
+  border: 1px solid #f3c969;
+  background: #fff8e6;
+}
+
+.cuadernillo-tripa-block {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
 .cuadernillo-card {
   border: 1px solid #d7dee8;
   border-radius: 8px;
@@ -732,6 +754,17 @@ body {
   color: #111827;
   font-weight: 700;
   font-size: 13px;
+}
+
+.cuadernillo-pages-cover {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.cuadernillo-page-blank {
+  border-style: dashed;
+  background: #f8fafc;
+  color: #64748b;
+  font-size: 11px;
 }
 
 .cuadernillo-error {

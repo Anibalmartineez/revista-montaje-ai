@@ -11,11 +11,17 @@ from app import app
 from cuadernillos.simulator import CuadernilloSimulationError, simular_cuadernillo
 
 
-def _payload(total_paginas, tipo="cosido_caballete", paginas_por_cara=4):
+def _payload(
+    total_paginas,
+    tipo="cosido_caballete",
+    paginas_por_cara=4,
+    tipo_tapa="sin_tapa",
+):
     return {
         "total_paginas": total_paginas,
         "tipo_encuadernacion": tipo,
         "paginas_por_cara": paginas_por_cara,
+        "tipo_tapa": tipo_tapa,
     }
 
 
@@ -54,6 +60,59 @@ def test_simular_cuadernillo_30_paginas_normaliza_a_32():
     }
 
 
+def test_simular_cuadernillo_32_paginas_sin_tapa_conserva_logica_actual():
+    result = simular_cuadernillo(_payload(32, tipo_tapa="sin_tapa"))
+
+    assert result["tipo_tapa"] == "sin_tapa"
+    assert result["total_paginas_final"] == 32
+    assert result["pliegos"][0] == {
+        "pliego": 1,
+        "frente": [32, 1, 30, 3],
+        "dorso": [2, 31, 4, 29],
+    }
+
+
+def test_simular_cuadernillo_32_paginas_tapa_completa():
+    result = simular_cuadernillo(_payload(32, tipo_tapa="tapa_completa"))
+
+    assert result["tipo_tapa"] == "tapa_completa"
+    assert result["tapa"]["frente"] == [32, 1]
+    assert result["tapa"]["dorso"] == [2, 31]
+    assert result["tripa"]["paginas_inicio"] == 3
+    assert result["tripa"]["paginas_fin"] == 30
+    assert result["tripa"]["paginas_original"] == 28
+    assert result["tripa"]["paginas_final"] == 28
+    assert result["tripa"]["pliegos"][0]["frente"] == [30, 3, 28, 5]
+    assert result["tripa"]["pliegos"][0]["dorso"] == [4, 29, 6, 27]
+    assert result["pliegos"] == result["tripa"]["pliegos"]
+
+
+def test_simular_cuadernillo_24_paginas_tapa_completa():
+    result = simular_cuadernillo(_payload(24, tipo_tapa="tapa_completa"))
+
+    assert result["tapa"]["frente"] == [24, 1]
+    assert result["tapa"]["dorso"] == [2, 23]
+    assert result["tripa"]["paginas_inicio"] == 3
+    assert result["tripa"]["paginas_fin"] == 22
+    assert result["tripa"]["paginas_original"] == 20
+    assert result["tripa"]["pliegos"][0]["frente"] == [22, 3, 20, 5]
+
+
+def test_simular_cuadernillo_30_paginas_tapa_completa_normaliza_a_32():
+    result = simular_cuadernillo(_payload(30, tipo_tapa="tapa_completa"))
+
+    assert result["total_paginas_original"] == 30
+    assert result["total_paginas_final"] == 32
+    assert result["blancas_agregadas"] == 2
+    assert result["tapa"]["frente"] == [32, 1]
+    assert result["tapa"]["dorso"] == [2, 31]
+
+
+def test_simular_cuadernillo_tipo_tapa_no_soportado_error_claro():
+    with pytest.raises(CuadernilloSimulationError, match="Tipo de tapa no soportado"):
+        simular_cuadernillo(_payload(16, tipo_tapa="tapa_simple"))
+
+
 def test_simular_cuadernillo_modo_no_soportado_error_claro():
     with pytest.raises(CuadernilloSimulationError, match="Modo no soportado"):
         simular_cuadernillo(_payload(16, tipo="wire_o"))
@@ -67,4 +126,3 @@ def test_ruta_cuadernillos_modo_no_soportado_devuelve_error():
     assert res.status_code == 422
     assert data["ok"] is False
     assert "Modo no soportado" in data["error"]
-

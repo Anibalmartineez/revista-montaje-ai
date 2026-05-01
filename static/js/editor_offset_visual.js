@@ -2839,19 +2839,15 @@
 
   function renderCuadernilloPages(pages) {
     return (pages || [])
-      .map((pageNumber) => `<span class="cuadernillo-page">${pageNumber}</span>`)
+      .map((pageNumber) => {
+        const isBlank = pageNumber === 'BLANCO';
+        return `<span class="cuadernillo-page${isBlank ? ' cuadernillo-page-blank' : ''}">${pageNumber}</span>`;
+      })
       .join('');
   }
 
-  function renderCuadernilloSimulation(simulacion) {
-    const resultEl = document.getElementById('cuadernillo-resultado');
-    if (!resultEl) return;
-    const resumen = [
-      `Original: ${simulacion.total_paginas_original}`,
-      `Final: ${simulacion.total_paginas_final}`,
-      `Blancas: ${simulacion.blancas_agregadas}`,
-    ].join(' | ');
-    const pliegos = (simulacion.pliegos || [])
+  function renderCuadernilloPliegos(pliegos, title) {
+    const pliegosHtml = (pliegos || [])
       .map(
         (pliego) => `
           <article class="cuadernillo-card">
@@ -2868,7 +2864,50 @@
         `
       )
       .join('');
-    resultEl.innerHTML = `<p class="cuadernillo-summary">${resumen}</p>${pliegos}`;
+    return `
+      <section class="cuadernillo-block cuadernillo-tripa-block">
+        ${title ? `<h4>${title}</h4>` : ''}
+        ${pliegosHtml}
+      </section>
+    `;
+  }
+
+  function renderCuadernilloTapa(tapa) {
+    if (!tapa) return '';
+    return `
+      <section class="cuadernillo-block cuadernillo-tapa-block">
+        <h4>TAPA</h4>
+        <div class="cuadernillo-face cuadernillo-front">
+          <strong>Frente</strong>
+          <div class="cuadernillo-pages cuadernillo-pages-cover">${renderCuadernilloPages(tapa.frente)}</div>
+        </div>
+        <div class="cuadernillo-face cuadernillo-back">
+          <strong>Dorso</strong>
+          <div class="cuadernillo-pages cuadernillo-pages-cover">${renderCuadernilloPages(tapa.dorso)}</div>
+        </div>
+      </section>
+    `;
+  }
+
+  function renderCuadernilloSimulation(simulacion) {
+    const resultEl = document.getElementById('cuadernillo-resultado');
+    if (!resultEl) return;
+    const tipoTapaLabel = simulacion.tipo_tapa === 'tapa_completa' ? 'Tapa completa separada' : 'Sin tapa';
+    const resumen = [
+      `Original: ${simulacion.total_paginas_original}`,
+      `Final: ${simulacion.total_paginas_final}`,
+      `Blancas: ${simulacion.blancas_agregadas}`,
+      `Tipo de tapa: ${tipoTapaLabel}`,
+    ].join(' | ');
+    if (simulacion.tipo_tapa === 'tapa_completa') {
+      resultEl.innerHTML = `
+        <p class="cuadernillo-summary">${resumen}</p>
+        ${renderCuadernilloTapa(simulacion.tapa)}
+        ${renderCuadernilloPliegos(simulacion.tripa?.pliegos || simulacion.pliegos || [], 'TRIPA')}
+      `;
+      return;
+    }
+    resultEl.innerHTML = `<p class="cuadernillo-summary">${resumen}</p>${renderCuadernilloPliegos(simulacion.pliegos || [], '')}`;
   }
 
   async function simularCuadernillo() {
@@ -2876,13 +2915,15 @@
     const totalInput = document.getElementById('cuadernillo-total-paginas');
     const paginasPorCaraSelect = document.getElementById('cuadernillo-paginas-por-cara');
     const tipoSelect = document.getElementById('cuadernillo-tipo');
-    if (!resultEl || !totalInput || !paginasPorCaraSelect || !tipoSelect) return;
+    const tipoTapaSelect = document.getElementById('cuadernillo-tipo-tapa');
+    if (!resultEl || !totalInput || !paginasPorCaraSelect || !tipoSelect || !tipoTapaSelect) return;
 
     resultEl.textContent = 'Simulando...';
     const payload = {
       total_paginas: parseInt(totalInput.value, 10),
       paginas_por_cara: parseInt(paginasPorCaraSelect.value, 10),
       tipo_encuadernacion: tipoSelect.value,
+      tipo_tapa: tipoTapaSelect.value,
     };
 
     try {
