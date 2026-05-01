@@ -35,11 +35,14 @@ def _armar_pliegos_desde_paginas(paginas):
     paginas_finales, _ = _normalizar_paginas_tripa(paginas)
     pliegos = []
     total = len(paginas_finales)
+    offset = 0
 
-    for offset in range(0, total // 2, 4):
+    while total - (offset * 2) >= 8:
         pliegos.append(
             {
                 "pliego": len(pliegos) + 1,
+                "modo": "normal_4_por_cara",
+                "paginas_por_cara": 4,
                 "frente": [
                     paginas_finales[total - 1 - offset],
                     paginas_finales[offset],
@@ -52,6 +55,19 @@ def _armar_pliegos_desde_paginas(paginas):
                     paginas_finales[offset + 3],
                     paginas_finales[total - 4 - offset],
                 ],
+            }
+        )
+        offset += 4
+
+    if total - (offset * 2) == 4:
+        paginas_parciales = paginas_finales[offset : offset + 4]
+        pliegos.append(
+            {
+                "pliego": len(pliegos) + 1,
+                "modo": "vyv_2_por_cara",
+                "paginas_por_cara": 2,
+                "frente": [paginas_parciales[3], paginas_parciales[0]],
+                "dorso": [paginas_parciales[1], paginas_parciales[2]],
             }
         )
 

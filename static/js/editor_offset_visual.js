@@ -2848,21 +2848,24 @@
 
   function renderCuadernilloPliegos(pliegos, title) {
     const pliegosHtml = (pliegos || [])
-      .map(
-        (pliego) => `
-          <article class="cuadernillo-card">
-            <h4>Pliego ${pliego.pliego}</h4>
+      .map((pliego) => {
+        const isVyv = pliego.paginas_por_cara === 2 || pliego.modo === 'vyv_2_por_cara';
+        const pagesClass = isVyv ? 'cuadernillo-pages cuadernillo-pages-vyv' : 'cuadernillo-pages';
+        const label = isVyv ? '<span class="cuadernillo-mode-label">Pliego parcial (VYV)</span>' : '';
+        return `
+          <article class="cuadernillo-card${isVyv ? ' pliego-vyv' : ''}">
+            <h4>Pliego ${pliego.pliego} ${label}</h4>
             <div class="cuadernillo-face cuadernillo-front">
               <strong>Frente</strong>
-              <div class="cuadernillo-pages">${renderCuadernilloPages(pliego.frente)}</div>
+              <div class="${pagesClass}">${renderCuadernilloPages(pliego.frente)}</div>
             </div>
             <div class="cuadernillo-face cuadernillo-back">
               <strong>Dorso</strong>
-              <div class="cuadernillo-pages">${renderCuadernilloPages(pliego.dorso)}</div>
+              <div class="${pagesClass}">${renderCuadernilloPages(pliego.dorso)}</div>
             </div>
           </article>
-        `
-      )
+        `;
+      })
       .join('');
     return `
       <section class="cuadernillo-block cuadernillo-tripa-block">

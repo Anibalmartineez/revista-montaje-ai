@@ -146,6 +146,8 @@ Si la tripa no cierra multiplo de 4, el simulador completa el final logico con `
     "pliegos": [
       {
         "pliego": 1,
+        "modo": "normal_4_por_cara",
+        "paginas_por_cara": 4,
         "frente": [30, 3, 28, 5],
         "dorso": [4, 29, 6, 27]
       }
@@ -154,6 +156,8 @@ Si la tripa no cierra multiplo de 4, el simulador completa el final logico con `
   "pliegos": [
     {
       "pliego": 1,
+      "modo": "normal_4_por_cara",
+      "paginas_por_cara": 4,
       "frente": [30, 3, 28, 5],
       "dorso": [4, 29, 6, 27]
     }
@@ -163,13 +167,74 @@ Si la tripa no cierra multiplo de 4, el simulador completa el final logico con `
 
 En `tapa_completa`, `pliegos` en la raiz apunta a los pliegos de la tripa para compatibilidad. La UI debe preferir `tapa` y `tripa`.
 
+## Fase 6.3: pliegos parciales
+
+La Fase 6.3 corrige el armado de tripas cuando queda un bloque final de 4 paginas. Antes, el simulador trataba ese bloque como si fuera un pliego completo de 8 paginas. En imprenta real, ese caso se resuelve como pliego parcial vuelta y vuelta con 2 paginas por cara.
+
+### Pliego completo
+
+Mientras quedan 8 paginas o mas en la tripa, se usa el modo normal:
+
+```json
+{
+  "pliego": 1,
+  "modo": "normal_4_por_cara",
+  "paginas_por_cara": 4,
+  "frente": [30, 3, 28, 5],
+  "dorso": [4, 29, 6, 27]
+}
+```
+
+Este modo consume 4 paginas del inicio logico de la tripa y 4 paginas del final logico.
+
+### Pliego parcial VYV
+
+Cuando quedan exactamente 4 paginas, se usa automaticamente:
+
+- `modo = "vyv_2_por_cara"`
+- `paginas_por_cara = 2`
+
+Para paginas `[a, b, c, d]`, donde `a` es la menor y `d` la mayor:
+
+```text
+frente: [d, a]
+dorso:  [b, c]
+```
+
+Ejemplo:
+
+```json
+{
+  "pliego": 4,
+  "modo": "vyv_2_por_cara",
+  "paginas_por_cara": 2,
+  "frente": [18, 15],
+  "dorso": [16, 17]
+}
+```
+
+### Ejemplo con tapa completa
+
+Para una revista final de 32 paginas con `tapa_completa`:
+
+- tapa: paginas `[32, 1, 2, 31]`
+- tripa: paginas `3` a `30`
+- tripa total: 28 paginas
+
+La tripa se arma como:
+
+- pliegos 1 a 3: `normal_4_por_cara`
+- pliego 4: `vyv_2_por_cara` con paginas `[15, 16, 17, 18]`
+
+Esto evita mezclar bloques de 4 y 8 paginas dentro del mismo pliego y evita generar un pliego parcial como si fuera completo.
+
 ## Limitaciones actuales
 
 - Solo existe cosido a caballete.
 - Solo existe 4 paginas por cara.
 - Solo existen `sin_tapa` y `tapa_completa`.
 - No hay `tapa_simple`.
-- No hay modo vuelta y vuelta.
+- Vuelta y vuelta solo se aplica automaticamente al pliego parcial final de 4 paginas.
 - No hay integracion PDF.
 - No genera ni modifica slots del Editor Visual IA.
 - No persiste datos dentro de `layout_constructor.json`.
