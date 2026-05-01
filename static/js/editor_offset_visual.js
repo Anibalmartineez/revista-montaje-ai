@@ -2846,15 +2846,37 @@
       .join('');
   }
 
+  function getCuadernilloPagesClass(pliego) {
+    const paginasPorCara = Number(pliego?.paginas_por_cara || 4);
+    if (paginasPorCara === 8) return 'cuadernillo-pages cuadernillo-pages-8';
+    return 'cuadernillo-pages cuadernillo-pages-4';
+  }
+
+  function getCuadernilloModeLabel(pliego) {
+    if (pliego?.tipo === 'vyv_8' || pliego?.modo === 'vyv_8_paginas') return 'VYV 8 paginas';
+    if (pliego?.tipo === 'vyv_4' || pliego?.modo === 'vyv_4_paginas') return 'VYV 4 paginas';
+    if (pliego?.tipo === 'cuadernillo_16') return 'Cuadernillo 16';
+    if (pliego?.tipo === 'cuadernillo_8') return 'Cuadernillo 8';
+    return '';
+  }
+
   function renderCuadernilloPliegos(pliegos, title) {
     const pliegosHtml = (pliegos || [])
       .map((pliego) => {
-        const isVyv = pliego.paginas_por_cara === 2 || pliego.modo === 'vyv_2_por_cara';
-        const pagesClass = isVyv ? 'cuadernillo-pages cuadernillo-pages-vyv' : 'cuadernillo-pages';
-        const label = isVyv ? '<span class="cuadernillo-mode-label">Pliego parcial (VYV)</span>' : '';
-        return `
-          <article class="cuadernillo-card${isVyv ? ' pliego-vyv' : ''}">
-            <h4>Pliego ${pliego.pliego} ${label}</h4>
+        const isVyv = pliego.tipo === 'vyv_8' || pliego.tipo === 'vyv_4' || String(pliego.modo || '').startsWith('vyv_');
+        const pagesClass = getCuadernilloPagesClass(pliego);
+        const modeLabel = getCuadernilloModeLabel(pliego);
+        const label = modeLabel ? `<span class="cuadernillo-mode-label">${modeLabel}</span>` : '';
+        const caraUnica = Array.isArray(pliego.cara)
+          ? `
+            <div class="cuadernillo-face cuadernillo-single-face">
+              <strong>Cara unica</strong>
+              <div class="${pagesClass}">${renderCuadernilloPages(pliego.cara)}</div>
+            </div>
+          `
+          : '';
+        const frenteDorso = !caraUnica
+          ? `
             <div class="cuadernillo-face cuadernillo-front">
               <strong>Frente</strong>
               <div class="${pagesClass}">${renderCuadernilloPages(pliego.frente)}</div>
@@ -2863,6 +2885,12 @@
               <strong>Dorso</strong>
               <div class="${pagesClass}">${renderCuadernilloPages(pliego.dorso)}</div>
             </div>
+          `
+          : '';
+        return `
+          <article class="cuadernillo-card${isVyv ? ' pliego-vyv' : ''}">
+            <h4>Pliego ${pliego.pliego} ${label}</h4>
+            ${caraUnica || frenteDorso}
           </article>
         `;
       })
@@ -2919,7 +2947,8 @@
     const paginasPorCaraSelect = document.getElementById('cuadernillo-paginas-por-cara');
     const tipoSelect = document.getElementById('cuadernillo-tipo');
     const tipoTapaSelect = document.getElementById('cuadernillo-tipo-tapa');
-    if (!resultEl || !totalInput || !paginasPorCaraSelect || !tipoSelect || !tipoTapaSelect) return;
+    const tipoCuadernilloSelect = document.getElementById('cuadernillo-tipo-cuadernillo');
+    if (!resultEl || !totalInput || !paginasPorCaraSelect || !tipoSelect || !tipoTapaSelect || !tipoCuadernilloSelect) return;
 
     resultEl.textContent = 'Simulando...';
     const payload = {
@@ -2927,6 +2956,7 @@
       paginas_por_cara: parseInt(paginasPorCaraSelect.value, 10),
       tipo_encuadernacion: tipoSelect.value,
       tipo_tapa: tipoTapaSelect.value,
+      tipo_cuadernillo: parseInt(tipoCuadernilloSelect.value, 10),
     };
 
     try {

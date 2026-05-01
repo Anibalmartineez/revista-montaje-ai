@@ -751,9 +751,13 @@ body {
   border-color: #bbf7d0;
 }
 
+.cuadernillo-single-face {
+  background: #fff8ed;
+  border-color: #fed7aa;
+}
+
 .cuadernillo-pages {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 6px;
   margin-top: 6px;
 }
@@ -775,8 +779,12 @@ body {
   grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
-.cuadernillo-pages-vyv {
+.cuadernillo-pages-4 {
   grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.cuadernillo-pages-8 {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
 }
 
 .cuadernillo-page-blank {

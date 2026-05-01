@@ -16,12 +16,14 @@ def _payload(
     tipo="cosido_caballete",
     paginas_por_cara=4,
     tipo_tapa="sin_tapa",
+    tipo_cuadernillo=8,
 ):
     return {
         "total_paginas": total_paginas,
         "tipo_encuadernacion": tipo,
         "paginas_por_cara": paginas_por_cara,
         "tipo_tapa": tipo_tapa,
+        "tipo_cuadernillo": tipo_cuadernillo,
     }
 
 
@@ -34,17 +36,19 @@ def test_simular_cuadernillo_16_paginas():
     assert result["pliegos"] == [
         {
             "pliego": 1,
-            "modo": "normal_4_por_cara",
+            "tipo": "cuadernillo_8",
+            "modo": "cuadernillo_8",
             "paginas_por_cara": 4,
-            "frente": [16, 1, 14, 3],
-            "dorso": [2, 15, 4, 13],
+            "frente": [15, 1, 16, 2],
+            "dorso": [3, 14, 4, 13],
         },
         {
             "pliego": 2,
-            "modo": "normal_4_por_cara",
+            "tipo": "cuadernillo_8",
+            "modo": "cuadernillo_8",
             "paginas_por_cara": 4,
-            "frente": [12, 5, 10, 7],
-            "dorso": [6, 11, 8, 9],
+            "frente": [11, 5, 12, 6],
+            "dorso": [7, 10, 8, 9],
         },
     ]
 
@@ -54,8 +58,8 @@ def test_simular_cuadernillo_24_paginas():
 
     assert result["total_paginas_final"] == 24
     assert len(result["pliegos"]) == 3
-    assert result["pliegos"][0]["frente"] == [24, 1, 22, 3]
-    assert result["pliegos"][2]["dorso"] == [10, 15, 12, 13]
+    assert result["pliegos"][0]["frente"] == [23, 1, 24, 2]
+    assert result["pliegos"][2]["dorso"] == [11, 14, 12, 13]
 
 
 def test_simular_cuadernillo_30_paginas_normaliza_a_32():
@@ -67,10 +71,11 @@ def test_simular_cuadernillo_30_paginas_normaliza_a_32():
     assert len(result["pliegos"]) == 4
     assert result["pliegos"][0] == {
         "pliego": 1,
-        "modo": "normal_4_por_cara",
+        "tipo": "cuadernillo_8",
+        "modo": "cuadernillo_8",
         "paginas_por_cara": 4,
-        "frente": [32, 1, 30, 3],
-        "dorso": [2, 31, 4, 29],
+        "frente": [31, 1, 32, 2],
+        "dorso": [3, 30, 4, 29],
     }
 
 
@@ -81,10 +86,11 @@ def test_simular_cuadernillo_32_paginas_sin_tapa_conserva_logica_actual():
     assert result["total_paginas_final"] == 32
     assert result["pliegos"][0] == {
         "pliego": 1,
-        "modo": "normal_4_por_cara",
+        "tipo": "cuadernillo_8",
+        "modo": "cuadernillo_8",
         "paginas_por_cara": 4,
-        "frente": [32, 1, 30, 3],
-        "dorso": [2, 31, 4, 29],
+        "frente": [31, 1, 32, 2],
+        "dorso": [3, 30, 4, 29],
     }
 
 
@@ -98,17 +104,10 @@ def test_simular_cuadernillo_32_paginas_tapa_completa():
     assert result["tripa"]["paginas_fin"] == 30
     assert result["tripa"]["paginas_original"] == 28
     assert result["tripa"]["paginas_final"] == 28
-    assert result["tripa"]["pliegos"][0]["frente"] == [30, 3, 28, 5]
-    assert result["tripa"]["pliegos"][0]["dorso"] == [4, 29, 6, 27]
-    assert result["tripa"]["pliegos"][0]["modo"] == "normal_4_por_cara"
+    assert result["tripa"]["pliegos"][0]["frente"] == [29, 3, 30, 4]
+    assert result["tripa"]["pliegos"][0]["dorso"] == [5, 28, 6, 27]
+    assert result["tripa"]["pliegos"][0]["modo"] == "cuadernillo_8"
     assert result["tripa"]["pliegos"][0]["paginas_por_cara"] == 4
-    assert result["tripa"]["pliegos"][-1] == {
-        "pliego": 4,
-        "modo": "vyv_2_por_cara",
-        "paginas_por_cara": 2,
-        "frente": [18, 15],
-        "dorso": [16, 17],
-    }
     assert result["pliegos"] == result["tripa"]["pliegos"]
 
 
@@ -120,14 +119,7 @@ def test_simular_cuadernillo_24_paginas_tapa_completa():
     assert result["tripa"]["paginas_inicio"] == 3
     assert result["tripa"]["paginas_fin"] == 22
     assert result["tripa"]["paginas_original"] == 20
-    assert result["tripa"]["pliegos"][0]["frente"] == [22, 3, 20, 5]
-    assert result["tripa"]["pliegos"][-1] == {
-        "pliego": 3,
-        "modo": "vyv_2_por_cara",
-        "paginas_por_cara": 2,
-        "frente": [14, 11],
-        "dorso": [12, 13],
-    }
+    assert result["tripa"]["pliegos"][0]["frente"] == [21, 3, 22, 4]
 
 
 def test_simular_cuadernillo_30_paginas_tapa_completa_normaliza_a_32():
@@ -141,16 +133,65 @@ def test_simular_cuadernillo_30_paginas_tapa_completa_normaliza_a_32():
 
 
 def test_simular_cuadernillo_pliegos_normales_y_parcial_declaran_paginas_por_cara():
-    result = simular_cuadernillo(_payload(32, tipo_tapa="tapa_completa"))
-    normales = result["tripa"]["pliegos"][:-1]
+    result = simular_cuadernillo(
+        _payload(28, tipo_tapa="tapa_completa", tipo_cuadernillo=16)
+    )
+    normal = result["tripa"]["pliegos"][0]
     parcial = result["tripa"]["pliegos"][-1]
 
-    assert all(pliego["modo"] == "normal_4_por_cara" for pliego in normales)
-    assert all(pliego["paginas_por_cara"] == 4 for pliego in normales)
-    assert parcial["modo"] == "vyv_2_por_cara"
-    assert parcial["paginas_por_cara"] == 2
-    assert len(parcial["frente"]) == 2
-    assert len(parcial["dorso"]) == 2
+    assert normal["tipo"] == "cuadernillo_16"
+    assert normal["paginas_por_cara"] == 8
+    assert parcial["tipo"] == "vyv_8"
+    assert parcial["paginas_por_cara"] == 8
+    assert "cara" in parcial
+    assert "frente" not in parcial
+    assert "dorso" not in parcial
+
+
+def test_revista_36_paginas_tapa_completa_cuadernillo_16_usa_extremos():
+    result = simular_cuadernillo(
+        _payload(36, tipo_tapa="tapa_completa", tipo_cuadernillo=16)
+    )
+
+    pliegos = result["tripa"]["pliegos"]
+    assert len(pliegos) == 2
+    assert pliegos[0]["tipo"] == "cuadernillo_16"
+    assert pliegos[0]["paginas_por_cara"] == 8
+    assert pliegos[0]["frente"] == [34, 3, 32, 5, 30, 7, 28, 9]
+    assert pliegos[0]["dorso"] == [4, 33, 6, 31, 8, 29, 10, 27]
+    assert pliegos[1]["frente"] == [26, 11, 24, 13, 22, 15, 20, 17]
+
+
+def test_revista_28_paginas_tapa_completa_cuadernillo_16_genera_vyv_8():
+    result = simular_cuadernillo(
+        _payload(28, tipo_tapa="tapa_completa", tipo_cuadernillo=16)
+    )
+
+    ultimo = result["tripa"]["pliegos"][-1]
+    assert ultimo["tipo"] == "vyv_8"
+    assert ultimo["modo"] == "vyv_8_paginas"
+    assert ultimo["paginas_por_cara"] == 8
+    assert ultimo["cara"] == [18, 11, 16, 13, 14, 15, 12, 17]
+
+
+def test_revista_20_paginas_sin_tapa_cuadernillo_16_genera_vyv_4():
+    result = simular_cuadernillo(_payload(20, tipo_cuadernillo=16))
+
+    ultimo = result["pliegos"][-1]
+    assert ultimo["tipo"] == "vyv_4"
+    assert ultimo["modo"] == "vyv_4_paginas"
+    assert ultimo["paginas_por_cara"] == 4
+    assert ultimo["cara"] == [12, 9, 10, 11]
+
+
+def test_revista_24_paginas_tapa_completa_cuadernillo_16_genera_vyv_4():
+    result = simular_cuadernillo(
+        _payload(24, tipo_tapa="tapa_completa", tipo_cuadernillo=16)
+    )
+
+    ultimo = result["tripa"]["pliegos"][-1]
+    assert ultimo["tipo"] == "vyv_4"
+    assert ultimo["cara"] == [14, 11, 12, 13]
 
 
 def test_simular_cuadernillo_tipo_tapa_no_soportado_error_claro():

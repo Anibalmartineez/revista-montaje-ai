@@ -46,7 +46,8 @@ Entrada:
   "total_paginas": 32,
   "tipo_encuadernacion": "cosido_caballete",
   "paginas_por_cara": 4,
-  "tipo_tapa": "sin_tapa"
+  "tipo_tapa": "sin_tapa",
+  "tipo_cuadernillo": 8
 }
 ```
 
@@ -60,6 +61,7 @@ Salida:
   "paginas_por_cara": 4,
   "tipo_encuadernacion": "cosido_caballete",
   "tipo_tapa": "sin_tapa",
+  "tipo_cuadernillo": 8,
   "pliegos": [
     {
       "pliego": 1,
@@ -146,20 +148,22 @@ Si la tripa no cierra multiplo de 4, el simulador completa el final logico con `
     "pliegos": [
       {
         "pliego": 1,
-        "modo": "normal_4_por_cara",
+        "tipo": "cuadernillo_8",
+        "modo": "cuadernillo_8",
         "paginas_por_cara": 4,
-        "frente": [30, 3, 28, 5],
-        "dorso": [4, 29, 6, 27]
+        "frente": [29, 3, 30, 4],
+        "dorso": [5, 28, 6, 27]
       }
     ]
   },
   "pliegos": [
     {
       "pliego": 1,
-      "modo": "normal_4_por_cara",
+      "tipo": "cuadernillo_8",
+      "modo": "cuadernillo_8",
       "paginas_por_cara": 4,
-      "frente": [30, 3, 28, 5],
-      "dorso": [4, 29, 6, 27]
+      "frente": [29, 3, 30, 4],
+      "dorso": [5, 28, 6, 27]
     }
   ]
 }
@@ -228,13 +232,127 @@ La tripa se arma como:
 
 Esto evita mezclar bloques de 4 y 8 paginas dentro del mismo pliego y evita generar un pliego parcial como si fuera completo.
 
+## Fase 6.4: cuadernillos reales y VYV
+
+La Fase 6.4 agrega un motor configurable con `tipo_cuadernillo`:
+
+- `8`: cuadernillos de 8 paginas.
+- `16`: cuadernillos de 16 paginas.
+
+El flujo sigue siendo:
+
+- siempre cosido a caballete
+- siempre cabeza con cabeza
+- siempre con logica espejo inicio-final
+- sin integracion PDF
+- sin tocar Step & Repeat PRO
+
+### Tapa
+
+La tapa completa se mantiene igual:
+
+```text
+frente: [N, 1]
+dorso:  [2, N-1]
+```
+
+### Tripa
+
+La tripa se genera como lista:
+
+```text
+[3 ... N-2]
+```
+
+No se divide en bloques consecutivos. El motor toma paginas desde ambos extremos:
+
+```text
+tipo_cuadernillo = 16
+tomar 8 del inicio + 8 del final
+
+tipo_cuadernillo = 8
+tomar 4 del inicio + 4 del final
+```
+
+### Cuadernillo 8
+
+Para 4 paginas tomadas del inicio y 4 del final se arma:
+
+```json
+{
+  "pliego": 1,
+  "tipo": "cuadernillo_8",
+  "modo": "cuadernillo_8",
+  "paginas_por_cara": 4,
+  "frente": [29, 3, 30, 4],
+  "dorso": [5, 28, 6, 27]
+}
+```
+
+### Cuadernillo 16
+
+Para 8 paginas tomadas del inicio y 8 del final se arma en layout 2x4:
+
+```json
+{
+  "pliego": 1,
+  "tipo": "cuadernillo_16",
+  "modo": "cuadernillo_16",
+  "paginas_por_cara": 8,
+  "frente": [34, 3, 32, 5, 30, 7, 28, 9],
+  "dorso": [4, 33, 6, 31, 8, 29, 10, 27]
+}
+```
+
+Ese ejemplo corresponde a una revista de 36 paginas con tapa completa:
+
+- tapa: `[36, 1, 2, 35]`
+- tripa: `3..34`
+- primer cuadernillo 16: inicio `3..10`, final `27..34`
+
+### VYV automatico
+
+Cuando el motor no alcanza a completar otro cuadernillo:
+
+- si quedan 8 paginas, genera `vyv_8`
+- si quedan 4 paginas, genera `vyv_4`
+
+VYV no tiene frente/dorso. Tiene una sola `cara`.
+
+Ejemplo `vyv_8`:
+
+```json
+{
+  "pliego": 2,
+  "tipo": "vyv_8",
+  "modo": "vyv_8_paginas",
+  "paginas_por_cara": 8,
+  "cara": [18, 11, 16, 13, 14, 15, 12, 17]
+}
+```
+
+Ejemplo `vyv_4`:
+
+```json
+{
+  "pliego": 2,
+  "tipo": "vyv_4",
+  "modo": "vyv_4_paginas",
+  "paginas_por_cara": 4,
+  "cara": [12, 9, 10, 11]
+}
+```
+
+La UI debe renderizar los cuadernillos con frente/dorso y los VYV como cara unica.
+
 ## Limitaciones actuales
 
 - Solo existe cosido a caballete.
-- Solo existe 4 paginas por cara.
+- El campo historico `paginas_por_cara` del payload se mantiene en `4`; la cantidad real por cara de cada pliego se informa en `pliegos[].paginas_por_cara`.
 - Solo existen `sin_tapa` y `tapa_completa`.
+- Solo existen cuadernillos configurables de 8 o 16 paginas.
 - No hay `tapa_simple`.
-- Vuelta y vuelta solo se aplica automaticamente al pliego parcial final de 4 paginas.
+- Vuelta y vuelta solo se aplica automaticamente como `vyv_4` o `vyv_8`.
 - No hay integracion PDF.
 - No genera ni modifica slots del Editor Visual IA.
 - No persiste datos dentro de `layout_constructor.json`.
