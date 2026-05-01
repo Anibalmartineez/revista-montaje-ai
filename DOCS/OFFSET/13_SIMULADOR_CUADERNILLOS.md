@@ -23,7 +23,7 @@ Por ahora solo se soporta:
 
 El total de paginas debe ser un entero positivo. Si no es multiplo de 4, se agregan paginas blancas hasta cerrar el multiplo de 4 siguiente.
 
-Para cada pliego se usa un desplazamiento de 4 paginas:
+Historicamente, Fase 6.1 usaba un desplazamiento simple de 4 paginas:
 
 ```text
 Pliego 1
@@ -35,7 +35,7 @@ frente: [N-4, 5, N-6, 7]
 dorso:  [6, N-5, 8, N-7]
 ```
 
-Y asi sucesivamente.
+Desde Fase 6.4 y 6.5, la salida operativa usa patrones reales validados de cuadernillo 8/16 y toma paginas desde extremos.
 
 ## Estructura JSON
 
@@ -66,8 +66,11 @@ Salida:
   "pliegos": [
     {
       "pliego": 1,
-      "frente": [32, 1, 30, 3],
-      "dorso": [2, 31, 4, 29]
+      "tipo": "cuadernillo_8",
+      "modo": "cuadernillo_8",
+      "paginas_por_cara": 4,
+      "frente": [32, 29, 1, 4],
+      "dorso": [30, 31, 3, 2]
     }
   ]
 }
@@ -107,7 +110,7 @@ dorso:  [2, N-1]
 
 La tripa empieza en pagina `3` y termina en pagina `N-2`. Esa lista se arma aparte con la misma regla de cosido a caballete, 4 paginas por cara.
 
-Ejemplo con `N = 32`:
+Ejemplo con `N = 32` y `tipo_cuadernillo = 8`:
 
 ```text
 TAPA
@@ -118,8 +121,8 @@ TRIPA
 paginas 3 a 30
 
 Pliego 1
-frente: [30, 3, 28, 5]
-dorso:  [4, 29, 6, 27]
+frente: [30, 27, 3, 6]
+dorso:  [28, 29, 5, 4]
 ```
 
 Si la tripa no cierra multiplo de 4, el simulador completa el final logico con `"BLANCO"`.
@@ -175,6 +178,8 @@ En `tapa_completa`, `pliegos` en la raiz apunta a los pliegos de la tripa para c
 ## Fase 6.3: pliegos parciales
 
 La Fase 6.3 corrige el armado de tripas cuando queda un bloque final de 4 paginas. Antes, el simulador trataba ese bloque como si fuera un pliego completo de 8 paginas. En imprenta real, ese caso se resuelve como pliego parcial vuelta y vuelta con 2 paginas por cara.
+
+Nota: esta fase quedo superada por Fase 6.4 y Fase 6.5. La implementacion actual usa `vyv_4` y `vyv_8` como cara unica, con patrones validados.
 
 ### Pliego completo
 
@@ -352,6 +357,108 @@ Ejemplo `vyv_4`:
 ```
 
 La UI debe renderizar los cuadernillos con frente/dorso y los VYV como cara unica.
+
+## Fase 6.5: patrones reales validados
+
+La Fase 6.5 congela los patrones de imposicion como constantes auditables en `cuadernillos/simulator.py`.
+
+### Patron de 8 paginas
+
+Para paginas logicas `[1,2,3,4,5,6,7,8]`:
+
+```text
+frente:
+[8, 5]
+[1, 4]
+
+dorso:
+[6, 7]
+[3, 2]
+```
+
+En arrays lineales:
+
+```json
+{
+  "frente": [8, 5, 1, 4],
+  "dorso": [6, 7, 3, 2]
+}
+```
+
+### Patron de 16 paginas
+
+Para paginas logicas `[1..16]`:
+
+```text
+frente:
+[5, 12, 9, 8]
+[4, 13, 16, 1]
+
+dorso:
+[7, 10, 11, 6]
+[2, 15, 14, 3]
+```
+
+En arrays lineales:
+
+```json
+{
+  "frente": [5, 12, 9, 8, 4, 13, 16, 1],
+  "dorso": [7, 10, 11, 6, 2, 15, 14, 3]
+}
+```
+
+### Mapeo a paginas reales
+
+Los patrones son relativos a las paginas tomadas por cada cuadernillo.
+
+Ejemplo: una revista de 36 paginas con tapa completa tiene:
+
+- tapa: `[36, 1, 2, 35]`
+- tripa: `[3..34]`
+- primer cuadernillo 16: `[3,4,5,6,7,8,9,10,27,28,29,30,31,32,33,34]`
+
+El indice logico 1 corresponde a `3`, el indice logico 2 corresponde a `4`, y asi sucesivamente.
+
+Aplicando el patron de 16:
+
+```json
+{
+  "frente": [7, 30, 27, 10, 6, 31, 34, 3],
+  "dorso": [9, 28, 29, 8, 4, 33, 32, 5]
+}
+```
+
+### VYV como cara unica
+
+VYV no tiene frente/dorso. Se renderiza como `cara` unica.
+
+Patrones VYV auditables:
+
+```text
+vyv_4: [4, 1, 2, 3]
+vyv_8: [8, 1, 6, 3, 4, 5, 2, 7]
+```
+
+Ejemplos:
+
+```json
+{
+  "tipo": "vyv_4",
+  "modo": "vyv_4_paginas",
+  "paginas_por_cara": 4,
+  "cara": [12, 9, 10, 11]
+}
+```
+
+```json
+{
+  "tipo": "vyv_8",
+  "modo": "vyv_8_paginas",
+  "paginas_por_cara": 8,
+  "cara": [18, 11, 16, 13, 14, 15, 12, 17]
+}
+```
 
 ## Limitaciones actuales
 

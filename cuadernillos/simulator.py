@@ -5,6 +5,12 @@ TIPO_SOPORTADO = "cosido_caballete"
 TIPOS_TAPA_SOPORTADOS = {"sin_tapa", "tapa_completa"}
 TIPOS_CUADERNILLO_SOPORTADOS = {8, 16}
 PAGINA_BLANCA = "BLANCO"
+PATRON_8_FRENTE = (8, 5, 1, 4)
+PATRON_8_DORSO = (6, 7, 3, 2)
+PATRON_16_FRENTE = (5, 12, 9, 8, 4, 13, 16, 1)
+PATRON_16_DORSO = (7, 10, 11, 6, 2, 15, 14, 3)
+PATRON_VYV_4_CARA = (4, 1, 2, 3)
+PATRON_VYV_8_CARA = (8, 1, 6, 3, 4, 5, 2, 7)
 
 
 class CuadernilloSimulationError(ValueError):
@@ -41,52 +47,29 @@ def _validar_tipo_cuadernillo(value):
     return value
 
 
-def _cuadernillo_8(pliego_num, start_pages, end_pages):
-    a = start_pages[0]
-    b = end_pages[-1]
-    c = start_pages[1]
-    d = end_pages[-2]
-    e = start_pages[2]
-    f = end_pages[-3]
-    g = start_pages[3]
-    h = end_pages[-4]
+def _mapear_patron(paginas, patron):
+    return [paginas[idx - 1] for idx in patron]
+
+
+def _cuadernillo_8(pliego_num, paginas):
     return {
         "pliego": pliego_num,
         "tipo": "cuadernillo_8",
         "modo": "cuadernillo_8",
         "paginas_por_cara": 4,
-        "frente": [d, a, b, c],
-        "dorso": [e, f, g, h],
+        "frente": _mapear_patron(paginas, PATRON_8_FRENTE),
+        "dorso": _mapear_patron(paginas, PATRON_8_DORSO),
     }
 
 
-def _cuadernillo_16(pliego_num, start_pages, end_pages):
-    pages = list(start_pages) + list(end_pages)
+def _cuadernillo_16(pliego_num, paginas):
     return {
         "pliego": pliego_num,
         "tipo": "cuadernillo_16",
         "modo": "cuadernillo_16",
         "paginas_por_cara": 8,
-        "frente": [
-            pages[15],
-            pages[0],
-            pages[13],
-            pages[2],
-            pages[11],
-            pages[4],
-            pages[9],
-            pages[6],
-        ],
-        "dorso": [
-            pages[1],
-            pages[14],
-            pages[3],
-            pages[12],
-            pages[5],
-            pages[10],
-            pages[7],
-            pages[8],
-        ],
+        "frente": _mapear_patron(paginas, PATRON_16_FRENTE),
+        "dorso": _mapear_patron(paginas, PATRON_16_DORSO),
     }
 
 
@@ -96,7 +79,7 @@ def _vyv_4(pliego_num, pages):
         "tipo": "vyv_4",
         "modo": "vyv_4_paginas",
         "paginas_por_cara": 4,
-        "cara": [pages[3], pages[0], pages[1], pages[2]],
+        "cara": _mapear_patron(pages, PATRON_VYV_4_CARA),
     }
 
 
@@ -106,16 +89,7 @@ def _vyv_8(pliego_num, pages):
         "tipo": "vyv_8",
         "modo": "vyv_8_paginas",
         "paginas_por_cara": 8,
-        "cara": [
-            pages[7],
-            pages[0],
-            pages[5],
-            pages[2],
-            pages[3],
-            pages[4],
-            pages[1],
-            pages[6],
-        ],
+        "cara": _mapear_patron(pages, PATRON_VYV_8_CARA),
     }
 
 
@@ -132,7 +106,7 @@ def _armar_pliegos_desde_paginas(paginas, tipo_cuadernillo=8):
         if tipo_cuadernillo == 16 and restantes >= 16:
             start_pages = paginas_finales[inicio : inicio + 8]
             end_pages = paginas_finales[fin - 8 : fin]
-            pliegos.append(_cuadernillo_16(pliego_num, start_pages, end_pages))
+            pliegos.append(_cuadernillo_16(pliego_num, start_pages + end_pages))
             inicio += 8
             fin -= 8
             continue
@@ -140,7 +114,7 @@ def _armar_pliegos_desde_paginas(paginas, tipo_cuadernillo=8):
         if tipo_cuadernillo == 8 and restantes >= 8:
             start_pages = paginas_finales[inicio : inicio + 4]
             end_pages = paginas_finales[fin - 4 : fin]
-            pliegos.append(_cuadernillo_8(pliego_num, start_pages, end_pages))
+            pliegos.append(_cuadernillo_8(pliego_num, start_pages + end_pages))
             inicio += 4
             fin -= 4
             continue
@@ -148,7 +122,7 @@ def _armar_pliegos_desde_paginas(paginas, tipo_cuadernillo=8):
         if tipo_cuadernillo == 16 and restantes == 12:
             start_pages = paginas_finales[inicio : inicio + 4]
             end_pages = paginas_finales[fin - 4 : fin]
-            pliegos.append(_cuadernillo_8(pliego_num, start_pages, end_pages))
+            pliegos.append(_cuadernillo_8(pliego_num, start_pages + end_pages))
             inicio += 4
             fin -= 4
             continue
