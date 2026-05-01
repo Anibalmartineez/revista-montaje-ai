@@ -263,14 +263,14 @@ def test_cuadernillo_16_incluye_visual_cabeza_con_cabeza():
     assert "dorso_visual" in pliego
     assert [item["pagina"] for item in pliego["frente_visual"]] == pliego["frente"]
     assert [item["rotacion"] for item in pliego["frente_visual"]] == [
-        90,
-        -90,
-        90,
-        -90,
-        90,
-        -90,
-        90,
-        -90,
+        180,
+        180,
+        180,
+        180,
+        0,
+        0,
+        0,
+        0,
     ]
 
 
@@ -282,14 +282,14 @@ def test_vyv_incluye_cara_visual_cabeza_con_cabeza():
     assert [item["rotacion"] for item in vyv_4["cara_visual"]] == [90, -90, 90, -90]
     assert [item["pagina"] for item in vyv_8["cara_visual"]] == vyv_8["cara"]
     assert [item["rotacion"] for item in vyv_8["cara_visual"]] == [
-        90,
-        -90,
-        90,
-        -90,
-        90,
-        -90,
-        90,
-        -90,
+        180,
+        180,
+        180,
+        180,
+        0,
+        0,
+        0,
+        0,
     ]
 
 

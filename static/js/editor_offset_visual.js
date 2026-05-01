@@ -2847,6 +2847,7 @@
         let rotationClass = ' pagina-rotada-0';
         if (rotation === 90) rotationClass = ' pagina-rotada-90';
         if (rotation === -90) rotationClass = ' pagina-rotada--90';
+        if (rotation === 180) rotationClass = ' pagina-rotada-180';
         return `
           <span class="cuadernillo-page${isBlank ? ' cuadernillo-page-blank' : ''}">
             <span class="cuadernillo-page-number${rotationClass}">${pageNumber}</span>

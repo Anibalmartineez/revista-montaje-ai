@@ -813,6 +813,10 @@ body {
   transform: rotate(-90deg);
 }
 
+.pagina-rotada-180 {
+  transform: rotate(180deg);
+}
+
 .pagina-rotada-0 {
   transform: rotate(0deg);
 }

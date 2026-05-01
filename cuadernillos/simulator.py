@@ -51,9 +51,17 @@ def _mapear_patron(paginas, patron):
     return [paginas[idx - 1] for idx in patron]
 
 
-def _paginas_visual(paginas, columnas):
+def _paginas_visual_lateral(paginas, columnas):
     return [
         {"pagina": pagina, "rotacion": 90 if idx % columnas % 2 == 0 else -90}
+        for idx, pagina in enumerate(paginas)
+    ]
+
+
+def _paginas_visual_vertical(paginas):
+    mitad = len(paginas) // 2
+    return [
+        {"pagina": pagina, "rotacion": 180 if idx < mitad else 0}
         for idx, pagina in enumerate(paginas)
     ]
 
@@ -68,8 +76,8 @@ def _cuadernillo_8(pliego_num, paginas):
         "paginas_por_cara": 4,
         "frente": frente,
         "dorso": dorso,
-        "frente_visual": _paginas_visual(frente, columnas=2),
-        "dorso_visual": _paginas_visual(dorso, columnas=2),
+        "frente_visual": _paginas_visual_lateral(frente, columnas=2),
+        "dorso_visual": _paginas_visual_lateral(dorso, columnas=2),
     }
 
 
@@ -83,8 +91,8 @@ def _cuadernillo_16(pliego_num, paginas):
         "paginas_por_cara": 8,
         "frente": frente,
         "dorso": dorso,
-        "frente_visual": _paginas_visual(frente, columnas=4),
-        "dorso_visual": _paginas_visual(dorso, columnas=4),
+        "frente_visual": _paginas_visual_vertical(frente),
+        "dorso_visual": _paginas_visual_vertical(dorso),
     }
 
 
@@ -96,7 +104,7 @@ def _vyv_4(pliego_num, pages):
         "modo": "vyv_4_paginas",
         "paginas_por_cara": 4,
         "cara": cara,
-        "cara_visual": _paginas_visual(cara, columnas=2),
+        "cara_visual": _paginas_visual_lateral(cara, columnas=2),
     }
 
 
@@ -108,7 +116,7 @@ def _vyv_8(pliego_num, pages):
         "modo": "vyv_8_paginas",
         "paginas_por_cara": 8,
         "cara": cara,
-        "cara_visual": _paginas_visual(cara, columnas=4),
+        "cara_visual": _paginas_visual_vertical(cara),
     }
 
 
@@ -227,7 +235,9 @@ def _simular_tapa_completa(
         "paginas_por_cara": 4,
         "paginas": [total_final, 1, 2, total_final - 1],
         "cara": [total_final, total_final - 1, 1, 2],
-        "cara_visual": _paginas_visual([total_final, total_final - 1, 1, 2], columnas=2),
+        "cara_visual": _paginas_visual_lateral(
+            [total_final, total_final - 1, 1, 2], columnas=2
+        ),
     }
     tripa = {
         "paginas_inicio": 3,

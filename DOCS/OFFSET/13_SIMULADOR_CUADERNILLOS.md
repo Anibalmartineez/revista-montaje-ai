@@ -471,7 +471,7 @@ Ejemplos:
 
 La Fase 6.6 agrega metadatos visuales para representar la orientacion cabeza con cabeza sin cambiar el orden numerico ya validado.
 
-La primera version de esta fase uso una orientacion vertical tipo libro (`180` / `0`) por filas. La correccion vigente usa orientacion lateral real de imprenta: paginas enfrentadas con rotaciones `90` y `-90` por columnas.
+La orientacion depende del tipo de layout. Los cuadernillos de 8 paginas y VYV 4 usan orientacion lateral real de imprenta (`90` / `-90`) por columnas. Los cuadernillos de 16 paginas y VYV 8 usan orientacion vertical cabeza con cabeza (`180` / `0`) por filas.
 
 Los arrays base se mantienen para compatibilidad:
 
@@ -491,37 +491,34 @@ Ejemplo:
 {
   "frente": [5, 12, 9, 8, 4, 13, 16, 1],
   "frente_visual": [
-    {"pagina": 5, "rotacion": 90},
-    {"pagina": 12, "rotacion": -90},
-    {"pagina": 9, "rotacion": 90},
-    {"pagina": 8, "rotacion": -90},
-    {"pagina": 4, "rotacion": 90},
-    {"pagina": 13, "rotacion": -90},
-    {"pagina": 16, "rotacion": 90},
-    {"pagina": 1, "rotacion": -90}
+    {"pagina": 5, "rotacion": 180},
+    {"pagina": 12, "rotacion": 180},
+    {"pagina": 9, "rotacion": 180},
+    {"pagina": 8, "rotacion": 180},
+    {"pagina": 4, "rotacion": 0},
+    {"pagina": 13, "rotacion": 0},
+    {"pagina": 16, "rotacion": 0},
+    {"pagina": 1, "rotacion": 0}
   ]
 }
 ```
 
 Regla visual:
 
-- layout 2x2:
+- layout 2x2 (`cuadernillo_8`, `vyv_4` y tapa `vyv_4_tapa`):
   - columna 0: `rotacion = 90`
   - columna 1: `rotacion = -90`
-- layout 2x4:
-  - columna 0: `rotacion = 90`
-  - columna 1: `rotacion = -90`
-  - columna 2: `rotacion = 90`
-  - columna 3: `rotacion = -90`
+- layout 2x4 (`cuadernillo_16` y `vyv_8`):
+  - fila superior: `rotacion = 180`
+  - fila inferior: `rotacion = 0`
 
-La misma alternancia se repite en todas las filas.
+Esto aplica asi:
 
-Esto aplica a:
-
-- `cuadernillo_8`
-- `cuadernillo_16`
-- `vyv_4`
-- `vyv_8`
+- `cuadernillo_8`: lateral `[90, -90, 90, -90]`.
+- `vyv_4`: lateral `[90, -90, 90, -90]`.
+- `vyv_4_tapa`: lateral `[90, -90, 90, -90]`.
+- `cuadernillo_16`: vertical `[180, 180, 180, 180, 0, 0, 0, 0]`.
+- `vyv_8`: vertical `[180, 180, 180, 180, 0, 0, 0, 0]`.
 
 VYV sigue siendo una sola `cara`, sin `frente` ni `dorso`. La metadata `cara_visual` permite mostrar esa cara unica con la orientacion correcta.
 
