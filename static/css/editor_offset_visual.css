@@ -892,6 +892,7 @@ body {
 }
 
 .cuadernillo-page {
+  position: relative;
   min-height: 30px;
   display: flex;
   align-items: center;
@@ -902,6 +903,49 @@ body {
   color: #111827;
   font-weight: 700;
   font-size: 13px;
+}
+
+.cuadernillo-page-rotation {
+  position: absolute;
+  top: 3px;
+  left: 4px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 18px;
+  height: 13px;
+  padding: 0 3px;
+  border-radius: 999px;
+  border: 1px solid #cbd5e1;
+  background: #f8fafc;
+  color: #475569;
+  font-size: 8px;
+  font-weight: 800;
+  line-height: 1;
+}
+
+.cuadernillo-page-rot-90 .cuadernillo-page-rotation {
+  color: #1d4ed8;
+  background: #eff6ff;
+  border-color: #bfdbfe;
+}
+
+.cuadernillo-page-rot--90 .cuadernillo-page-rotation {
+  color: #0e7490;
+  background: #ecfeff;
+  border-color: #a5f3fc;
+}
+
+.cuadernillo-page-rot-180 .cuadernillo-page-rotation {
+  color: #6d28d9;
+  background: #f5f3ff;
+  border-color: #ddd6fe;
+}
+
+.cuadernillo-page-rot-0 .cuadernillo-page-rotation {
+  color: #334155;
+  background: #f8fafc;
+  border-color: #cbd5e1;
 }
 
 .cuadernillo-page-number {

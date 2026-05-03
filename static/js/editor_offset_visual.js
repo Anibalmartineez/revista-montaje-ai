@@ -2845,11 +2845,26 @@
         const rotation = isVisualPage ? Number(pageItem.rotacion || 0) : 0;
         const isBlank = pageNumber === 'BLANCO';
         let rotationClass = ' pagina-rotada-0';
+        let pageRotationClass = ' cuadernillo-page-rot-0';
+        let rotationLabel = '0';
         if (rotation === 90) rotationClass = ' pagina-rotada-90';
-        if (rotation === -90) rotationClass = ' pagina-rotada--90';
-        if (rotation === 180) rotationClass = ' pagina-rotada-180';
+        if (rotation === 90) {
+          pageRotationClass = ' cuadernillo-page-rot-90';
+          rotationLabel = '90';
+        }
+        if (rotation === -90) {
+          rotationClass = ' pagina-rotada--90';
+          pageRotationClass = ' cuadernillo-page-rot--90';
+          rotationLabel = '-90';
+        }
+        if (rotation === 180) {
+          rotationClass = ' pagina-rotada-180';
+          pageRotationClass = ' cuadernillo-page-rot-180';
+          rotationLabel = '180';
+        }
         return `
-          <span class="cuadernillo-page${isBlank ? ' cuadernillo-page-blank' : ''}">
+          <span class="cuadernillo-page${pageRotationClass}${isBlank ? ' cuadernillo-page-blank' : ''}">
+            <span class="cuadernillo-page-rotation">${rotationLabel}</span>
             <span class="cuadernillo-page-number${rotationClass}">${pageNumber}</span>
           </span>
         `;
