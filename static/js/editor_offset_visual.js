@@ -2878,10 +2878,16 @@
         const pagesClass = getCuadernilloPagesClass(pliego);
         const modeLabel = getCuadernilloModeLabel(pliego);
         const label = modeLabel ? `<span class="cuadernillo-mode-label">${modeLabel}</span>` : '';
+        const vyvLabel = isVyv
+          ? '<span class="cuadernillo-mode-label cuadernillo-vyv-badge">Cara unica</span>'
+          : '';
         const caraUnica = Array.isArray(pliego.cara)
           ? `
             <div class="cuadernillo-face cuadernillo-single-face">
-              <strong>Cara unica VYV</strong>
+              <div class="cuadernillo-face-heading">
+                <strong>Cara unica VYV</strong>
+                <span class="cuadernillo-face-badge">Sin dorso</span>
+              </div>
               <span class="cuadernillo-orientation-label">Orientacion: cabeza con cabeza</span>
               <div class="${pagesClass}">${renderCuadernilloPages(pliego.cara_visual || pliego.cara)}</div>
             </div>
@@ -2903,7 +2909,10 @@
           : '';
         return `
           <article class="cuadernillo-card${isVyv ? ' pliego-vyv' : ''}">
-            <h4>Pliego ${pliego.pliego} ${label}</h4>
+            <h4>
+              <span>Pliego ${pliego.pliego}</span>
+              <span class="cuadernillo-card-badges">${label}${vyvLabel}</span>
+            </h4>
             ${caraUnica || frenteDorso}
           </article>
         `;
@@ -2911,7 +2920,7 @@
       .join('');
     return `
       <section class="cuadernillo-block cuadernillo-tripa-block">
-        ${title ? `<h4>${title}</h4>` : ''}
+        ${title ? `<h4 class="cuadernillo-section-title"><span>${title}</span><span class="cuadernillo-section-badge">Pliegos interiores</span></h4>` : ''}
         ${pliegosHtml}
       </section>
     `;
@@ -2922,9 +2931,12 @@
     if (Array.isArray(tapa.cara) || Array.isArray(tapa.cara_visual)) {
       return `
         <section class="cuadernillo-block cuadernillo-tapa-block tapa-vyv">
-          <h4>TAPA - Cara unica VYV</h4>
+          <h4 class="cuadernillo-section-title"><span>TAPA</span><span class="cuadernillo-section-badge">VYV 4 · Cara unica</span></h4>
           <div class="cuadernillo-face cuadernillo-single-face">
-            <strong>Cara unica VYV</strong>
+            <div class="cuadernillo-face-heading">
+              <strong>Cara unica VYV</strong>
+              <span class="cuadernillo-face-badge">Tapa completa</span>
+            </div>
             <span class="cuadernillo-orientation-label">Orientacion: cabeza con cabeza</span>
             <div class="cuadernillo-pages cuadernillo-pages-4 cuadernillo-grid-2x2">
               ${renderCuadernilloPages(tapa.cara_visual || tapa.cara)}
@@ -2935,7 +2947,7 @@
     }
     return `
       <section class="cuadernillo-block cuadernillo-tapa-block">
-        <h4>TAPA</h4>
+        <h4 class="cuadernillo-section-title"><span>TAPA</span><span class="cuadernillo-section-badge">Separada</span></h4>
         <div class="cuadernillo-face cuadernillo-front">
           <strong>Frente</strong>
           <div class="cuadernillo-pages cuadernillo-pages-cover">${renderCuadernilloPages(tapa.frente_visual || tapa.frente)}</div>
