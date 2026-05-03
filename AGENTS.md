@@ -117,3 +117,31 @@ Para cuadernillos:
 ```bash
 python -m compileall cuadernillos routes.py
 pytest tests/test_cuadernillos_simulator.py
+
+---
+
+# 🚀 Planificación de mejoras
+
+Cuando el agente proponga mejoras, debe:
+
+1. Agrupar las mejoras en fases pequeñas.
+2. Nombrar cada fase claramente.
+3. Explicar el objetivo de cada fase.
+4. Indicar qué archivos se verán afectados.
+5. Priorizar cambios de bajo riesgo primero.
+
+Ejemplo de formato:
+
+### Fase X — Nombre de la fase
+
+Objetivo:
+- qué se quiere mejorar
+
+Alcance:
+- qué archivos toca
+
+Riesgo:
+- bajo / medio / alto
+
+Resultado esperado:
+- qué mejora concreta se obtiene
