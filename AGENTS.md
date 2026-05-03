@@ -118,7 +118,6 @@ Para cuadernillos:
 python -m compileall cuadernillos routes.py
 pytest tests/test_cuadernillos_simulator.py
 
----
 
 # 🚀 Planificación de mejoras
 
@@ -145,3 +144,5 @@ Riesgo:
 
 Resultado esperado:
 - qué mejora concreta se obtiene
+
+---
