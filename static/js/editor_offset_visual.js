@@ -2886,6 +2886,40 @@
     return '';
   }
 
+  function renderCuadernilloTechSummary(simulacion) {
+    const tipoTapaLabel = simulacion.tipo_tapa === 'tapa_completa' ? 'Tapa completa' : 'Sin tapa';
+    const tipoCuadernillo = Number(simulacion.tipo_cuadernillo || 0);
+    const tipoCuadernilloLabel = tipoCuadernillo ? `${tipoCuadernillo} paginas` : 'Automatico';
+    const pliegos = simulacion.tipo_tapa === 'tapa_completa'
+      ? (simulacion.tripa?.pliegos || simulacion.pliegos || [])
+      : (simulacion.pliegos || []);
+    const totalPliegos = pliegos.length + (simulacion.tapa ? 1 : 0);
+    const items = [
+      ['Original', simulacion.total_paginas_original],
+      ['Final', simulacion.total_paginas_final],
+      ['Blancas', simulacion.blancas_agregadas],
+      ['Tapa', tipoTapaLabel],
+      ['Cuadernillo', tipoCuadernilloLabel],
+      ['Pliegos', totalPliegos],
+    ];
+
+    return `
+      <section class="cuadernillo-tech-summary" aria-label="Resumen operativo del cuadernillo">
+        <div class="cuadernillo-summary-grid">
+          ${items
+            .map(([label, value]) => `
+              <div class="cuadernillo-summary-card">
+                <span>${label}</span>
+                <strong>${value ?? 0}</strong>
+              </div>
+            `)
+            .join('')}
+        </div>
+        <p class="cuadernillo-summary-note">Simulacion visual: no genera PDF ni modifica el montaje.</p>
+      </section>
+    `;
+  }
+
   function renderCuadernilloPliegos(pliegos, title) {
     const pliegosHtml = (pliegos || [])
       .map((pliego) => {
@@ -2893,6 +2927,7 @@
         const pagesClass = getCuadernilloPagesClass(pliego);
         const modeLabel = getCuadernilloModeLabel(pliego);
         const label = modeLabel ? `<span class="cuadernillo-mode-label">${modeLabel}</span>` : '';
+        const pagesLabel = `<span class="cuadernillo-mode-label">${Number(pliego.paginas_por_cara || 4)} pags cara</span>`;
         const vyvLabel = isVyv
           ? '<span class="cuadernillo-mode-label cuadernillo-vyv-badge">Cara unica</span>'
           : '';
@@ -2903,7 +2938,7 @@
                 <strong>Cara unica VYV</strong>
                 <span class="cuadernillo-face-badge">Sin dorso</span>
               </div>
-              <span class="cuadernillo-orientation-label">Orientacion: cabeza con cabeza</span>
+              <span class="cuadernillo-orientation-label">Cabeza con cabeza</span>
               <div class="${pagesClass}">${renderCuadernilloPages(pliego.cara_visual || pliego.cara)}</div>
             </div>
           `
@@ -2911,13 +2946,17 @@
         const frenteDorso = !caraUnica
           ? `
             <div class="cuadernillo-face cuadernillo-front">
-              <strong>Frente</strong>
-              <span class="cuadernillo-orientation-label">Orientacion: cabeza con cabeza</span>
+              <div class="cuadernillo-face-heading">
+                <strong>Frente</strong>
+                <span class="cuadernillo-face-badge cuadernillo-orientation-label">Cabeza con cabeza</span>
+              </div>
               <div class="${pagesClass}">${renderCuadernilloPages(pliego.frente_visual || pliego.frente)}</div>
             </div>
             <div class="cuadernillo-face cuadernillo-back">
-              <strong>Dorso</strong>
-              <span class="cuadernillo-orientation-label">Orientacion: cabeza con cabeza</span>
+              <div class="cuadernillo-face-heading">
+                <strong>Dorso</strong>
+                <span class="cuadernillo-face-badge cuadernillo-orientation-label">Cabeza con cabeza</span>
+              </div>
               <div class="${pagesClass}">${renderCuadernilloPages(pliego.dorso_visual || pliego.dorso)}</div>
             </div>
           `
@@ -2926,7 +2965,7 @@
           <article class="cuadernillo-card${isVyv ? ' pliego-vyv' : ''}">
             <h4>
               <span>Pliego ${pliego.pliego}</span>
-              <span class="cuadernillo-card-badges">${label}${vyvLabel}</span>
+              <span class="cuadernillo-card-badges">${label}${pagesLabel}${vyvLabel}</span>
             </h4>
             ${caraUnica || frenteDorso}
           </article>
@@ -2946,13 +2985,13 @@
     if (Array.isArray(tapa.cara) || Array.isArray(tapa.cara_visual)) {
       return `
         <section class="cuadernillo-block cuadernillo-tapa-block tapa-vyv">
-          <h4 class="cuadernillo-section-title"><span>TAPA</span><span class="cuadernillo-section-badge">VYV 4 · Cara unica</span></h4>
+          <h4 class="cuadernillo-section-title"><span>TAPA</span><span class="cuadernillo-section-badge">VYV 4 - Cara unica</span></h4>
           <div class="cuadernillo-face cuadernillo-single-face">
             <div class="cuadernillo-face-heading">
               <strong>Cara unica VYV</strong>
               <span class="cuadernillo-face-badge">Tapa completa</span>
             </div>
-            <span class="cuadernillo-orientation-label">Orientacion: cabeza con cabeza</span>
+            <span class="cuadernillo-orientation-label">Cabeza con cabeza</span>
             <div class="cuadernillo-pages cuadernillo-pages-4 cuadernillo-grid-2x2">
               ${renderCuadernilloPages(tapa.cara_visual || tapa.cara)}
             </div>
@@ -2964,11 +3003,17 @@
       <section class="cuadernillo-block cuadernillo-tapa-block">
         <h4 class="cuadernillo-section-title"><span>TAPA</span><span class="cuadernillo-section-badge">Separada</span></h4>
         <div class="cuadernillo-face cuadernillo-front">
-          <strong>Frente</strong>
+          <div class="cuadernillo-face-heading">
+            <strong>Frente</strong>
+            <span class="cuadernillo-face-badge cuadernillo-orientation-label">Cabeza con cabeza</span>
+          </div>
           <div class="cuadernillo-pages cuadernillo-pages-cover">${renderCuadernilloPages(tapa.frente_visual || tapa.frente)}</div>
         </div>
         <div class="cuadernillo-face cuadernillo-back">
-          <strong>Dorso</strong>
+          <div class="cuadernillo-face-heading">
+            <strong>Dorso</strong>
+            <span class="cuadernillo-face-badge cuadernillo-orientation-label">Cabeza con cabeza</span>
+          </div>
           <div class="cuadernillo-pages cuadernillo-pages-cover">${renderCuadernilloPages(tapa.dorso_visual || tapa.dorso)}</div>
         </div>
       </section>
@@ -2978,22 +3023,16 @@
   function renderCuadernilloSimulation(simulacion) {
     const resultEl = document.getElementById('cuadernillo-resultado');
     if (!resultEl) return;
-    const tipoTapaLabel = simulacion.tipo_tapa === 'tapa_completa' ? 'Tapa completa separada' : 'Sin tapa';
-    const resumen = [
-      `Original: ${simulacion.total_paginas_original}`,
-      `Final: ${simulacion.total_paginas_final}`,
-      `Blancas: ${simulacion.blancas_agregadas}`,
-      `Tipo de tapa: ${tipoTapaLabel}`,
-    ].join(' | ');
+    const resumen = renderCuadernilloTechSummary(simulacion);
     if (simulacion.tipo_tapa === 'tapa_completa') {
       resultEl.innerHTML = `
-        <p class="cuadernillo-summary">${resumen}</p>
+        ${resumen}
         ${renderCuadernilloTapa(simulacion.tapa)}
         ${renderCuadernilloPliegos(simulacion.tripa?.pliegos || simulacion.pliegos || [], 'TRIPA')}
       `;
       return;
     }
-    resultEl.innerHTML = `<p class="cuadernillo-summary">${resumen}</p>${renderCuadernilloPliegos(simulacion.pliegos || [], '')}`;
+    resultEl.innerHTML = `${resumen}${renderCuadernilloPliegos(simulacion.pliegos || [], '')}`;
   }
 
   async function simularCuadernillo() {
