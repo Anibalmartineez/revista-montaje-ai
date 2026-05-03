@@ -29,6 +29,7 @@ El modulo Offset del repo agrupa varios flujos historicos de montaje offset. En 
 - `static/css/editor_offset_visual.css`
 - `montaje_offset_inteligente.py`
 - `engines/nesting_pro_engine.py`
+- `cuadernillos/simulator.py`
 - `static/constructor_offset_jobs/<job_id>/layout_constructor.json`
 
 ## Estado actual
@@ -118,6 +119,19 @@ El modulo Offset del repo agrupa varios flujos historicos de montaje offset. En 
 - frontend IA distingue:
   - `metadata_only`: cambios de preferencias sin slots regenerados
   - `layout_with_slots`: layout aplicable con slots recalculados
+- Fase 6 del simulador de cuadernillos implementada dentro del Editor Visual IA:
+  - modulo aislado `cuadernillos/simulator.py`
+  - endpoint `POST /editor_offset/cuadernillos/simular`
+  - panel visual integrado al editor
+  - soporte para cosido a caballete
+  - soporte para `sin_tapa` y `tapa_completa`
+  - cuadernillos de 8 y 16 paginas
+  - tapa completa como VYV 4 de cara unica
+  - VYV 4 y VYV 8 automaticos cuando la tripa queda parcial
+  - metadata visual de orientacion cabeza con cabeza (`90`, `-90`, `180`, `0`)
+  - diferenciacion visual de TAPA, TRIPA y VYV en la UI
+  - sin persistencia en `layout_constructor.json`
+  - sin generar slots, preview ni PDF final
 
 ## Riesgos principales
 
@@ -134,6 +148,8 @@ El modulo Offset del repo agrupa varios flujos historicos de montaje offset. En 
 - no existe expansion/compactacion horizontal equivalente para `left/right`
 - todavia no hay modo `maximize` ni sistema formal de modos de repeat
 - la IA puede sugerir y devolver layouts, pero la aplicacion sigue requiriendo confirmacion del usuario
+- el simulador de cuadernillos es una herramienta visual/logica aislada; si se interpreta como fuente de salida PDF o como parte del contrato de slots, puede inducir decisiones tecnicas incorrectas
+- la salida JSON del simulador no se persiste en el layout del editor; cualquier integracion futura con PDF debe definirse como fase nueva y no asumirse por documentacion
 
 ## Proximos pasos sugeridos
 
@@ -150,3 +166,4 @@ El modulo Offset del repo agrupa varios flujos historicos de montaje offset. En 
 4. extender compactacion/expansion a casos horizontales `left/right` solo si se mantiene segura
 5. evaluar un sistema de modos (`exact`, `maximize`, etc.) sin romper la semantica actual
 6. evaluar micro-refactors internos solo despues de cubrir los casos criticos de salida final
+7. mantener separado el simulador de cuadernillos del motor de montaje hasta definir un contrato explicito de integracion con PDF

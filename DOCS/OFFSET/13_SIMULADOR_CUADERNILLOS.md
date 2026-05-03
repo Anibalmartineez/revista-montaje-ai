@@ -541,6 +541,59 @@ La tapa completa tambien se renderiza como VYV 4 de cara unica:
 
 Esta fase sigue sin generar PDF. Solo mejora la simulacion visual dentro del Editor Visual IA.
 
+## Estado UI actual dentro del Editor Visual IA
+
+La UI actual renderiza el simulador como una herramienta auxiliar del editor, no como un motor de salida.
+
+### Jerarquia visual
+
+- TAPA se muestra como bloque propio cuando `tipo_tapa = "tapa_completa"`.
+- TRIPA se muestra como seccion independiente con sus pliegos interiores.
+- VYV se identifica como cara unica, sin dorso.
+- Los pliegos normales conservan frente y dorso.
+
+### Orientacion visual
+
+El frontend usa la metadata visual del simulador:
+
+- `frente_visual`
+- `dorso_visual`
+- `cara_visual`
+
+Cada pagina puede mostrar su rotacion esperada:
+
+- `90`
+- `-90`
+- `180`
+- `0`
+
+Esto ayuda al operador a leer cabeza con cabeza sin cambiar el orden numerico de las paginas.
+
+### Limite operativo de la UI
+
+- El panel no guarda la simulacion en el layout.
+- El panel no genera slots.
+- El panel no manda datos a preview/PDF.
+- El JSON mostrado/renderizado es resultado transitorio de `POST /editor_offset/cuadernillos/simular`.
+
+## Validacion automatizada
+
+La cobertura principal esta en `tests/test_cuadernillos_simulator.py`.
+
+Casos relevantes:
+
+- total de paginas normalizado a multiplo de 4
+- tapa completa separada
+- cuadernillo 8
+- cuadernillo 16
+- VYV 4
+- VYV 8
+- 28 paginas con tapa completa y cuadernillo 16
+- 32 paginas con tapa completa y cuadernillo 16
+- 36 paginas con tapa completa y cuadernillo 16
+- metadata visual de orientacion para 2x2 y 2x4
+- respuesta del endpoint Flask con `ok: true` o error controlado
+
 ## Limitaciones actuales
 
 - Solo existe cosido a caballete.

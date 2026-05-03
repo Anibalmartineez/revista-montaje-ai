@@ -15,6 +15,7 @@ Hoy el repo sigue teniendo varios flujos offset coexistiendo, pero el **Editor V
 - backend de orquestacion: `routes.py`
 - motor de salida final: `montaje_offset_inteligente.py`
 - motor de nesting auxiliar: `engines/nesting_pro_engine.py`
+- simulador de cuadernillos: `cuadernillos/simulator.py`
 
 Este fue el unico flujo trabajado funcionalmente en esta fase.
 
@@ -60,6 +61,20 @@ Este fue el unico flujo trabajado funcionalmente en esta fase.
   - error bloqueante si faltan formas solicitadas
   - generacion atomica por diseno para evitar slots parciales
   - aislamiento de ejecuciones para que un error anterior no contamine la siguiente corrida
+- Simulador de Cuadernillos Fase 6 integrado al Editor Visual IA:
+  - endpoint `POST /editor_offset/cuadernillos/simular`
+  - soporte para `cosido_caballete`
+  - soporte para `sin_tapa` y `tapa_completa`
+  - selector de cuadernillo 8 / 16
+  - tapa completa separada como VYV 4 de cara unica
+  - tripa generada de forma independiente
+  - VYV 4 y VYV 8 automaticos cuando no hay bloque completo
+  - patrones reales validados para cuadernillos 8 y 16
+  - metadata visual `frente_visual`, `dorso_visual` y `cara_visual`
+  - orientacion cabeza con cabeza con valores `90`, `-90`, `180` y `0`
+  - render diferenciado de TAPA, TRIPA, frente/dorso y VYV
+  - jerarquia visual reforzada para tapa, tripa y cara unica
+  - sin integracion con PDF, sin slots y sin persistencia en layout
 
 ## Validaciones implementadas
 
@@ -88,6 +103,18 @@ Implementadas:
 - fuera de area util
 - invasion de zona de pinza CTP
 - overlap simple por bounding box
+
+### Simulador de cuadernillos
+
+Documentado en `13_SIMULADOR_CUADERNILLOS.md`.
+
+Implementado:
+
+- validacion de payload y modos soportados
+- normalizacion de paginas a multiplo de 4
+- derivacion automatica de paginas por cara desde `tipo_cuadernillo`
+- errores claros para configuraciones no soportadas
+- tests dedicados en `tests/test_cuadernillos_simulator.py`
 
 ## Mejoras UX implementadas
 
@@ -257,6 +284,10 @@ Reglas actuales observadas:
 - `fill` mejorado no reemplaza un packing real
 - no existe modo `maximize`; el comportamiento actual es exacto respecto de `forms_per_plate`
 - no hay sistema formal de modos aun
+- el simulador de cuadernillos todavia no genera PDF ni modifica el layout de montaje
+- `tapa_simple` no esta implementada
+- el simulador solo soporta cosido a caballete y cuadernillos 8/16
+- VYV se calcula como cara unica logica, no como frente/dorso de salida final
 
 ## Frontera de alcance vigente
 
@@ -267,8 +298,10 @@ Reglas actuales observadas:
 - `static/js/editor_offset_visual.js`
 - `static/css/editor_offset_visual.css`
 - endpoints `/editor_offset/*` y `/editor_offset_visual/apply_imposition`
+- endpoint `/editor_offset/cuadernillos/simular`
 - `montaje_offset_inteligente.py`
 - `engines/nesting_pro_engine.py`
+- `cuadernillos/simulator.py`
 
 ### Fuera del alcance por ahora
 
@@ -298,3 +331,4 @@ Reglas actuales observadas:
 4. mejorar surfacing de errores y warnings del editor sin refactor masivo
 5. medir con casos reales si la heuristica automatica de `repeat_role` necesita ajuste
 6. evaluar modos futuros y expansion horizontal solo con pruebas de regresion
+7. definir, en una fase separada, si el simulador de cuadernillos debe integrarse con PDF o mantenerse como herramienta de consulta visual

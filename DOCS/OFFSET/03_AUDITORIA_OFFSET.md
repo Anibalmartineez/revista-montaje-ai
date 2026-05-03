@@ -41,6 +41,7 @@ No se observan otros assets JS/CSS cargados directamente por ese template.
 - `POST /editor_offset/preview/<job_id>`
 - `POST /editor_offset/generar_pdf/<job_id>`
 - `POST /editor_offset/upload/<job_id>`
+- `POST /editor_offset/cuadernillos/simular`
 
 Ademas, la pantalla entra por:
 
@@ -79,6 +80,11 @@ Ademas, la pantalla entra por:
 
 - `routes.editor_offset_generar_pdf`
 - motor: `montaje_offset_inteligente.montar_offset_desde_layout`
+
+### Simulador de cuadernillos
+
+- `routes.editor_offset_cuadernillos_simular`
+- motor aislado: `cuadernillos.simulator.simular_cuadernillo`
 
 ## 6. Que modulos intervienen realmente por subflujo
 
@@ -159,6 +165,17 @@ Ademas, la pantalla entra por:
 - motor: `montaje_offset_inteligente.montar_offset_desde_layout`
 - render final: `montaje_offset_inteligente.realizar_montaje_inteligente`
 
+### Simular cuadernillos
+
+- frontend: panel de cuadernillos en `templates/editor_offset_visual.html`
+- render: `static/js/editor_offset_visual.js`
+- estilos: `static/css/editor_offset_visual.css`
+- backend: `routes.editor_offset_cuadernillos_simular`
+- motor: `cuadernillos/simulator.py`
+- salida: JSON transitorio usado solo para mostrar TAPA, TRIPA, pliegos, VYV y orientacion visual
+- no escribe `layout_constructor.json`
+- no crea slots y no participa en preview/PDF
+
 ## 7. Cuales de estos archivos se usan realmente desde el editor visual IA
 
 ### `montaje_offset_inteligente.py`
@@ -201,6 +218,7 @@ Ademas, la pantalla entra por:
 - `routes._build_step_repeat_slots`
 - `engines.nesting_pro_engine.compute_nesting`
 - `montaje_offset_inteligente.realizar_montaje_inteligente`
+- `cuadernillos.simulator.simular_cuadernillo` como simulador logico/visual, no como motor de salida offset
 - `imposicion_offset_auto.py`
 - `montaje_offset.py`
 - `montaje_offset_personalizado.py`
@@ -254,6 +272,7 @@ Hay varias fuentes de verdad parciales.
 - duplicar o eliminar logica que en realidad se usa desde otra pantalla offset
 - tocar `montaje_offset_inteligente.py` pensando solo en el editor nuevo y romper `/montaje_offset_inteligente`
 - tocar `routes.py` y romper rutas legacy que usan otros motores
+- confundir el simulador de cuadernillos con un generador de slots o PDF final
 - unificar sangrado/crop/CTP sin definir antes la fuente de verdad
 - alterar el manejo de `face=front/back` y romper dorso final
 - confundir motores:

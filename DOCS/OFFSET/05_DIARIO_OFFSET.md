@@ -467,3 +467,49 @@ Volver mas util el motor Step & Repeat PRO del Editor Visual IA sin pasar a pack
 - no existe modo `maximize`
 - `preferred_flow` sigue reservado e inactivo
 - no hay sistema formal de modos; el motor actual es exacto respecto de `forms_per_plate`
+
+## Fase 6 - Simulador de Cuadernillos
+
+### Objetivo general
+
+Agregar al Editor Visual IA una herramienta visual/logica para que el operador pueda entender el armado de cuadernillos antes de cualquier integracion con PDF o slots.
+
+### Implementaciones reales cerradas
+
+- modulo aislado `cuadernillos/simulator.py`
+- endpoint `POST /editor_offset/cuadernillos/simular`
+- panel integrado en `templates/editor_offset_visual.html`
+- render en `static/js/editor_offset_visual.js`
+- estilos en `static/css/editor_offset_visual.css`
+- soporte para `cosido_caballete`
+- soporte para `sin_tapa` y `tapa_completa`
+- selector de cuadernillo 8 / 16
+- tapa completa separada como VYV 4 de cara unica
+- tripa generada de forma independiente
+- patrones reales validados para cuadernillos de 8 y 16 paginas
+- VYV 4 y VYV 8 automaticos cuando la tripa no completa otro cuadernillo
+- metadata visual para orientacion cabeza con cabeza:
+  - `frente_visual`
+  - `dorso_visual`
+  - `cara_visual`
+- jerarquia visual de TAPA, TRIPA y VYV en el editor
+
+### Garantias conservadas
+
+- no se modifico Step & Repeat PRO
+- no se modifico `montaje_offset_inteligente.py`
+- no se modifico el contrato de `layout_constructor.json`
+- no se generan ni modifican `slots[]`
+- no se genera PDF desde el simulador
+
+### Validacion
+
+- tests dedicados en `tests/test_cuadernillos_simulator.py`
+- casos cubiertos para tapa completa, 28/32/36 paginas, cuadernillo 16, VYV y metadata visual de orientacion
+
+### Limitaciones abiertas
+
+- no hay `tapa_simple`
+- no hay otros tipos de encuadernacion
+- no hay integracion PDF
+- no hay persistencia del resultado simulado

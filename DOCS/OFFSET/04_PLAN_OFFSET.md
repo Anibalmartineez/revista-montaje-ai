@@ -6,20 +6,15 @@ Consolidar el Editor Visual IA como flujo operativo profesional del modulo Offse
 
 ## Etapa actual
 
-- Rama actual documentada: `fase5-step-repeat-inteligente`
+- Estado documentado: Fase 6 del simulador de cuadernillos integrada al Editor Visual IA
 - Sin refactor masivo
 - Sin limpieza agresiva
 - Sin eliminacion de archivos
-- Cambios acotados sobre Editor Visual IA y Step & Repeat PRO
-- Foco real de esta etapa:
-  - automatizacion del motor repeat por diseno
-  - zonas preferidas reales como preferencia de inicio
-  - UI de disenos simplificada
-  - mejor aprovechamiento de huecos con `fill`
-  - compactacion vertical segura de grupos
-  - expansion vertical segura de zonas como preferencia, no carcel
-  - integracion de `auto` con grupos verticales
-  - alineacion de IA/tools con el motor Fase 5
+- Cambios acotados sobre el Editor Visual IA
+- Foco real acumulado:
+  - Step & Repeat PRO Inteligente cerrado como Fase 5
+  - simulador de cuadernillos cerrado como Fase 6 visual/logica
+  - separacion explicita entre simulacion de cuadernillos y salida PDF
 
 ## Plan propuesto por fases
 
@@ -168,11 +163,35 @@ Decisiones consolidadas:
 - `rotation_deg` sigue siendo orientacion del contenido
 - el modo actual es exacto respecto de `forms_per_plate`; no existe todavia modo `maximize`
 
-### Fase 6 sugerida. IA operativa sobre motor inteligente
+### Fase 6. Simulador de Cuadernillos
+
+Estado real:
+
+- modulo aislado `cuadernillos/simulator.py`
+- endpoint `POST /editor_offset/cuadernillos/simular`
+- panel integrado al Editor Visual IA
+- soporte para cosido a caballete
+- soporte para `sin_tapa` y `tapa_completa`
+- selector de cuadernillo 8 / 16
+- tapa completa como VYV 4 de cara unica
+- tripa separada
+- VYV 4 y VYV 8 automaticos para restos parciales
+- patrones reales auditables para 8 y 16 paginas
+- metadata visual de orientacion cabeza con cabeza
+- render diferenciado de TAPA, TRIPA, frente/dorso y VYV
+
+Limites:
+
+- no modifica `layout_constructor.json`
+- no crea `slots[]`
+- no toca Step & Repeat PRO
+- no genera preview ni PDF final
+
+### Fase 7 sugerida. IA operativa sobre motor inteligente
 
 Objetivo:
 
-- consolidar guardrails y pruebas de la IA sobre controls estables del motor inteligente
+- consolidar guardrails y pruebas de la IA sobre controles estables del motor inteligente
 - evitar que la IA manipule numerica o geometria sin validacion del motor
 - usar `preferred_zone`, `forms_per_plate` y tools repeat como superficie principal
 - dejar packing complejo y optimizaciones profundas para una fase posterior
@@ -185,7 +204,8 @@ Objetivo:
 4. Mejorar feedback no bloqueante de errores/warnings
 5. Evaluar sistema de modos (`exact`, `maximize`, etc.) sin romper el contrato actual
 6. Evaluar compactacion o expansion horizontal solo si mantiene seguridad
-7. Recien despues evaluar micro-refactors
+7. Mantener el simulador de cuadernillos aislado hasta definir una integracion PDF explicita
+8. Recien despues evaluar micro-refactors
 
 ## Cambios explicitamente postergados
 
@@ -198,6 +218,8 @@ Objetivo:
 - cambiar el contrato base de `layout_constructor.json` sin migracion
 - documentar `preferred_flow` como funcional antes de implementarlo
 - declarar soporte de expansion horizontal `left/right` antes de tener motor y pruebas
+- convertir el simulador de cuadernillos en generador de PDF sin fase tecnica separada
+- persistir resultados del simulador en el layout sin contrato previo
 
 ## Criterio de seguridad para siguientes pasos
 

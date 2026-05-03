@@ -86,6 +86,10 @@ No se ve carga directa de otros JS/CSS desde el template del editor visual IA.
 
 - `POST /editor_offset_visual/apply_imposition`
 
+### Simulador de cuadernillos
+
+- `POST /editor_offset/cuadernillos/simular`
+
 ### Salida
 
 - `POST /editor_offset/preview/<job_id>`
@@ -118,9 +122,39 @@ No se ve carga directa de otros JS/CSS desde el template del editor visual IA.
    - editar slots manualmente
    - duplicar frente a dorso
    - aplicar ajustes CTP
+   - simular cuadernillos de forma visual/logica
    - generar preview y PDF final
 6. Cada salida importante se persiste en `layout_constructor.json`.
 7. Preview y PDF final se generan desde `montaje_offset_inteligente.py`.
+
+## Simulador de cuadernillos
+
+### Responsabilidad
+
+- vive como herramienta auxiliar dentro del Editor Visual IA
+- calcula armado logico de cuadernillos para cosido a caballete
+- muestra TAPA, TRIPA, pliegos frente/dorso y VYV de cara unica
+- representa orientacion cabeza con cabeza mediante metadata visual
+
+### Backend
+
+- modulo: `cuadernillos/simulator.py`
+- ruta: `POST /editor_offset/cuadernillos/simular`
+- orquestacion: `routes.py`
+
+### Frontend
+
+- panel: `templates/editor_offset_visual.html`
+- render: `static/js/editor_offset_visual.js`
+- estilos: `static/css/editor_offset_visual.css`
+
+### Limites
+
+- no persiste datos en `layout_constructor.json`
+- no crea ni modifica `slots[]`
+- no participa en `apply_imposition`
+- no alimenta preview/PDF final
+- no modifica Step & Repeat PRO ni motores legacy
 
 ## Fuente de verdad actual
 
@@ -136,6 +170,7 @@ No se ve carga directa de otros JS/CSS desde el template del editor visual IA.
   - `selectedWork`
   - `history`
   - `dragState`
+  - resultado visual del simulador de cuadernillos
 
 ### Orquestacion backend
 

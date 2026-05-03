@@ -48,6 +48,23 @@ En Fase 5, la capa IA trabaja sobre el mismo contrato de layout y no inventa geo
 
 El bridge OpenAI puede encadenar tools y conserva el ultimo layout generado para que una tool posterior de analisis no pierda los slots ya calculados.
 
+### Simulador de cuadernillos
+
+La Fase 6 agrega una herramienta visual/logica aislada:
+
+- endpoint `POST /editor_offset/cuadernillos/simular`
+- modulo `cuadernillos/simulator.py`
+- UI dentro del Editor Visual IA
+
+Importante para el contrato:
+
+- el resultado del simulador no forma parte de `layout_constructor.json`
+- no agrega campos a `works[]`, `designs[]`, `slots[]`, `faces` ni `export_settings`
+- no modifica `state.layout`
+- no crea ni reordena slots
+- no participa en preview/PDF
+- cualquier integracion futura con PDF o persistencia requiere contrato nuevo
+
 ## Diferencia entre estados
 
 ### Estado en memoria del frontend
@@ -69,6 +86,8 @@ Solo `state.layout` es persistible.
 ### Estado persistido en JSON
 
 Incluye solo el contrato serializado por `layoutToJson()`. Lo que no entra en `state.layout` no llega a disco.
+
+El resultado del simulador de cuadernillos es transitorio y queda fuera del JSON persistido.
 
 ### Estado consumido por preview/PDF
 
@@ -744,6 +763,7 @@ Eso significa que el backend tolera esos campos en `related_work`, pero la UI ac
 10. `export_settings.crop_marks` global pisa overrides por diseño y slot.
 11. `saveLayout()` ocurre antes de preview/PDF.
 12. `faces` contiene la cara activa y todos los slots tienen `face`.
+13. El simulador de cuadernillos no es fuente de verdad para `slots[]` ni para preview/PDF.
 
 ## Diferencias entre memoria, JSON y preview/PDF
 
@@ -894,3 +914,21 @@ Por compatibilidad, el layout debe tratarse como contrato congelado hasta que ex
 - antes de llamar al motor, el endpoint usa una copia del layout y fuerza `slots = []`
 - esto evita que una corrida fallida o slots previos contaminen la siguiente generacion
 - el resultado solo reemplaza `layout["slots"]` si el motor devuelve una lista completa y valida
+
+## Aclaraciones Fase 6 sobre simulador de cuadernillos
+
+- El simulador trabaja con su propio payload:
+  - `total_paginas`
+  - `tipo_encuadernacion`
+  - `tipo_tapa`
+  - `tipo_cuadernillo`
+- `paginas_por_cara` se deriva automaticamente desde `tipo_cuadernillo`.
+- La respuesta puede incluir:
+  - `tapa`
+  - `tripa`
+  - `pliegos`
+  - `frente_visual`
+  - `dorso_visual`
+  - `cara_visual`
+- Esa respuesta se usa solo para render visual dentro del panel.
+- No se debe mezclar con el contrato de montaje offset hasta definir una fase de integracion.
