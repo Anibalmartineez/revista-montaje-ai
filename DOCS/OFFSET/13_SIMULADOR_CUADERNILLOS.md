@@ -545,12 +545,45 @@ Esta fase sigue sin generar PDF. Solo mejora la simulacion visual dentro del Edi
 
 La UI actual renderiza el simulador como una herramienta auxiliar del editor, no como un motor de salida.
 
+Desde la mejora visual posterior a Fase 6.1, el resultado se presenta como una hoja tecnica visual para imprenta. Esta mejora es solo de presentacion: no cambia calculos, payload, salida JSON, backend, slots, PDF ni persistencia.
+
 ### Jerarquia visual
 
+- El resultado abre con un resumen tecnico superior.
 - TAPA se muestra como bloque propio cuando `tipo_tapa = "tapa_completa"`.
 - TRIPA se muestra como seccion independiente con sus pliegos interiores.
 - VYV se identifica como cara unica, sin dorso.
 - Los pliegos normales conservan frente y dorso.
+- Cada pliego muestra badges de tipo y paginas por cara.
+- Frente, Dorso y Cara unica VYV usan cabeceras uniformes.
+
+### Fase 6.1 visual: panel profesional
+
+La Fase 6.1 visual no corresponde a una nueva regla de armado. Es una mejora posterior de UI/UX sobre el render existente del simulador.
+
+Implementado:
+
+- resumen operativo superior con:
+  - paginas originales
+  - paginas finales
+  - blancas agregadas
+  - tipo de tapa
+  - tipo de cuadernillo
+  - cantidad de pliegos
+- nota visible: `Simulacion visual: no genera PDF ni modifica el montaje.`
+- badges de paginas por cara en los pliegos
+- cabeceras uniformes para Frente, Dorso y Cara unica VYV
+- estilos profesionales para tarjetas, badges, resumen y diferenciacion de caras
+
+Garantias:
+
+- no modifica `cuadernillos/simulator.py`
+- no toca backend ni rutas Flask
+- no cambia payload ni salida JSON
+- no genera PDF
+- no crea ni modifica slots
+- no persiste datos en `layout_constructor.json`
+- no modifica `templates/editor_offset_visual.html`
 
 ### Orientacion visual
 

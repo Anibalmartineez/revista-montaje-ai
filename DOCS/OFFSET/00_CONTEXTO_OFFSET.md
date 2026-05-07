@@ -130,6 +130,8 @@ El modulo Offset del repo agrupa varios flujos historicos de montaje offset. En 
   - VYV 4 y VYV 8 automaticos cuando la tripa queda parcial
   - metadata visual de orientacion cabeza con cabeza (`90`, `-90`, `180`, `0`)
   - diferenciacion visual de TAPA, TRIPA y VYV en la UI
+  - hoja tecnica visual con resumen operativo superior
+  - advertencia visible: simulacion visual, no genera PDF ni modifica el montaje
   - sin persistencia en `layout_constructor.json`
   - sin generar slots, preview ni PDF final
 

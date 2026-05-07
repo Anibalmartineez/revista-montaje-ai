@@ -75,6 +75,14 @@ Este fue el unico flujo trabajado funcionalmente en esta fase.
   - render diferenciado de TAPA, TRIPA, frente/dorso y VYV
   - jerarquia visual reforzada para tapa, tripa y cara unica
   - sin integracion con PDF, sin slots y sin persistencia en layout
+- Simulador de Cuadernillos Fase 6.1 visual:
+  - resumen tecnico superior con paginas originales, paginas finales, blancas, tapa, tipo de cuadernillo y pliegos
+  - advertencia visible de simulacion visual: no genera PDF ni modifica el montaje
+  - badges de paginas por cara en cada pliego
+  - cabeceras uniformes para Frente, Dorso y Cara unica VYV
+  - estilos profesionales para resumen, tarjetas, badges y jerarquia visual
+  - cambio limitado a presentacion frontend
+  - sin cambios en backend, payload, salida JSON, `cuadernillos/simulator.py`, templates ni `layout_constructor.json`
 
 ## Validaciones implementadas
 

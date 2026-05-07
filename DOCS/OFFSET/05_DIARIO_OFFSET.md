@@ -513,3 +513,55 @@ Agregar al Editor Visual IA una herramienta visual/logica para que el operador p
 - no hay otros tipos de encuadernacion
 - no hay integracion PDF
 - no hay persistencia del resultado simulado
+
+## Fase 6.1 - Panel profesional de lectura de cuadernillo
+
+### Objetivo
+
+Mejorar la lectura operativa del resultado del simulador dentro del Editor Visual IA, convirtiendolo en una hoja tecnica visual para imprenta.
+
+### Mejora implementada
+
+- resumen tecnico superior con:
+  - paginas originales
+  - paginas finales
+  - blancas agregadas
+  - tipo de tapa
+  - tipo de cuadernillo
+  - cantidad de pliegos
+- advertencia visible:
+  - simulacion visual
+  - no genera PDF
+  - no modifica el montaje
+- badges de paginas por cara en cada pliego
+- cabeceras uniformes para:
+  - Frente
+  - Dorso
+  - Cara unica VYV
+- estilos profesionales para:
+  - resumen operativo
+  - tarjetas de pliego
+  - badges
+  - separacion visual de frente, dorso y VYV
+
+### Alcance tecnico
+
+- solo frontend visual del simulador
+- cambios en `static/js/editor_offset_visual.js`
+- cambios en `static/css/editor_offset_visual.css`
+- sin cambios en `templates/editor_offset_visual.html`
+- sin cambios en backend
+- sin cambios en `cuadernillos/simulator.py`
+- sin cambios en payload, salida JSON, slots, PDF ni `layout_constructor.json`
+
+### Validacion
+
+- se verifico que el payload enviado al endpoint se mantiene igual
+- se verificaron casos directos del simulador:
+  - 28 paginas + tapa completa + cuadernillo 16
+  - 32 paginas + tapa completa + cuadernillo 16
+  - 36 paginas + tapa completa + cuadernillo 16
+  - 32 paginas + sin tapa + cuadernillo 8
+- `git diff --check` no reporto errores
+- `node --check` no pudo ejecutarse por acceso denegado a `node.exe`
+- `pytest` no pudo ejecutarse porque el entorno Python actual no tenia `pytest` instalado
