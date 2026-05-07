@@ -59,11 +59,12 @@ Siempre:
 3. Leer documentación relevante en `DOCS/OFFSET/`.
 4. Detectar impacto y riesgos.
 5. Proponer un plan corto.
-6. Implementar cambios mínimos.
-7. Verificar que funcione.
-8. Actualizar tests si corresponde.
-9. Actualizar documentación si cambia comportamiento.
-10. Explicar qué hizo.
+6. Esperar aprobación antes de implementar.
+7. Implementar cambios mínimos.
+8. Verificar que funcione.
+9. Actualizar tests si corresponde.
+10. Actualizar documentación si cambia comportamiento.
+11. Explicar qué hizo.
 
 ---
 
@@ -108,17 +109,58 @@ Cada mejora recomendada debe poder convertirse en una fase pequeña y segura.
 
 ---
 
+# 🧩 Definición de fases
+
+Antes de proponer una nueva fase, el agente debe analizar:
+
+- qué problema real se quiere resolver
+- si la mejora aporta valor funcional real
+- si la mejora es solo visual o estética
+- qué usuario se beneficia
+- qué riesgos introduce
+- qué NO debe tocarse
+- si conviene implementarla ahora o dejarla para otra fase
+
+El agente debe evitar crear fases innecesarias o agregar complejidad sin valor operativo real.
+
+---
+
 # 🧪 Validación
 
 Cuando modifique código, debe intentar validar con comandos adecuados al cambio.
 
-Para cuadernillos:
+## Validación general
+
+Validación mínima sugerida:
+
+```bash
+python -m compileall routes.py montaje_offset_inteligente.py engines cuadernillos ai_agent
+```
+
+Para verificar diferencias:
+
+```bash
+git diff --check
+```
+
+## Validación para cuadernillos
 
 ```bash
 python -m compileall cuadernillos routes.py
 pytest tests/test_cuadernillos_simulator.py
-
 ```
+
+## Validación frontend
+
+Si Node está disponible:
+
+```bash
+node --check static/js/editor_offset_visual.js
+```
+
+Si alguna herramienta no está disponible, el agente debe explicarlo claramente y no inventar validaciones que no pudo ejecutar.
+
+---
 
 # 🚀 Planificación de mejoras
 
@@ -147,3 +189,74 @@ Resultado esperado:
 - qué mejora concreta se obtiene
 
 ---
+
+# 📚 Documentación
+
+El agente debe revisar y mantener alineada la documentación del sistema con el estado real del código.
+
+Documentos principales del Editor Visual IA:
+
+- `00_CONTEXTO_OFFSET.md`
+- `01_MAPA_EDITOR_VISUAL.md`
+- `02_ESTADO_OFFSET.md`
+- `03_AUDITORIA_OFFSET.md`
+- `04_PLAN_OFFSET.md`
+- `05_DIARIO_OFFSET.md`
+- `06_CONTRATO_LAYOUT.md`
+- `07_CONTRATO_SLOTS.md`
+- `08_VALIDACION_SALIDA.md`
+- `09_VALIDACION_GEOMETRICA.md`
+- `10_INDICADOR_DISTANCIA_UTIL.md`
+- `11_HERRAMIENTAS_EDICION_PRO.md`
+- `12_STEP_REPEAT_INTELIGENTE.md`
+- `13_SIMULADOR_CUADERNILLOS.md`
+
+Reglas:
+
+- no actualizar documentación innecesariamente
+- no modificar documentos no relacionados con la fase
+- mantener coherencia entre documentos
+- documentar cambios funcionales reales
+- diferenciar claramente:
+  - cambios visuales
+  - cambios de lógica
+  - cambios de contrato
+  - cambios de validación
+  - cambios de UX
+  - cambios de arquitectura
+
+El agente debe evaluar qué documentos realmente necesitan actualización según el alcance de la fase.
+
+---
+
+# 🔒 Restricciones importantes
+
+El agente NO debe:
+
+- modificar backend sin analizar impacto
+- tocar contratos JSON sin justificarlo
+- cambiar lógica de imposición sin validación
+- reestructurar archivos grandes innecesariamente
+- mezclar UI, lógica y documentación en cambios gigantes
+- implementar varias fases juntas
+- inventar validaciones que no ejecutó
+- afirmar que algo funciona sin verificarlo
+
+---
+
+# 🏗️ Filosofía del proyecto
+
+El sistema debe evolucionar como software profesional de imprenta.
+
+Prioridades:
+
+1. estabilidad
+2. robustez
+3. validaciones
+4. mantenibilidad
+5. claridad operativa
+6. UX profesional
+7. automatización inteligente
+8. IA aplicada con control
+
+Las mejoras visuales deben aportar valor operativo real y no solo estética.
