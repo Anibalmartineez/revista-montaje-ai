@@ -628,6 +628,16 @@ body {
   padding: 6px 10px;
   border-radius: 8px;
   background: #f0f0f0;
+  transition: background-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.panel-accordion > summary:hover {
+  filter: brightness(0.98);
+}
+
+.panel-accordion > summary:focus-visible {
+  outline: 2px solid #93c5fd;
+  outline-offset: 2px;
 }
 
 .panel-accordion[open] > summary {
