@@ -15,7 +15,6 @@ from openai import OpenAI
 from PIL import Image, ImageDraw
 from reportlab.pdfgen import canvas
 from reportlab.lib.units import mm
-from PyPDF2 import PdfReader
 from flask import (
     Blueprint,
     request,
@@ -38,6 +37,9 @@ from services.editor_layout_contracts import (
     ensure_post_editor_layout_defaults,
     sanitize_post_editor_layout_items,
 )
+from services import editor_offset_jobs as editor_jobs
+from services import editor_offset_layout_defaults as editor_layout_defaults
+from services import editor_offset_uploads as editor_uploads
 from services.editor_offset_output_contract import validate_constructor_output_layout
 from montaje import montar_pdf
 from diagnostico import diagnosticar_pdf, analizar_grafico_tecnico
@@ -140,308 +142,112 @@ def _tmp_static(*parts):
     return p
 
 
-POST_EDITOR_DIR = "ia_jobs"
-LAYOUT_FILENAME = "layout.json"
-META_FILENAME = "meta.json"
-ASSETS_DIRNAME = "assets"
-ORIGINAL_PDF_NAME = "pliego.pdf"
-EDITED_PDF_NAME = "pliego_edit.pdf"
-EDITED_PREVIEW_NAME = "preview_edit.png"
-CONSTRUCTOR_DIRNAME = "constructor_offset_jobs"
-CONSTRUCTOR_LAYOUT_NAME = "layout_constructor.json"
+POST_EDITOR_DIR = editor_jobs.POST_EDITOR_DIR
+LAYOUT_FILENAME = editor_jobs.LAYOUT_FILENAME
+META_FILENAME = editor_jobs.META_FILENAME
+ASSETS_DIRNAME = editor_jobs.ASSETS_DIRNAME
+ORIGINAL_PDF_NAME = editor_jobs.ORIGINAL_PDF_NAME
+EDITED_PDF_NAME = editor_jobs.EDITED_PDF_NAME
+EDITED_PREVIEW_NAME = editor_jobs.EDITED_PREVIEW_NAME
+CONSTRUCTOR_DIRNAME = editor_jobs.CONSTRUCTOR_DIRNAME
+CONSTRUCTOR_LAYOUT_NAME = editor_jobs.CONSTRUCTOR_LAYOUT_NAME
+REPEAT_DESIGN_DEFAULT_PRIORITY = editor_layout_defaults.REPEAT_DESIGN_DEFAULT_PRIORITY
+REPEAT_DESIGN_ZONES = editor_layout_defaults.REPEAT_DESIGN_ZONES
+REPEAT_DESIGN_FLOWS = editor_layout_defaults.REPEAT_DESIGN_FLOWS
+REPEAT_DESIGN_ROLES = editor_layout_defaults.REPEAT_DESIGN_ROLES
 
 
 def _safe_job_id(job_id: str | None) -> str | None:
-    if not job_id:
-        return None
-    token = job_id.strip()
-    if not token or not token.isalnum():
-        return None
-    return token
+    return editor_jobs.safe_job_id(job_id)
 
 
 def _jobs_root() -> str:
-    root = os.path.join(current_app.static_folder, POST_EDITOR_DIR)
-    os.makedirs(root, exist_ok=True)
-    return root
+    return editor_jobs.jobs_root()
 
 
 def _job_dir(job_id: str | None) -> str | None:
-    token = _safe_job_id(job_id)
-    if not token:
-        return None
-    path = os.path.join(_jobs_root(), token)
-    return path
+    return editor_jobs.job_dir(job_id)
 
 
 def _job_relpath(job_id: str, *parts: str) -> str:
-    return os.path.join(POST_EDITOR_DIR, job_id, *parts).replace("\\", "/")
+    return editor_jobs.job_relpath(job_id, *parts)
 
 
 def _static_web_relpath(abs_path: str) -> str:
     """Convierte una ruta absoluta dentro de static/ a un path web estable."""
-    return os.path.relpath(abs_path, current_app.static_folder).replace("\\", "/")
+    return editor_jobs.static_web_relpath(abs_path)
 
 
 def _layout_path(job_dir: str) -> str:
-    return os.path.join(job_dir, LAYOUT_FILENAME)
+    return editor_jobs.layout_path(job_dir)
 
 
 def _meta_path(job_dir: str) -> str:
-    return os.path.join(job_dir, META_FILENAME)
+    return editor_jobs.meta_path(job_dir)
 
 
 def _load_json(path: str) -> Dict:
-    with open(path, "r", encoding="utf-8") as fh:
-        return json.load(fh)
+    return editor_jobs.load_json(path)
 
 
 def _save_json(path: str, payload: Dict) -> None:
-    os.makedirs(os.path.dirname(path), exist_ok=True)
-    with open(path, "w", encoding="utf-8") as fh:
-        json.dump(payload, fh, ensure_ascii=False, indent=2)
+    editor_jobs.save_json(path, payload)
 
 
 def _constructor_root() -> str:
-    root = os.path.join(current_app.static_folder, CONSTRUCTOR_DIRNAME)
-    os.makedirs(root, exist_ok=True)
-    return root
+    return editor_jobs.constructor_root()
 
 
 def _constructor_job_dir(job_id: str) -> str:
-    return os.path.join(_constructor_root(), job_id)
+    return editor_jobs.constructor_job_dir(job_id)
 
 
 def _constructor_layout_path(job_dir: str) -> str:
-    return os.path.join(job_dir, CONSTRUCTOR_LAYOUT_NAME)
+    return editor_jobs.constructor_layout_path(job_dir)
 
 
 def _pdf_page_size_mm(path: str) -> tuple[float, float]:
-    try:
-        reader = PdfReader(path)
-        page = reader.pages[0]
-        w_pt = float(page.mediabox.width)
-        h_pt = float(page.mediabox.height)
-        return (w_pt * 25.4 / 72.0, h_pt * 25.4 / 72.0)
-    except Exception:
-        return 0.0, 0.0
+    return editor_uploads.pdf_page_size_mm(path)
 
 
 def _default_constructor_layout() -> Dict:
-    return {
-        "sheet_mm": [640, 880],
-        "margins_mm": [10, 10, 10, 10],
-        "bleed_default_mm": 3,
-        "gap_default_mm": 5,
-        "works": [],
-        "slots": [],
-        "designs": [],
-        "export_settings": {"bleed_mm": 3, "crop_marks": True, "output_mode": "raster"},
-        "design_export": {},
-        "faces": ["front"],
-        "active_face": "front",
-        "imposition_engine": "repeat",
-        "allowed_engines": ["repeat", "nesting", "hybrid"],
-    }
+    return editor_layout_defaults.default_constructor_layout()
 
 
 def _ensure_faces_fields(layout: Dict) -> tuple[Dict, bool]:
-    changed = False
-    if not isinstance(layout, dict):
-        return layout, changed
-
-    faces = layout.get("faces")
-    if not isinstance(faces, list) or len(faces) == 0:
-        layout["faces"] = ["front"]
-        changed = True
-
-    active_face = layout.get("active_face")
-    if not active_face or active_face not in layout["faces"]:
-        layout["active_face"] = layout["faces"][0]
-        changed = True
-
-    slots = layout.get("slots")
-    if isinstance(slots, list):
-        for slot in slots:
-            if isinstance(slot, dict) and not slot.get("face"):
-                slot["face"] = "front"
-                changed = True
-
-    return layout, changed
-
-
-REPEAT_DESIGN_DEFAULT_PRIORITY = 100
-REPEAT_DESIGN_ZONES = {"auto", "top", "bottom", "left", "right", "center", "fill"}
-REPEAT_DESIGN_FLOWS = {"auto", "horizontal", "vertical"}
-REPEAT_DESIGN_ROLES = {"primary", "secondary", "fill"}
+    return editor_layout_defaults.ensure_faces_fields(layout)
 
 
 def _normalize_repeat_manual_overrides(design: Dict) -> bool:
-    changed = False
-    overrides = design.get("repeat_manual_overrides")
-    if not isinstance(overrides, dict):
-        overrides = {}
-        changed = True
-
-    default_markers = {
-        "priority": REPEAT_DESIGN_DEFAULT_PRIORITY,
-        "preferred_flow": "auto",
-        "repeat_role": "secondary",
-    }
-    normalized: Dict[str, bool] = {}
-    for field, default_value in default_markers.items():
-        raw = overrides.get(field)
-        if isinstance(raw, bool):
-            normalized[field] = raw
-            continue
-        current = design.get(field)
-        if field == "priority":
-            try:
-                current = float(current)
-            except (TypeError, ValueError):
-                current = float(REPEAT_DESIGN_DEFAULT_PRIORITY)
-            normalized[field] = bool(current != float(default_value))
-        else:
-            normalized[field] = str(current or default_value).strip().lower() != str(default_value)
-        changed = True
-
-    if design.get("repeat_manual_overrides") != normalized:
-        design["repeat_manual_overrides"] = normalized
-        changed = True
-    return changed
+    return editor_layout_defaults.normalize_repeat_manual_overrides(design)
 
 
 def _normalize_repeat_design_metadata(design: Dict) -> bool:
-    changed = False
-    if _normalize_repeat_manual_overrides(design):
-        changed = True
-
-    raw_priority = design.get("priority")
-    try:
-        priority = float(raw_priority)
-        if not math.isfinite(priority):
-            raise ValueError
-    except (TypeError, ValueError):
-        priority = float(REPEAT_DESIGN_DEFAULT_PRIORITY)
-    if raw_priority != priority:
-        design["priority"] = priority
-        changed = True
-
-    def _normalize_choice(field: str, allowed: set[str], default: str) -> None:
-        nonlocal changed
-        value = str(design.get(field) or default).strip().lower()
-        if value not in allowed:
-            value = default
-        if design.get(field) != value:
-            design[field] = value
-            changed = True
-
-    _normalize_choice("preferred_zone", REPEAT_DESIGN_ZONES, "auto")
-    _normalize_choice("preferred_flow", REPEAT_DESIGN_FLOWS, "auto")
-    _normalize_choice("repeat_role", REPEAT_DESIGN_ROLES, "secondary")
-    return changed
+    return editor_layout_defaults.normalize_repeat_design_metadata(design)
 
 
 def _ensure_imposition_fields(layout: Dict) -> tuple[Dict, bool]:
-    changed = False
-    if not isinstance(layout, dict):
-        return layout, changed
-
-    allowed = layout.get("allowed_engines")
-    if not isinstance(allowed, list) or not allowed:
-        layout["allowed_engines"] = ["repeat", "nesting", "hybrid"]
-        allowed = layout["allowed_engines"]
-        changed = True
-
-    engine = layout.get("imposition_engine")
-    if engine not in allowed:
-        layout["imposition_engine"] = allowed[0]
-        changed = True
-
-    designs = layout.get("designs", [])
-    for design in designs:
-        if not isinstance(design, dict):
-            continue
-        if "forms_per_plate" not in design:
-            design["forms_per_plate"] = 1
-            changed = True
-        if "allow_rotation" not in design:
-            design["allow_rotation"] = True
-            changed = True
-        if "bleed_mm" not in design:
-            design["bleed_mm"] = layout.get("bleed_default_mm", 0)
-            changed = True
-        if _normalize_repeat_design_metadata(design):
-            changed = True
-
-    return layout, changed
+    return editor_layout_defaults.ensure_imposition_fields(layout)
 
 
 def _first_numeric(*values, default: float = 0.0) -> float:
-    for value in values:
-        if value is None or value == "":
-            continue
-        try:
-            return float(value)
-        except (TypeError, ValueError):
-            continue
-    return float(default)
+    return editor_layout_defaults.first_numeric(*values, default=default)
 
 
 def _layout_spacing_gaps(layout: Dict) -> tuple[float, float]:
-    spacing = layout.get("spacingSettings") or layout.get("spacing_settings") or {}
-    spacing_x = spacing.get("spacingX_mm") if isinstance(spacing, dict) else None
-    spacing_y = spacing.get("spacingY_mm") if isinstance(spacing, dict) else None
-    fallback_gap = layout.get("gap_default_mm")
-    return (
-        _first_numeric(spacing_x, fallback_gap, default=0.0),
-        _first_numeric(spacing_y, fallback_gap, default=0.0),
-    )
+    return editor_layout_defaults.layout_spacing_gaps(layout)
 
 
 def _ensure_export_fields(layout: Dict) -> tuple[Dict, bool]:
-    changed = False
-    if not isinstance(layout, dict):
-        return layout, changed
-
-    export_settings = layout.get("export_settings")
-    if not isinstance(export_settings, dict):
-        layout["export_settings"] = {
-            "bleed_mm": 3,
-            "crop_marks": True,
-            "output_mode": "raster",
-        }
-        changed = True
-    else:
-        if export_settings.get("bleed_mm") is None:
-            export_settings["bleed_mm"] = 3
-            changed = True
-        if export_settings.get("crop_marks") is None:
-            export_settings["crop_marks"] = True
-            changed = True
-        if export_settings.get("output_mode") is None:
-            export_settings["output_mode"] = "raster"
-            changed = True
-
-    if not isinstance(layout.get("design_export"), dict):
-        layout["design_export"] = {}
-        changed = True
-
-    return layout, changed
+    return editor_layout_defaults.ensure_export_fields(layout)
 
 
 def _load_constructor_layout(job_dir: str) -> Dict | None:
-    path = _constructor_layout_path(job_dir)
-    if not os.path.exists(path):
-        return None
-    return _load_json(path)
+    return editor_jobs.load_constructor_layout(job_dir)
 
 
 def _save_constructor_layout(job_dir: str, layout: Dict) -> str:
-    os.makedirs(job_dir, exist_ok=True)
-    path = _constructor_layout_path(job_dir)
-    _save_json(path, layout)
-    return path
+    return editor_jobs.save_constructor_layout(job_dir, layout)
 
 
 _validate_constructor_output_layout = validate_constructor_output_layout
@@ -478,19 +284,7 @@ def _parse_constructor_payload() -> tuple[str | None, Dict | None]:
 
 
 def _load_or_init_constructor_layout(job_id: str) -> tuple[str, Dict]:
-    job_dir = _constructor_job_dir(job_id)
-    layout = _load_constructor_layout(job_dir)
-    if layout is None:
-        layout = _default_constructor_layout()
-        _save_constructor_layout(job_dir, layout)
-    else:
-        layout, changed = _ensure_faces_fields(layout)
-        layout, changed_imposition = _ensure_imposition_fields(layout)
-        layout, changed_export = _ensure_export_fields(layout)
-        changed = changed or changed_imposition or changed_export
-        if changed:
-            _save_constructor_layout(job_dir, layout)
-    return job_dir, layout
+    return editor_jobs.load_or_init_constructor_layout(job_id)
 
 
 @routes_bp.route("/editor_offset_visual", methods=["GET"])
@@ -542,73 +336,13 @@ def editor_offset_upload(job_id: str):
     if not files:
         return _json_error("No se enviaron PDFs")
 
-    designs = layout.get("designs", [])
     work_id_form = request.form.get("work_id") or None
-    if not work_id_form and layout.get("works"):
-        if len(layout["works"]) == 1:
-            work_id_form = layout["works"][0].get("id")
-
-    def _next_ref() -> str:
-        prefix = "file"
-        max_idx = -1
-        for d in designs:
-            ref = str(d.get("ref", ""))
-            if ref.startswith(prefix):
-                try:
-                    idx = int(ref[len(prefix) :])
-                    max_idx = max(max_idx, idx)
-                except ValueError:
-                    continue
-        return f"{prefix}{max_idx + 1}"
-
-    for file_storage in files:
-        filename = secure_filename(file_storage.filename)
-        if not filename:
-            continue
-        os.makedirs(job_dir, exist_ok=True)
-        dest = os.path.join(job_dir, filename)
-        file_storage.save(dest)
-        new_ref = _next_ref()
-        width_mm, height_mm = _pdf_page_size_mm(dest)
-        bleed_mm = _first_numeric(layout.get("bleed_default_mm"), default=0.0)
-        allow_rotation = True
-        forms_per_plate = 1
-        if work_id_form:
-            related_work = next((w for w in layout.get("works", []) if w.get("id") == work_id_form), None)
-            if related_work:
-                bleed_mm = _first_numeric(related_work.get("default_bleed_mm"), bleed_mm, default=0.0)
-                allow_rotation = bool(related_work.get("allow_rotation", True))
-                forms_per_plate = int(related_work.get("forms_per_plate") or forms_per_plate)
-                final_size = related_work.get("final_size_mm") or []
-                if len(final_size) == 2:
-                    width_mm = _first_numeric(final_size[0], width_mm, default=0.0)
-                    height_mm = _first_numeric(final_size[1], height_mm, default=0.0)
-                    if not related_work.get("has_bleed"):
-                        width_mm += 2 * bleed_mm
-                        height_mm += 2 * bleed_mm
-        designs.append(
-            {
-                "ref": new_ref,
-                "filename": filename,
-                "work_id": work_id_form,
-                "width_mm": round(_first_numeric(width_mm, default=0.0), 3),
-                "height_mm": round(_first_numeric(height_mm, default=0.0), 3),
-                "bleed_mm": round(_first_numeric(bleed_mm, default=0.0), 3),
-                "allow_rotation": allow_rotation,
-                "forms_per_plate": max(1, forms_per_plate),
-                "priority": REPEAT_DESIGN_DEFAULT_PRIORITY,
-                "preferred_zone": "auto",
-                "preferred_flow": "auto",
-                "repeat_role": "secondary",
-                "repeat_manual_overrides": {
-                    "priority": False,
-                    "preferred_flow": False,
-                    "repeat_role": False,
-                },
-            }
-        )
-
-    layout["designs"] = designs
+    designs = editor_uploads.append_uploaded_designs(
+        job_dir=job_dir,
+        layout=layout,
+        files=files,
+        work_id_form=work_id_form,
+    )
     _save_constructor_layout(job_dir, layout)
     return jsonify({"designs": designs})
 
