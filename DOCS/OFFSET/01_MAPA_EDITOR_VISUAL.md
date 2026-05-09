@@ -56,6 +56,10 @@ No se ve carga directa de otros JS/CSS desde el template del editor visual IA.
 
 - `routes.py`
 
+### Validacion backend de salida
+
+- `services/editor_offset_output_contract.py`
+
 ### Motor de nesting usado por el editor
 
 - `engines/nesting_pro_engine.py`
@@ -104,7 +108,8 @@ No se ve carga directa de otros JS/CSS desde el template del editor visual IA.
 5. `layoutToJson()` sincroniza defaults y serializa el contrato persistible.
 6. `POST /editor_offset/save` guarda el JSON en disco.
 7. Preview y PDF final nunca consumen el estado efimero del navegador.
-8. Preview/PDF leen solo el layout persistido desde disco y lo reinterpretan en `montaje_offset_inteligente.py`.
+8. Preview/PDF validan el contrato persistido con `validate_constructor_output_layout(layout)`.
+9. Preview/PDF leen solo el layout persistido desde disco y lo reinterpretan en `montaje_offset_inteligente.py`.
 
 ## Flujo real resumido
 
@@ -175,6 +180,7 @@ No se ve carga directa de otros JS/CSS desde el template del editor visual IA.
 ### Orquestacion backend
 
 - `routes.py`
+- `services/editor_offset_output_contract.py` para validacion previa a preview/PDF
 
 ### Motor real de salida preview/PDF
 
@@ -186,6 +192,7 @@ No se ve carga directa de otros JS/CSS desde el template del editor visual IA.
 - `static/js/`
 - `static/css/`
 - `static/constructor_offset_jobs/`
+- `services/`
 - `routes.py`
 - `montaje_offset_inteligente.py`
 - `engines/nesting_pro_engine.py`

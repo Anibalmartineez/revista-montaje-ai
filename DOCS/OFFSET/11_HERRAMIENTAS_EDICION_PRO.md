@@ -35,6 +35,26 @@ Agrupa acciones menos frecuentes:
 
 La reorganizacion no elimina listeners ni funciones previas. Solo reduce ruido visual en la barra principal.
 
+### Refinamiento visual safe Fase 7
+
+La Fase 7 agrega una mejora visual acotada en `static/css/editor_offset_visual.css`:
+
+- tipografia general mas consistente
+- paleta de fondo y textos mas limpia
+- botones con hover y foco visible
+- paneles con bordes y sombras sutiles
+- accordion avanzado con estados hover/focus mas claros
+- badges y bloques con acabado visual mas uniforme
+
+No cambia:
+
+- estructura HTML
+- listeners JS
+- herramientas disponibles
+- contratos persistidos
+- preview/PDF
+- motores backend
+
 ## Herramientas manuales
 
 ### Alineacion de seleccion
@@ -152,6 +172,7 @@ La interseccion se calcula por bbox usando footprint real:
 - no se agregan dependencias nuevas
 - las herramientas visuales usan bounding boxes efectivas
 - el panel IA aplica layout solo despues de confirmacion del usuario
+- los retoques visuales de Fase 7 son CSS-only y no alteran comportamiento
 
 ## Relacion con Step & Repeat PRO
 

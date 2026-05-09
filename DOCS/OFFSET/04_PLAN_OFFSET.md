@@ -6,7 +6,7 @@ Consolidar el Editor Visual IA como flujo operativo profesional del modulo Offse
 
 ## Etapa actual
 
-- Estado documentado: Fase 6 del simulador de cuadernillos integrada al Editor Visual IA
+- Estado documentado: Fase 7 de estabilidad y validacion del Editor Visual IA
 - Sin refactor masivo
 - Sin limpieza agresiva
 - Sin eliminacion de archivos
@@ -15,6 +15,7 @@ Consolidar el Editor Visual IA como flujo operativo profesional del modulo Offse
   - Step & Repeat PRO Inteligente cerrado como Fase 5
   - simulador de cuadernillos cerrado como Fase 6 visual/logica
   - separacion explicita entre simulacion de cuadernillos y salida PDF
+  - validacion de salida protegida con tests y extraida a un modulo chico en Fase 7
 
 ## Plan propuesto por fases
 
@@ -187,31 +188,40 @@ Limites:
 - no toca Step & Repeat PRO
 - no genera preview ni PDF final
 
-### Fase 7 sugerida. IA operativa sobre motor inteligente
+### Fase 7. Estabilidad y validacion de salida
 
-Objetivo:
+Estado real:
 
-- consolidar guardrails y pruebas de la IA sobre controles estables del motor inteligente
-- evitar que la IA manipule numerica o geometria sin validacion del motor
-- usar `preferred_zone`, `forms_per_plate` y tools repeat como superficie principal
-- dejar packing complejo y optimizaciones profundas para una fase posterior
+- Fase 7.1 agrega tests de contrato de salida en `tests/test_editor_offset_output_contract.py`
+- Fase 7.2 extrae la validacion backend a `services/editor_offset_output_contract.py`
+- `routes.py` conserva alias compatible para `_validate_constructor_output_layout`
+- no cambia JSON, contratos, preview/PDF, frontend JS ni motores
+- se agrega una mejora visual safe en CSS para botones, paneles, accordion y foco visible
+
+Objetivo cerrado:
+
+- blindar la validacion backend actual sin agregar reglas nuevas
+- reducir deuda en `routes.py` de forma conservadora
+- dejar base testeable para futuras validaciones
+- mejorar lectura visual del editor sin tocar comportamiento
 
 ## Priorizacion sugerida
 
 1. Mantener documentados los contratos despues de cada cambio de semantica
-2. Agregar fixtures o pruebas de regresion para Step & Repeat PRO inteligente
+2. Ampliar pruebas de regresion para Step & Repeat PRO inteligente
 3. Endurecer guardrails y pruebas del flujo OpenAI tool calling sobre `ai_agent/`
 4. Mejorar feedback no bloqueante de errores/warnings
-5. Evaluar sistema de modos (`exact`, `maximize`, etc.) sin romper el contrato actual
-6. Evaluar compactacion o expansion horizontal solo si mantiene seguridad
-7. Mantener el simulador de cuadernillos aislado hasta definir una integracion PDF explicita
-8. Recien despues evaluar micro-refactors
+5. Avanzar en schema/validaciones adicionales solo con tests dedicados
+6. Evaluar sistema de modos (`exact`, `maximize`, etc.) sin romper el contrato actual
+7. Evaluar compactacion o expansion horizontal solo si mantiene seguridad
+8. Mantener el simulador de cuadernillos aislado hasta definir una integracion PDF explicita
+9. Recien despues evaluar micro-refactors
 
 ## Cambios explicitamente postergados
 
 - fusionar todos los motores offset
 - borrar rutas legacy
-- mover muchas funciones fuera de `routes.py`
+- mover muchas funciones fuera de `routes.py` sin tests; Fase 7 solo extrajo el validador de salida con cobertura dedicada
 - reescribir el JS del editor
 - redisenar persistencia por job
 - permitir que IA modifique persistencia sin confirmacion del usuario
@@ -231,3 +241,9 @@ Todo cambio futuro en este modulo deberia responder antes:
 - modifica salida final de `montaje_offset_inteligente.py`
 
 Si alguna respuesta es "si", conviene abrir subtarea especifica y documentarla antes de editar.
+
+Para nuevas validaciones posteriores a Fase 7:
+
+- agregar primero tests de contrato
+- no cambiar textos, `code`, `path`, `value` ni estructura de errores sin fase explicita
+- mantener preview/PDF consumiendo el layout persistido desde disco

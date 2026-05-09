@@ -74,11 +74,13 @@ Ademas, la pantalla entra por:
 ### Preview
 
 - `routes.editor_offset_preview`
+- validador previo: `services.editor_offset_output_contract.validate_constructor_output_layout`
 - motor: `montaje_offset_inteligente.montar_offset_desde_layout`
 
 ### PDF final
 
 - `routes.editor_offset_generar_pdf`
+- validador previo: `services.editor_offset_output_contract.validate_constructor_output_layout`
 - motor: `montaje_offset_inteligente.montar_offset_desde_layout`
 
 ### Simulador de cuadernillos
@@ -155,6 +157,7 @@ Ademas, la pantalla entra por:
 
 - frontend: `requestPreview()`
 - backend: `routes.editor_offset_preview`
+- validacion de contrato: `services/editor_offset_output_contract.py`
 - motor: `montaje_offset_inteligente.montar_offset_desde_layout`
 - render final: `montaje_offset_inteligente.realizar_montaje_inteligente`
 
@@ -162,6 +165,7 @@ Ademas, la pantalla entra por:
 
 - frontend: `requestPdf()`
 - backend: `routes.editor_offset_generar_pdf`
+- validacion de contrato: `services/editor_offset_output_contract.py`
 - motor: `montaje_offset_inteligente.montar_offset_desde_layout`
 - render final: `montaje_offset_inteligente.realizar_montaje_inteligente`
 
@@ -365,22 +369,32 @@ No afectan preview/PDF, pero hoy viajan dentro del mismo contrato persistido. Re
 
 ## Validaciones faltantes detectadas
 
+Nota Fase 7:
+
+- parte de esta lista ya esta cubierta por la validacion minima de salida y sus tests
+- sigue faltando un schema formal completo y validaciones semanticas profundas
+
 - no se valida longitud exacta de `sheet_mm`
 - no se valida longitud exacta de `margins_mm`
 - no se valida schema de `works[]`, `designs[]` ni `slots[]`
 - no se validan rangos de `rotation_deg`
-- no se valida unicidad de `slots[].id`
-- no se valida unicidad de `designs[].ref`
-- no se valida que `slot.design_ref` exista realmente en `designs[]`
-- no se valida que `slot.logical_work_id` exista realmente en `works[]`
-- no se valida consistencia entre `faces`, `active_face` y `slots[].face`
+- ya se valida unicidad de `slots[].id` antes de preview/PDF
+- ya se valida unicidad de `designs[].ref` antes de preview/PDF
+- ya se valida que `slot.design_ref` exista realmente en `designs[]`
+- `slot.logical_work_id` no resuelto ya se reporta como warning
+- ya se valida `slots[].face` contra `{front, back}`; sigue pendiente consistencia mas profunda entre `faces`, `active_face` y `slots[].face`
 - no se valida que `group_id` agrupe slots de la misma cara
 - no se valida que `forms_per_plate` y dimensiones sean enteros/positivos de forma estricta en backend
 - no se valida que `output_mode` pertenezca al set permitido al generar preview/PDF
 
 ## Validación mínima implementada en salida
 
-Se agregó una validación previa a preview/PDF en `routes.py` mediante `_validate_constructor_output_layout(layout)`.
+Se agrego una validacion previa a preview/PDF. En Fase 7.2 se extrajo a:
+
+- `services/editor_offset_output_contract.py`
+- `validate_constructor_output_layout(layout)`
+
+`routes.py` conserva el alias compatible `_validate_constructor_output_layout`.
 
 ### Bloquean preview/PDF
 
@@ -402,6 +416,7 @@ Se agregó una validación previa a preview/PDF en `routes.py` mediante `_valida
 - preview/PDF ya no omiten silenciosamente slots rotos por `design_ref` inválido
 - la salida devuelve JSON estructurado con `errors[]` y `warnings[]`
 - el frontend del editor ahora informa esos problemas al usuario
+- Fase 7.1 agrega cobertura automatizada en `tests/test_editor_offset_output_contract.py`
 
 ## Validación geométrica visual en editor
 
@@ -467,7 +482,7 @@ Dentro de esos bloques, especialmente sensibles:
 
 ## Conclusiones
 
-El editor visual IA nuevo tiene flujo propio, pero no esta aislado en un modulo cerrado. La orquestacion vive en `routes.py`, el estado interactivo vive casi entero en `static/js/editor_offset_visual.js`, y la salida real vive en `montaje_offset_inteligente.py`.
+El editor visual IA nuevo tiene flujo propio, pero no esta aislado en un modulo cerrado. La orquestacion vive principalmente en `routes.py`, el estado interactivo vive casi entero en `static/js/editor_offset_visual.js`, la validacion de salida vive en `services/editor_offset_output_contract.py`, y la salida real vive en `montaje_offset_inteligente.py`.
 
 Antes de cualquier refactor conviene congelar esta frontera y decidir explicitamente:
 

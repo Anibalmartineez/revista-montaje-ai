@@ -9,6 +9,7 @@ Congelar el contrato tecnico real actual de `layout_constructor.json` y del pipe
 - persistencia: `static/constructor_offset_jobs/<job_id>/layout_constructor.json`
 - frontend: `static/js/editor_offset_visual.js`
 - backend: `routes.py`
+- validacion de salida: `services/editor_offset_output_contract.py`
 - preview/PDF: `montaje_offset_inteligente.py`
 
 ## Pipeline completo de datos
@@ -26,7 +27,8 @@ Congelar el contrato tecnico real actual de `layout_constructor.json` y del pipe
 6. `layoutToJson()` vuelve a sincronizar defaults y serializa `state.layout`.
 7. `POST /editor_offset/save` persiste el JSON final en disco.
 8. `POST /editor_offset/preview/<job_id>` y `POST /editor_offset/generar_pdf/<job_id>` no reciben el layout en el body.
-9. Preview/PDF releen el layout desde disco y lo consumen con `montar_offset_desde_layout()`.
+9. Preview/PDF validan el contrato persistido con `validate_constructor_output_layout(layout)`.
+10. Preview/PDF releen el layout desde disco y lo consumen con `montar_offset_desde_layout()`.
 
 ### Capa operativa IA
 
@@ -822,12 +824,17 @@ Afecta directamente el margen inferior real del pliego final.
 
 ## Validaciones faltantes hoy
 
+Nota Fase 7:
+
+- existe una validacion minima de salida antes de preview/PDF
+- esa validacion vive en `services/editor_offset_output_contract.py`
+- esta cubierta por `tests/test_editor_offset_output_contract.py`
+- sigue faltando un schema formal completo del layout
+
 - schema de `layout_constructor.json`
-- tipos numéricos estrictos
-- unicidad de `slots[].id`
-- unicidad de `designs[].ref`
-- referencias cruzadas `design_ref` y `logical_work_id`
-- validación de caras
+- tipos numericos estrictos fuera de los campos criticos de `slots[]`
+- validaciones de referencias cruzadas fuera del minimo de salida
+- consistencia profunda de caras entre `faces`, `active_face` y `slots[].face`
 - validación de arrays de tamaño fijo
 - validación de `output_mode`
 - validación de `rotation_deg`
@@ -885,7 +892,8 @@ Afecta directamente el margen inferior real del pliego final.
 El contrato real del editor visual IA no es solo un JSON de layout: es un acuerdo implícito entre:
 
 - normalizaciones del frontend
-- helpers de persistencia en `routes.py`
+- helpers de persistencia y orquestacion en `routes.py`
+- validador de salida en `services/editor_offset_output_contract.py`
 - reinterpretación de salida en `montaje_offset_inteligente.py`
 
 Por compatibilidad, el layout debe tratarse como contrato congelado hasta que exista:

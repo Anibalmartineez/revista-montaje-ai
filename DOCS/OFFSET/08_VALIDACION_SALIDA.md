@@ -7,18 +7,24 @@ Documentar la validación mínima incorporada antes de generar:
 - `POST /editor_offset/preview/<job_id>`
 - `POST /editor_offset/generar_pdf/<job_id>`
 
-## Ubicación elegida
+## Ubicacion actual
 
-La validación se ubicó en `routes.py`, en el helper:
+Desde Fase 7.2, la validacion vive en un modulo chico y testeable:
 
-- `_validate_constructor_output_layout(layout)`
+- `services/editor_offset_output_contract.py`
+- funcion publica: `validate_constructor_output_layout(layout)`
 
-## Por qué ahí
+`routes.py` conserva un alias compatible:
 
-- es el punto más cercano a preview/PDF sin tocar motores
-- permite bloquear layouts inválidos antes de entrar en `montar_offset_desde_layout()`
-- no cambia la semántica de `repeat`, `nesting`, `hybrid`
-- no modifica la lógica de bleed/crop
+- `_validate_constructor_output_layout = validate_constructor_output_layout`
+
+## Por que ahi
+
+- mantiene la validacion cerca del flujo de salida sin mezclarla con la orquestacion Flask
+- permite testear el contrato sin depender de request/app context
+- permite bloquear layouts invalidos antes de entrar en `montar_offset_desde_layout()`
+- no cambia la semantica de `repeat`, `nesting`, `hybrid`
+- no modifica la logica de bleed/crop
 - no afecta rutas legacy que no usan estos endpoints
 
 ## Endpoints cubiertos
@@ -34,7 +40,7 @@ La validación se ubicó en `routes.py`, en el helper:
 Ambos ahora:
 
 1. cargan el layout persistido
-2. ejecutan `_validate_constructor_output_layout(layout)`
+2. ejecutan `validate_constructor_output_layout(layout)` mediante el alias compatible en `routes.py`
 3. si hay errores:
    - devuelven `422`
    - respuesta JSON estructurada
@@ -127,6 +133,7 @@ Esta validación no intenta todavía:
 - validar bleed/crop a nivel de interpretación final
 - reescribir el contrato
 - refactorizar motores legacy
+- agregar nuevas reglas en Fase 7.2; solo se movio la validacion existente a `services/`
 
 ## Beneficio concreto
 
@@ -136,6 +143,25 @@ Se elimina la omisión silenciosa de slots inválidos en los dos flujos más sen
 - PDF final
 
 Ahora el sistema falla de forma explícita cuando el contrato persistido ya no alcanza para producir una salida confiable.
+
+## Cobertura automatizada Fase 7
+
+La Fase 7.1 agrego tests dedicados en:
+
+- `tests/test_editor_offset_output_contract.py`
+
+Casos cubiertos:
+
+- layout valido
+- `slots[].design_ref` invalido
+- `designs[].ref` duplicado
+- `slots[].id` duplicado
+- campos numericos faltantes
+- `slot.face` invalido
+- warning por `logical_work_id` no resuelto
+- warning por `faces[]` con `back` sin slots de dorso
+
+La Fase 7.2 actualizo esos tests para importar directamente desde `services.editor_offset_output_contract`.
 
 ## Validacion adicional en imposicion automatica Fase 5
 

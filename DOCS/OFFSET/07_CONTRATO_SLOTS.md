@@ -531,15 +531,22 @@ Características:
 - el backend no sabe si representan trim o caja final por intención del usuario
 - esa interpretación termina dependiendo de `imposition_engine`
 
-## 13. Validaciones que faltarían para blindar el contrato de slots
+## 13. Validaciones para blindar el contrato de slots
 
-- validar schema estricto de cada slot
-- exigir `id` único
+### Ya cubierto por validacion minima de salida
+
+- exigir `id` unico
 - exigir `face` dentro de `{front, back}`
 - validar `design_ref` contra `designs[].ref`
-- validar `logical_work_id` contra `works[].id`
-- validar números finitos en `x_mm`, `y_mm`, `w_mm`, `h_mm`, `bleed_mm`
+- reportar `logical_work_id` no resuelto contra `works[].id` como warning
+- validar numeros finitos en `x_mm`, `y_mm`, `w_mm`, `h_mm`, `bleed_mm`, `rotation_deg`
 - validar `w_mm > 0` y `h_mm > 0`
+
+Esta cobertura vive en `services/editor_offset_output_contract.py` y esta protegida por `tests/test_editor_offset_output_contract.py`.
+
+### Pendiente para fases futuras
+
+- validar schema estricto de cada slot
 - validar `rotation_deg` dentro de un conjunto permitido o normalizarlo explícitamente
 - validar que no haya slots sin `design_ref` al generar preview/PDF si el usuario espera salida real
 - validar consistencia entre engine y semántica de `w_mm/h_mm`

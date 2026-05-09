@@ -27,6 +27,7 @@ El modulo Offset del repo agrupa varios flujos historicos de montaje offset. En 
 - `templates/editor_offset_visual.html`
 - `static/js/editor_offset_visual.js`
 - `static/css/editor_offset_visual.css`
+- `services/editor_offset_output_contract.py`
 - `montaje_offset_inteligente.py`
 - `engines/nesting_pro_engine.py`
 - `cuadernillos/simulator.py`
@@ -39,6 +40,7 @@ El modulo Offset del repo agrupa varios flujos historicos de montaje offset. En 
 - contrato de `layout_constructor.json` congelado en documentacion
 - subcontrato de `slots[]` congelado en documentacion
 - validacion backend previa a preview/PDF implementada
+- validacion backend de salida extraida a `services/editor_offset_output_contract.py` y cubierta con tests de contrato
 - validacion geometrica visual en frontend implementada
 - indicador de distancia util durante drag implementado
 - interaccion click vs drag corregida para mantener seleccion y edicion manual
@@ -55,6 +57,11 @@ El modulo Offset del repo agrupa varios flujos historicos de montaje offset. En 
 - toolbar PRO simplificada:
   - acciones rapidas visibles
   - herramientas tecnicas en panel avanzado colapsable
+- mejora visual safe Fase 7:
+  - tipografia y paleta mas limpias
+  - botones con hover y foco visible
+  - paneles, accordion y badges con acabado visual mas consistente
+  - sin cambios en JS, contratos, preview/PDF ni motores
 - Step & Repeat PRO corregido en puntos criticos:
   - `bleed_mm = 0` se respeta como valor explicito
   - spacing real desde `spacingSettings.spacingX_mm` y `spacingSettings.spacingY_mm`
@@ -142,7 +149,7 @@ El modulo Offset del repo agrupa varios flujos historicos de montaje offset. En 
 - enlace blando `slots[].design_ref -> designs[].ref`
 - diferencias entre estado en memoria, JSON persistido y estado reinterpretado por preview/PDF
 - coexistencia con flujos offset legacy dentro del mismo repo
-- validaciones aun parciales en schema formal y consistencia semantica profunda
+- validaciones aun parciales en schema formal y consistencia semantica profunda; la salida ya tiene cobertura minima testeada
 - existe endpoint local `/ai/step_repeat_action`, pero el panel actual usa `/ai/step_repeat_action_openai`; si falta `OPENAI_API_KEY`, solo falla la accion IA y el editor sigue funcionando
 - `preferred_flow` sigue en contrato pero todavia no participa en decisiones reales del motor
 - la compactacion actual de grupos zonales es solo vertical
@@ -156,7 +163,7 @@ El modulo Offset del repo agrupa varios flujos historicos de montaje offset. En 
 ## Proximos pasos sugeridos
 
 1. formalizar un schema mas estricto del layout y de slots sin romper compatibilidad
-2. agregar tests de regresion para repeat:
+2. ampliar tests de regresion para repeat:
    - `bleed_mm = 0`
    - spacing
    - rotacion 0/90

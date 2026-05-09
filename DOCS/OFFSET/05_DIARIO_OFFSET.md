@@ -565,3 +565,95 @@ Mejorar la lectura operativa del resultado del simulador dentro del Editor Visua
 - `git diff --check` no reporto errores
 - `node --check` no pudo ejecutarse por acceso denegado a `node.exe`
 - `pytest` no pudo ejecutarse porque el entorno Python actual no tenia `pytest` instalado
+
+## Fase 7 - Estabilidad y validacion de salida
+
+### Objetivo general
+
+Cerrar una fase de robustez sin cambiar comportamiento funcional:
+
+- blindar la validacion backend actual antes de preview/PDF
+- extraer esa validacion a un modulo chico y testeable
+- mantener contratos y respuestas existentes
+- registrar una mejora visual safe del editor sin tocar JS ni motores
+
+### Fase 7.1 - Tests de contrato de salida
+
+Se agrego:
+
+- `tests/test_editor_offset_output_contract.py`
+
+Casos cubiertos:
+
+- layout valido
+- `design_ref` invalido
+- `designs[].ref` duplicado
+- `slots[].id` duplicado
+- campo numerico faltante
+- `face` invalido
+- warning por `logical_work_id` sin resolver
+- warning por `faces[]` con `back` sin slots de dorso
+
+### Fase 7.2 - Extraccion conservadora del validador
+
+Se agrego:
+
+- `services/editor_offset_output_contract.py`
+
+Se movio desde `routes.py`:
+
+- helper interno `_layout_issue()`
+- funcion publica `validate_constructor_output_layout(layout)`
+
+`routes.py` conserva compatibilidad mediante:
+
+- `_validate_constructor_output_layout = validate_constructor_output_layout`
+
+Garantias conservadas:
+
+- no se agregaron validaciones nuevas
+- no cambio JSON
+- no cambio contrato
+- no cambio preview/PDF
+- no se tocaron motores
+- no se tocaron JS ni templates
+- no cambiaron textos, `code`, `path`, `value` ni estructura de errores/warnings
+
+### Mejora visual safe del editor
+
+Se ajusto solo `static/css/editor_offset_visual.css`:
+
+- tipografia y colores generales
+- botones con hover/focus visible
+- paneles con bordes y sombras sutiles
+- accordion avanzado mas legible
+- badges y bloques con acabado mas consistente
+
+No cambia:
+
+- listeners
+- herramientas
+- layout persistido
+- payloads
+- preview/PDF
+- motores
+
+### Validacion ejecutada
+
+En esta rama se uso el `pytest` del virtualenv del proyecto:
+
+- `python -m compileall routes.py services tests`
+- `venv\Scripts\pytest.exe tests\test_editor_offset_output_contract.py -q`
+- `venv\Scripts\pytest.exe tests\test_cuadernillos_simulator.py tests\test_editor_offset_output_contract.py -q`
+- `git diff --check`
+
+Resultado observado:
+
+- tests de contrato de salida: `7 passed`
+- tests cuadernillos + contrato de salida: `31 passed`
+- `git diff --check` sin errores
+
+Notas:
+
+- pytest puede mostrar warnings de cache por permisos y de dependencias; no afectan los asserts.
+- los cambios visuales son CSS-only y no requieren `node --check` porque no modifican JS.

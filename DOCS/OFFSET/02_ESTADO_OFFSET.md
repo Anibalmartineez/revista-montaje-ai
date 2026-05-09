@@ -13,6 +13,7 @@ Hoy el repo sigue teniendo varios flujos offset coexistiendo, pero el **Editor V
 - frontend principal: `static/js/editor_offset_visual.js`
 - estilos principales: `static/css/editor_offset_visual.css`
 - backend de orquestacion: `routes.py`
+- validador de contrato de salida: `services/editor_offset_output_contract.py`
 - motor de salida final: `montaje_offset_inteligente.py`
 - motor de nesting auxiliar: `engines/nesting_pro_engine.py`
 - simulador de cuadernillos: `cuadernillos/simulator.py`
@@ -100,6 +101,8 @@ Implementadas:
 - ancho y alto mayores que cero
 - warnings para `logical_work_id` no resuelto
 - warnings para cara `back` declarada sin slots de dorso
+- Fase 7.1 agrega tests dedicados en `tests/test_editor_offset_output_contract.py`
+- Fase 7.2 extrae la validacion a `services/editor_offset_output_contract.py` sin cambiar comportamiento
 
 ### Frontend visual
 
@@ -185,6 +188,23 @@ Implementado:
   - centrar bloque
   - paso + nudge
 - panel avanzado colapsable para alineacion y distribucion
+
+### Mejora visual safe Fase 7
+
+Implementado solo en CSS:
+
+- tipografia y paleta mas limpias
+- botones con hover y foco visible
+- paneles y contenedores con bordes y sombras sutiles
+- accordion avanzado mas legible
+- badges y bloques con acabado visual mas consistente
+
+Garantias:
+
+- sin cambios en JS
+- sin cambios en listeners ni herramientas
+- sin cambios en layout JSON
+- sin cambios en preview/PDF ni motores
 
 ### Base IA Step & Repeat PRO
 
@@ -277,11 +297,11 @@ Reglas actuales observadas:
 ## Limitaciones conocidas
 
 - siguen coexistiendo flujos offset legacy en el repo
-- `routes.py` continua concentrando mucha orquestacion
+- `routes.py` continua concentrando mucha orquestacion, aunque la validacion de salida ya fue extraida a `services/`
 - la semantica de `w_mm/h_mm` ya quedo consolidada para `repeat`, pero sigue siendo punto sensible frente a otros engines y flujos legacy
 - la validacion geometrica usa bounding box simple, no geometria rotada exacta
 - parte del feedback UX sigue apoyandose en `alert()`
-- no hay schema formal completo del layout ni del slot
+- no hay schema formal completo del layout ni del slot; existe solo cobertura minima de contrato de salida
 - no hay tests automatizados especificos para todos los casos recientes de repeat/rotacion/PDF
 - la IA del panel actual usa OpenAI tool calling sobre tools locales; tambien sigue existiendo el endpoint local simple `/ai/step_repeat_action`
 - falta edicion masiva avanzada de propiedades de slots
@@ -331,7 +351,7 @@ Reglas actuales observadas:
    - centrado global normal
    - zonas verticales y multiples disenos en la misma zona
    - `auto` combinado con zonas verticales
-2. endurecer schema y validaciones del contrato sin romper compatibilidad
+2. ampliar schema y validaciones del contrato sin romper compatibilidad ni duplicar la validacion minima ya cubierta
 3. agregar pruebas para IA/tools:
    - multiples zonas en una instruccion
    - generacion posterior a `set_design_zones`
