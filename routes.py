@@ -39,6 +39,7 @@ from services.editor_layout_contracts import (
     sanitize_post_editor_layout_items,
 )
 from services import editor_offset_jobs as editor_jobs
+from services import editor_offset_imposition_service as editor_imposition
 from services import editor_offset_layout_defaults as editor_layout_defaults
 from services import editor_offset_uploads as editor_uploads
 from services.editor_offset_output_contract import validate_constructor_output_layout
@@ -116,7 +117,7 @@ def get_openai_client():
     return OpenAI(api_key=api_key)
 
 
-IncompleteImpositionError = step_repeat_pro_engine.IncompleteImpositionError
+IncompleteImpositionError = editor_imposition.IncompleteImpositionError
 
 
 def _json_error(msg, code=422, **payload):
@@ -501,26 +502,7 @@ def _choose_repeat_orientation(
 
 
 def _slots_from_nesting_result(result: NestingResult, layout: Dict) -> List[Dict]:
-    active_face = layout.get("active_face") or "front"
-    slots: List[Dict] = []
-    for idx, slot in enumerate(result.slots):
-        slots.append(
-            {
-                "id": f"nest_{idx}",
-                "x_mm": float(slot.get("x_mm", 0)),
-                "y_mm": float(slot.get("y_mm", 0)),
-                "w_mm": float(slot.get("w_mm", 0)),
-                "h_mm": float(slot.get("h_mm", 0)),
-                "rotation_deg": int(slot.get("rotation_deg", 0)) % 360,
-                "logical_work_id": None,
-                "bleed_mm": _first_numeric(slot.get("bleed_mm"), layout.get("bleed_default_mm"), default=0.0),
-                "crop_marks": True,
-                "locked": False,
-                "design_ref": slot.get("design_ref") or slot.get("file"),
-                "face": active_face,
-            }
-        )
-    return slots
+    return editor_imposition.slots_from_nesting_result(result, layout)
 
 
 def _append_step_repeat_slots_in_bounds(
@@ -648,46 +630,19 @@ def _build_step_repeat_slots(layout: Dict) -> List[Dict]:
 
 
 def _repeat_pattern_over_sheet(base_slots: List[Dict], bbox: tuple[float, float, float, float], layout: Dict) -> List[Dict]:
-    if not base_slots:
-        return []
-    usable_w, usable_h, left, _, _, bottom = _sheet_area(layout)
-    if usable_w <= 0 or usable_h <= 0:
-        return []
-    min_x, min_y, max_x, max_y = bbox
-    block_w = max(0.0, max_x - min_x)
-    block_h = max(0.0, max_y - min_y)
-    if block_w <= 0 or block_h <= 0:
-        return base_slots
-
-    gap_x, gap_y = _layout_spacing_gaps(layout)
-    slots: List[Dict] = []
-    y_offset = bottom
-    while y_offset + block_h <= bottom + usable_h + 1e-6:
-        x_offset = left
-        while x_offset + block_w <= left + usable_w + 1e-6:
-            for slot in base_slots:
-                slots.append(
-                    {
-                        **slot,
-                        "id": f"hyb_{len(slots)}",
-                        "x_mm": x_offset + (slot["x_mm"] - min_x),
-                        "y_mm": y_offset + (slot["y_mm"] - min_y),
-                    }
-                )
-            x_offset += block_w + gap_x
-        y_offset += block_h + gap_y
-    return slots
+    return editor_imposition.repeat_pattern_over_sheet(base_slots, bbox, layout)
 
 
 def _apply_imposition_engine(layout: Dict, engine: str) -> List[Dict]:
-    if engine == "nesting":
-        nesting = compute_nesting(layout)
-        return _slots_from_nesting_result(nesting, layout)
-    if engine == "hybrid":
-        nesting = compute_nesting(layout)
-        base_slots = _slots_from_nesting_result(nesting, layout)
-        return _repeat_pattern_over_sheet(base_slots, nesting.bbox, layout)
-    return _build_step_repeat_slots(layout)
+    return editor_imposition.apply_imposition_engine(layout, engine)
+
+
+def _select_imposition_engine(
+    layout: Dict,
+    payload_layout: Dict | None = None,
+    selected_engine: str | None = None,
+) -> str:
+    return editor_imposition.select_imposition_engine(layout, payload_layout, selected_engine)
 
 
 @routes_bp.route("/editor_offset/auto_layout/<job_id>", methods=["POST"])
@@ -717,15 +672,11 @@ def editor_offset_apply_imposition():
     if not layout.get("designs"):
         return _json_error("Configurá al menos un diseño con sus formas por pliego antes de aplicar la imposición.")
 
-    allowed = layout.get("allowed_engines") or ["repeat", "nesting", "hybrid"]
-    selected_engine = (
-        request.form.get("selected_engine")
-        or (payload_layout or {}).get("imposition_engine")
-        or layout.get("imposition_engine")
-        or allowed[0]
+    selected_engine = _select_imposition_engine(
+        layout,
+        payload_layout,
+        request.form.get("selected_engine"),
     )
-    if selected_engine not in allowed:
-        selected_engine = allowed[0]
     layout["imposition_engine"] = selected_engine
 
     try:
