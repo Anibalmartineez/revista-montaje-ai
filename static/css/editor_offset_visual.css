@@ -521,6 +521,71 @@ body {
   scrollbar-gutter: stable;
 }
 
+.editor-tabs {
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 6px;
+  padding: 8px;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  background: #f8fafc;
+  box-shadow: 0 4px 12px rgba(15, 23, 42, 0.08);
+}
+
+.editor-tab {
+  min-width: 0;
+  min-height: 34px;
+  padding: 7px 8px;
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+  background: #fff;
+  color: #334155;
+  cursor: pointer;
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0;
+  line-height: 1.15;
+  text-align: center;
+}
+
+.editor-tab:hover {
+  border-color: #94a3b8;
+  background: #eef2f7;
+}
+
+.editor-tab:focus-visible {
+  outline: 2px solid #93c5fd;
+  outline-offset: 1px;
+}
+
+.editor-tab.is-active {
+  border-color: #2563eb;
+  background: #2563eb;
+  color: #fff;
+  box-shadow: 0 2px 8px rgba(37, 99, 235, 0.22);
+}
+
+.editor-tab-panels {
+  min-height: 0;
+}
+
+.editor-tab-panel {
+  min-height: 0;
+}
+
+.editor-tab-panel[hidden] {
+  display: none;
+}
+
+.editor-tab-panel > .panel-accordion,
+.editor-tab-panel > .ai-panel {
+  margin-bottom: 0;
+}
+
 .panel-block {
   background: #fff;
   border: 1px solid #dbe3ee;
@@ -1251,5 +1316,9 @@ body {
 
   .sheet-subtoolbar {
     max-height: none;
+  }
+
+  .editor-tabs {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }

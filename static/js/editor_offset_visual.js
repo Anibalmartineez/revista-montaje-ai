@@ -3152,8 +3152,38 @@
     }
   }
 
+  function initEditorTabs() {
+    const tabs = Array.from(document.querySelectorAll('[data-editor-tab]'));
+    const panels = Array.from(document.querySelectorAll('[data-editor-tab-panel]'));
+    if (!tabs.length || !panels.length) return;
+
+    const activateTab = (tabName, options = {}) => {
+      tabs.forEach((tab) => {
+        const isActive = tab.dataset.editorTab === tabName;
+        tab.classList.toggle('is-active', isActive);
+        tab.setAttribute('aria-selected', String(isActive));
+      });
+      panels.forEach((panel) => {
+        const isActive = panel.dataset.editorTabPanel === tabName;
+        panel.classList.toggle('is-active', isActive);
+        panel.hidden = !isActive;
+      });
+      if (options.scroll !== false) {
+        document.querySelector('.side-panel')?.scrollTo({ top: 0, behavior: 'smooth' });
+      }
+    };
+
+    tabs.forEach((tab) => {
+      tab.addEventListener('click', () => activateTab(tab.dataset.editorTab));
+    });
+
+    const initialTab = tabs.find((tab) => tab.classList.contains('is-active')) || tabs[0];
+    activateTab(initialTab.dataset.editorTab, { scroll: false });
+  }
+
   async function init() {
     parseInitialLayout();
+    initEditorTabs();
     initSheetControls();
     recalcScale();
     pushHistory();

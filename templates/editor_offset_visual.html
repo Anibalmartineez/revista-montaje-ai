@@ -120,6 +120,20 @@
     </section>
 
       <aside class="side-panel">
+        <nav class="editor-tabs" aria-label="Paneles del editor">
+          <button class="editor-tab is-active" type="button" data-editor-tab="plate" aria-controls="editor-tab-plate" aria-selected="true">Pliego</button>
+          <button class="editor-tab" type="button" data-editor-tab="works" aria-controls="editor-tab-works" aria-selected="false">Trabajos</button>
+          <button class="editor-tab" type="button" data-editor-tab="designs" aria-controls="editor-tab-designs" aria-selected="false">Diseños</button>
+          <button class="editor-tab" type="button" data-editor-tab="imposition" aria-controls="editor-tab-imposition" aria-selected="false">Imposición</button>
+          <button class="editor-tab" type="button" data-editor-tab="edition" aria-controls="editor-tab-edition" aria-selected="false">Edición</button>
+          <button class="editor-tab" type="button" data-editor-tab="ai" aria-controls="editor-tab-ai" aria-selected="false">IA</button>
+          <button class="editor-tab" type="button" data-editor-tab="booklets" aria-controls="editor-tab-booklets" aria-selected="false">Cuadernillos</button>
+          <button class="editor-tab" type="button" data-editor-tab="ctp" aria-controls="editor-tab-ctp" aria-selected="false">CTP</button>
+          <button class="editor-tab" type="button" data-editor-tab="output" aria-controls="editor-tab-output" aria-selected="false">Salida</button>
+        </nav>
+
+        <div class="editor-tab-panels">
+          <section id="editor-tab-plate" class="editor-tab-panel is-active" data-editor-tab-panel="plate">
       <details class="panel-accordion panel-basic" open>
         <summary>Pliego y márgenes</summary>
         <h2>Pliego</h2>
@@ -138,7 +152,10 @@
           </select>
         </label>
       </details>
-      <details class="panel-accordion panel-works">
+          </section>
+
+          <section id="editor-tab-works" class="editor-tab-panel" data-editor-tab-panel="works" hidden>
+      <details class="panel-accordion panel-works" open>
         <summary>Trabajos lógicos (opcional – solo para IA de slots)</summary>
         <div class="panel-header">
           <h2>Trabajos lógicos</h2>
@@ -161,7 +178,9 @@
           </div>
         </div>
       </details>
+          </section>
 
+          <section id="editor-tab-designs" class="editor-tab-panel" data-editor-tab-panel="designs" hidden>
       <details class="panel-accordion panel-designs" open>
         <summary>Diseños (PDF) <span class="muted">Subí tus PDFs y definí formas por pliego para cada diseño.</span></summary>
         <form id="upload-form">
@@ -174,8 +193,10 @@
         </form>
         <ul id="designs-list" class="list"></ul>
       </details>
+          </section>
 
-      <details class="panel-accordion panel-imposition">
+          <section id="editor-tab-imposition" class="editor-tab-panel" data-editor-tab-panel="imposition" hidden>
+      <details class="panel-accordion panel-imposition" open>
         <summary>Modo de imposición</summary>
         <div id="imposition-engine-panel">
           <h2>Modo de imposición</h2>
@@ -189,7 +210,9 @@
           <p class="muted hidden" id="imposition-warning">Configura al menos un diseño con sus formas por pliego antes de aplicar la imposición.</p>
         </div>
       </details>
+          </section>
 
+          <section id="editor-tab-booklets" class="editor-tab-panel" data-editor-tab-panel="booklets" hidden>
       <details class="panel-accordion panel-cuadernillos" open>
         <summary>Simulador de Cuadernillos</summary>
         <div class="cuadernillo-panel">
@@ -218,7 +241,9 @@
           <div id="cuadernillo-resultado" class="cuadernillo-resultado" aria-live="polite"></div>
         </div>
       </details>
+          </section>
 
+          <section id="editor-tab-ai" class="editor-tab-panel" data-editor-tab-panel="ai" hidden>
       <section class="ai-panel" aria-labelledby="ai-panel-title">
         <h4 id="ai-panel-title">Asistente IA</h4>
         <textarea id="ai-prompt" placeholder="Ej: optimizar layout"></textarea>
@@ -228,8 +253,10 @@
         </div>
         <div id="ai-response" aria-live="polite"></div>
       </section>
+          </section>
 
-      <details class="panel-accordion panel-advanced">
+          <section id="editor-tab-edition" class="editor-tab-panel" data-editor-tab-panel="edition" hidden>
+      <details class="panel-accordion panel-advanced" open>
         <summary>Ajustes avanzados de slots</summary>
         <section class="panel-block" id="step-repeat-panel">
           <h2>Step &amp; Repeat PRO</h2>
@@ -375,8 +402,10 @@
           </div>
         </section>
       </details>
+          </section>
 
-      <details class="panel-accordion panel-ctp">
+          <section id="editor-tab-ctp" class="editor-tab-panel" data-editor-tab-panel="ctp" hidden>
+      <details class="panel-accordion panel-ctp" open>
         <summary>Producción / CTP</summary>
 
         <p class="muted">
@@ -442,7 +471,9 @@
           <textarea id="ctp-extra-text" rows="2" placeholder="Notas técnicas extra, versión, fecha, etc."></textarea>
         </label>
       </details>
+          </section>
 
+          <section id="editor-tab-output" class="editor-tab-panel" data-editor-tab-panel="output" hidden>
       <details class="panel-accordion panel-export-settings" open>
         <summary>Salida / Preprensa</summary>
 
@@ -486,6 +517,8 @@
           </div>
         </div>
       </details>
+          </section>
+        </div>
       </aside>
     </div>
   </main>
