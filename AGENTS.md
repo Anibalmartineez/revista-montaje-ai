@@ -391,7 +391,35 @@ Todos deben respetar el mapa global del sistema.
 
 El agente debe revisar y mantener alineada la documentación.
 
-Documentos principales:
+## Documento arquitectónico principal
+
+- `14_MAPA_FUNCIONAL_EDITOR_VISUAL_IA.md`
+
+Este documento es actualmente la fuente de verdad arquitectónica del Editor Visual IA.
+
+Contiene:
+
+- mapa funcional completo
+- dependencias por archivo
+- responsabilidades de frontend/backend
+- responsabilidades de Step & Repeat PRO
+- riesgos técnicos
+- partes mezcladas
+- arquitectura objetivo
+- roadmap Fase 8.x
+- estrategia SAFE de evolución
+
+Antes de realizar:
+
+- refactors
+- modularización
+- separación de motores
+- rediseños UX
+- cambios estructurales importantes
+
+el agente debe revisar este documento y respetar sus conclusiones arquitectónicas.
+
+## Documentos principales
 
 - `00_CONTEXTO_OFFSET.md`
 - `01_MAPA_EDITOR_VISUAL.md`
@@ -408,7 +436,7 @@ Documentos principales:
 - `12_STEP_REPEAT_INTELIGENTE.md`
 - `13_SIMULADOR_CUADERNILLOS.md`
 
-Reglas:
+## Reglas
 
 - documentar cambios funcionales reales
 - mantener coherencia entre documentos
