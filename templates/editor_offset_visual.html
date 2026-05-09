@@ -20,8 +20,8 @@
     </div>
   </header>
 
-  <main class="editor-layout">
-    <section class="sheet-wrapper">
+  <main class="editor-shell">
+    <section class="editor-topbar" aria-label="Herramientas principales del editor">
       <div class="sheet-toolbar">
         <button id="btn-save" class="btn btn-primary">Guardar montaje</button>
         <button id="btn-auto" class="btn" title="Usa las medidas de los trabajos lógicos para crear los cuadros en el pliego">Generar slots con IA</button>
@@ -98,6 +98,10 @@
           </div>
         </div>
       </div>
+    </section>
+
+    <div class="editor-workspace">
+      <section class="sheet-wrapper">
       <div class="zoom-controls">
         <button type="button" id="zoom-out" class="btn btn-small">-</button>
         <span id="zoom-label" class="muted">100%</span>
@@ -115,7 +119,7 @@
       </section>
     </section>
 
-    <aside class="side-panel">
+      <aside class="side-panel">
       <details class="panel-accordion panel-basic" open>
         <summary>Pliego y márgenes</summary>
         <h2>Pliego</h2>
@@ -482,7 +486,8 @@
           </div>
         </div>
       </details>
-    </aside>
+      </aside>
+    </div>
   </main>
 
   <script>
