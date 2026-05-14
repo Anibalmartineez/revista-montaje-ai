@@ -50,24 +50,26 @@ El foco prioritario del proyecto es:
 
 ## Motores y lógica principal
 
-- `routes.py` contiene actualmente el motor principal de imposición automática Step & Repeat PRO mediante `_build_step_repeat_slots(layout)` y funciones auxiliares relacionadas.
-- `montaje_offset_inteligente.py`
-- `cuadernillos/simulator.py`
+- `engines/step_repeat_pro_engine.py` contiene el motor canónico actual de Step & Repeat PRO automático.
+- `services/editor_offset_imposition_service.py` decide y aplica el motor seleccionado: `repeat`, `nesting` o `hybrid`.
+- `routes.py` funciona como fachada/orquestador Flask y mantiene wrappers compatibles para endpoints, imports legacy y herramientas IA.
+- `montaje_offset_inteligente.py` sigue siendo el motor de salida/render para preview y PDF final.
+- `cuadernillos/simulator.py` sigue siendo el motor aislado del simulador de cuadernillos.
 
 ## Motores alternativos o secundarios
 
 - `engines/nesting_pro_engine.py`
 
-El agente NO debe asumir automáticamente que `nesting_pro_engine.py` es el motor principal del Editor Visual IA si el flujo actual utiliza Step & Repeat PRO desde `routes.py`.
+El agente NO debe asumir automáticamente que `nesting_pro_engine.py` es el motor principal del Editor Visual IA.
 
 El motor prioritario actual del Editor Visual IA es:
 
-- Step & Repeat PRO automático
+- Step & Repeat PRO automático en `engines/step_repeat_pro_engine.py`
 - zonal
 - auto/fill
 - edición manual posterior
 
-NO nesting ni modo híbrido salvo que el código real demuestre lo contrario.
+`nesting` y `hybrid` existen como motores alternativos conectados desde `services/editor_offset_imposition_service.py`, pero no son el foco principal salvo que el usuario lo solicite.
 
 ## Servicios
 
@@ -277,6 +279,18 @@ node --check static/js/editor_offset_visual.js
 
 ```bash
 pytest
+```
+
+## Validación Playwright básica
+
+```bash
+venv\Scripts\pytest.exe tests/playwright/test_editor_load.py -s
+```
+
+Este test requiere Flask corriendo localmente con:
+
+```bash
+python app.py
 ```
 
 Si alguna herramienta no está disponible, el agente debe explicarlo claramente.
