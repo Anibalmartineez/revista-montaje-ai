@@ -657,3 +657,76 @@ Notas:
 
 - pytest puede mostrar warnings de cache por permisos y de dependencias; no afectan los asserts.
 - los cambios visuales son CSS-only y no requieren `node --check` porque no modifican JS.
+
+## Fase 8 - Mapa, arquitectura SAFE, shell UX y QA inicial
+
+### Fase 8.0 - Mapa funcional del Editor Visual IA
+
+Se creo `DOCS/OFFSET/14_MAPA_FUNCIONAL_EDITOR_VISUAL_IA.md` para ordenar el mapa funcional y tecnico del editor antes del redisenio UX.
+
+### Fase 8.1 - Separacion interna SAFE
+
+Se extrajeron responsabilidades de bajo riesgo desde `routes.py`:
+
+- `services/editor_offset_jobs.py`
+- `services/editor_offset_layout_defaults.py`
+- `services/editor_offset_uploads.py`
+
+`routes.py` mantiene wrappers compatibles para no romper endpoints, IA, tests ni imports legacy.
+
+### Fase 8.1B - Step & Repeat PRO
+
+Se creo:
+
+- `engines/step_repeat_pro_engine.py`
+- `tests/test_step_repeat_pro_engine.py`
+
+El motor Step & Repeat PRO canonico vive ahora en `engines/step_repeat_pro_engine.py`. `routes.py` conserva wrappers compatibles.
+
+### Fase 8.1C - Servicio de imposicion
+
+Se creo:
+
+- `services/editor_offset_imposition_service.py`
+
+El servicio encapsula la seleccion/aplicacion de `repeat`, `nesting` y `hybrid`. Los endpoints siguen en `routes.py`.
+
+### Fase 8.2 - Shell UX profesional SAFE
+
+Se reorganizo la base visual sin cambiar comportamiento:
+
+- toolbar superior sticky
+- canvas/pliego central protagonista
+- panel derecho fijo con scroll interno
+- ids y controles existentes preservados
+
+### Fase 8.3 - Tabs del panel derecho
+
+Se agregaron tabs como capa visual:
+
+- Pliego
+- Trabajos
+- Disenos
+- Imposicion
+- Edicion
+- IA
+- Cuadernillos
+- CTP
+- Salida
+
+Los paneles ocultos siguen en el DOM. Se corrigio luego el scroll interno del panel derecho y del tab activo.
+
+### QA Playwright inicial
+
+Se creo:
+
+- `tests/playwright/test_editor_load.py`
+
+Valida carga de `/editor_offset_visual`, existencia de `#sheet`, `#sheet-canvas`, tabs esperados y errores graves de consola JS. El test asume Flask corriendo con `python app.py`.
+
+### Pendientes abiertos tras Fase 8.3
+
+- ampliar Playwright para tabs/scroll/drag/resize
+- barra inferior contextual
+- premium visual pass SAFE
+- posible servicio futuro para preview/PDF

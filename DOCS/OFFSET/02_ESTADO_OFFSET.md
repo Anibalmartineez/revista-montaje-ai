@@ -13,6 +13,12 @@ Hoy el repo sigue teniendo varios flujos offset coexistiendo, pero el **Editor V
 - frontend principal: `static/js/editor_offset_visual.js`
 - estilos principales: `static/css/editor_offset_visual.css`
 - backend de orquestacion: `routes.py`
+- servicios internos:
+  - `services/editor_offset_jobs.py`
+  - `services/editor_offset_layout_defaults.py`
+  - `services/editor_offset_uploads.py`
+  - `services/editor_offset_imposition_service.py`
+- motor Step & Repeat PRO: `engines/step_repeat_pro_engine.py`
 - validador de contrato de salida: `services/editor_offset_output_contract.py`
 - motor de salida final: `montaje_offset_inteligente.py`
 - motor de nesting auxiliar: `engines/nesting_pro_engine.py`
@@ -28,6 +34,7 @@ Este fue el unico flujo trabajado funcionalmente en esta fase.
 - subida de PDFs y metadata por diseno
 - generacion de slots por IA de trabajos logicos
 - imposicion `repeat`, `nesting` y `hybrid`
+- selector de imposicion separado en `services/editor_offset_imposition_service.py`
 - edicion manual de slots
 - agrupacion y desagrupacion de slots
 - duplicado de frente a dorso
@@ -84,6 +91,15 @@ Este fue el unico flujo trabajado funcionalmente en esta fase.
   - estilos profesionales para resumen, tarjetas, badges y jerarquia visual
   - cambio limitado a presentacion frontend
   - sin cambios en backend, payload, salida JSON, `cuadernillos/simulator.py`, templates ni `layout_constructor.json`
+- Fase 8 arquitectura/UX:
+  - jobs/defaults/uploads separados en servicios
+  - Step & Repeat PRO extraido a `engines/step_repeat_pro_engine.py`
+  - tests dedicados en `tests/test_step_repeat_pro_engine.py`
+  - servicio de imposicion para `repeat`, `nesting` y `hybrid`
+  - `routes.py` queda como fachada/orquestador con wrappers compatibles
+  - shell UX profesional con toolbar sticky, canvas central y panel derecho con scroll interno
+  - panel derecho con tabs: Pliego, Trabajos, Disenos, Imposicion, Edicion, IA, Cuadernillos, CTP y Salida
+  - base QA Playwright en `tests/playwright/test_editor_load.py`
 
 ## Validaciones implementadas
 
@@ -298,11 +314,13 @@ Reglas actuales observadas:
 
 - siguen coexistiendo flujos offset legacy en el repo
 - `routes.py` continua concentrando mucha orquestacion, aunque la validacion de salida ya fue extraida a `services/`
+- `routes.py` ya no contiene el motor Step & Repeat PRO canonico, pero sigue concentrando endpoints y compatibilidad
 - la semantica de `w_mm/h_mm` ya quedo consolidada para `repeat`, pero sigue siendo punto sensible frente a otros engines y flujos legacy
 - la validacion geometrica usa bounding box simple, no geometria rotada exacta
 - parte del feedback UX sigue apoyandose en `alert()`
 - no hay schema formal completo del layout ni del slot; existe solo cobertura minima de contrato de salida
 - no hay tests automatizados especificos para todos los casos recientes de repeat/rotacion/PDF
+- Playwright existe como smoke test inicial, pero falta cobertura avanzada de tabs/scroll/drag/resize
 - la IA del panel actual usa OpenAI tool calling sobre tools locales; tambien sigue existiendo el endpoint local simple `/ai/step_repeat_action`
 - falta edicion masiva avanzada de propiedades de slots
 - `preferred_flow` existe en contrato pero todavia no tiene efecto real en el motor

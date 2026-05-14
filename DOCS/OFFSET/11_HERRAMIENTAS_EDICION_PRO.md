@@ -35,6 +35,10 @@ Agrupa acciones menos frecuentes:
 
 La reorganizacion no elimina listeners ni funciones previas. Solo reduce ruido visual en la barra principal.
 
+### Ubicacion tras Fase 8.3
+
+El shell UX mantiene las acciones rapidas en la toolbar superior. Las herramientas avanzadas, propiedades de slot y controles manuales relacionados quedaron accesibles desde el tab `Edicion` del panel derecho. Es un cambio de organizacion visual: no cambia funciones, ids, listeners ni contrato de `slots[]`.
+
 ### Refinamiento visual safe Fase 7
 
 La Fase 7 agrega una mejora visual acotada en `static/css/editor_offset_visual.css`:

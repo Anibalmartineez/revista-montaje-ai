@@ -30,14 +30,17 @@ La fuente operativa principal esta repartida entre:
 - frontend vivo: `static/js/editor_offset_visual.js`
 - template: `templates/editor_offset_visual.html`
 - estilos: `static/css/editor_offset_visual.css`
-- orquestacion Flask y Step & Repeat PRO: `routes.py`
+- orquestacion Flask / fachada compatible: `routes.py`
+- persistencia, defaults y uploads: `services/editor_offset_jobs.py`, `services/editor_offset_layout_defaults.py`, `services/editor_offset_uploads.py`
+- selector de imposicion: `services/editor_offset_imposition_service.py`
+- motor Step & Repeat PRO: `engines/step_repeat_pro_engine.py`
 - validacion de salida: `services/editor_offset_output_contract.py`
 - salida preview/PDF: `montaje_offset_inteligente.py`
 - nesting auxiliar: `engines/nesting_pro_engine.py`
 - simulador aislado: `cuadernillos/simulator.py`
 - persistencia: `static/constructor_offset_jobs/<job_id>/layout_constructor.json`
 
-El motor prioritario actual del Editor Visual IA es **Step & Repeat PRO automatico** dentro de `routes.py`, no `engines/nesting_pro_engine.py`. Nesting existe como motor alternativo/auxiliar para `nesting` y `hybrid`.
+El motor prioritario actual del Editor Visual IA es **Step & Repeat PRO automatico** en `engines/step_repeat_pro_engine.py`. `routes.py` conserva wrappers compatibles para imports legacy y endpoints, mientras que `services/editor_offset_imposition_service.py` decide entre `repeat`, `nesting` y `hybrid`. Nesting existe como motor alternativo/auxiliar para `nesting` y `hybrid`, no como motor principal del editor.
 
 ## 2. Lista de funcionalidades actuales
 
@@ -49,6 +52,27 @@ El motor prioritario actual del Editor Visual IA es **Step & Repeat PRO automati
 - configuracion de pliego por ancho/alto y presets
 - normalizacion de `sheet_mm`, `margins_mm`, `faces`, `active_face`, `export_settings`, `ctp`, `snapSettings`, `spacingSettings`
 - seleccion de motor: `repeat`, `nesting`, `hybrid`
+- shell visual profesional tipo CAD/preprensa:
+  - toolbar superior sticky
+  - canvas/pliego central protagonista
+  - panel derecho con scroll interno
+  - navegacion por tabs del panel derecho
+
+### Panel derecho por tabs
+
+Tabs actuales:
+
+- Pliego
+- Trabajos
+- Disenos
+- Imposicion
+- Edicion
+- IA
+- Cuadernillos
+- CTP
+- Salida
+
+Los tabs son una capa visual: alternan visibilidad de paneles, pero los controles internos siguen en el DOM y conservan sus ids criticos.
 
 ### PDFs y disenos
 
@@ -121,7 +145,8 @@ El motor prioritario actual del Editor Visual IA es **Step & Repeat PRO automati
 ### Step & Repeat PRO automatico
 
 - endpoint `POST /editor_offset_visual/apply_imposition`
-- motor principal en `routes._build_step_repeat_slots(layout)`
+- motor principal en `engines.step_repeat_pro_engine.build_step_repeat_slots(layout)`
+- wrapper compatible en `routes._build_step_repeat_slots(layout)`
 - uso de `spacingSettings.spacingX_mm` y `spacingSettings.spacingY_mm`
 - respeto de `bleed_mm = 0`
 - rotacion inteligente solo si mejora capacidad
@@ -141,7 +166,7 @@ El motor prioritario actual del Editor Visual IA es **Step & Repeat PRO automati
 ### Nesting e hybrid
 
 - `nesting`: usa `engines.nesting_pro_engine.compute_nesting`
-- `hybrid`: usa `compute_nesting` y luego repite el patron con `_repeat_pattern_over_sheet`
+- `hybrid`: usa `compute_nesting` y luego repite el patron desde `services.editor_offset_imposition_service`
 - estos motores no son el foco principal actual del editor, pero estan conectados al selector de motor
 
 ### Preview y PDF final
@@ -199,6 +224,13 @@ El motor prioritario actual del Editor Visual IA es **Step & Repeat PRO automati
 - la aplicacion del layout devuelto requiere confirmacion del usuario
 - distingue `metadata_only` de `layout_with_slots`
 
+### QA navegador
+
+- base Playwright inicial en `tests/playwright/test_editor_load.py`
+- smoke test de carga de `/editor_offset_visual`
+- valida `#sheet`, `#sheet-canvas`, tabs esperados y errores graves de consola JS
+- el test asume Flask ya corriendo localmente con `python app.py`
+
 ## 3. Flujo funcional del usuario desde carga de PDF hasta salida final
 
 1. El usuario entra a `/editor_offset_visual`.
@@ -217,9 +249,9 @@ El motor prioritario actual del Editor Visual IA es **Step & Repeat PRO automati
    - rotacion permitida
    - ubicacion preferida
 9. El usuario aplica el motor:
-   - `repeat`: Step & Repeat PRO en `routes.py`
+   - `repeat`: Step & Repeat PRO en `engines/step_repeat_pro_engine.py`
    - `nesting`: `engines/nesting_pro_engine.py`
-   - `hybrid`: nesting + patron repetido
+   - `hybrid`: nesting + patron repetido desde `services/editor_offset_imposition_service.py`
 10. El backend devuelve un layout con `slots[]` regenerado y lo persiste.
 11. El usuario edita manualmente:
    - seleccion
@@ -255,13 +287,18 @@ El motor prioritario actual del Editor Visual IA es **Step & Repeat PRO automati
 
 ### Motores y logica principal
 
-- `routes.py`
+- `engines/step_repeat_pro_engine.py`
+- `services/editor_offset_imposition_service.py`
 - `montaje_offset_inteligente.py`
 - `engines/nesting_pro_engine.py`
 - `cuadernillos/simulator.py`
 
 ### Servicios y capas auxiliares
 
+- `services/editor_offset_jobs.py`
+- `services/editor_offset_layout_defaults.py`
+- `services/editor_offset_uploads.py`
+- `services/editor_offset_imposition_service.py`
 - `services/editor_offset_output_contract.py`
 - `services/editor_layout_contracts.py` para editor post-imposicion, no fuente principal del Editor Visual IA
 - `services/openai_client.py`
@@ -285,12 +322,14 @@ El motor prioritario actual del Editor Visual IA es **Step & Repeat PRO automati
 - `strategies/common.py`
 - `strategies/base.py`
 
-Estas estrategias son usadas por `montaje_offset_inteligente.py` para flujos internos/legacy de montaje. En el Editor Visual IA actual, el Step & Repeat PRO canonico se calcula en `routes.py`.
+Estas estrategias son usadas por `montaje_offset_inteligente.py` para flujos internos/legacy de montaje. En el Editor Visual IA actual, el Step & Repeat PRO canonico se calcula en `engines/step_repeat_pro_engine.py`.
 
 ### Tests relacionados
 
 - `tests/test_editor_offset_output_contract.py`
 - `tests/test_cuadernillos_simulator.py`
+- `tests/test_step_repeat_pro_engine.py`
+- `tests/playwright/test_editor_load.py`
 - `tests/test_montaje_offset_inteligente.py`
 - `tests/test_montaje_offset_inteligente_same_size.py`
 - `tests/test_montaje_features.py`
@@ -313,6 +352,8 @@ Responsabilidades:
 - render del pliego
 - seleccion, drag y resize
 - herramientas PRO
+- shell visual con toolbar sticky, canvas central y panel derecho con scroll interno
+- tabs de panel derecho para pliego, trabajos, disenos, imposicion, edicion, IA, cuadernillos, CTP y salida
 - paneles de disenos, trabajos, slots, CTP, export, IA y cuadernillos
 - llamadas `fetch` a endpoints
 - serializacion del layout con `layoutToJson()`
@@ -326,10 +367,9 @@ Archivo:
 
 Responsabilidades:
 
-- crear/cargar/guardar jobs
-- normalizar layout
-- subir PDFs y leer medidas
-- aplicar motor de imposicion
+- exponer endpoints del editor
+- actuar como fachada/orquestador compatible
+- delegar persistencia, defaults, uploads e imposicion a servicios
 - exponer endpoints IA
 - exponer simulador de cuadernillos
 - validar y generar preview/PDF
@@ -338,19 +378,27 @@ Responsabilidades:
 
 Archivos:
 
-- `routes.py`: Step & Repeat PRO principal
+- `engines/step_repeat_pro_engine.py`: Step & Repeat PRO principal
 - `engines/nesting_pro_engine.py`: nesting alternativo
-- `routes.py`: hybrid como nesting + repeticion de patron
+- `services/editor_offset_imposition_service.py`: selector `repeat`/`nesting`/`hybrid` y bridge hybrid
 - `montaje_offset_inteligente.py`: motor de salida/render, no generador principal de Step & Repeat del editor
 
-### Servicios de validacion
+### Servicios
 
-Archivo:
+Archivos:
 
+- `services/editor_offset_jobs.py`
+- `services/editor_offset_layout_defaults.py`
+- `services/editor_offset_uploads.py`
+- `services/editor_offset_imposition_service.py`
 - `services/editor_offset_output_contract.py`
 
-Responsabilidad:
+Responsabilidades:
 
+- persistencia y paths de jobs
+- defaults y normalizacion de layout
+- upload de PDFs y medicion de paginas
+- seleccion y aplicacion de motor de imposicion
 - validar contrato minimo antes de preview/PDF
 - devolver `errors[]` y `warnings[]`
 
@@ -368,7 +416,7 @@ Responsabilidades mezcladas:
 - render PDF
 - calculos de posicion
 - nesting
-- tools IA que llaman al motor repeat de `routes.py`
+- tools IA que conservan compatibilidad mediante wrappers de `routes.py`
 - compatibilidad con flujos offset previos
 
 ### Documentacion
@@ -388,12 +436,14 @@ Responsabilidades actuales:
 
 - contrato minimo de salida
 - simulador de cuadernillos
+- Step & Repeat PRO
+- smoke test Playwright de carga del editor
 - montaje inteligente general
 - features historicas de montaje
 
 Faltan pruebas especificas amplias para:
 
-- Step & Repeat PRO zonal
+- tabs/scroll del panel derecho con Playwright
 - drag/resize/seleccion frontend
 - endpoints completos del editor
 - IA tools
@@ -406,21 +456,21 @@ Faltan pruebas especificas amplias para:
 Define la estructura completa del editor:
 
 - header
-- toolbar principal
+- shell `editor-shell`
+- toolbar principal sticky
 - subtoolbar de snap, spacing y herramientas manuales
-- canvas/pliego
+- workspace con canvas/pliego central
 - panel de validacion geometrica
-- paneles laterales:
+- panel derecho con scroll interno y tabs:
   - pliego
   - trabajos
   - PDFs/disenos
   - motor de imposicion
-  - cuadernillos
-  - IA
   - herramientas avanzadas
+  - IA
+  - cuadernillos
   - CTP
-  - export
-  - preview/PDF
+  - salida/export/preview/PDF
 - bootstrap de `window.INITIAL_LAYOUT_JSON` y `window.JOB_ID`
 - carga de `static/js/editor_offset_visual.js`
 
@@ -458,7 +508,8 @@ Hoy funciona como mini-aplicacion monolitica del editor.
 Define:
 
 - layout general
-- toolbar/subtoolbar
+- shell profesional
+- toolbar/subtoolbar sticky
 - botones
 - pliego
 - slots
@@ -467,6 +518,7 @@ Define:
 - guia CTP
 - indicador de distancia
 - paneles laterales
+- tabs del panel derecho
 - formularios
 - IA
 - cuadernillos
@@ -476,24 +528,77 @@ Es visual, pero esta acoplado a clases que el JS agrega dinamicamente.
 
 ### `routes.py`
 
-Es el orquestador principal del Editor Visual IA y contiene tambien el motor Step & Repeat PRO. Responsabilidades:
+Es la fachada/orquestador principal del Editor Visual IA. Mantiene endpoints y wrappers compatibles, pero varias responsabilidades internas ya fueron extraidas a servicios y motores. Responsabilidades:
 
 - rutas `/editor_offset_visual`
-- persistencia `/editor_offset/save`
-- upload `/editor_offset/upload/<job_id>`
+- persistencia `/editor_offset/save` delegada a `services/editor_offset_jobs.py`
+- upload `/editor_offset/upload/<job_id>` delegado a `services/editor_offset_uploads.py`
 - cuadernillos `/editor_offset/cuadernillos/simular`
 - auto layout `/editor_offset/auto_layout/<job_id>`
 - apply imposition `/editor_offset_visual/apply_imposition`
 - IA `/ai/step_repeat_action` y `/ai/step_repeat_action_openai`
 - preview `/editor_offset/preview/<job_id>`
 - PDF `/editor_offset/generar_pdf/<job_id>`
-- helpers de layout constructor
-- defaults de contrato
-- normalizacion de repeat metadata
-- Step & Repeat PRO zonal
-- nesting/hybrid bridge
+- wrappers compatibles para helpers de layout constructor
+- wrappers compatibles para defaults/normalizacion
+- wrapper compatible para Step & Repeat PRO
+- wrapper compatible para nesting/hybrid bridge
 
-Es el archivo con mayor mezcla entre HTTP, persistencia, reglas de negocio y motor.
+Sigue siendo un archivo importante por compatibilidad e integracion HTTP, pero ya no es el lugar canonico del motor Step & Repeat PRO ni del selector de imposicion.
+
+### `engines/step_repeat_pro_engine.py`
+
+Motor canonico del Step & Repeat PRO automatico:
+
+- ordena y normaliza disenos repeat
+- calcula zonas `auto`, `top`, `bottom`, `left`, `right`, `center` y `fill`
+- aplica spacing y bleed
+- elige rotacion cuando mejora capacidad
+- compacta/expande zonas verticales seguras
+- valida `forms_per_plate`
+- lanza `IncompleteImpositionError`
+- devuelve `slots[]` con estructura compatible
+
+`routes.py` conserva wrappers para no romper imports existentes.
+
+### `services/editor_offset_imposition_service.py`
+
+Servicio de imposicion del Editor Visual IA:
+
+- selecciona/aplica `repeat`, `nesting` o `hybrid`
+- convierte resultados de nesting a slots del editor
+- arma el patron hybrid
+- delega `repeat` a `engines/step_repeat_pro_engine.py`
+
+El endpoint Flask sigue en `routes.py`.
+
+### `services/editor_offset_jobs.py`
+
+Servicio de persistencia y paths:
+
+- job_id seguro
+- paths de jobs
+- carga/guardado JSON
+- carga/guardado de `layout_constructor.json`
+
+### `services/editor_offset_layout_defaults.py`
+
+Servicio de defaults y normalizacion:
+
+- layout base
+- faces
+- export settings
+- imposition settings
+- spacing settings
+- metadata repeat
+
+### `services/editor_offset_uploads.py`
+
+Servicio de uploads:
+
+- subida de PDFs
+- lectura de medidas PDF
+- construccion de metadata `designs[]`
 
 ### `montaje_offset_inteligente.py`
 
@@ -554,13 +659,13 @@ Validador de contrato minimo previo a preview/PDF:
 Tools locales para IA:
 
 - analiza layout
-- genera repeat llamando a `routes._build_step_repeat_slots`
+- genera repeat usando wrappers compatibles de `routes.py`, que delegan al motor en `engines/step_repeat_pro_engine.py`
 - valida repeat
 - cambia zonas de disenos
 - centra layout
 - optimiza repeat con retry controlado
 
-Depende directamente del motor repeat de `routes.py`.
+Depende de la fachada compatible de `routes.py`; el motor real vive en `engines/step_repeat_pro_engine.py`.
 
 ### `ai_agent/openai_tool_bridge.py`
 
@@ -610,22 +715,20 @@ Riesgo: cualquier redisenio HTML que cambie ids o estructura esperada por este a
 Dependen directamente de `routes.py`:
 
 - entrada `/editor_offset_visual`
-- creacion/carga/guardado de jobs
-- defaults de `layout_constructor.json`
-- normalizacion de `faces`, `imposition_engine`, `export_settings`, repeat metadata
-- upload de PDFs
-- deteccion de dimensiones de PDF
+- orquestacion HTTP de creacion/carga/guardado de jobs
+- wrappers compatibles para defaults de `layout_constructor.json`
+- wrappers compatibles para normalizacion de `faces`, `imposition_engine`, `export_settings`, repeat metadata
+- endpoint de upload de PDFs
 - generacion legacy de slots desde trabajos logicos
-- Step & Repeat PRO automatico
-- zonas, fill, compactacion, expansion y validacion exacta de formas
-- nesting/hybrid bridge
+- wrapper de Step & Repeat PRO automatico
+- wrapper de nesting/hybrid bridge
 - persistencia despues de apply imposition
 - endpoints IA
 - simulador de cuadernillos como endpoint Flask
 - preview y PDF como endpoints Flask
 - alias de validacion de salida
 
-Riesgo: `routes.py` mezcla routing Flask con motor de imposicion. Un refactor apresurado puede romper tanto endpoints como reglas geometricas.
+Riesgo: `routes.py` sigue concentrando endpoints y compatibilidad. Un refactor apresurado puede romper imports legacy o endpoints aunque el motor ya este extraido.
 
 ## 9. Funcionalidades que dependen de `montaje_offset_inteligente.py`
 
@@ -675,27 +778,27 @@ Separacion futura recomendada:
 
 ### En backend
 
-- `routes.py` mezcla:
+- `routes.py` todavia concentra:
   - HTTP
-  - persistencia
-  - defaults
-  - upload
-  - Step & Repeat PRO
-  - nesting/hybrid bridge
+  - wrappers de compatibilidad
   - IA endpoints
   - preview/PDF endpoints
-- Step & Repeat PRO no esta en un modulo de motor dedicado
+  - endpoint de cuadernillos
+- persistencia, defaults, uploads, Step & Repeat PRO y selector de imposicion ya tienen modulos dedicados
 - validaciones de layout estan parcialmente en frontend, parcialmente en service y parcialmente implicitas en motores
 - CTP vive repartido entre frontend y salida
 - `montaje_offset_inteligente.py` sirve al editor y a flujos legacy
 
-Separacion futura recomendada:
+Separacion ya realizada:
 
 - `services/editor_offset_jobs.py`
 - `services/editor_offset_layout_defaults.py`
 - `services/editor_offset_uploads.py`
 - `engines/step_repeat_pro_engine.py`
 - `services/editor_offset_imposition_service.py`
+
+Separacion futura recomendada:
+
 - `services/editor_offset_output_service.py`
 - `services/editor_offset_ctp_service.py`
 - mantener `services/editor_offset_output_contract.py` como validador incremental
@@ -837,11 +940,12 @@ No tocar todavia:
 - `slots[].face`
 - flujo preview/PDF desde JSON persistido
 - validacion existente en `services/editor_offset_output_contract.py`
-- Step & Repeat PRO dentro de `routes.py` hasta tener tests especificos
+- wrappers compatibles de Step & Repeat PRO en `routes.py` sin revisar dependencias externas
 - `montaje_offset_inteligente.py` sin mapa de impacto de rutas legacy
 - `cuadernillos/simulator.py` como motor aislado
 - `preferred_flow` como campo reservado
 - `nesting_pro_engine.py` como si fuera motor principal del editor
+- shell/tabs del editor sin pruebas Playwright basicas de carga y regresion visual
 
 ## 13. Riesgos tecnicos
 
@@ -854,7 +958,7 @@ No tocar todavia:
 - modificar `routes.py` y afectar endpoints del editor o rutas legacy
 - tocar `montaje_offset_inteligente.py` sin cubrir preview/PDF y flujos antiguos
 - redisenar HTML renombrando ids que el JS usa directamente
-- mover Step & Repeat PRO sin tests de regresion para zonas, fill y errores incompletos
+- cambiar wrappers o motor Step & Repeat PRO sin tests de regresion para zonas, fill y errores incompletos
 - confundir simulador de cuadernillos con salida productiva
 
 ### Riesgos medios
@@ -868,10 +972,10 @@ No tocar todavia:
 
 ### Riesgos de deuda
 
-- `routes.py` demasiado grande para evolucion industrial
+- `routes.py` aun concentra endpoints y compatibilidad
 - `editor_offset_visual.js` demasiado monolitico para redisenio UX seguro
 - falta schema formal completo
-- falta suite de tests para Step & Repeat PRO
+- falta ampliar suite Playwright para tabs/scroll/drag/resize
 - falta test automatizado frontend para drag/resize/seleccion
 - varios flujos offset legacy comparten conceptos y motores
 
@@ -917,7 +1021,9 @@ pytest
 
 Idealmente con Playwright o equivalente:
 
-- cargar editor
+- cargar editor (base inicial ya existe en `tests/playwright/test_editor_load.py`)
+- validar tabs del panel derecho
+- validar scroll de tabs/panel derecho
 - subir fixture PDF
 - aplicar repeat
 - seleccionar slot
@@ -946,7 +1052,26 @@ Idealmente con Playwright o equivalente:
 
 ## 15. Hoja de ruta Fase 8.x
 
-### Fase 8.1: separacion/orden interno SAFE
+### Estado actualizado
+
+- Fase 8.0 completada: mapa funcional y tecnico del Editor Visual IA.
+- Fase 8.1 completada: separacion SAFE de jobs, defaults y uploads.
+- Fase 8.1B completada: extraccion de Step & Repeat PRO a `engines/step_repeat_pro_engine.py` con tests.
+- Fase 8.1C completada: servicio de imposicion en `services/editor_offset_imposition_service.py`.
+- Fase 8.2 completada: shell UX profesional SAFE.
+- Fase 8.3 completada: tabs del panel derecho y fix de scroll interno.
+- QA inicial completada: smoke test Playwright de carga del editor.
+
+Antes de continuar con mas cambios visuales, conviene mantener revision SAFE y ampliar Playwright minimo para tabs/scroll/drag/resize.
+
+Pendientes:
+
+- premium visual pass SAFE
+- barra inferior contextual
+- Playwright avanzado para tabs, scroll, drag y resize
+- posible servicio futuro de salida preview/PDF
+
+### Fase 8.1: separacion/orden interno SAFE (completada)
 
 Problema real:
 
@@ -978,17 +1103,37 @@ No debe tocar:
 
 Estrategia:
 
-1. agregar tests de Step & Repeat PRO
-2. extraer helpers puros de defaults/persistencia
-3. extraer motor repeat con alias compatible
-4. actualizar IA para llamar al nuevo motor estable
-5. mantener endpoints iguales
+Resultado real:
+
+1. `services/editor_offset_jobs.py`
+2. `services/editor_offset_layout_defaults.py`
+3. `services/editor_offset_uploads.py`
+4. wrappers compatibles en `routes.py`
+5. endpoints iguales
 
 Riesgo:
 
 - medio/alto si se mueve motor sin tests; bajo/medio si se hace por wrappers y equivalencia.
 
-### Fase 8.2: redisenio UX shell
+### Fase 8.1B: extraccion Step & Repeat PRO (completada)
+
+Resultado real:
+
+- `engines/step_repeat_pro_engine.py`
+- `tests/test_step_repeat_pro_engine.py`
+- `routes.py` conserva wrappers compatibles
+- no se modificaron contratos, preview/PDF ni frontend
+
+### Fase 8.1C: servicio de imposicion (completada)
+
+Resultado real:
+
+- `services/editor_offset_imposition_service.py`
+- selector `repeat` / `nesting` / `hybrid`
+- bridge nesting/hybrid
+- `routes.py` conserva wrappers compatibles
+
+### Fase 8.2: redisenio UX shell (completada)
 
 Problema real:
 
@@ -1013,16 +1158,19 @@ No debe tocar:
 
 Estrategia:
 
+Resultado real:
+
 - shell visual nuevo manteniendo ids criticos
-- preservar paneles funcionales
-- no cambiar orden de payloads
-- validar drag/resize/preview/PDF despues
+- toolbar superior sticky
+- canvas central protagonista
+- panel derecho fijo con scroll interno
+- sin cambios funcionales
 
 Riesgo:
 
 - medio por acoplamiento del JS a ids.
 
-### Fase 8.3: tabs/paneles profesionales
+### Fase 8.3: tabs/paneles profesionales (completada)
 
 Problema real:
 
@@ -1046,15 +1194,18 @@ No debe tocar:
 
 Estrategia:
 
+Resultado real:
+
+- tabs: Pliego, Trabajos, Disenos, Imposicion, Edicion, IA, Cuadernillos, CTP y Salida
 - tabs solo de visibilidad, no de logica
-- mantener controles existentes
-- centralizar refs si se necesita renombrar en fases futuras
+- controles internos conservan ids
+- fix CSS posterior para scroll interno del panel derecho y tab activo
 
 Riesgo:
 
 - medio si se ocultan controles que algun listener espera disponibles.
 
-### Fase 8.4: barra inferior contextual
+### Fase 8.4: barra inferior contextual (pendiente)
 
 Problema real:
 
@@ -1087,7 +1238,7 @@ Riesgo:
 
 - medio por seleccion y estado global.
 
-### Fase 8.5: pulido visual industrial
+### Fase 8.5: pulido visual industrial / premium visual pass SAFE (pendiente)
 
 Problema real:
 
@@ -1121,9 +1272,14 @@ Riesgo:
 
 ## Conclusiones de Fase 8.0
 
-El Editor Visual IA ya tiene capacidades potentes, pero su arquitectura esta concentrada en dos archivos criticos:
+El Editor Visual IA ya tiene capacidades potentes y Fase 8 dejo una base mas ordenada para seguir escalando. La arquitectura ya no esta concentrada solo en `routes.py`: jobs, defaults, uploads, Step & Repeat PRO y seleccion de motor tienen modulos dedicados con wrappers compatibles.
+
+El frontend sigue concentrado principalmente en:
 
 - `static/js/editor_offset_visual.js`
+
+La fachada Flask sigue siendo:
+
 - `routes.py`
 
 La salida productiva depende de:
@@ -1131,7 +1287,6 @@ La salida productiva depende de:
 - `services/editor_offset_output_contract.py`
 - `montaje_offset_inteligente.py`
 
-El Step & Repeat PRO automatico actual esta en `routes.py` y debe tratarse como motor principal del editor hasta que se extraiga con tests. `engines/nesting_pro_engine.py` es importante, pero es alternativo/auxiliar.
+El Step & Repeat PRO automatico actual esta en `engines/step_repeat_pro_engine.py` y debe tratarse como motor principal del editor. `engines/nesting_pro_engine.py` es importante, pero es alternativo/auxiliar.
 
-La evolucion segura hacia UX profesional debe empezar por **orden interno SAFE**, no por redisenio visual directo. El shell UX puede llegar despues, manteniendo contratos, ids criticos y comportamiento probado.
-
+La evolucion segura hacia UX profesional ya empezo con shell, tabs y una base Playwright inicial. Antes de seguir con cambios visuales mas finos conviene ampliar pruebas de tabs, scroll, drag, resize y flujos criticos.

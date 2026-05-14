@@ -6,7 +6,7 @@ Consolidar el Editor Visual IA como flujo operativo profesional del modulo Offse
 
 ## Etapa actual
 
-- Estado documentado: Fase 7 de estabilidad y validacion del Editor Visual IA
+- Estado documentado: Fase 8 de arquitectura SAFE y shell UX del Editor Visual IA
 - Sin refactor masivo
 - Sin limpieza agresiva
 - Sin eliminacion de archivos
@@ -16,6 +16,11 @@ Consolidar el Editor Visual IA como flujo operativo profesional del modulo Offse
   - simulador de cuadernillos cerrado como Fase 6 visual/logica
   - separacion explicita entre simulacion de cuadernillos y salida PDF
   - validacion de salida protegida con tests y extraida a un modulo chico en Fase 7
+  - jobs/defaults/uploads separados en servicios en Fase 8.1
+  - Step & Repeat PRO extraido a `engines/step_repeat_pro_engine.py` en Fase 8.1B
+  - servicio de imposicion `repeat`/`nesting`/`hybrid` en Fase 8.1C
+  - shell UX y tabs profesionales en Fases 8.2/8.3
+  - base Playwright inicial para carga del editor
 
 ## Plan propuesto por fases
 
@@ -205,17 +210,43 @@ Objetivo cerrado:
 - dejar base testeable para futuras validaciones
 - mejorar lectura visual del editor sin tocar comportamiento
 
+### Fase 8. Arquitectura SAFE y UX shell
+
+Estado real:
+
+- Fase 8.0 completada: mapa funcional/técnico del Editor Visual IA.
+- Fase 8.1 completada: `services/editor_offset_jobs.py`, `services/editor_offset_layout_defaults.py`, `services/editor_offset_uploads.py`.
+- Fase 8.1B completada: `engines/step_repeat_pro_engine.py` y `tests/test_step_repeat_pro_engine.py`.
+- Fase 8.1C completada: `services/editor_offset_imposition_service.py`.
+- Fase 8.2 completada: shell UX profesional con toolbar sticky, canvas central y panel derecho con scroll interno.
+- Fase 8.3 completada: tabs del panel derecho y fix de scroll.
+- QA inicial completada: `tests/playwright/test_editor_load.py`.
+
+Garantias:
+
+- `routes.py` conserva wrappers compatibles.
+- no se cambiaron contratos JSON.
+- no se cambio preview/PDF.
+- no se tocaron motores de salida.
+
+Pendientes antes de mas UX:
+
+- ampliar Playwright para tabs, scroll, drag y resize.
+- barra inferior contextual.
+- premium visual pass SAFE.
+- posible servicio futuro de salida preview/PDF.
+
 ## Priorizacion sugerida
 
 1. Mantener documentados los contratos despues de cada cambio de semantica
 2. Ampliar pruebas de regresion para Step & Repeat PRO inteligente
-3. Endurecer guardrails y pruebas del flujo OpenAI tool calling sobre `ai_agent/`
-4. Mejorar feedback no bloqueante de errores/warnings
-5. Avanzar en schema/validaciones adicionales solo con tests dedicados
-6. Evaluar sistema de modos (`exact`, `maximize`, etc.) sin romper el contrato actual
-7. Evaluar compactacion o expansion horizontal solo si mantiene seguridad
-8. Mantener el simulador de cuadernillos aislado hasta definir una integracion PDF explicita
-9. Recien despues evaluar micro-refactors
+3. Ampliar Playwright para tabs, scroll, drag y resize antes de mas cambios visuales
+4. Endurecer guardrails y pruebas del flujo OpenAI tool calling sobre `ai_agent/`
+5. Mejorar feedback no bloqueante de errores/warnings
+6. Avanzar en schema/validaciones adicionales solo con tests dedicados
+7. Evaluar sistema de modos (`exact`, `maximize`, etc.) sin romper el contrato actual
+8. Evaluar compactacion o expansion horizontal solo si mantiene seguridad
+9. Mantener el simulador de cuadernillos aislado hasta definir una integracion PDF explicita
 
 ## Cambios explicitamente postergados
 

@@ -48,6 +48,13 @@ La Fase 5 implementa:
 - capa IA/tools alineada con el motor Fase 5
 - frontend IA con distincion `metadata_only` vs `layout_with_slots`
 
+Actualizacion Fase 8:
+
+- el motor canonico fue extraido a `engines/step_repeat_pro_engine.py`
+- `routes.py` conserva wrappers compatibles
+- existe cobertura dedicada en `tests/test_step_repeat_pro_engine.py`
+- el selector de motor vive en `services/editor_offset_imposition_service.py`
+
 ## Estado real del sistema Fase 5
 
 ### Que hace bien hoy
@@ -353,7 +360,7 @@ Flujo ya validado en pruebas sinteticas:
 1. El usuario escribe un prompt en el panel IA.
 2. El frontend envia `prompt` y `layout_json`.
 3. `openai_tool_bridge.py` decide o ejecuta tools locales.
-4. Las tools llaman al motor real de `routes.py` cuando hay que generar repeat.
+4. Las tools llaman a wrappers compatibles de `routes.py`, que delegan al motor real en `engines/step_repeat_pro_engine.py` cuando hay que generar repeat.
 5. La respuesta devuelve:
    - mensaje
    - tools usadas
@@ -427,14 +434,10 @@ La Fase 5 mantiene compatibilidad:
 
 ## Proximos pasos recomendados
 
-1. Agregar pruebas de regresion para casos zonales y `fill`.
-2. Agregar pruebas de regresion para:
-   - `requested_forms / placed_forms / missing_forms`
-   - `IncompleteImpositionError`
-   - reruns despues de error
-3. Medir con ejemplos reales si conviene ajustar heuristica de `repeat_role`.
-4. Evaluar compactacion o expansion horizontal segura.
-5. Mantener a la IA trabajando sobre:
+1. Ampliar pruebas de regresion para casos zonales y `fill` sobre `tests/test_step_repeat_pro_engine.py`.
+2. Medir con ejemplos reales si conviene ajustar heuristica de `repeat_role`.
+3. Evaluar compactacion o expansion horizontal segura.
+4. Mantener a la IA trabajando sobre:
    - `forms_per_plate`
    - `preferred_zone`
    - reglas repeat estables
