@@ -39,6 +39,25 @@ La reorganizacion no elimina listeners ni funciones previas. Solo reduce ruido v
 
 El shell UX mantiene las acciones rapidas en la toolbar superior. Las herramientas avanzadas, propiedades de slot y controles manuales relacionados quedaron accesibles desde el tab `Edicion` del panel derecho. Es un cambio de organizacion visual: no cambia funciones, ids, listeners ni contrato de `slots[]`.
 
+### Premium Visual Pass SAFE Fase 8
+
+La rama `fase8-redisenio-ux-editor` cerro una pasada visual CSS-only sobre la experiencia de edicion:
+
+- toolbar superior mas tecnica y compacta
+- grupos Snap, Espaciado y Edicion con mejor contraste
+- botones tecnicos menos ruidosos dentro de la toolbar oscura
+- inputs de paso, spacing y snap mas integrados al panel tecnico
+- tabs mas densos y legibles
+- estados visuales de slot seleccionados, bloqueados y con warnings/errores mas claros
+
+No cambia:
+
+- listeners de herramientas PRO
+- nombres de ids o clases criticas
+- seleccion, drag, resize o box select
+- contratos persistidos
+- motores ni preview/PDF
+
 ### Refinamiento visual safe Fase 7
 
 La Fase 7 agrega una mejora visual acotada en `static/css/editor_offset_visual.css`:
@@ -177,6 +196,7 @@ La interseccion se calcula por bbox usando footprint real:
 - las herramientas visuales usan bounding boxes efectivas
 - el panel IA aplica layout solo despues de confirmacion del usuario
 - los retoques visuales de Fase 7 son CSS-only y no alteran comportamiento
+- el premium visual pass de Fase 8 tambien es CSS-only y no altera comportamiento
 
 ## Relacion con Step & Repeat PRO
 
@@ -224,3 +244,5 @@ Esos campos siguen existiendo en el contrato y el backend los usa o reserva inte
 2. Mejorar feedback no bloqueante en vez de `alert()`.
 3. Evaluar guias visuales temporales durante alineacion/distribucion.
 4. Agregar snap/guias inteligentes para futuras acciones de IA asistida.
+5. Agregar Playwright para drag, resize, box select y seleccion multiple.
+6. Evolucionar `geometry-validation-panel` hacia status tecnico compacto solo si no duplica informacion.

@@ -724,9 +724,79 @@ Se creo:
 
 Valida carga de `/editor_offset_visual`, existencia de `#sheet`, `#sheet-canvas`, tabs esperados y errores graves de consola JS. El test asume Flask corriendo con `python app.py`.
 
-### Pendientes abiertos tras Fase 8.3
+### Premium Visual Pass SAFE
 
-- ampliar Playwright para tabs/scroll/drag/resize
-- barra inferior contextual
-- premium visual pass SAFE
+Se refino visualmente el editor con cambios CSS-only:
+
+- toolbar superior mas tecnica y compacta
+- tabs mas densos
+- panel derecho con acabado mas profesional
+- inputs/selects mas consistentes
+- canvas/pliego con fondo tecnico y grid sutil
+- estados `selected`, `locked`, `geometry-warning` y `geometry-error` mas legibles
+- scrollbars internos pulidos
+
+Luego se realizo una microfase de contraste:
+
+- Snap
+- Espaciado
+- labels secundarios
+- unidades `mm`
+- inputs tecnicos
+- botones claros dentro de toolbar oscura
+
+Garantias:
+
+- no se toco JS funcional
+- no se toco backend
+- no se tocaron motores ni contratos
+- no se modificaron endpoints ni payloads
+
+### QA Playwright de tabs y scroll
+
+Se agrego:
+
+- `tests/playwright/test_tabs_scroll.py`
+
+Valida:
+
+- tabs visibles por `data-editor-tab`
+- click en todos los tabs principales
+- panel activo visible
+- scroll interno real en `.editor-tab-panels`
+- ausencia de errores graves de consola JS
+
+Los tests Playwright requieren Flask corriendo localmente con `python app.py`.
+
+### Decision UX de cierre
+
+No se agrego una barra inferior contextual nueva.
+
+Motivo:
+
+- el bloque actual `Validacion geometrica` ya funciona parcialmente como area contextual/status del editor.
+- duplicarlo con otra barra podria agregar ruido y repetir informacion.
+- queda como mejora futura evolucionar ese bloque hacia una status bar tecnica compacta o sumar un inspector contextual solo si aporta informacion nueva.
+
+### Cierre Fase 8 antes de merge
+
+Fase 8 queda practicamente completa:
+
+- mapa funcional/tecnico creado
+- jobs/defaults/uploads separados
+- Step & Repeat PRO extraido y cubierto con tests
+- selector de imposicion separado
+- `routes.py` como fachada/orquestador con wrappers compatibles
+- shell UX profesional
+- tabs y scroll interno
+- premium visual pass y contraste
+- QA Playwright inicial para carga, tabs y scroll
+
+Pendientes recomendados para una futura Fase 9:
+
+- Playwright para drag/resize/seleccion
+- Playwright para upload/apply repeat/preview/PDF
+- status bar tecnica compacta basada en `geometry-validation-panel`
+- inspector contextual futuro sin duplicar informacion
 - posible servicio futuro para preview/PDF
+- modularizacion frontend por capas

@@ -57,6 +57,10 @@ El motor prioritario actual del Editor Visual IA es **Step & Repeat PRO automati
   - canvas/pliego central protagonista
   - panel derecho con scroll interno
   - navegacion por tabs del panel derecho
+  - premium visual pass CSS-only con mayor densidad, contraste y acabado tecnico
+- area contextual existente:
+  - `geometry-validation-panel` actua como estado tecnico/validacion geometrica visible
+  - no conviene duplicarla con una barra inferior nueva sin redisenio previo
 
 ### Panel derecho por tabs
 
@@ -229,6 +233,8 @@ Los tabs son una capa visual: alternan visibilidad de paneles, pero los controle
 - base Playwright inicial en `tests/playwright/test_editor_load.py`
 - smoke test de carga de `/editor_offset_visual`
 - valida `#sheet`, `#sheet-canvas`, tabs esperados y errores graves de consola JS
+- test Playwright de tabs/scroll en `tests/playwright/test_tabs_scroll.py`
+- valida clicks de tabs, panel activo visible y scroll interno del panel derecho
 - el test asume Flask ya corriendo localmente con `python app.py`
 
 ## 3. Flujo funcional del usuario desde carga de PDF hasta salida final
@@ -330,6 +336,7 @@ Estas estrategias son usadas por `montaje_offset_inteligente.py` para flujos int
 - `tests/test_cuadernillos_simulator.py`
 - `tests/test_step_repeat_pro_engine.py`
 - `tests/playwright/test_editor_load.py`
+- `tests/playwright/test_tabs_scroll.py`
 - `tests/test_montaje_offset_inteligente.py`
 - `tests/test_montaje_offset_inteligente_same_size.py`
 - `tests/test_montaje_features.py`
@@ -354,6 +361,8 @@ Responsabilidades:
 - herramientas PRO
 - shell visual con toolbar sticky, canvas central y panel derecho con scroll interno
 - tabs de panel derecho para pliego, trabajos, disenos, imposicion, edicion, IA, cuadernillos, CTP y salida
+- premium visual pass y microajustes de contraste CSS-only
+- area contextual de validacion geometrica existente bajo el canvas
 - paneles de disenos, trabajos, slots, CTP, export, IA y cuadernillos
 - llamadas `fetch` a endpoints
 - serializacion del layout con `layoutToJson()`
@@ -438,13 +447,14 @@ Responsabilidades actuales:
 - simulador de cuadernillos
 - Step & Repeat PRO
 - smoke test Playwright de carga del editor
+- Playwright basico de tabs y scroll interno
 - montaje inteligente general
 - features historicas de montaje
 
 Faltan pruebas especificas amplias para:
 
-- tabs/scroll del panel derecho con Playwright
 - drag/resize/seleccion frontend
+- upload/apply repeat/preview/PDF con Playwright
 - endpoints completos del editor
 - IA tools
 - CTP desde layout constructor
@@ -509,6 +519,7 @@ Define:
 
 - layout general
 - shell profesional
+- premium visual pass SAFE
 - toolbar/subtoolbar sticky
 - botones
 - pliego
@@ -519,6 +530,7 @@ Define:
 - indicador de distancia
 - paneles laterales
 - tabs del panel derecho
+- contraste tecnico de toolbar/paneles/inputs
 - formularios
 - IA
 - cuadernillos
@@ -759,6 +771,7 @@ Riesgo: cambios hechos pensando solo en el Editor Visual IA pueden romper `/mont
 - estado global + render + IO + herramientas + IA + cuadernillos en un solo JS
 - listeners acoplados a ids especificos
 - validacion visual mezclada con render de pliego
+- `geometry-validation-panel` ya funciona como area contextual/status, pero puede evolucionar a status bar tecnica compacta
 - CTP mezcla configuracion, alineacion y render
 - cuadernillos comparte archivo JS/CSS con el editor principal aunque no modifica layout
 - preview/PDF usa alerts y manejo de errores dentro del mismo flujo del editor
@@ -775,6 +788,7 @@ Separacion futura recomendada:
 - `output_panel.js`
 - `ai_panel.js`
 - `booklet_simulator_panel.js`
+- `editor_status_bar.js` si se decide evolucionar la validacion geometrica existente sin duplicarla
 
 ### En backend
 
@@ -946,6 +960,7 @@ No tocar todavia:
 - `preferred_flow` como campo reservado
 - `nesting_pro_engine.py` como si fuera motor principal del editor
 - shell/tabs del editor sin pruebas Playwright basicas de carga y regresion visual
+- barra inferior nueva que duplique `geometry-validation-panel` sin redisenio funcional previo
 
 ## 13. Riesgos tecnicos
 
@@ -964,6 +979,7 @@ No tocar todavia:
 ### Riesgos medios
 
 - cambios de CSS que oculten handles, estados selected o warnings
+- cambios visuales que resten contraste a Snap/Espaciado, unidades mm, tabs o botones tecnicos
 - desacople incorrecto entre `state.activeFace` y `layout.active_face`
 - que preview/PDF use layout persistido mientras UI tiene cambios no guardados
 - `locked` se entienda como bloqueo productivo cuando solo es UI
@@ -975,7 +991,8 @@ No tocar todavia:
 - `routes.py` aun concentra endpoints y compatibilidad
 - `editor_offset_visual.js` demasiado monolitico para redisenio UX seguro
 - falta schema formal completo
-- falta ampliar suite Playwright para tabs/scroll/drag/resize
+- falta ampliar suite Playwright para drag/resize/seleccion y flujos productivos
+- Playwright ya cubre carga y tabs/scroll, pero falta drag/resize/seleccion
 - falta test automatizado frontend para drag/resize/seleccion
 - varios flujos offset legacy comparten conceptos y motores
 
@@ -1022,8 +1039,8 @@ pytest
 Idealmente con Playwright o equivalente:
 
 - cargar editor (base inicial ya existe en `tests/playwright/test_editor_load.py`)
-- validar tabs del panel derecho
-- validar scroll de tabs/panel derecho
+- validar tabs del panel derecho (base inicial ya existe en `tests/playwright/test_tabs_scroll.py`)
+- validar scroll de tabs/panel derecho (base inicial ya existe en `tests/playwright/test_tabs_scroll.py`)
 - subir fixture PDF
 - aplicar repeat
 - seleccionar slot
@@ -1060,16 +1077,19 @@ Idealmente con Playwright o equivalente:
 - Fase 8.1C completada: servicio de imposicion en `services/editor_offset_imposition_service.py`.
 - Fase 8.2 completada: shell UX profesional SAFE.
 - Fase 8.3 completada: tabs del panel derecho y fix de scroll interno.
-- QA inicial completada: smoke test Playwright de carga del editor.
+- Premium Visual Pass SAFE completado: refinamiento CSS-only, densidad tecnica, contraste, tabs, toolbar, panel derecho, inputs, canvas, estados y scrollbars.
+- QA inicial completada: smoke test Playwright de carga del editor y test Playwright de tabs/scroll.
 
-Antes de continuar con mas cambios visuales, conviene mantener revision SAFE y ampliar Playwright minimo para tabs/scroll/drag/resize.
+Antes de continuar con cambios mayores de UX, conviene mantener revision SAFE y ampliar Playwright para drag/resize/seleccion y flujos productivos.
 
 Pendientes:
 
-- premium visual pass SAFE
-- barra inferior contextual
-- Playwright avanzado para tabs, scroll, drag y resize
+- status bar tecnica compacta basada en `geometry-validation-panel`, sin duplicar informacion
+- inspector contextual futuro solo si aporta informacion no cubierta por la validacion geometrica
+- Playwright avanzado para drag, resize y seleccion
+- Playwright para upload, apply repeat, preview y PDF
 - posible servicio futuro de salida preview/PDF
+- posible modularizacion frontend en fases futuras
 
 ### Fase 8.1: separacion/orden interno SAFE (completada)
 
@@ -1205,7 +1225,7 @@ Riesgo:
 
 - medio si se ocultan controles que algun listener espera disponibles.
 
-### Fase 8.4: barra inferior contextual (pendiente)
+### Fase 8.4: status/contexto tecnico (postergada)
 
 Problema real:
 
@@ -1214,6 +1234,12 @@ Problema real:
 Valor operativo:
 
 - mostrar contexto de slot/seleccion, coordenadas, medidas, warnings, cara activa, zoom y acciones rapidas.
+
+Decision de cierre Fase 8:
+
+- no se agrego una barra inferior nueva.
+- el bloque actual de `Validacion geometrica` ya cumple parcialmente funcion de status/contexto tecnico.
+- cualquier evolucion futura debe convertir o compactar ese bloque antes de duplicar informacion con otra barra.
 
 Archivos que podria tocar:
 
@@ -1238,7 +1264,7 @@ Riesgo:
 
 - medio por seleccion y estado global.
 
-### Fase 8.5: pulido visual industrial / premium visual pass SAFE (pendiente)
+### Fase 8.5: pulido visual industrial / premium visual pass SAFE (completada)
 
 Problema real:
 
@@ -1266,6 +1292,18 @@ Estrategia:
 - validar desktop/mobile
 - evitar estilos que oculten controles funcionales
 
+Resultado real:
+
+- toolbar mas tecnica y compacta
+- tabs mas densos y con estado activo mas claro
+- panel derecho con acabado mas profesional
+- inputs/selects mas consistentes e integrados
+- canvas/pliego con fondo tecnico y grid sutil
+- estados selected/locked/warnings/error mas legibles
+- scrollbars internos pulidos
+- microajuste posterior de contraste para Snap, Espaciado, labels secundarios, unidades mm, inputs tecnicos y botones claros
+- cambios CSS-only, sin tocar JS funcional ni backend
+
 Riesgo:
 
 - bajo/medio si es CSS-only; medio si se reestructura DOM.
@@ -1289,4 +1327,6 @@ La salida productiva depende de:
 
 El Step & Repeat PRO automatico actual esta en `engines/step_repeat_pro_engine.py` y debe tratarse como motor principal del editor. `engines/nesting_pro_engine.py` es importante, pero es alternativo/auxiliar.
 
-La evolucion segura hacia UX profesional ya empezo con shell, tabs y una base Playwright inicial. Antes de seguir con cambios visuales mas finos conviene ampliar pruebas de tabs, scroll, drag, resize y flujos criticos.
+La evolucion segura hacia UX profesional ya dejo cerrada una base usable: shell, tabs, scroll interno, premium visual pass y QA Playwright inicial. La validacion geometrica queda como area contextual existente; no conviene duplicarla con otra barra inferior sin redisenio previo.
+
+Para una futura Fase 9, las prioridades recomendadas son ampliar Playwright para drag/resize/seleccion y flujos productivos, evolucionar `geometry-validation-panel` hacia una status bar tecnica compacta si aporta valor real, evaluar un inspector contextual sin duplicar informacion y planificar modularizacion frontend por capas.

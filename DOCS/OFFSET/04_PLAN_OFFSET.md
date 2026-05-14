@@ -7,6 +7,7 @@ Consolidar el Editor Visual IA como flujo operativo profesional del modulo Offse
 ## Etapa actual
 
 - Estado documentado: Fase 8 de arquitectura SAFE y shell UX del Editor Visual IA
+- Fase 8 practicamente cerrada antes de merge a `main`
 - Sin refactor masivo
 - Sin limpieza agresiva
 - Sin eliminacion de archivos
@@ -20,7 +21,8 @@ Consolidar el Editor Visual IA como flujo operativo profesional del modulo Offse
   - Step & Repeat PRO extraido a `engines/step_repeat_pro_engine.py` en Fase 8.1B
   - servicio de imposicion `repeat`/`nesting`/`hybrid` en Fase 8.1C
   - shell UX y tabs profesionales en Fases 8.2/8.3
-  - base Playwright inicial para carga del editor
+  - premium visual pass SAFE y microajustes de contraste CSS-only
+  - base Playwright inicial para carga, tabs y scroll del editor
 
 ## Plan propuesto por fases
 
@@ -220,7 +222,11 @@ Estado real:
 - Fase 8.1C completada: `services/editor_offset_imposition_service.py`.
 - Fase 8.2 completada: shell UX profesional con toolbar sticky, canvas central y panel derecho con scroll interno.
 - Fase 8.3 completada: tabs del panel derecho y fix de scroll.
-- QA inicial completada: `tests/playwright/test_editor_load.py`.
+- Premium Visual Pass SAFE completado: refinamiento visual CSS-only, densidad tecnica, contraste, canvas, toolbar, tabs, panel derecho, inputs y estados visuales.
+- Microfase de contraste completada: Snap, Espaciado, labels secundarios, unidades mm, inputs tecnicos y botones claros.
+- QA inicial completada:
+  - `tests/playwright/test_editor_load.py`
+  - `tests/playwright/test_tabs_scroll.py`
 
 Garantias:
 
@@ -228,19 +234,28 @@ Garantias:
 - no se cambiaron contratos JSON.
 - no se cambio preview/PDF.
 - no se tocaron motores de salida.
+- no se toco JS funcional ni backend durante el premium visual pass.
 
-Pendientes antes de mas UX:
+Decision UX:
 
-- ampliar Playwright para tabs, scroll, drag y resize.
-- barra inferior contextual.
-- premium visual pass SAFE.
+- no se agrego una barra inferior contextual nueva.
+- `geometry-validation-panel` ya opera como area contextual/status parcial.
+- cualquier status bar futura deberia evolucionar o compactar ese bloque, no duplicarlo.
+
+Pendientes para una futura Fase 9:
+
+- ampliar Playwright para drag, resize y seleccion.
+- ampliar Playwright para upload, apply repeat, preview y PDF.
+- evolucionar `geometry-validation-panel` hacia una status bar tecnica compacta si aporta valor operativo.
+- evaluar inspector contextual sin duplicar informacion.
 - posible servicio futuro de salida preview/PDF.
+- posible modularizacion frontend por capas.
 
 ## Priorizacion sugerida
 
 1. Mantener documentados los contratos despues de cada cambio de semantica
 2. Ampliar pruebas de regresion para Step & Repeat PRO inteligente
-3. Ampliar Playwright para tabs, scroll, drag y resize antes de mas cambios visuales
+3. Ampliar Playwright para drag, resize, seleccion y flujos productivos antes de mas cambios UX grandes
 4. Endurecer guardrails y pruebas del flujo OpenAI tool calling sobre `ai_agent/`
 5. Mejorar feedback no bloqueante de errores/warnings
 6. Avanzar en schema/validaciones adicionales solo con tests dedicados
@@ -254,6 +269,7 @@ Pendientes antes de mas UX:
 - borrar rutas legacy
 - mover muchas funciones fuera de `routes.py` sin tests; Fase 7 solo extrajo el validador de salida con cobertura dedicada
 - reescribir el JS del editor
+- modularizar frontend monolitico sin fase propia y pruebas de regresion
 - redisenar persistencia por job
 - permitir que IA modifique persistencia sin confirmacion del usuario
 - cambiar el contrato base de `layout_constructor.json` sin migracion
@@ -261,6 +277,7 @@ Pendientes antes de mas UX:
 - declarar soporte de expansion horizontal `left/right` antes de tener motor y pruebas
 - convertir el simulador de cuadernillos en generador de PDF sin fase tecnica separada
 - persistir resultados del simulador en el layout sin contrato previo
+- agregar una barra inferior contextual que duplique `geometry-validation-panel` sin redisenio previo
 
 ## Criterio de seguridad para siguientes pasos
 

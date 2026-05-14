@@ -99,7 +99,18 @@ Este fue el unico flujo trabajado funcionalmente en esta fase.
   - `routes.py` queda como fachada/orquestador con wrappers compatibles
   - shell UX profesional con toolbar sticky, canvas central y panel derecho con scroll interno
   - panel derecho con tabs: Pliego, Trabajos, Disenos, Imposicion, Edicion, IA, Cuadernillos, CTP y Salida
+  - fix de scroll interno de tabs/panel derecho
+  - premium visual pass SAFE CSS-only:
+    - toolbar mas tecnica
+    - tabs mas densos
+    - panel derecho mas profesional
+    - inputs/selects mejor integrados
+    - canvas/pliego con fondo tecnico
+    - estados selected/locked/warnings mas legibles
+    - microajustes de contraste para Snap, Espaciado, labels secundarios, unidades mm, inputs tecnicos y botones claros
   - base QA Playwright en `tests/playwright/test_editor_load.py`
+  - test Playwright de tabs/scroll en `tests/playwright/test_tabs_scroll.py`
+  - decision UX: no agregar barra inferior nueva por ahora; `geometry-validation-panel` queda como area contextual/status existente
 
 ## Validaciones implementadas
 
@@ -320,7 +331,7 @@ Reglas actuales observadas:
 - parte del feedback UX sigue apoyandose en `alert()`
 - no hay schema formal completo del layout ni del slot; existe solo cobertura minima de contrato de salida
 - no hay tests automatizados especificos para todos los casos recientes de repeat/rotacion/PDF
-- Playwright existe como smoke test inicial, pero falta cobertura avanzada de tabs/scroll/drag/resize
+- Playwright existe para carga y tabs/scroll, pero falta cobertura avanzada de drag/resize/seleccion y flujos productivos
 - la IA del panel actual usa OpenAI tool calling sobre tools locales; tambien sigue existiendo el endpoint local simple `/ai/step_repeat_action`
 - falta edicion masiva avanzada de propiedades de slots
 - `preferred_flow` existe en contrato pero todavia no tiene efecto real en el motor
@@ -378,3 +389,4 @@ Reglas actuales observadas:
 5. medir con casos reales si la heuristica automatica de `repeat_role` necesita ajuste
 6. evaluar modos futuros y expansion horizontal solo con pruebas de regresion
 7. definir, en una fase separada, si el simulador de cuadernillos debe integrarse con PDF o mantenerse como herramienta de consulta visual
+8. para una futura Fase 9, ampliar Playwright a drag/resize/seleccion, upload/apply repeat/preview/PDF y evaluar una status bar compacta basada en la validacion geometrica existente
