@@ -652,7 +652,7 @@ body {
   max-height: 100%;
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 6px;
   overflow: hidden;
   overscroll-behavior: contain;
 }
@@ -664,8 +664,8 @@ body {
   flex: 0 0 auto;
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 4px;
-  padding: 6px;
+  gap: 3px;
+  padding: 5px;
   border: 1px solid #353e4a;
   border-radius: 6px;
   background:
@@ -676,15 +676,15 @@ body {
 
 .editor-tab {
   min-width: 0;
-  min-height: 28px;
-  padding: 5px 6px;
+  min-height: 26px;
+  padding: 4px 5px;
   border: 1px solid #526071;
   border-radius: 4px;
   background: #333d4a;
   color: #edf3fb;
   cursor: pointer;
   font-family: inherit;
-  font-size: 11px;
+  font-size: 10.5px;
   font-weight: 700;
   letter-spacing: 0;
   line-height: 1.15;
@@ -704,12 +704,12 @@ body {
 }
 
 .editor-tab.is-active {
-  border-color: #78a6ff;
-  background: linear-gradient(180deg, #2f75ee, #1e54c8);
+  border-color: #9dbbff;
+  background: linear-gradient(180deg, #2f75ee, #1749b5);
   color: #fff;
   box-shadow:
     0 0 0 1px rgba(255, 255, 255, 0.12) inset,
-    0 2px 8px rgba(37, 99, 235, 0.32);
+    0 1px 7px rgba(37, 99, 235, 0.28);
 }
 
 .editor-tab-panels {
@@ -717,7 +717,7 @@ body {
   min-height: 0;
   overflow-y: auto;
   overscroll-behavior: contain;
-  padding: 0 4px 18px 0;
+  padding: 0 3px 14px 0;
   scrollbar-gutter: stable;
 }
 
@@ -764,7 +764,7 @@ body {
   background: var(--panel-surface);
   border: 1px solid var(--panel-border);
   border-radius: 6px;
-  padding: 10px;
+  padding: 8px;
   box-shadow: var(--shadow-tight);
 }
 
@@ -814,16 +814,17 @@ body {
   display: flex;
   align-items: center;
   justify-content: space-between;
+  gap: 8px;
 }
 
 .list {
   display: flex;
   flex-direction: column;
-  gap: 5px;
+  gap: 4px;
 }
 
 .list .item {
-  padding: 7px 8px;
+  padding: 6px 7px;
   border: 1px solid var(--panel-border);
   border-radius: 5px;
   cursor: pointer;
@@ -839,7 +840,7 @@ body {
 .work-form label,
 .slot-form label {
   display: block;
-  margin-bottom: 7px;
+  margin-bottom: 6px;
 }
 
 .work-form input,
@@ -847,25 +848,25 @@ body {
 .slot-form select,
 .work-form select {
   width: 100%;
-  padding: 6px 8px;
+  padding: 5px 7px;
   box-sizing: border-box;
 }
 
 .grid-2 {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 8px;
+  gap: 6px;
 }
 
 .form-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 8px;
+  gap: 6px;
 }
 
 .form-actions {
   display: flex;
-  gap: 6px;
+  gap: 5px;
 }
 
 .muted {
@@ -899,23 +900,23 @@ summary .muted,
 }
 
 .design-item {
-  padding: 7px 8px;
+  padding: 6px 7px;
   border: 1px solid var(--panel-border);
   border-radius: 5px;
-  margin-bottom: 7px;
+  margin-bottom: 6px;
   background: #fff;
   box-shadow: var(--shadow-tight);
 }
 
 .design-title {
   font-weight: 600;
-  margin-bottom: 5px;
+  margin-bottom: 4px;
 }
 
 .design-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
-  gap: 8px;
+  gap: 6px;
 }
 
 .design-grid label {
@@ -940,8 +941,8 @@ summary .muted,
 .panel-accordion {
   border: 1px solid var(--panel-border);
   border-radius: 6px;
-  padding: 6px 9px 8px;
-  margin-bottom: 8px;
+  padding: 5px 8px 7px;
+  margin-bottom: 6px;
   background: linear-gradient(180deg, #f8fafc, var(--panel-bg));
   box-shadow: 0 1px 2px rgba(21, 30, 45, 0.06);
 }
@@ -950,13 +951,14 @@ summary .muted,
   font-weight: 750;
   cursor: pointer;
   list-style: none;
-  margin: -6px -9px 7px;
-  padding: 6px 9px;
+  margin: -5px -8px 6px;
+  padding: 5px 8px;
   border-radius: 6px;
   background: #e3e9f1;
   border-bottom: 1px solid rgba(156, 172, 192, 0.45);
   color: var(--editor-ink);
-  font-size: 13px;
+  font-size: 12px;
+  line-height: 1.25;
   transition: background-color 0.15s ease, box-shadow 0.15s ease;
 }
 
@@ -1453,12 +1455,12 @@ summary .muted,
 .panel-imposition button,
 .panel-cuadernillos button {
   width: 100%;
-  margin-top: 5px;
+  margin-top: 4px;
 }
 
 label {
   color: #2f3a47;
-  font-size: 12px;
+  font-size: 11.5px;
   font-weight: 600;
   line-height: 1.25;
 }
@@ -1466,7 +1468,7 @@ label {
 input,
 select,
 textarea {
-  min-height: 30px;
+  min-height: 28px;
   border: 1px solid var(--panel-border-strong);
   border-radius: 4px;
   background: linear-gradient(180deg, #fff, #f8fafc);
@@ -1506,13 +1508,13 @@ h4 {
 }
 
 h2 {
-  margin: 0 0 8px;
-  font-size: 15px;
+  margin: 0 0 6px;
+  font-size: 14px;
 }
 
 h3 {
-  margin: 8px 0 6px;
-  font-size: 13px;
+  margin: 7px 0 5px;
+  font-size: 12.5px;
 }
 
 @media (max-width: 1100px) {
