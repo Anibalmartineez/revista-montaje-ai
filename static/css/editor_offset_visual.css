@@ -1451,6 +1451,235 @@ summary .muted,
   background: #e4f4ef;
 }
 
+.side-panel h2,
+.side-panel h3,
+.side-panel h4 {
+  color: #142033;
+  letter-spacing: 0;
+}
+
+.side-panel h2 {
+  margin: 0 0 7px;
+  font-size: 13.5px;
+  line-height: 1.2;
+}
+
+.side-panel h3,
+.side-panel .panel-subtitle {
+  margin: 9px 0 6px;
+  padding-top: 2px;
+  color: #263445;
+  font-size: 12px;
+  font-weight: 800;
+  line-height: 1.2;
+}
+
+.side-panel .panel-header {
+  padding-bottom: 6px;
+  margin-bottom: 7px;
+  border-bottom: 1px solid rgba(156, 172, 192, 0.46);
+}
+
+.side-panel .panel-block {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  border-color: #bfcada;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.82), rgba(248, 250, 252, 0.88)),
+    var(--panel-surface);
+}
+
+.side-panel .panel-block + .panel-block {
+  margin-top: 8px;
+}
+
+.side-panel label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin: 0 0 7px;
+  color: #2f3a47;
+  font-size: 11.5px;
+  font-weight: 700;
+  line-height: 1.25;
+}
+
+.side-panel input,
+.side-panel select,
+.side-panel textarea {
+  width: 100%;
+  min-height: 28px;
+  padding: 5px 7px;
+  box-sizing: border-box;
+  border-color: #a8b5c6;
+  background: linear-gradient(180deg, #fff, #f8fafc);
+}
+
+.side-panel textarea {
+  line-height: 1.35;
+}
+
+.side-panel input[type='checkbox'],
+.side-panel input[type='radio'] {
+  width: auto;
+  flex: 0 0 auto;
+}
+
+.side-panel .checkbox-inline,
+.side-panel label:has(input[type='checkbox']),
+.side-panel label:has(input[type='radio']) {
+  flex-direction: row;
+  align-items: center;
+  gap: 7px;
+  min-height: 26px;
+  margin-bottom: 6px;
+  font-weight: 650;
+}
+
+.side-panel .inline-input {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 4px;
+}
+
+.side-panel .inline-input input {
+  width: 100%;
+}
+
+.side-panel .muted {
+  margin: 0 0 7px;
+  color: #647184;
+  font-size: 11.5px;
+  font-weight: 500;
+  line-height: 1.35;
+}
+
+.side-panel summary .muted {
+  display: block;
+  margin: 2px 0 0;
+  color: #647184;
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.side-panel .grid-2,
+.side-panel .form-grid {
+  gap: 7px;
+  margin-bottom: 7px;
+}
+
+.side-panel .form-actions,
+.side-panel .ai-actions {
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  margin: 8px 0;
+}
+
+.side-panel .list {
+  margin: 0 0 8px;
+  padding: 0;
+}
+
+.side-panel .list .item,
+.side-panel .design-item,
+.side-panel .design-export-row {
+  border-color: #c5cfdb;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.92), rgba(248, 250, 252, 0.86)),
+    #fff;
+}
+
+.side-panel .design-item {
+  padding: 7px;
+}
+
+.side-panel .design-title,
+.side-panel .design-export-title {
+  margin-bottom: 6px;
+  color: #17202a;
+  font-size: 12px;
+  font-weight: 800;
+  line-height: 1.25;
+  overflow-wrap: anywhere;
+}
+
+.side-panel .design-grid,
+.side-panel .design-export-controls {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(118px, 1fr));
+  gap: 7px;
+}
+
+.side-panel .design-grid label {
+  color: #334155;
+  font-size: 11.5px;
+  font-weight: 700;
+}
+
+.side-panel .design-export-row {
+  padding: 7px;
+  border: 1px solid var(--panel-border);
+  border-radius: 5px;
+  margin-bottom: 7px;
+  box-shadow: var(--shadow-tight);
+}
+
+.side-panel .work-form,
+.side-panel .slot-form,
+.side-panel #upload-form,
+.side-panel #imposition-engine-panel,
+.side-panel .cuadernillo-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.side-panel #imposition-engine-panel > label {
+  padding: 6px 7px;
+  border: 1px solid #d4dce7;
+  border-radius: 5px;
+  background: rgba(255, 255, 255, 0.62);
+}
+
+.side-panel #step-repeat-panel > label,
+.side-panel .panel-ctp > label,
+.side-panel .panel-export-settings > label {
+  padding-bottom: 2px;
+}
+
+.side-panel hr {
+  width: 100%;
+  height: 1px;
+  margin: 8px 0;
+  border: 0;
+  background: linear-gradient(90deg, transparent, #c4cedb, transparent);
+}
+
+.side-panel .preview-area {
+  gap: 8px;
+}
+
+.side-panel .preview-area > div {
+  min-width: 0;
+  padding: 7px;
+  border: 1px solid #d3dce8;
+  border-radius: 5px;
+  background: rgba(255, 255, 255, 0.72);
+}
+
+.side-panel .pdf-output {
+  min-height: 28px;
+  padding: 6px 7px;
+  border: 1px dashed #b8c4d2;
+  border-radius: 5px;
+  background: #f8fafc;
+  font-size: 11.5px;
+  line-height: 1.35;
+}
+
 .panel-output button,
 .panel-imposition button,
 .panel-cuadernillos button {
