@@ -11,7 +11,7 @@ from ai_agent.editor_advisor.agent import run_editor_advisor
 
 def _parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
-        description="Agente asesor CLI-only/read-only para el Editor Visual IA Offset."
+        description="Agente asesor CLI-only/read-only para UX/UI SAFE del Editor Visual IA Offset."
     )
     parser.add_argument("prompt", nargs="+", help="Consulta o tarea de analisis para el agente.")
     parser.add_argument(
@@ -44,4 +44,3 @@ def main() -> int:
 
 if __name__ == "__main__":
     raise SystemExit(main())
-

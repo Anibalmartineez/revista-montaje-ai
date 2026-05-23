@@ -42,6 +42,12 @@ def summarize_editor_architecture() -> str:
 
 
 @function_tool
+def summarize_editor_ux_surface() -> str:
+    """Resume senales UX/DOM read-only del panel derecho y frontend del editor."""
+    return advisor_tools.summarize_editor_ux_surface()
+
+
+@function_tool
 def list_validation_commands() -> list[str]:
     """Lista comandos de validacion recomendados para cambios futuros."""
     return advisor_tools.list_validation_commands()
@@ -57,6 +63,7 @@ def build_editor_advisor_agent(model: str | None = None) -> Agent:
             search_repo,
             list_editor_files,
             summarize_editor_architecture,
+            summarize_editor_ux_surface,
             list_validation_commands,
         ],
         output_type=EditorAdvisorReport,
@@ -67,4 +74,3 @@ async def run_editor_advisor(prompt: str, model: str | None = None) -> EditorAdv
     agent = build_editor_advisor_agent(model=model)
     result = await Runner.run(agent, prompt)
     return result.final_output
-

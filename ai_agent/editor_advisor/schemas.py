@@ -10,5 +10,12 @@ class EditorAdvisorReport(BaseModel):
     dependencias: List[str] = Field(default_factory=list)
     mejoras_recomendadas: List[str] = Field(default_factory=list)
     validaciones_necesarias: List[str] = Field(default_factory=list)
+    problemas_ux_visuales: List[str] = Field(default_factory=list)
+    riesgos_dom_listeners: List[str] = Field(default_factory=list)
+    cambios_css_only_seguros: List[str] = Field(default_factory=list)
+    cambios_html_js_riesgosos: List[str] = Field(default_factory=list)
+    zonas_peligrosas_de_tocar: List[str] = Field(default_factory=list)
+    checklist_ux_antes: List[str] = Field(default_factory=list)
+    checklist_ux_despues: List[str] = Field(default_factory=list)
+    fase_safe_sugerida: str = ""
     proximo_paso_sugerido: str = ""
-

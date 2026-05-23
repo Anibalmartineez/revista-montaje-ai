@@ -6,6 +6,7 @@ import pytest
 sys.path.append(str(Path(__file__).resolve().parents[1]))
 
 from ai_agent.editor_advisor import tools
+from ai_agent.editor_advisor.schemas import EditorAdvisorReport
 
 
 def test_list_editor_files_includes_canonical_editor_files():
@@ -46,3 +47,29 @@ def test_validation_commands_are_read_only_recommendations():
 
     assert any("compileall" in command for command in commands)
     assert all("rm " not in command.lower() for command in commands)
+
+
+def test_ux_surface_summary_reports_right_panel_signals():
+    summary = tools.summarize_editor_ux_surface()
+
+    assert "Superficie UX del Editor Visual IA" in summary
+    assert "Tabs del panel derecho" in summary
+    assert "editor-tab-panels" in summary
+    assert "geometry-validation-panel" in summary
+    assert "getElementById" in summary
+    assert "no renombrar ids" in summary
+
+
+def test_editor_advisor_report_keeps_legacy_fields_and_ux_defaults():
+    report = EditorAdvisorReport()
+
+    assert report.fortalezas_actuales == []
+    assert report.problemas_detectados == []
+    assert report.problemas_ux_visuales == []
+    assert report.riesgos_dom_listeners == []
+    assert report.cambios_css_only_seguros == []
+    assert report.cambios_html_js_riesgosos == []
+    assert report.zonas_peligrosas_de_tocar == []
+    assert report.checklist_ux_antes == []
+    assert report.checklist_ux_despues == []
+    assert report.fase_safe_sugerida == ""

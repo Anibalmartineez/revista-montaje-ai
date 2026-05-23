@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+import re
 import subprocess
 from pathlib import Path
 from typing import Iterable, List
@@ -195,6 +196,62 @@ def summarize_editor_architecture(repo_root: str | Path | None = None) -> str:
             f"- Motores disponibles: {', '.join(engine_files) or 'ninguno detectado'}.",
         ]
     )
+
+
+def _unique_sorted(values: Iterable[str]) -> List[str]:
+    return sorted({value for value in values if value})
+
+
+def summarize_editor_ux_surface(repo_root: str | Path | None = None) -> str:
+    """Return deterministic UX/DOM signals for the Editor Visual IA right panel."""
+    html = read_repo_file("templates/editor_offset_visual.html", max_chars=50000, repo_root=repo_root)
+    js = read_repo_file("static/js/editor_offset_visual.js", max_chars=50000, repo_root=repo_root)
+    css = read_repo_file("static/css/editor_offset_visual.css", max_chars=50000, repo_root=repo_root)
+
+    tabs = _unique_sorted(re.findall(r'data-editor-tab="([^"]+)"', html))
+    panels = _unique_sorted(re.findall(r'data-editor-tab-panel="([^"]+)"', html))
+    html_ids = _unique_sorted(re.findall(r'\sid="([^"]+)"', html))
+    js_ids = _unique_sorted(re.findall(r"getElementById\('([^']+)'\)", js))
+    missing_html_ids = [item for item in js_ids if item not in html_ids]
+    css_selectors = [
+        ".side-panel",
+        ".editor-tabs",
+        ".editor-tab",
+        ".editor-tab-panels",
+        ".editor-tab-panel",
+        ".panel-accordion",
+        ".geometry-validation-panel",
+        ".manual-advanced-tools",
+        ".ai-panel",
+    ]
+    present_css_selectors = [selector for selector in css_selectors if selector in css]
+    listener_count = len(re.findall(r"\.addEventListener\(", js))
+    direct_id_lookup_count = len(js_ids)
+
+    critical_ids = [
+        item
+        for item in html_ids
+        if item.startswith(("btn-", "editor-tab-", "slot-", "ctp-", "sheet", "geometry-", "ai-"))
+    ]
+
+    lines = [
+        "Superficie UX del Editor Visual IA:",
+        f"- Tabs del panel derecho ({len(tabs)}): {', '.join(tabs)}.",
+        f"- Paneles por data-editor-tab-panel ({len(panels)}): {', '.join(panels)}.",
+        f"- IDs en template: {len(html_ids)}.",
+        f"- IDs buscados por JS con getElementById: {direct_id_lookup_count}.",
+        f"- Listeners detectados en JS: {listener_count}.",
+        f"- Selectores CSS relevantes presentes: {', '.join(present_css_selectors)}.",
+        "- Zonas visuales sensibles: side-panel, editor-tabs, editor-tab-panels, panel-accordion, geometry-validation-panel.",
+        "- Reglas SAFE: preferir CSS-only; no renombrar ids; no cambiar data-editor-tab/data-editor-tab-panel; no mover controles sin revisar listeners.",
+    ]
+    if critical_ids:
+        lines.append(f"- Muestra de IDs criticos: {', '.join(critical_ids[:40])}.")
+    if missing_html_ids:
+        lines.append(f"- IDs buscados por JS sin match HTML directo: {', '.join(missing_html_ids[:40])}.")
+    else:
+        lines.append("- No se detectaron IDs buscados por JS sin match HTML directo en la muestra leida.")
+    return "\n".join(lines)
 
 
 def list_validation_commands() -> List[str]:
