@@ -13,6 +13,15 @@ Esta fase es exclusivamente de diagnostico y documentacion:
 - no renombra ids ni clases criticas
 - no cambia drag, resize, seleccion, preview, PDF, Step & Repeat PRO ni CTP
 
+## Estado actual Fase 9
+
+Este documento sigue siendo la fuente de verdad arquitectonica del Editor Visual IA, pero ya no describe solo el cierre de Fase 8. En la rama `fase9-redisenio-panel-editor` el editor conserva la base de Fase 8 y suma dos hechos relevantes:
+
+- el panel derecho y la experiencia del Editor Visual IA siguen evolucionando sobre la arquitectura SAFE existente
+- existe un prototipo de agente asesor con OpenAI Agents SDK en `ai_agent/editor_advisor/`
+
+El agente SDK es actualmente **CLI-only y read-only**. No esta integrado a Flask, no tiene endpoints, no esta conectado a la UI, no modifica archivos y debe tratarse como una herramienta de analisis/planificacion, no como automatizacion productiva.
+
 ## 1. Resumen general del Editor Visual IA
 
 El Editor Visual IA es hoy el flujo principal y mas moderno del modulo offset. Funciona como un constructor visual por job para preparar montajes de imprenta:
@@ -38,9 +47,12 @@ La fuente operativa principal esta repartida entre:
 - salida preview/PDF: `montaje_offset_inteligente.py`
 - nesting auxiliar: `engines/nesting_pro_engine.py`
 - simulador aislado: `cuadernillos/simulator.py`
+- asesor SDK read-only: `ai_agent/editor_advisor/`
 - persistencia: `static/constructor_offset_jobs/<job_id>/layout_constructor.json`
 
 El motor prioritario actual del Editor Visual IA es **Step & Repeat PRO automatico** en `engines/step_repeat_pro_engine.py`. `routes.py` conserva wrappers compatibles para imports legacy y endpoints, mientras que `services/editor_offset_imposition_service.py` decide entre `repeat`, `nesting` y `hybrid`. Nesting existe como motor alternativo/auxiliar para `nesting` y `hybrid`, no como motor principal del editor.
+
+Importante: `routes.py` sigue siendo fachada/orquestador Flask, pero no concentra en exclusiva la logica del editor. Jobs, defaults, uploads, imposicion y validacion de salida ya tienen servicios dedicados.
 
 ## 2. Lista de funcionalidades actuales
 
@@ -77,6 +89,12 @@ Tabs actuales:
 - Salida
 
 Los tabs son una capa visual: alternan visibilidad de paneles, pero los controles internos siguen en el DOM y conservan sus ids criticos.
+
+Estado Fase 9:
+
+- el redisenio del panel derecho continua sobre esta base de tabs y scroll interno
+- cualquier cambio debe preservar `data-editor-tab`, `data-editor-tab-panel`, ids internos y listeners existentes
+- no se debe convertir el panel derecho en una nueva fuente de contrato; sigue siendo organizacion visual sobre el mismo layout persistido
 
 ### PDFs y disenos
 
@@ -228,6 +246,26 @@ Los tabs son una capa visual: alternan visibilidad de paneles, pero los controle
 - la aplicacion del layout devuelto requiere confirmacion del usuario
 - distingue `metadata_only` de `layout_with_slots`
 
+### Agente SDK asesor
+
+- prototipo en `ai_agent/editor_advisor/`
+- construido con OpenAI Agents SDK Python
+- entrada local por CLI, no por Flask
+- tools read-only con allowlist de archivos del repo
+- bloqueo de rutas sensibles como `.env`, `venv`, outputs, previews, uploads y paths fuera del repo
+- salida estructurada en espanol para asesoria tecnica:
+  - fortalezas actuales
+  - problemas detectados
+  - riesgos tecnicos
+  - dependencias
+  - mejoras recomendadas
+  - validaciones necesarias
+  - proximo paso sugerido
+- no modifica archivos
+- no crea endpoints
+- no esta integrado al panel IA ni a la UI
+- no reemplaza al asistente IA Step & Repeat actual
+
 ### QA navegador
 
 - base Playwright inicial en `tests/playwright/test_editor_load.py`
@@ -315,6 +353,11 @@ Los tabs son una capa visual: alternan visibilidad de paneles, pero los controle
 - `ai_agent/tools_repeat.py`
 - `ai_agent/agent_controller.py`
 - `ai_agent/openai_tool_bridge.py`
+- `ai_agent/editor_advisor/agent.py`
+- `ai_agent/editor_advisor/tools.py`
+- `ai_agent/editor_advisor/schemas.py`
+- `ai_agent/editor_advisor/cli.py`
+- `ai_agent/editor_advisor/prompts/editor_advisor.md`
 
 ### Estrategias
 
@@ -341,6 +384,7 @@ Estas estrategias son usadas por `montaje_offset_inteligente.py` para flujos int
 - `tests/test_montaje_offset_inteligente_same_size.py`
 - `tests/test_montaje_features.py`
 - `tests/test_montaje_offset_personalizado.py`
+- `tests/test_editor_advisor_tools.py`
 
 ## 5. Separacion por capas
 
@@ -401,6 +445,7 @@ Archivos:
 - `services/editor_offset_uploads.py`
 - `services/editor_offset_imposition_service.py`
 - `services/editor_offset_output_contract.py`
+- `services/openai_client.py`
 
 Responsabilidades:
 
@@ -409,7 +454,23 @@ Responsabilidades:
 - upload de PDFs y medicion de paginas
 - seleccion y aplicacion de motor de imposicion
 - validar contrato minimo antes de preview/PDF
+- cliente OpenAI lazy reutilizable para flujos IA existentes
 - devolver `errors[]` y `warnings[]`
+
+### IA y agente SDK
+
+Archivos:
+
+- `ai_agent/tools_repeat.py`
+- `ai_agent/openai_tool_bridge.py`
+- `ai_agent/editor_advisor/`
+
+Responsabilidades:
+
+- asistente IA integrado al panel actual para Step & Repeat PRO
+- tool calling local con confirmacion del usuario antes de aplicar layouts
+- agente SDK asesor externo, CLI-only/read-only, para analizar el repo y proponer planes seguros
+- mantener separadas la IA operativa del editor y la asesoria arquitectonica del SDK
 
 ### Logica compartida
 
@@ -683,6 +744,24 @@ Depende de la fachada compatible de `routes.py`; el motor real vive en `engines/
 
 Puente entre OpenAI tool calling y tools locales. Decide herramientas, interpreta intenciones de zonas y devuelve respuesta al frontend.
 
+### `ai_agent/editor_advisor/`
+
+Prototipo de agente asesor con OpenAI Agents SDK:
+
+- `agent.py`: define `Agent`, tools SDK y `Runner.run`
+- `tools.py`: expone lecturas y busquedas read-only con allowlist
+- `schemas.py`: define `EditorAdvisorReport`
+- `cli.py`: entrada local para consultas desde terminal
+- `prompts/editor_advisor.md`: instrucciones base del asesor
+
+Limite actual:
+
+- no escribe archivos
+- no ejecuta cambios sobre el repo
+- no usa `SandboxAgent`
+- no esta conectado a Flask ni al panel IA
+- no debe integrarse a UI/endpoints sin una fase tecnica separada
+
 ### `strategies/*`
 
 Estrategias historicas/reutilizables para `montaje_offset_inteligente.py`. Son importantes para el sistema, pero no deben confundirse con el motor Step & Repeat PRO automatico del Editor Visual IA.
@@ -724,7 +803,7 @@ Riesgo: cualquier redisenio HTML que cambie ids o estructura esperada por este a
 
 ## 8. Funcionalidades que dependen de `routes.py`
 
-Dependen directamente de `routes.py`:
+Dependen directamente de `routes.py` como fachada Flask y capa de compatibilidad, aunque varias responsabilidades internas ya estan delegadas a `services/` o `engines/`:
 
 - entrada `/editor_offset_visual`
 - orquestacion HTTP de creacion/carga/guardado de jobs
@@ -740,7 +819,7 @@ Dependen directamente de `routes.py`:
 - preview y PDF como endpoints Flask
 - alias de validacion de salida
 
-Riesgo: `routes.py` sigue concentrando endpoints y compatibilidad. Un refactor apresurado puede romper imports legacy o endpoints aunque el motor ya este extraido.
+Riesgo: `routes.py` sigue concentrando endpoints y compatibilidad. Un refactor apresurado puede romper imports legacy o endpoints aunque jobs, defaults, uploads, imposicion, validacion de salida y Step & Repeat PRO ya tengan modulos dedicados.
 
 ## 9. Funcionalidades que dependen de `montaje_offset_inteligente.py`
 
@@ -975,6 +1054,8 @@ No tocar todavia:
 - redisenar HTML renombrando ids que el JS usa directamente
 - cambiar wrappers o motor Step & Repeat PRO sin tests de regresion para zonas, fill y errores incompletos
 - confundir simulador de cuadernillos con salida productiva
+- conectar `ai_agent/editor_advisor` a Flask/UI sin fase propia, guardrails y pruebas
+- permitir que el agente SDK escriba archivos o lea rutas sensibles fuera de su allowlist
 
 ### Riesgos medios
 
@@ -985,6 +1066,7 @@ No tocar todavia:
 - `locked` se entienda como bloqueo productivo cuando solo es UI
 - CTP aplicado en frontend pero reinterpretado distinto en backend
 - warnings de salida aun dependen de surfacing basico en frontend
+- confundir el asistente IA Step & Repeat integrado con el agente SDK asesor CLI-only
 
 ### Riesgos de deuda
 
@@ -995,6 +1077,7 @@ No tocar todavia:
 - Playwright ya cubre carga y tabs/scroll, pero falta drag/resize/seleccion
 - falta test automatizado frontend para drag/resize/seleccion
 - varios flujos offset legacy comparten conceptos y motores
+- documentacion desactualizada puede alimentar mal al agente SDK asesor porque usa `AGENTS.md` y este mapa como contexto arquitectonico
 
 ## 14. Pruebas necesarias antes de cualquier refactor
 
@@ -1067,7 +1150,14 @@ Idealmente con Playwright o equivalente:
 - identificacion por dimensiones `50x40`
 - no aplicar layout sin confirmacion frontend
 
-## 15. Hoja de ruta Fase 8.x
+### Tests agente SDK recomendados
+
+- mantener `tests/test_editor_advisor_tools.py` para tools read-only
+- verificar que `.env`, `venv`, outputs, previews, uploads y rutas externas sigan bloqueadas
+- validar que el CLI falla claro si falta `OPENAI_API_KEY`
+- antes de cualquier integracion Flask/UI, agregar pruebas de contrato para no permitir escritura ni aplicacion automatica de cambios
+
+## 15. Hoja de ruta Fase 8.x / Fase 9
 
 ### Estado actualizado
 
@@ -1079,8 +1169,10 @@ Idealmente con Playwright o equivalente:
 - Fase 8.3 completada: tabs del panel derecho y fix de scroll interno.
 - Premium Visual Pass SAFE completado: refinamiento CSS-only, densidad tecnica, contraste, tabs, toolbar, panel derecho, inputs, canvas, estados y scrollbars.
 - QA inicial completada: smoke test Playwright de carga del editor y test Playwright de tabs/scroll.
+- Fase 9 en curso: redisenio/continuidad del panel derecho sobre la base SAFE existente.
+- Prototipo Agents SDK creado: `ai_agent/editor_advisor/` como asesor CLI-only/read-only.
 
-Antes de continuar con cambios mayores de UX, conviene mantener revision SAFE y ampliar Playwright para drag/resize/seleccion y flujos productivos.
+Antes de continuar con cambios mayores de UX o IA, conviene mantener revision SAFE, documentacion alineada y ampliar Playwright para drag/resize/seleccion y flujos productivos.
 
 Pendientes:
 
@@ -1090,6 +1182,8 @@ Pendientes:
 - Playwright para upload, apply repeat, preview y PDF
 - posible servicio futuro de salida preview/PDF
 - posible modularizacion frontend en fases futuras
+- integracion futura del agente SDK solo como fase separada, con guardrails y tests
+- mantener `AGENTS.md` y este documento alineados porque alimentan el contexto del agente SDK
 
 ### Fase 8.1: separacion/orden interno SAFE (completada)
 
@@ -1308,7 +1402,43 @@ Riesgo:
 
 - bajo/medio si es CSS-only; medio si se reestructura DOM.
 
-## Conclusiones de Fase 8.0
+### Fase 9: documentacion base y agente SDK asesor (en curso)
+
+Problema real:
+
+- el Editor Visual IA ya tiene varias capas separadas y la documentacion de Fase 8 quedo como contexto base para agentes humanos y SDK.
+- si `AGENTS.md` o este mapa quedan desactualizados, el agente SDK puede planificar desde supuestos incorrectos.
+
+Valor operativo:
+
+- permitir analisis tecnico mas confiable antes de cambios grandes.
+- separar asesoria arquitectonica de la IA operativa que ya vive en el panel del editor.
+
+Resultado real actual:
+
+- `ai_agent/editor_advisor/` existe como prototipo OpenAI Agents SDK.
+- el agente SDK usa CLI local, tools read-only y salida estructurada.
+- no esta integrado a Flask, UI ni endpoints.
+- `requirements.txt` incluye `openai-agents`.
+- `tests/test_editor_advisor_tools.py` cubre restricciones basicas de lectura.
+
+No debe tocar:
+
+- contratos JSON
+- `routes.py`
+- frontend
+- motores
+- servicios existentes
+- preview/PDF
+
+Proximos pasos SAFE:
+
+- mantener el agente SDK aislado hasta definir una fase de integracion.
+- ampliar pruebas del agente antes de habilitar nuevas tools.
+- si se integra a Flask/UI, hacerlo como plan separado con permisos explicitos, guardrails y pruebas.
+- usar este documento y `AGENTS.md` como contexto obligatorio antes de cambios estructurales.
+
+## Conclusiones actualizadas
 
 El Editor Visual IA ya tiene capacidades potentes y Fase 8 dejo una base mas ordenada para seguir escalando. La arquitectura ya no esta concentrada solo en `routes.py`: jobs, defaults, uploads, Step & Repeat PRO y seleccion de motor tienen modulos dedicados con wrappers compatibles.
 
@@ -1329,4 +1459,4 @@ El Step & Repeat PRO automatico actual esta en `engines/step_repeat_pro_engine.p
 
 La evolucion segura hacia UX profesional ya dejo cerrada una base usable: shell, tabs, scroll interno, premium visual pass y QA Playwright inicial. La validacion geometrica queda como area contextual existente; no conviene duplicarla con otra barra inferior sin redisenio previo.
 
-Para una futura Fase 9, las prioridades recomendadas son ampliar Playwright para drag/resize/seleccion y flujos productivos, evolucionar `geometry-validation-panel` hacia una status bar tecnica compacta si aporta valor real, evaluar un inspector contextual sin duplicar informacion y planificar modularizacion frontend por capas.
+En Fase 9, las prioridades SAFE son mantener actualizado este mapa, sostener el redisenio del panel derecho sin romper ids/listeners/contratos, ampliar Playwright para drag/resize/seleccion y flujos productivos, y conservar `ai_agent/editor_advisor/` como asesor CLI-only/read-only hasta que exista una fase explicita de integracion.

@@ -6,8 +6,8 @@ Consolidar el Editor Visual IA como flujo operativo profesional del modulo Offse
 
 ## Etapa actual
 
-- Estado documentado: Fase 8 de arquitectura SAFE y shell UX del Editor Visual IA
-- Fase 8 practicamente cerrada antes de merge a `main`
+- Estado documentado: Fase 9 en rama `fase9-redisenio-panel-editor`
+- Fase 8 queda como base cerrada de arquitectura SAFE y shell UX del Editor Visual IA
 - Sin refactor masivo
 - Sin limpieza agresiva
 - Sin eliminacion de archivos
@@ -23,6 +23,7 @@ Consolidar el Editor Visual IA como flujo operativo profesional del modulo Offse
   - shell UX y tabs profesionales en Fases 8.2/8.3
   - premium visual pass SAFE y microajustes de contraste CSS-only
   - base Playwright inicial para carga, tabs y scroll del editor
+  - prototipo OpenAI Agents SDK `ai_agent/editor_advisor/` como asesor CLI-only/read-only
 
 ## Plan propuesto por fases
 
@@ -242,14 +243,23 @@ Decision UX:
 - `geometry-validation-panel` ya opera como area contextual/status parcial.
 - cualquier status bar futura deberia evolucionar o compactar ese bloque, no duplicarlo.
 
-Pendientes para una futura Fase 9:
+### Fase 9. Redisenio panel editor, documentacion base y agente SDK
 
-- ampliar Playwright para drag, resize y seleccion.
-- ampliar Playwright para upload, apply repeat, preview y PDF.
-- evolucionar `geometry-validation-panel` hacia una status bar tecnica compacta si aporta valor operativo.
-- evaluar inspector contextual sin duplicar informacion.
-- posible servicio futuro de salida preview/PDF.
-- posible modularizacion frontend por capas.
+Estado real inicial:
+
+- rama actual: `fase9-redisenio-panel-editor`
+- el panel derecho sigue evolucionando sobre la base de tabs/scroll interno de Fase 8
+- se creo `ai_agent/editor_advisor/` como prototipo OpenAI Agents SDK
+- el agente SDK es CLI-only/read-only, sin Flask, sin endpoints y sin UI
+- el agente usa `AGENTS.md` y `DOCS/OFFSET/14_MAPA_FUNCIONAL_EDITOR_VISUAL_IA.md` como contexto arquitectonico clave
+
+Prioridades SAFE:
+
+- mantener documentacion base alineada con el codigo real
+- no integrar `editor_advisor` a Flask/UI sin fase separada
+- ampliar Playwright para drag, resize, seleccion y flujos productivos
+- evolucionar `geometry-validation-panel` solo si aporta valor y sin duplicar informacion
+- evaluar inspector contextual y modularizacion frontend como cambios separados
 
 ## Priorizacion sugerida
 
@@ -257,11 +267,12 @@ Pendientes para una futura Fase 9:
 2. Ampliar pruebas de regresion para Step & Repeat PRO inteligente
 3. Ampliar Playwright para drag, resize, seleccion y flujos productivos antes de mas cambios UX grandes
 4. Endurecer guardrails y pruebas del flujo OpenAI tool calling sobre `ai_agent/`
-5. Mejorar feedback no bloqueante de errores/warnings
-6. Avanzar en schema/validaciones adicionales solo con tests dedicados
-7. Evaluar sistema de modos (`exact`, `maximize`, etc.) sin romper el contrato actual
-8. Evaluar compactacion o expansion horizontal solo si mantiene seguridad
-9. Mantener el simulador de cuadernillos aislado hasta definir una integracion PDF explicita
+5. Mantener `ai_agent/editor_advisor` aislado y read-only hasta definir integracion
+6. Mejorar feedback no bloqueante de errores/warnings
+7. Avanzar en schema/validaciones adicionales solo con tests dedicados
+8. Evaluar sistema de modos (`exact`, `maximize`, etc.) sin romper el contrato actual
+9. Evaluar compactacion o expansion horizontal solo si mantiene seguridad
+10. Mantener el simulador de cuadernillos aislado hasta definir una integracion PDF explicita
 
 ## Cambios explicitamente postergados
 
@@ -272,6 +283,7 @@ Pendientes para una futura Fase 9:
 - modularizar frontend monolitico sin fase propia y pruebas de regresion
 - redisenar persistencia por job
 - permitir que IA modifique persistencia sin confirmacion del usuario
+- integrar `ai_agent/editor_advisor` a Flask/UI sin fase tecnica separada, guardrails y tests
 - cambiar el contrato base de `layout_constructor.json` sin migracion
 - documentar `preferred_flow` como funcional antes de implementarlo
 - declarar soporte de expansion horizontal `left/right` antes de tener motor y pruebas

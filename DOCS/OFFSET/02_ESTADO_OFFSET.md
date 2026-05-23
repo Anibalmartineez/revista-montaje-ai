@@ -23,6 +23,7 @@ Hoy el repo sigue teniendo varios flujos offset coexistiendo, pero el **Editor V
 - motor de salida final: `montaje_offset_inteligente.py`
 - motor de nesting auxiliar: `engines/nesting_pro_engine.py`
 - simulador de cuadernillos: `cuadernillos/simulator.py`
+- agente SDK asesor: `ai_agent/editor_advisor/` (CLI-only/read-only, sin Flask/UI)
 
 Este fue el unico flujo trabajado funcionalmente en esta fase.
 
@@ -111,6 +112,13 @@ Este fue el unico flujo trabajado funcionalmente en esta fase.
   - base QA Playwright en `tests/playwright/test_editor_load.py`
   - test Playwright de tabs/scroll en `tests/playwright/test_tabs_scroll.py`
   - decision UX: no agregar barra inferior nueva por ahora; `geometry-validation-panel` queda como area contextual/status existente
+- Fase 9 documentacion/agente SDK:
+  - `ai_agent/editor_advisor/` existe como prototipo OpenAI Agents SDK
+  - funciona como asesor tecnico CLI-only/read-only
+  - usa tools con allowlist para leer archivos relevantes del repo
+  - bloquea rutas sensibles y externas
+  - no esta integrado a Flask, UI ni endpoints
+  - no reemplaza al asistente IA Step & Repeat del panel actual
 
 ## Validaciones implementadas
 
@@ -333,6 +341,7 @@ Reglas actuales observadas:
 - no hay tests automatizados especificos para todos los casos recientes de repeat/rotacion/PDF
 - Playwright existe para carga y tabs/scroll, pero falta cobertura avanzada de drag/resize/seleccion y flujos productivos
 - la IA del panel actual usa OpenAI tool calling sobre tools locales; tambien sigue existiendo el endpoint local simple `/ai/step_repeat_action`
+- el agente SDK `ai_agent/editor_advisor` existe como asesor externo CLI-only/read-only, pero todavia no esta integrado a Flask/UI
 - falta edicion masiva avanzada de propiedades de slots
 - `preferred_flow` existe en contrato pero todavia no tiene efecto real en el motor
 - no hay compactacion horizontal de grupos zonales
@@ -389,4 +398,4 @@ Reglas actuales observadas:
 5. medir con casos reales si la heuristica automatica de `repeat_role` necesita ajuste
 6. evaluar modos futuros y expansion horizontal solo con pruebas de regresion
 7. definir, en una fase separada, si el simulador de cuadernillos debe integrarse con PDF o mantenerse como herramienta de consulta visual
-8. para una futura Fase 9, ampliar Playwright a drag/resize/seleccion, upload/apply repeat/preview/PDF y evaluar una status bar compacta basada en la validacion geometrica existente
+8. en Fase 9, mantener documentacion base alineada, conservar el agente SDK aislado hasta una fase de integracion y ampliar Playwright a drag/resize/seleccion, upload/apply repeat/preview/PDF

@@ -792,7 +792,7 @@ Fase 8 queda practicamente completa:
 - premium visual pass y contraste
 - QA Playwright inicial para carga, tabs y scroll
 
-Pendientes recomendados para una futura Fase 9:
+Pendientes trasladados a Fase 9:
 
 - Playwright para drag/resize/seleccion
 - Playwright para upload/apply repeat/preview/PDF
@@ -800,3 +800,40 @@ Pendientes recomendados para una futura Fase 9:
 - inspector contextual futuro sin duplicar informacion
 - posible servicio futuro para preview/PDF
 - modularizacion frontend por capas
+
+## Fase 9 - Documentacion base y agente SDK asesor
+
+### Contexto
+
+La rama actual `fase9-redisenio-panel-editor` continua la evolucion SAFE del Editor Visual IA, con foco en el panel derecho y en mantener documentacion confiable para cambios posteriores.
+
+### Agente SDK asesor
+
+Se incorporo el prototipo:
+
+- `ai_agent/editor_advisor/`
+
+Caracteristicas actuales:
+
+- OpenAI Agents SDK Python
+- CLI-only
+- read-only
+- sin integracion Flask
+- sin endpoints
+- sin conexion al panel IA ni a la UI
+- tools con allowlist de archivos del repo
+- bloqueo de rutas sensibles y externas
+- salida estructurada de asesoria tecnica en espanol
+
+### Decision de seguridad
+
+El agente SDK no reemplaza al asistente IA Step & Repeat integrado en el editor. Por ahora funciona como herramienta externa de analisis y planificacion. Cualquier integracion futura con Flask/UI debe tratarse como fase separada, con guardrails, tests y documentacion previa.
+
+### Documentacion actualizada
+
+Queda como prioridad de Fase 9 mantener alineados:
+
+- `AGENTS.md`
+- `DOCS/OFFSET/14_MAPA_FUNCIONAL_EDITOR_VISUAL_IA.md`
+
+Estos documentos alimentan el contexto arquitectonico del agente SDK y deben reflejar el estado real antes de cambios grandes.

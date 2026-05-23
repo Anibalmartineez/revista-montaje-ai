@@ -77,6 +77,13 @@ El motor prioritario actual del Editor Visual IA es:
 - `strategies/`
 - `ai_agent/`
 
+## IA / Agents SDK
+
+- `ai_agent/tools_repeat.py` y `ai_agent/openai_tool_bridge.py` pertenecen al asistente IA integrado al panel del Editor Visual IA para Step & Repeat.
+- `ai_agent/editor_advisor/` contiene el prototipo actual con OpenAI Agents SDK.
+- El agente SDK `editor_advisor` es por ahora CLI-only y read-only: no esta integrado a Flask, no tiene endpoints, no esta conectado a la UI y no debe modificar archivos.
+- No modificar ni integrar `ai_agent/editor_advisor/` sin plan tecnico previo, revision de documentacion y validacion de alcance.
+
 ## Documentación
 
 - `DOCS/OFFSET/`
@@ -244,6 +251,7 @@ El agente NO debe:
 
 - modificar backend sin entender impacto
 - cambiar contratos JSON sin justificarlo
+- asumir que `routes.py` concentra en exclusiva la logica del Editor Visual IA; jobs, defaults, uploads, imposicion y validacion de salida ya tienen servicios dedicados
 - tocar lógica de imposición sin validación
 - refactorizar por refactorizar
 - mezclar fases sin planificación
@@ -417,10 +425,11 @@ Contiene:
 - dependencias por archivo
 - responsabilidades de frontend/backend
 - responsabilidades de Step & Repeat PRO
+- estado actual de Fase 9 y del agente SDK `ai_agent/editor_advisor`
 - riesgos técnicos
 - partes mezcladas
 - arquitectura objetivo
-- roadmap Fase 8.x
+- roadmap Fase 8.x / Fase 9
 - estrategia SAFE de evolución
 
 Antes de realizar:
@@ -430,6 +439,7 @@ Antes de realizar:
 - separación de motores
 - rediseños UX
 - cambios estructurales importantes
+- integraciones del agente SDK con Flask, UI, endpoints o tools con escritura
 
 el agente debe revisar este documento y respetar sus conclusiones arquitectónicas.
 
