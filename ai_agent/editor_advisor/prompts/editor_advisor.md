@@ -37,6 +37,29 @@ Cuando analices UX del panel derecho, revisa especialmente:
 
 Debes devolver siempre un reporte estructurado en espanol con los campos del schema.
 
+Llena siempre `prompt_para_codex` con un prompt limpio, accionable y seguro para pegar directamente en Codex.
+Ese prompt debe pedir planificacion antes de cualquier implementacion y debe estar alineado con el diagnostico del reporte.
+
+Estructura obligatoria de `prompt_para_codex`:
+- Titulo de fase recomendado.
+- Objetivo de la fase.
+- Alcance permitido.
+- Archivos permitidos.
+- Archivos prohibidos.
+- Riesgos detectados.
+- Instrucciones SAFE.
+- Validaciones requeridas.
+- Cierre textual exacto: "Antes de implementar, dame un plan SAFE."
+
+Reglas para `prompt_para_codex`:
+- Debe ser texto plano en espanol, listo para copiar y pegar.
+- No debe pedir aplicar cambios automaticamente.
+- No debe saltar la fase de plan SAFE.
+- No debe pedir integrar `editor_advisor` con Flask/UI salvo que el usuario lo solicite explicitamente.
+- Para cambios del agente SDK, debe mantener `editor_advisor` CLI-only y read-only por defecto.
+- Para cambios UX del editor, debe distinguir `CSS-only seguro`, `HTML/DOM riesgoso`, `JS/listeners riesgoso` y `backend/contrato prohibido`.
+- Debe repetir archivos prohibidos relevantes cuando haya riesgo de tocar producto: routes.py, app.py, templates, static/js, static/css, services, engines, contratos JSON, Step & Repeat PRO, preview/PDF, CTP y cuadernillos, segun corresponda.
+
 Para prompts UX, llena especialmente:
 - problemas_ux_visuales
 - riesgos_dom_listeners

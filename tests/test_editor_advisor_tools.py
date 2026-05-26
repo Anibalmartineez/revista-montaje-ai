@@ -6,6 +6,7 @@ import pytest
 sys.path.append(str(Path(__file__).resolve().parents[1]))
 
 from ai_agent.editor_advisor import tools
+from ai_agent.editor_advisor.cli import _format_report_output
 from ai_agent.editor_advisor.schemas import EditorAdvisorReport
 
 
@@ -73,3 +74,33 @@ def test_editor_advisor_report_keeps_legacy_fields_and_ux_defaults():
     assert report.checklist_ux_antes == []
     assert report.checklist_ux_despues == []
     assert report.fase_safe_sugerida == ""
+    assert report.prompt_para_codex == ""
+
+
+def test_editor_advisor_report_accepts_multiline_codex_prompt():
+    prompt = (
+        "Objetivo de la fase:\n"
+        "- Mejorar el asesor.\n\n"
+        "Antes de implementar, dame un plan SAFE."
+    )
+    report = EditorAdvisorReport(prompt_para_codex=prompt)
+
+    assert report.prompt_para_codex == prompt
+
+
+def test_cli_formats_codex_prompt_only_without_json():
+    report = EditorAdvisorReport(
+        prompt_para_codex="Objetivo de la fase:\n- Preparar una fase SAFE."
+    )
+
+    output = _format_report_output(report, codex_prompt_only=True)
+
+    assert output.startswith("Objetivo de la fase:")
+    assert "prompt_para_codex" not in output
+
+
+def test_cli_rejects_empty_codex_prompt_only():
+    report = EditorAdvisorReport()
+
+    with pytest.raises(ValueError, match="prompt_para_codex"):
+        _format_report_output(report, codex_prompt_only=True)

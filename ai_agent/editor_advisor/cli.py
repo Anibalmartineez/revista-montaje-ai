@@ -2,11 +2,11 @@ from __future__ import annotations
 
 import argparse
 import asyncio
-import json
 import os
 import sys
 
 from ai_agent.editor_advisor.agent import run_editor_advisor
+from ai_agent.editor_advisor.schemas import EditorAdvisorReport
 
 
 def _parser() -> argparse.ArgumentParser:
@@ -24,7 +24,25 @@ def _parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Imprime JSON indentado.",
     )
+    parser.add_argument(
+        "--codex-prompt-only",
+        action="store_true",
+        help="Imprime solo prompt_para_codex, listo para copiar en Codex.",
+    )
     return parser
+
+
+def _format_report_output(
+    report: EditorAdvisorReport, *, pretty: bool = False, codex_prompt_only: bool = False
+) -> str:
+    if codex_prompt_only:
+        prompt = report.prompt_para_codex.strip()
+        if not prompt:
+            raise ValueError("El reporte no incluyo prompt_para_codex.")
+        return prompt
+
+    indent = 2 if pretty else None
+    return report.model_dump_json(indent=indent)
 
 
 async def _main_async() -> int:
@@ -33,8 +51,17 @@ async def _main_async() -> int:
         print("ERROR: OPENAI_API_KEY no esta configurada.", file=sys.stderr)
         return 2
     report = await run_editor_advisor(" ".join(args.prompt), model=args.model)
-    indent = 2 if args.pretty else None
-    print(report.model_dump_json(indent=indent))
+    try:
+        print(
+            _format_report_output(
+                report,
+                pretty=args.pretty,
+                codex_prompt_only=args.codex_prompt_only,
+            )
+        )
+    except ValueError as exc:
+        print(f"ERROR: {exc}", file=sys.stderr)
+        return 3
     return 0
 
 

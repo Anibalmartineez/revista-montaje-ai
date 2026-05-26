@@ -19,3 +19,4 @@ class EditorAdvisorReport(BaseModel):
     checklist_ux_despues: List[str] = Field(default_factory=list)
     fase_safe_sugerida: str = ""
     proximo_paso_sugerido: str = ""
+    prompt_para_codex: str = ""
