@@ -24,6 +24,8 @@ Consolidar el Editor Visual IA como flujo operativo profesional del modulo Offse
   - premium visual pass SAFE y microajustes de contraste CSS-only
   - base Playwright inicial para carga, tabs y scroll del editor
   - prototipo OpenAI Agents SDK `ai_agent/editor_advisor/` como asesor CLI-only/read-only
+  - Fase 9.2 completada: `editor_advisor` especializado como UX SAFE Advisor
+  - Fase 9.3 completada: premium pass CSS-only del panel derecho en `static/css/editor_offset_visual.css`
 
 ## Plan propuesto por fases
 
@@ -245,18 +247,25 @@ Decision UX:
 
 ### Fase 9. Redisenio panel editor, documentacion base y agente SDK
 
-Estado real inicial:
+Estado real:
 
 - rama actual: `fase9-redisenio-panel-editor`
 - el panel derecho sigue evolucionando sobre la base de tabs/scroll interno de Fase 8
 - se creo `ai_agent/editor_advisor/` como prototipo OpenAI Agents SDK
 - el agente SDK es CLI-only/read-only, sin Flask, sin endpoints y sin UI
 - el agente usa `AGENTS.md` y `DOCS/OFFSET/14_MAPA_FUNCIONAL_EDITOR_VISUAL_IA.md` como contexto arquitectonico clave
+- Fase 9.2 completada: el agente SDK ahora actua como UX/UI SAFE Advisor del Editor Visual IA
+- Fase 9.2 agrega `summarize_editor_ux_surface()` para detectar tabs, paneles, ids criticos, listeners, selectores sensibles y `geometry-validation-panel`
+- Fase 9.2 clasifica cambios como `CSS-only seguro`, `HTML/DOM riesgoso`, `JS/listeners riesgoso` y `backend/contrato prohibido`
+- Fase 9.3 completada: refinamiento visual CSS-only del panel derecho, aplicado solo sobre `static/css/editor_offset_visual.css`
+- Fase 9.3 mejora `.side-panel`, `.editor-tabs`, scroll interno, accordions, formularios, `geometry-validation-panel`, foco visible y estetica premium tecnica sin cambiar DOM ni listeners
 
 Prioridades SAFE:
 
 - mantener documentacion base alineada con el codigo real
 - no integrar `editor_advisor` a Flask/UI sin fase separada
+- no permitir que `editor_advisor` escriba archivos ni modifique HTML/JS automaticamente
+- sostener workflow: agente analiza -> propone SAFE phase -> Codex implementa -> validaciones -> agente vuelve a auditar
 - ampliar Playwright para drag, resize, seleccion y flujos productivos
 - evolucionar `geometry-validation-panel` solo si aporta valor y sin duplicar informacion
 - evaluar inspector contextual y modularizacion frontend como cambios separados
@@ -267,12 +276,13 @@ Prioridades SAFE:
 2. Ampliar pruebas de regresion para Step & Repeat PRO inteligente
 3. Ampliar Playwright para drag, resize, seleccion y flujos productivos antes de mas cambios UX grandes
 4. Endurecer guardrails y pruebas del flujo OpenAI tool calling sobre `ai_agent/`
-5. Mantener `ai_agent/editor_advisor` aislado y read-only hasta definir integracion
+5. Mantener `ai_agent/editor_advisor` aislado, read-only y CLI-only hasta definir integracion
 6. Mejorar feedback no bloqueante de errores/warnings
 7. Avanzar en schema/validaciones adicionales solo con tests dedicados
 8. Evaluar sistema de modos (`exact`, `maximize`, etc.) sin romper el contrato actual
 9. Evaluar compactacion o expansion horizontal solo si mantiene seguridad
 10. Mantener el simulador de cuadernillos aislado hasta definir una integracion PDF explicita
+11. Realizar auditoria visual/Playwright posterior al pass CSS-only cuando Flask este disponible, sin relanzarlo en contextos donde fue detenido manualmente
 
 ## Cambios explicitamente postergados
 

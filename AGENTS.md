@@ -80,9 +80,17 @@ El motor prioritario actual del Editor Visual IA es:
 ## IA / Agents SDK
 
 - `ai_agent/tools_repeat.py` y `ai_agent/openai_tool_bridge.py` pertenecen al asistente IA integrado al panel del Editor Visual IA para Step & Repeat.
-- `ai_agent/editor_advisor/` contiene el prototipo actual con OpenAI Agents SDK.
+- `ai_agent/editor_advisor/` contiene el prototipo actual con OpenAI Agents SDK y perfil UX/UI SAFE para el Editor Visual IA.
 - El agente SDK `editor_advisor` es por ahora CLI-only y read-only: no esta integrado a Flask, no tiene endpoints, no esta conectado a la UI y no debe modificar archivos.
+- El agente usa `AGENTS.md` y `DOCS/OFFSET/14_MAPA_FUNCIONAL_EDITOR_VISUAL_IA.md` como memoria/contexto arquitectonico principal.
+- `summarize_editor_ux_surface()` permite detectar tabs, paneles, ids criticos, listeners, selectores sensibles y `geometry-validation-panel` sin modificar el repo.
+- En diagnosticos UX debe clasificar propuestas como:
+  - CSS-only seguro
+  - HTML/DOM riesgoso
+  - JS/listeners riesgoso
+  - backend/contrato prohibido
 - No modificar ni integrar `ai_agent/editor_advisor/` sin plan tecnico previo, revision de documentacion y validacion de alcance.
+- No conectar `editor_advisor` a Flask/UI ni darle tools de escritura sin una fase separada con guardrails, tests y aprobacion explicita.
 
 ## Documentación
 

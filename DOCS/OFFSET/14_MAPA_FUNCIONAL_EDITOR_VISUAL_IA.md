@@ -19,6 +19,8 @@ Este documento sigue siendo la fuente de verdad arquitectonica del Editor Visual
 
 - el panel derecho y la experiencia del Editor Visual IA siguen evolucionando sobre la arquitectura SAFE existente
 - existe un prototipo de agente asesor con OpenAI Agents SDK en `ai_agent/editor_advisor/`
+- Fase 9.2 especializa ese agente como UX/UI SAFE Advisor
+- Fase 9.3 aplica un premium pass CSS-only del panel derecho en `static/css/editor_offset_visual.css`
 
 El agente SDK es actualmente **CLI-only y read-only**. No esta integrado a Flask, no tiene endpoints, no esta conectado a la UI, no modifica archivos y debe tratarse como una herramienta de analisis/planificacion, no como automatizacion productiva.
 
@@ -253,6 +255,8 @@ Estado Fase 9:
 - entrada local por CLI, no por Flask
 - tools read-only con allowlist de archivos del repo
 - bloqueo de rutas sensibles como `.env`, `venv`, outputs, previews, uploads y paths fuera del repo
+- contexto principal desde `AGENTS.md` y `DOCS/OFFSET/14_MAPA_FUNCIONAL_EDITOR_VISUAL_IA.md`
+- tool UX read-only `summarize_editor_ux_surface()` para detectar tabs, paneles, ids criticos, listeners, selectores sensibles y `geometry-validation-panel`
 - salida estructurada en espanol para asesoria tecnica:
   - fortalezas actuales
   - problemas detectados
@@ -261,6 +265,19 @@ Estado Fase 9:
   - mejoras recomendadas
   - validaciones necesarias
   - proximo paso sugerido
+- salida extendida UX SAFE con `EditorAdvisorReport`:
+  - problemas UX visuales
+  - riesgos DOM/listeners
+  - cambios CSS-only seguros
+  - cambios HTML/JS riesgosos
+  - zonas peligrosas de tocar
+  - checklist UX antes/despues
+  - fase SAFE sugerida
+- clasificacion obligatoria de propuestas:
+  - CSS-only seguro
+  - HTML/DOM riesgoso
+  - JS/listeners riesgoso
+  - backend/contrato prohibido
 - no modifica archivos
 - no crea endpoints
 - no esta integrado al panel IA ni a la UI
@@ -354,7 +371,7 @@ Estado Fase 9:
 - `ai_agent/agent_controller.py`
 - `ai_agent/openai_tool_bridge.py`
 - `ai_agent/editor_advisor/agent.py`
-- `ai_agent/editor_advisor/tools.py`
+- `ai_agent/editor_advisor/tools.py` con `summarize_editor_architecture()` y `summarize_editor_ux_surface()`
 - `ai_agent/editor_advisor/schemas.py`
 - `ai_agent/editor_advisor/cli.py`
 - `ai_agent/editor_advisor/prompts/editor_advisor.md`
@@ -1056,11 +1073,15 @@ No tocar todavia:
 - confundir simulador de cuadernillos con salida productiva
 - conectar `ai_agent/editor_advisor` a Flask/UI sin fase propia, guardrails y pruebas
 - permitir que el agente SDK escriba archivos o lea rutas sensibles fuera de su allowlist
+- permitir que el agente SDK modifique HTML/JS automaticamente o aplique cambios de DOM/listeners sin revision humana
+- tocar Step & Repeat PRO desde una fase UX/CSS-only sin pruebas de motor
+- documentacion desalineada que haga que el agente planifique desde supuestos viejos
 
 ### Riesgos medios
 
 - cambios de CSS que oculten handles, estados selected o warnings
 - cambios visuales que resten contraste a Snap/Espaciado, unidades mm, tabs o botones tecnicos
+- confundir un cambio CSS-only seguro con cambios HTML/DOM o JS/listeners riesgosos
 - desacople incorrecto entre `state.activeFace` y `layout.active_face`
 - que preview/PDF use layout persistido mientras UI tiene cambios no guardados
 - `locked` se entienda como bloqueo productivo cuando solo es UI
@@ -1171,6 +1192,8 @@ Idealmente con Playwright o equivalente:
 - QA inicial completada: smoke test Playwright de carga del editor y test Playwright de tabs/scroll.
 - Fase 9 en curso: redisenio/continuidad del panel derecho sobre la base SAFE existente.
 - Prototipo Agents SDK creado: `ai_agent/editor_advisor/` como asesor CLI-only/read-only.
+- Fase 9.2 completada: UX SAFE Advisor sobre `ai_agent/editor_advisor/`.
+- Fase 9.3 completada: CSS-only premium pass del panel derecho aplicado solo en `static/css/editor_offset_visual.css`.
 
 Antes de continuar con cambios mayores de UX o IA, conviene mantener revision SAFE, documentacion alineada y ampliar Playwright para drag/resize/seleccion y flujos productivos.
 
@@ -1184,6 +1207,7 @@ Pendientes:
 - posible modularizacion frontend en fases futuras
 - integracion futura del agente SDK solo como fase separada, con guardrails y tests
 - mantener `AGENTS.md` y este documento alineados porque alimentan el contexto del agente SDK
+- auditoria visual posterior al CSS-only premium pass cuando Flask este disponible y el contexto permita relanzarlo
 
 ### Fase 8.1: separacion/orden interno SAFE (completada)
 
@@ -1438,6 +1462,100 @@ Proximos pasos SAFE:
 - si se integra a Flask/UI, hacerlo como plan separado con permisos explicitos, guardrails y pruebas.
 - usar este documento y `AGENTS.md` como contexto obligatorio antes de cambios estructurales.
 
+### Fase 9.2: UX SAFE Advisor sobre Agent SDK (completada)
+
+Problema real:
+
+- el agente SDK necesitaba entender mejor el panel derecho, la densidad visual, los riesgos DOM/listeners y la diferencia entre cambios CSS-only y cambios funcionales riesgosos.
+
+Valor operativo:
+
+- convertir `ai_agent/editor_advisor/` en asesor UX/UI tecnico antes de tocar frontend productivo.
+- permitir diagnosticos como "analiza el panel derecho", "detecta sobrecarga visual" o "propone mejoras premium sin romper listeners".
+
+Resultado real:
+
+- `ai_agent/editor_advisor/prompts/editor_advisor.md` define el rol UX/UI SAFE.
+- `EditorAdvisorReport` conserva campos tecnicos y agrega campos UX SAFE.
+- `summarize_editor_ux_surface()` resume tabs, paneles, ids criticos, listeners, selectores sensibles y `geometry-validation-panel`.
+- `agent.py` registra la tool nueva.
+- `cli.py` mantiene el uso actual por PowerShell.
+- `tests/test_editor_advisor_tools.py` cubre tools read-only y defaults del schema.
+
+Clasificacion SAFE obligatoria:
+
+- `CSS-only seguro`
+- `HTML/DOM riesgoso`
+- `JS/listeners riesgoso`
+- `backend/contrato prohibido`
+
+Garantias:
+
+- CLI-only
+- read-only
+- sin Flask/UI/endpoints
+- sin SandboxAgent
+- sin escritura de archivos
+- sin cambios en Step & Repeat PRO, contratos, preview/PDF, CTP ni cuadernillos
+
+Comando real de uso desde PowerShell:
+
+```powershell
+venv\Scripts\python.exe -m ai_agent.editor_advisor.cli --pretty "analiza el panel derecho y propone mejoras CSS-only"
+```
+
+### Fase 9.3: CSS-only premium pass del panel derecho (completada)
+
+Problema real:
+
+- el panel derecho funcionaba, pero seguia mostrando saturacion visual, baja jerarquia en algunos bloques y scroll interno mejorable para uso tecnico prolongado.
+
+Valor operativo:
+
+- mejorar lectura, contraste, foco accesible y sensacion profesional sin tocar DOM ni comportamiento.
+
+Resultado real:
+
+- se modifico unicamente `static/css/editor_offset_visual.css`.
+- no se tocaron HTML, JS, Flask, services, engines, contratos JSON, preview/PDF, CTP, Step & Repeat PRO ni cuadernillos.
+- no se renombraron ids.
+- no se tocaron `data-editor-tab` ni `data-editor-tab-panel`.
+- no se duplico `geometry-validation-panel`.
+
+Selectores/bloques refinados:
+
+- `.side-panel`
+- `.editor-tabs`
+- `.editor-tab`
+- `.editor-tab-panels`
+- `.panel-accordion`
+- `.geometry-validation-panel`
+- inputs, selects, textareas, labels, ayudas y botones del panel derecho
+- listas/tarjetas internas
+- scrollbars internos
+- estados hover, active y focus-visible
+
+Validacion ejecutada:
+
+- `git diff --name-only` confirmo que solo cambio `static/css/editor_offset_visual.css`.
+- validacion de alcance con `rg` confirmo que no aparecieron `routes.py`, `app.py`, templates, JS, engines ni services.
+- `git diff --check` no reporto errores; solo avisos CRLF por line endings.
+
+Validaciones pendientes:
+
+- `node --check static/js/editor_offset_visual.js` quedo bloqueado por `Acceso denegado` a `node.exe`.
+- Playwright quedo pendiente porque Flask fue detenido manualmente con `CTRL+C` y no debe relanzarse en ese contexto.
+
+### Workflow SAFE actual con agente SDK
+
+Para fases visuales o arquitectonicas amplias:
+
+1. `editor_advisor` analiza usando `AGENTS.md` y este documento como contexto principal.
+2. El agente propone una SAFE phase y clasifica riesgos.
+3. Codex implementa solo el alcance aprobado.
+4. Se validan diff, alcance, formato y regresiones disponibles.
+5. El agente vuelve a auditar antes de una nueva fase.
+
 ## Conclusiones actualizadas
 
 El Editor Visual IA ya tiene capacidades potentes y Fase 8 dejo una base mas ordenada para seguir escalando. La arquitectura ya no esta concentrada solo en `routes.py`: jobs, defaults, uploads, Step & Repeat PRO y seleccion de motor tienen modulos dedicados con wrappers compatibles.
@@ -1457,6 +1575,6 @@ La salida productiva depende de:
 
 El Step & Repeat PRO automatico actual esta en `engines/step_repeat_pro_engine.py` y debe tratarse como motor principal del editor. `engines/nesting_pro_engine.py` es importante, pero es alternativo/auxiliar.
 
-La evolucion segura hacia UX profesional ya dejo cerrada una base usable: shell, tabs, scroll interno, premium visual pass y QA Playwright inicial. La validacion geometrica queda como area contextual existente; no conviene duplicarla con otra barra inferior sin redisenio previo.
+La evolucion segura hacia UX profesional ya dejo cerrada una base usable: shell, tabs, scroll interno, premium visual pass, Fase 9.3 CSS-only del panel derecho y QA Playwright inicial. La validacion geometrica queda como area contextual existente; no conviene duplicarla con otra barra inferior sin redisenio previo.
 
-En Fase 9, las prioridades SAFE son mantener actualizado este mapa, sostener el redisenio del panel derecho sin romper ids/listeners/contratos, ampliar Playwright para drag/resize/seleccion y flujos productivos, y conservar `ai_agent/editor_advisor/` como asesor CLI-only/read-only hasta que exista una fase explicita de integracion.
+En Fase 9, las prioridades SAFE son mantener actualizado este mapa, sostener el redisenio del panel derecho sin romper ids/listeners/contratos, usar `ai_agent/editor_advisor/` como UX SAFE Advisor CLI-only/read-only, ampliar Playwright para drag/resize/seleccion y flujos productivos, y no integrar el SDK a Flask/UI hasta que exista una fase explicita con guardrails y tests.

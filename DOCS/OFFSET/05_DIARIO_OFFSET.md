@@ -837,3 +837,127 @@ Queda como prioridad de Fase 9 mantener alineados:
 - `DOCS/OFFSET/14_MAPA_FUNCIONAL_EDITOR_VISUAL_IA.md`
 
 Estos documentos alimentan el contexto arquitectonico del agente SDK y deben reflejar el estado real antes de cambios grandes.
+
+## Fase 9.2 - UX SAFE Advisor sobre Agent SDK
+
+### Objetivo
+
+Especializar `ai_agent/editor_advisor/` como asesor UX/UI tecnico del Editor Visual IA, sin cambiar su frontera de seguridad.
+
+### Cambios reales
+
+- `ai_agent/editor_advisor/prompts/editor_advisor.md` pasa a orientar respuestas sobre UX/UI SAFE, panel derecho, sobrecarga visual, densidad y riesgos DOM/listeners.
+- `ai_agent/editor_advisor/schemas.py` mantiene compatibilidad y agrega campos UX:
+  - `problemas_ux_visuales`
+  - `riesgos_dom_listeners`
+  - `cambios_css_only_seguros`
+  - `cambios_html_js_riesgosos`
+  - `zonas_peligrosas_de_tocar`
+  - `checklist_ux_antes`
+  - `checklist_ux_despues`
+  - `fase_safe_sugerida`
+- `ai_agent/editor_advisor/tools.py` agrega `summarize_editor_ux_surface()` como tool read-only deterministica.
+- `ai_agent/editor_advisor/agent.py` registra la nueva tool.
+- `ai_agent/editor_advisor/cli.py` conserva el comando actual y describe el enfoque UX/UI SAFE.
+- `tests/test_editor_advisor_tools.py` cubre defaults del schema y comportamiento read-only de las tools.
+
+### Clasificacion SAFE incorporada
+
+- `CSS-only seguro`
+- `HTML/DOM riesgoso`
+- `JS/listeners riesgoso`
+- `backend/contrato prohibido`
+
+### Garantias conservadas
+
+- CLI-only
+- read-only
+- sin SandboxAgent
+- sin Flask
+- sin endpoints
+- sin UI
+- sin cambios productivos en HTML, JS, CSS real del editor, motores, servicios ni contratos
+
+### Validacion ejecutada
+
+- `python -m compileall ai_agent`
+- `venv\Scripts\pytest.exe -p no:cacheprovider tests\test_editor_advisor_tools.py`
+- `git diff --check`
+- validacion de alcance para confirmar que no se tocaron Flask, frontend productivo, motores, servicios ni contratos
+
+Resultado observado:
+
+- tests del agente: `7 passed`
+
+## Fase 9.3 - CSS-only premium pass del panel derecho
+
+### Objetivo
+
+Mejorar visualmente el panel derecho del Editor Visual IA con estetica premium/profesional, mayor jerarquia, menor saturacion, mejor contraste, foco accesible y scroll interno mas legible.
+
+### Cambio real
+
+Se modifico unicamente:
+
+- `static/css/editor_offset_visual.css`
+
+### Bloques refinados
+
+- `.side-panel`
+- `.editor-tabs`
+- `.editor-tab`
+- `.editor-tab-panels`
+- `.panel-accordion`
+- `.geometry-validation-panel`
+- formularios, inputs, selects, textareas, labels y ayudas del panel derecho
+- listas y tarjetas internas del panel
+- scrollbars internos
+- foco visible y estados hover/active
+
+### Garantias conservadas
+
+- no se toco HTML
+- no se toco JS
+- no se tocaron ids
+- no se tocaron `data-editor-tab` ni `data-editor-tab-panel`
+- no se duplico `geometry-validation-panel`
+- no se toco Flask, `routes.py`, `app.py`, services, engines, contratos JSON, preview/PDF, CTP, Step & Repeat PRO ni cuadernillos
+- no se uso `display:none` ni `pointer-events:none` sobre controles funcionales
+
+### Validacion ejecutada
+
+- `git diff --name-only`: confirmo solo `static/css/editor_offset_visual.css`
+- validacion de alcance con `rg`: no aparecieron `routes.py`, `app.py`, templates, JS, engines ni services
+- `git diff --check`: sin errores; solo avisos CRLF existentes por conversion de line endings
+
+### Validaciones pendientes
+
+- `node --check static/js/editor_offset_visual.js` quedo pendiente/bloqueado por `Acceso denegado` a `node.exe`
+- Playwright quedo pendiente porque Flask fue detenido manualmente con `CTRL+C` y no debe relanzarse en ese contexto
+
+### Workflow SAFE consolidado
+
+La continuidad recomendada para fases UX queda:
+
+1. el agente SDK analiza usando `AGENTS.md` y `DOCS/OFFSET/14_MAPA_FUNCIONAL_EDITOR_VISUAL_IA.md`
+2. el agente propone una fase SAFE y clasifica riesgos
+3. Codex implementa dentro del alcance aprobado
+4. se validan diff, alcance, formato y regresiones disponibles
+5. el agente vuelve a auditar antes de nuevas fases
+
+### Comandos operativos registrados
+
+Uso del agente SDK desde PowerShell:
+
+```powershell
+venv\Scripts\python.exe -m ai_agent.editor_advisor.cli --pretty "analiza el panel derecho y propone mejoras CSS-only"
+venv\Scripts\python.exe -m ai_agent.editor_advisor.cli --pretty "detecta que partes del editor son peligrosas de tocar"
+venv\Scripts\python.exe -m ai_agent.editor_advisor.cli --pretty "sugiere una fase SAFE para mejorar UX"
+```
+
+Uso de `rg` en validaciones SAFE:
+
+```powershell
+git diff --name-only | rg "routes.py|app.py|templates/|static/js/|static/css/|engines/|services/|ai_agent/"
+rg -n "9\.2|9\.3|summarize_editor_ux_surface|CSS-only seguro|HTML/DOM riesgoso|JS/listeners riesgoso|backend/contrato prohibido|static/css/editor_offset_visual.css" AGENTS.md DOCS/OFFSET
+```

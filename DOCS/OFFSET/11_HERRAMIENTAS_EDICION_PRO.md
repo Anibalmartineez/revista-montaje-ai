@@ -58,6 +58,27 @@ No cambia:
 - contratos persistidos
 - motores ni preview/PDF
 
+### CSS-only premium pass Fase 9.3
+
+La rama `fase9-redisenio-panel-editor` agrego un refinamiento visual adicional del panel derecho en `static/css/editor_offset_visual.css`:
+
+- `.side-panel` con superficie mas profesional y mejor separacion del canvas
+- tabs del editor con foco, hover y estado activo mas claros
+- scroll interno de `.editor-tab-panels` mas legible
+- accordions y bloques tecnicos con menor saturacion visual
+- formularios, listas, labels, ayudas y controles del panel derecho mas consistentes
+- `geometry-validation-panel` mas claro como area tecnica/status existente
+
+No cambia:
+
+- listeners de herramientas PRO
+- ids criticos
+- `data-editor-tab`
+- `data-editor-tab-panel`
+- seleccion, drag, resize, box select ni herramientas de edicion
+- contratos persistidos
+- motores, preview/PDF, CTP, Step & Repeat PRO ni cuadernillos
+
 ### Refinamiento visual safe Fase 7
 
 La Fase 7 agrega una mejora visual acotada en `static/css/editor_offset_visual.css`:
@@ -197,6 +218,7 @@ La interseccion se calcula por bbox usando footprint real:
 - el panel IA aplica layout solo despues de confirmacion del usuario
 - los retoques visuales de Fase 7 son CSS-only y no alteran comportamiento
 - el premium visual pass de Fase 8 tambien es CSS-only y no altera comportamiento
+- el CSS-only premium pass de Fase 9.3 refina el panel derecho sin tocar listeners, ids ni funciones de edicion
 
 ## Relacion con Step & Repeat PRO
 

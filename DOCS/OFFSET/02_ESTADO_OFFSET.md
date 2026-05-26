@@ -119,6 +119,18 @@ Este fue el unico flujo trabajado funcionalmente en esta fase.
   - bloquea rutas sensibles y externas
   - no esta integrado a Flask, UI ni endpoints
   - no reemplaza al asistente IA Step & Repeat del panel actual
+- Fase 9.2 UX SAFE Advisor:
+  - `ai_agent/editor_advisor/` queda especializado como asesor UX/UI tecnico del Editor Visual IA
+  - usa `AGENTS.md` y `DOCS/OFFSET/14_MAPA_FUNCIONAL_EDITOR_VISUAL_IA.md` como contexto arquitectonico principal
+  - agrega `summarize_editor_ux_surface()` para resumir tabs, paneles, ids criticos, listeners, selectores sensibles y `geometry-validation-panel`
+  - clasifica recomendaciones como `CSS-only seguro`, `HTML/DOM riesgoso`, `JS/listeners riesgoso` o `backend/contrato prohibido`
+  - mantiene salida estructurada en espanol y campos UX SAFE dentro de `EditorAdvisorReport`
+  - sigue CLI-only/read-only, sin SandboxAgent, sin Flask/UI y sin endpoints
+- Fase 9.3 CSS-only premium pass:
+  - aplicada unicamente sobre `static/css/editor_offset_visual.css`
+  - mejora visual del panel derecho sin tocar HTML, JS, Flask, servicios, motores ni contratos
+  - refina `.side-panel`, `.editor-tabs`, `.editor-tab`, `.editor-tab-panels`, `.panel-accordion`, `.geometry-validation-panel`, formularios, listas, scroll interno y foco visible
+  - mantiene ids, `data-editor-tab`, `data-editor-tab-panel`, listeners y controles funcionales
 
 ## Validaciones implementadas
 
@@ -341,7 +353,10 @@ Reglas actuales observadas:
 - no hay tests automatizados especificos para todos los casos recientes de repeat/rotacion/PDF
 - Playwright existe para carga y tabs/scroll, pero falta cobertura avanzada de drag/resize/seleccion y flujos productivos
 - la IA del panel actual usa OpenAI tool calling sobre tools locales; tambien sigue existiendo el endpoint local simple `/ai/step_repeat_action`
-- el agente SDK `ai_agent/editor_advisor` existe como asesor externo CLI-only/read-only, pero todavia no esta integrado a Flask/UI
+- el agente SDK `ai_agent/editor_advisor` existe como asesor externo CLI-only/read-only y UX SAFE, pero todavia no esta integrado a Flask/UI
+- no debe integrarse a Flask/UI ni modificar HTML/JS automaticamente hasta existir una fase especifica con guardrails y tests
+- la validacion Playwright avanzada de Fase 9.3 quedo pendiente; Flask fue detenido manualmente y no debe relanzarse en ese contexto
+- `node --check static/js/editor_offset_visual.js` quedo pendiente/bloqueado por `Acceso denegado` a `node.exe`
 - falta edicion masiva avanzada de propiedades de slots
 - `preferred_flow` existe en contrato pero todavia no tiene efecto real en el motor
 - no hay compactacion horizontal de grupos zonales
@@ -398,4 +413,4 @@ Reglas actuales observadas:
 5. medir con casos reales si la heuristica automatica de `repeat_role` necesita ajuste
 6. evaluar modos futuros y expansion horizontal solo con pruebas de regresion
 7. definir, en una fase separada, si el simulador de cuadernillos debe integrarse con PDF o mantenerse como herramienta de consulta visual
-8. en Fase 9, mantener documentacion base alineada, conservar el agente SDK aislado hasta una fase de integracion y ampliar Playwright a drag/resize/seleccion, upload/apply repeat/preview/PDF
+8. en Fase 9, mantener documentacion base alineada, conservar el agente SDK aislado hasta una fase de integracion, usar el workflow agente analiza -> propone SAFE phase -> Codex implementa -> validaciones -> agente audita, y ampliar Playwright a drag/resize/seleccion, upload/apply repeat/preview/PDF
