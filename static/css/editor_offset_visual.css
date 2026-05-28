@@ -56,8 +56,8 @@ body {
   justify-content: space-between;
   align-items: center;
   flex: 0 0 auto;
-  gap: 16px;
-  padding: 8px 14px;
+  gap: 12px;
+  padding: 5px 12px;
   background: #171c24;
   color: #fff;
   border-bottom: 1px solid rgba(255, 255, 255, 0.1);
@@ -66,16 +66,16 @@ body {
 
 .editor-header h1 {
   margin: 0;
-  font-size: 17px;
+  font-size: 15px;
   line-height: 1.2;
   font-weight: 700;
 }
 
 .editor-header .subtitle {
-  margin: 3px 0 0;
+  margin: 1px 0 0;
   color: #b8c1cd;
-  font-size: 11px;
-  line-height: 1.3;
+  font-size: 10.5px;
+  line-height: 1.2;
   max-width: 980px;
 }
 
@@ -94,8 +94,8 @@ body {
   flex: 0 0 auto;
   display: flex;
   flex-direction: column;
-  gap: 6px;
-  padding: 7px 10px;
+  gap: 4px;
+  padding: 5px 8px;
   background:
     linear-gradient(180deg, rgba(255, 255, 255, 0.06), rgba(255, 255, 255, 0)),
     var(--toolbar-bg);
@@ -108,8 +108,8 @@ body {
   min-height: 0;
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(340px, 420px);
-  gap: 10px;
-  padding: 10px;
+  gap: 8px;
+  padding: 8px;
   overflow: hidden;
 }
 
@@ -121,10 +121,10 @@ body {
     #e7ecf2;
   border: 1px solid var(--panel-border);
   border-radius: 6px;
-  padding: 10px;
+  padding: 7px;
   display: flex;
   flex-direction: column;
-  gap: 9px;
+  gap: 6px;
   overflow: hidden;
   box-shadow: var(--shadow-soft);
 }
@@ -132,7 +132,7 @@ body {
 .sheet-toolbar {
   display: flex;
   flex-wrap: wrap;
-  gap: 6px;
+  gap: 5px;
   padding: 0;
   align-items: center;
 }
@@ -140,9 +140,9 @@ body {
 .sheet-toolbar .face-toggle {
   display: inline-flex;
   align-items: center;
-  gap: 7px;
-  min-height: 30px;
-  padding: 4px 7px;
+  gap: 6px;
+  min-height: 27px;
+  padding: 3px 6px;
   border: 1px solid #4c596a;
   border-radius: 5px;
   background: linear-gradient(180deg, #343d4b, var(--toolbar-rail-strong));
@@ -157,18 +157,18 @@ body {
 .sheet-subtoolbar {
   display: flex;
   flex-wrap: wrap;
-  gap: 6px;
+  gap: 5px;
   align-items: center;
   padding: 0;
-  max-height: 132px;
+  max-height: 110px;
   overflow: auto;
 }
 
 .control-block {
   display: inline-flex;
   align-items: center;
-  gap: 7px;
-  padding: 5px 8px;
+  gap: 6px;
+  padding: 4px 7px;
   background: linear-gradient(180deg, #343d4b, var(--toolbar-rail-strong));
   border: 1px solid #4c596a;
   border-radius: 5px;
@@ -215,7 +215,7 @@ body {
   flex: 1 1 520px;
   flex-direction: column;
   align-items: stretch;
-  gap: 6px;
+  gap: 4px;
   background: linear-gradient(180deg, #303846, #252d38);
   border-color: #4c596a;
 }
@@ -232,11 +232,11 @@ body {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 8px;
+  gap: 6px;
 }
 
 .manual-tools-main {
-  padding: 2px 0;
+  padding: 1px 0;
 }
 
 .manual-advanced-tools {
@@ -262,9 +262,9 @@ body {
 }
 
 .pro-tool-btn {
-  min-height: 28px;
+  min-height: 26px;
   min-width: 44px;
-  padding: 5px 8px;
+  padding: 4px 7px;
   border: 1px solid #5d6b7d;
   background: linear-gradient(180deg, #f0f4f8, #cfd8e4);
   color: #101923;
@@ -293,7 +293,7 @@ body {
 }
 
 .nudge-btn {
-  min-width: 36px;
+  min-width: 34px;
 }
 
 .advanced-toggle {
@@ -326,8 +326,8 @@ body {
 }
 
 .btn {
-  min-height: 30px;
-  padding: 6px 10px;
+  min-height: 28px;
+  padding: 5px 9px;
   border: 1px solid #b8c2cf;
   border-radius: 4px;
   cursor: pointer;
@@ -372,8 +372,8 @@ body {
 }
 
 .btn-small {
-  min-height: 26px;
-  padding: 5px 7px;
+  min-height: 24px;
+  padding: 4px 7px;
   font-size: 12px;
 }
 
@@ -387,7 +387,7 @@ body {
     #d8dee7;
   background-size: 22px 22px, 22px 22px, auto, auto;
   border-radius: 6px;
-  padding: 10px;
+  padding: 8px;
   overflow: auto;
   min-height: 0;
   /* [TOUCH] Evita scroll/zoom accidental durante el drag */
@@ -397,14 +397,14 @@ body {
 
 .geometry-validation-panel {
   flex: 0 0 auto;
-  max-height: 108px;
+  max-height: 82px;
   overflow: auto;
   border: 1px solid #b8c6d6;
   background:
     linear-gradient(180deg, rgba(255, 255, 255, 0.92), rgba(246, 249, 252, 0.9)),
     var(--panel-surface);
   border-radius: 6px;
-  padding: 9px 10px;
+  padding: 6px 8px;
   box-shadow: var(--shadow-tight), inset 3px 0 0 rgba(8, 145, 111, 0.45);
 }
 
