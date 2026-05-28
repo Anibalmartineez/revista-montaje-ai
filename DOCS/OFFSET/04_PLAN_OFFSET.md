@@ -6,7 +6,7 @@ Consolidar el Editor Visual IA como flujo operativo profesional del modulo Offse
 
 ## Etapa actual
 
-- Estado documentado: Fase 9 en rama `fase9-redisenio-panel-editor`
+- Estado documentado: Fase 10 cerrada y estable antes de merge a `main`
 - Fase 8 queda como base cerrada de arquitectura SAFE y shell UX del Editor Visual IA
 - Sin refactor masivo
 - Sin limpieza agresiva
@@ -27,6 +27,11 @@ Consolidar el Editor Visual IA como flujo operativo profesional del modulo Offse
   - Fase 9.2 completada: `editor_advisor` especializado como UX SAFE Advisor
   - Fase 9.3 completada: premium pass CSS-only del panel derecho en `static/css/editor_offset_visual.css`
   - Fase 9.4 completada: Codex Prompt Builder con `prompt_para_codex` y `--codex-prompt-only`
+  - Fase 10.0 completada: auditoria visual y baseline de header/topbar/canvas/panel derecho
+  - Fase 10.1 completada: Canvas Pro Shell CSS-only, con topbar CAD/preprensa y canvas mas protagonista
+  - Fase 10.2 completada: Panel Derecho Pro Density CSS-only, con tabs, scroll, formularios y paneles mas compactos
+  - Fase 10.3 completada: Agent SDK UX Surface v2, con `summarize_editor_ux_surface()` ampliado
+  - Fase 10.4 completada: QA visual/regresion; advisor tests `12 passed`; Playwright manual funciona desde Git CMD y `WinError 5` queda acotado al entorno Codex
 
 ## Plan propuesto por fases
 
@@ -273,6 +278,31 @@ Prioridades SAFE:
 - evolucionar `geometry-validation-panel` solo si aporta valor y sin duplicar informacion
 - evaluar inspector contextual y modularizacion frontend como cambios separados
 
+### Fase 10. Editor UX Canvas Pro
+
+Estado real:
+
+- Fase 10.0 completada: auditoria visual y baseline sin modificar archivos.
+- Fase 10.1 completada: refinamiento CSS-only del shell superior/topbar/subtoolbar para dar mas protagonismo al canvas.
+- Fase 10.2 completada: refinamiento CSS-only de density del panel derecho, manteniendo tabs, scroll interno, ids y listeners.
+- Fase 10.3 completada: `ai_agent/editor_advisor/` incorpora UX Surface v2; `summarize_editor_ux_surface()` ahora audita header, topbar, subtoolbar, workspace, canvas, zoom, panel derecho, ids por zona y listeners sensibles.
+- Fase 10.4 completada: QA visual y regresion documentation-safe; `git diff --check`, `python -m compileall ai_agent`, `tests/test_editor_advisor_tools.py` con `12 passed`, revision estatica de selectores criticos y `geometry-validation-panel` unico.
+
+Garantias:
+
+- no se cambiaron contratos JSON.
+- no se tocaron HTML, JS, Flask, services, engines, Step & Repeat PRO, preview/PDF, CTP ni cuadernillos.
+- `editor_advisor` sigue CLI-only/read-only, sin Flask/UI/endpoints ni escritura.
+- Playwright manual funciona desde Git CMD; `WinError 5` queda registrado solo como bloqueo del entorno Codex.
+
+### Fase 11 futura. Canvas Geometry Polish
+
+Objetivo futuro:
+
+- pulir la lectura geometrica y visual del canvas sin cambiar contratos ni motores.
+- mantener como base el shell Fase 10 y el `geometry-validation-panel` unico.
+- separar cualquier cambio HTML/JS o de interaccion en fases SAFE especificas.
+
 ## Priorizacion sugerida
 
 1. Mantener documentados los contratos despues de cada cambio de semantica
@@ -285,7 +315,7 @@ Prioridades SAFE:
 8. Evaluar sistema de modos (`exact`, `maximize`, etc.) sin romper el contrato actual
 9. Evaluar compactacion o expansion horizontal solo si mantiene seguridad
 10. Mantener el simulador de cuadernillos aislado hasta definir una integracion PDF explicita
-11. Realizar auditoria visual/Playwright posterior al pass CSS-only cuando Flask este disponible, sin relanzarlo en contextos donde fue detenido manualmente
+11. Avanzar Fase 11 `Canvas Geometry Polish` como siguiente fase futura, sin mezclar contratos, motores ni integracion del agente SDK
 
 ## Cambios explicitamente postergados
 

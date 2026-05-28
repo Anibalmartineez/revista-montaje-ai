@@ -138,6 +138,15 @@ Este fue el unico flujo trabajado funcionalmente en esta fase.
   - `cli.py` agrega `--codex-prompt-only` para imprimir solo el prompt limpio, sin JSON
   - `tests/test_editor_advisor_tools.py` cubre el nuevo campo y el render CLI sin llamar OpenAI
   - mantiene arquitectura CLI-only/read-only, sin Flask/UI, sin escritura y sin cambios automaticos
+- Fase 10 Editor UX Canvas Pro cerrada:
+  - Fase 10.0 completo auditoria visual y baseline de header, topbar, subtoolbar, workspace, canvas, panel derecho y `geometry-validation-panel`
+  - Fase 10.1 CSS-only Canvas Pro Shell compacto el header/topbar/subtoolbar con estetica CAD/preprensa y mayor protagonismo del canvas
+  - Fase 10.2 CSS-only Panel Derecho Pro Density refino tabs, scroll interno, accordions, formularios, listas, IA, CTP, Salida y Cuadernillos sin tocar DOM ni listeners
+  - `geometry-validation-panel` quedo como area contextual unica, mas compacta y visible; no se duplico con otra barra/status
+  - Fase 10.3 Agent SDK UX Surface v2 amplio `summarize_editor_ux_surface()` para auditar header/topbar/subtoolbar, workspace, canvas/sheet/zoom, panel derecho, ids por zona y listeners sensibles
+  - `editor_advisor` sigue CLI-only/read-only, sin Flask/UI, sin endpoints, sin escritura y sin cambiar schema ni CLI
+  - Fase 10.4 QA visual/regresion completo validacion estatica y tecnica: `git diff --check`, `python -m compileall ai_agent`, `tests/test_editor_advisor_tools.py` con `12 passed`, revision de selectores criticos y unicidad de `geometry-validation-panel`
+  - Playwright funciona manualmente desde Git CMD; en entorno Codex persiste `WinError 5` al crear pipe/subprocess de Playwright, registrado como bloqueo de entorno y no como regresion del editor
 
 ## Validaciones implementadas
 
@@ -363,7 +372,7 @@ Reglas actuales observadas:
 - el agente SDK `ai_agent/editor_advisor` existe como asesor externo CLI-only/read-only y UX SAFE, pero todavia no esta integrado a Flask/UI
 - `prompt_para_codex` mejora el traspaso hacia Codex, pero no reemplaza la revision humana ni la planificacion SAFE previa a implementar
 - no debe integrarse a Flask/UI ni modificar HTML/JS automaticamente hasta existir una fase especifica con guardrails y tests
-- la validacion Playwright avanzada de Fase 9.3 quedo pendiente; Flask fue detenido manualmente y no debe relanzarse en ese contexto
+- Playwright manual funciona desde Git CMD para la QA disponible de carga y tabs/scroll; en el entorno Codex sigue apareciendo `WinError 5` antes de abrir navegador, por permisos de pipe/subprocess, y no se considera regresion del editor
 - `node --check static/js/editor_offset_visual.js` quedo pendiente/bloqueado por `Acceso denegado` a `node.exe`
 - falta edicion masiva avanzada de propiedades de slots
 - `preferred_flow` existe en contrato pero todavia no tiene efecto real en el motor
@@ -421,4 +430,5 @@ Reglas actuales observadas:
 5. medir con casos reales si la heuristica automatica de `repeat_role` necesita ajuste
 6. evaluar modos futuros y expansion horizontal solo con pruebas de regresion
 7. definir, en una fase separada, si el simulador de cuadernillos debe integrarse con PDF o mantenerse como herramienta de consulta visual
-8. en Fase 9, mantener documentacion base alineada, conservar el agente SDK aislado hasta una fase de integracion, usar el workflow agente analiza -> genera prompt SAFE para Codex -> Codex planifica -> Codex implementa solo si se aprueba -> validaciones -> agente audita, y ampliar Playwright a drag/resize/seleccion, upload/apply repeat/preview/PDF
+8. tras Fase 10 cerrada, mantener documentacion base alineada, conservar el agente SDK aislado hasta una fase de integracion, usar el workflow agente analiza -> genera prompt SAFE para Codex -> Codex planifica -> Codex implementa solo si se aprueba -> validaciones -> agente audita, y ampliar Playwright a drag/resize/seleccion, upload/apply repeat/preview/PDF
+9. abrir Fase 11 futura como `Canvas Geometry Polish`, enfocada en pulido geometrico/visual del canvas sin mezclar cambios de contrato ni motores

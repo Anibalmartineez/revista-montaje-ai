@@ -13,15 +13,20 @@ Esta fase es exclusivamente de diagnostico y documentacion:
 - no renombra ids ni clases criticas
 - no cambia drag, resize, seleccion, preview, PDF, Step & Repeat PRO ni CTP
 
-## Estado actual Fase 9
+## Estado actual Fase 10
 
-Este documento sigue siendo la fuente de verdad arquitectonica del Editor Visual IA, pero ya no describe solo el cierre de Fase 8. En la rama `fase9-redisenio-panel-editor` el editor conserva la base de Fase 8 y suma dos hechos relevantes:
+Este documento sigue siendo la fuente de verdad arquitectonica del Editor Visual IA. Fase 10 queda cerrada como **Editor UX Canvas Pro**, sobre la base SAFE de Fase 8 y Fase 9:
 
-- el panel derecho y la experiencia del Editor Visual IA siguen evolucionando sobre la arquitectura SAFE existente
+- el shell superior/topbar quedo mas compacto, tecnico y alineado a una herramienta CAD/preprensa
+- el canvas central recupero protagonismo visual sin tocar DOM, JS, contratos ni motores
+- el panel derecho recibio un pass CSS-only de densidad profesional sobre tabs, scroll interno, accordions, formularios, listas y paneles IA/CTP/Salida/Cuadernillos
+- `geometry-validation-panel` sigue siendo unico, visible y mas compacto como area contextual existente
 - existe un prototipo de agente asesor con OpenAI Agents SDK en `ai_agent/editor_advisor/`
 - Fase 9.2 especializa ese agente como UX/UI SAFE Advisor
 - Fase 9.3 aplica un premium pass CSS-only del panel derecho en `static/css/editor_offset_visual.css`
 - Fase 9.4 agrega Codex Prompt Builder con `prompt_para_codex` y `--codex-prompt-only`
+- Fase 10.3 agrega UX Surface v2: `summarize_editor_ux_surface()` ahora audita header/topbar/subtoolbar, workspace, canvas/sheet/zoom, panel derecho, ids por zona, listeners sensibles y `geometry-validation-panel`
+- Fase 10.4 completa QA visual/regresion: advisor tests `12 passed`, QA estatica OK, Playwright manual funcionando desde Git CMD y `WinError 5` limitado al entorno Codex
 
 El agente SDK es actualmente **CLI-only y read-only**. No esta integrado a Flask, no tiene endpoints, no esta conectado a la UI, no modifica archivos y debe tratarse como una herramienta de analisis/planificacion y generacion de prompts SAFE para Codex, no como automatizacion productiva.
 
@@ -68,13 +73,14 @@ Importante: `routes.py` sigue siendo fachada/orquestador Flask, pero no concentr
 - normalizacion de `sheet_mm`, `margins_mm`, `faces`, `active_face`, `export_settings`, `ctp`, `snapSettings`, `spacingSettings`
 - seleccion de motor: `repeat`, `nesting`, `hybrid`
 - shell visual profesional tipo CAD/preprensa:
-  - toolbar superior sticky
+  - header/topbar/subtoolbar mas compactos y tecnicos tras Fase 10.1
+  - toolbar superior sticky con jerarquia visual de acciones principales
   - canvas/pliego central protagonista
-  - panel derecho con scroll interno
+  - panel derecho con scroll interno y density pass de Fase 10.2
   - navegacion por tabs del panel derecho
   - premium visual pass CSS-only con mayor densidad, contraste y acabado tecnico
 - area contextual existente:
-  - `geometry-validation-panel` actua como estado tecnico/validacion geometrica visible
+  - `geometry-validation-panel` actua como estado tecnico/validacion geometrica visible, unico y compactado
   - no conviene duplicarla con una barra inferior nueva sin redisenio previo
 
 ### Panel derecho por tabs
@@ -258,6 +264,7 @@ Estado Fase 9:
 - bloqueo de rutas sensibles como `.env`, `venv`, outputs, previews, uploads y paths fuera del repo
 - contexto principal desde `AGENTS.md` y `DOCS/OFFSET/14_MAPA_FUNCIONAL_EDITOR_VISUAL_IA.md`
 - tool UX read-only `summarize_editor_ux_surface()` para detectar tabs, paneles, ids criticos, listeners, selectores sensibles y `geometry-validation-panel`
+- Fase 10.3 amplia `summarize_editor_ux_surface()` para detectar header/topbar/subtoolbar, `.editor-workspace`, canvas/sheet/zoom, panel derecho, ids por zona, listeners sensibles y reglas SAFE de Fase 10
 - salida estructurada en espanol para asesoria tecnica:
   - fortalezas actuales
   - problemas detectados
@@ -1186,7 +1193,7 @@ Idealmente con Playwright o equivalente:
 - validar que el CLI falla claro si falta `OPENAI_API_KEY`
 - antes de cualquier integracion Flask/UI, agregar pruebas de contrato para no permitir escritura ni aplicacion automatica de cambios
 
-## 15. Hoja de ruta Fase 8.x / Fase 9
+## 15. Hoja de ruta Fase 8.x / Fase 9 / Fase 10
 
 ### Estado actualizado
 
@@ -1198,17 +1205,23 @@ Idealmente con Playwright o equivalente:
 - Fase 8.3 completada: tabs del panel derecho y fix de scroll interno.
 - Premium Visual Pass SAFE completado: refinamiento CSS-only, densidad tecnica, contraste, tabs, toolbar, panel derecho, inputs, canvas, estados y scrollbars.
 - QA inicial completada: smoke test Playwright de carga del editor y test Playwright de tabs/scroll.
-- Fase 9 en curso: redisenio/continuidad del panel derecho sobre la base SAFE existente.
+- Fase 9 completada: redisenio/continuidad del panel derecho sobre la base SAFE existente.
 - Prototipo Agents SDK creado: `ai_agent/editor_advisor/` como asesor CLI-only/read-only.
 - Fase 9.2 completada: UX SAFE Advisor sobre `ai_agent/editor_advisor/`.
 - Fase 9.3 completada: CSS-only premium pass del panel derecho aplicado solo en `static/css/editor_offset_visual.css`.
 - Fase 9.4 completada: Codex Prompt Builder con `prompt_para_codex` y `--codex-prompt-only`.
+- Fase 10.0 completada: auditoria visual y baseline de header, topbar, subtoolbar, workspace, canvas, panel derecho y `geometry-validation-panel`.
+- Fase 10.1 completada: CSS-only Canvas Pro Shell con topbar CAD/preprensa, controles superiores compactos y canvas mas protagonista.
+- Fase 10.2 completada: CSS-only Panel Derecho Pro Density con tabs, scroll interno, accordions, inputs, listas y paneles IA/CTP/Salida/Cuadernillos mas densos.
+- Fase 10.3 completada: Agent SDK UX Surface v2; `summarize_editor_ux_surface()` audita shell completo, canvas, panel derecho, ids por zona, listeners sensibles y reglas SAFE.
+- Fase 10.4 completada: QA visual/regresion; `git diff --check`, `python -m compileall ai_agent`, `tests/test_editor_advisor_tools.py` con `12 passed`, QA estatica de selectores y `geometry-validation-panel` unico. Playwright manual funciona desde Git CMD; `WinError 5` persiste solo en entorno Codex.
 
-Antes de continuar con cambios mayores de UX o IA, conviene mantener revision SAFE, documentacion alineada y ampliar Playwright para drag/resize/seleccion y flujos productivos.
+Fase 10 se considera estable y cerrada antes de merge a `main`. Antes de continuar con cambios mayores de UX o IA, conviene mantener revision SAFE, documentacion alineada y ampliar Playwright para drag/resize/seleccion y flujos productivos.
 
 Pendientes:
 
-- status bar tecnica compacta basada en `geometry-validation-panel`, sin duplicar informacion
+- Fase 11 futura: `Canvas Geometry Polish`
+- pulido geometrico/visual del canvas sin mezclar contratos ni motores
 - inspector contextual futuro solo si aporta informacion no cubierta por la validacion geometrica
 - Playwright avanzado para drag, resize y seleccion
 - Playwright para upload, apply repeat, preview y PDF
@@ -1216,7 +1229,7 @@ Pendientes:
 - posible modularizacion frontend en fases futuras
 - integracion futura del agente SDK solo como fase separada, con guardrails y tests
 - mantener `AGENTS.md` y este documento alineados porque alimentan el contexto del agente SDK
-- auditoria visual posterior al CSS-only premium pass cuando Flask este disponible y el contexto permita relanzarlo
+- mantener registrado que Playwright funciona manualmente desde Git CMD y que `WinError 5` es bloqueo del entorno Codex
 
 ### Fase 8.1: separacion/orden interno SAFE (completada)
 
@@ -1595,6 +1608,48 @@ Garantias:
 - sin aplicacion automatica de cambios
 - no reemplaza la planificacion SAFE; la refuerza
 
+### Fase 10: Editor UX Canvas Pro (completada)
+
+Problema real:
+
+- el editor ya era funcional, pero el header/topbar ocupaban demasiado protagonismo y el panel derecho podia mejorar densidad para uso prolongado de preprensa.
+
+Valor operativo:
+
+- dar mayor protagonismo al canvas, mejorar lectura tecnica y sostener una interfaz tipo CAD/preprensa sin tocar comportamiento productivo.
+
+Resultado real:
+
+- 10.0 audito header, topbar, subtoolbar, workspace, canvas, panel derecho y `geometry-validation-panel`.
+- 10.1 compacto el shell superior via CSS-only.
+- 10.2 compacto y refino el panel derecho via CSS-only.
+- 10.3 amplio el Agent SDK con UX Surface v2.
+- 10.4 completo QA tecnica/visual disponible.
+
+Garantias:
+
+- no se tocaron HTML, JS, Flask, services, engines ni contratos JSON.
+- no se cambiaron ids, `data-editor-tab`, `data-editor-tab-panel`, listeners ni `hidden`.
+- no se tocaron Step & Repeat PRO, preview/PDF, CTP ni cuadernillos.
+- no se duplico `geometry-validation-panel`.
+- `editor_advisor` sigue CLI-only/read-only, sin Flask/UI/endpoints ni escritura.
+
+Validacion ejecutada:
+
+- `git diff --check`: OK.
+- `python -m compileall ai_agent`: OK.
+- `venv\Scripts\pytest.exe -p no:cacheprovider tests\test_editor_advisor_tools.py`: OK, `12 passed`.
+- QA estatica: sin nuevas reglas peligrosas para ocultar/desactivar controles funcionales; selectores criticos presentes; `geometry-validation-panel` unico.
+- Playwright manual funciona desde Git CMD. En entorno Codex persiste `WinError 5` al crear pipe/subprocess de Playwright, no considerado regresion del editor.
+
+### Fase 11: Canvas Geometry Polish (futura)
+
+Objetivo futuro:
+
+- pulir lectura geometrica, guias visuales y claridad del canvas sobre la base estable de Fase 10.
+- mantener `geometry-validation-panel` como area contextual unica salvo plan separado.
+- evitar cambios de contratos, motores o salida productiva sin fase tecnica propia.
+
 ### Workflow SAFE actual con agente SDK
 
 Para fases visuales o arquitectonicas amplias:
@@ -1625,6 +1680,6 @@ La salida productiva depende de:
 
 El Step & Repeat PRO automatico actual esta en `engines/step_repeat_pro_engine.py` y debe tratarse como motor principal del editor. `engines/nesting_pro_engine.py` es importante, pero es alternativo/auxiliar.
 
-La evolucion segura hacia UX profesional ya dejo cerrada una base usable: shell, tabs, scroll interno, premium visual pass, Fase 9.3 CSS-only del panel derecho y QA Playwright inicial. La validacion geometrica queda como area contextual existente; no conviene duplicarla con otra barra inferior sin redisenio previo.
+La evolucion segura hacia UX profesional ya dejo cerrada una base usable: shell, tabs, scroll interno, premium visual pass, Fase 9.3 CSS-only del panel derecho, Fase 10 Editor UX Canvas Pro y QA visual/regresion disponible. La validacion geometrica queda como area contextual existente, unica y compactada; no conviene duplicarla con otra barra inferior sin redisenio previo.
 
-En Fase 9, las prioridades SAFE son mantener actualizado este mapa, sostener el redisenio del panel derecho sin romper ids/listeners/contratos, usar `ai_agent/editor_advisor/` como UX SAFE Advisor y Codex Prompt Builder CLI-only/read-only, ampliar Playwright para drag/resize/seleccion y flujos productivos, y no integrar el SDK a Flask/UI hasta que exista una fase explicita con guardrails y tests.
+Tras Fase 10, las prioridades SAFE son mantener actualizado este mapa, conservar el shell/canvas/panel derecho sin romper ids/listeners/contratos, usar `ai_agent/editor_advisor/` como UX SAFE Advisor y Codex Prompt Builder CLI-only/read-only, ampliar Playwright para drag/resize/seleccion y flujos productivos, abrir Fase 11 `Canvas Geometry Polish` como pulido futuro, y no integrar el SDK a Flask/UI hasta que exista una fase explicita con guardrails y tests.

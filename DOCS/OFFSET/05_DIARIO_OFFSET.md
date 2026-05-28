@@ -1010,3 +1010,157 @@ venv\Scripts\python.exe -m ai_agent.editor_advisor.cli --codex-prompt-only "anal
 ### Decision de seguridad
 
 `prompt_para_codex` acelera el traspaso desde auditoria hacia trabajo en Codex, pero no reemplaza la fase de plan. El prompt generado debe pedir explicitamente un plan SAFE antes de implementar.
+
+## Fase 10 - Editor UX Canvas Pro
+
+### Objetivo
+
+Cerrar una fase UX SAFE enfocada en que el Editor Visual IA se sienta mas profesional, compacto y operativo como herramienta CAD/preprensa, con el canvas central como protagonista.
+
+### Fase 10.0 - Auditoria visual y baseline
+
+Se reviso sin modificar archivos:
+
+- header
+- topbar
+- subtoolbar
+- workspace
+- canvas
+- panel derecho
+- `geometry-validation-panel`
+
+Resultado:
+
+- se identificaron selectores seguros para CSS-only
+- se mapearon ids/listeners sensibles de barra superior, snap, edicion rapida, frente/dorso, zoom, preview/PDF, IA, CTP y cuadernillos
+- se confirmo que cambios HTML/DOM o JS/listeners requeririan fase separada
+
+### Fase 10.1 - CSS-only Canvas Pro Shell
+
+Se modifico unicamente `static/css/editor_offset_visual.css`.
+
+Cambios reales:
+
+- header mas fino
+- topbar mas tecnica y compacta
+- acciones principales con mejor jerarquia visual
+- snap, spacing y edicion rapida mas densos
+- selector frente/dorso mas claro
+- menor peso visual del marco superior
+- canvas central con mayor protagonismo
+- `geometry-validation-panel` mas compacto y aun visible
+
+Garantias:
+
+- sin tocar HTML
+- sin tocar JS
+- sin mover controles
+- sin renombrar ids
+- sin tocar listeners
+- sin cambiar contratos, preview/PDF, CTP, Step & Repeat PRO ni cuadernillos
+
+### Fase 10.2 - CSS-only Panel Derecho Pro Density
+
+Se modifico unicamente `static/css/editor_offset_visual.css`.
+
+Cambios reales:
+
+- tabs del panel derecho mas compactos
+- scroll interno con mas espacio util
+- accordions mas densos
+- inputs, selects, labels y ayudas mas contenidos
+- listas de trabajos/disenos mas legibles y compactas
+- paneles IA, CTP, Salida y Cuadernillos mejor integrados visualmente
+- estetica tecnica coherente con el shell CAD/preprensa
+
+Garantias:
+
+- no se tocaron `data-editor-tab` ni `data-editor-tab-panel`
+- no se ocultaron controles funcionales
+- no se uso `pointer-events:none` sobre controles
+- no se duplico `geometry-validation-panel`
+
+### Fase 10.3 - Agent SDK UX Surface v2
+
+Se actualizaron solo:
+
+- `ai_agent/editor_advisor/tools.py`
+- `ai_agent/editor_advisor/prompts/editor_advisor.md`
+- `tests/test_editor_advisor_tools.py`
+
+Cambios reales:
+
+- `summarize_editor_ux_surface()` ahora reporta:
+  - header/topbar/subtoolbar
+  - `.editor-workspace`
+  - canvas, `#sheet`, zoom controls y `geometry-validation-panel`
+  - panel derecho, tabs, panels, accordions y scroll interno
+  - selectores CSS shell/canvas/panel derecho
+  - ids por zona
+  - listeners sensibles de topbar, snap, spacing, edicion, cara activa, zoom, preview/PDF, IA, CTP y cuadernillos
+- el prompt del advisor audita explicitamente Fase 10:
+  - header
+  - topbar
+  - canvas
+  - panel derecho
+  - density
+  - `geometry-validation-panel`
+- el schema y CLI se mantuvieron compatibles
+- el agente sigue CLI-only/read-only, sin Flask/UI/endpoints y sin escritura
+
+Validacion:
+
+- `python -m compileall ai_agent`: OK
+- `venv\Scripts\pytest.exe -p no:cacheprovider tests\test_editor_advisor_tools.py`: OK, `12 passed`
+- `git diff --check`: OK, solo warnings CRLF
+
+### Fase 10.4 - QA visual y regresion
+
+QA ejecutada sin aplicar parches.
+
+Validaciones completadas:
+
+- `git diff --check`: OK
+- `python -m compileall ai_agent`: OK
+- `venv\Scripts\pytest.exe -p no:cacheprovider tests\test_editor_advisor_tools.py`: OK, `12 passed`
+- inspeccion estatica de reglas peligrosas: sin nuevas reglas `display:none`, `pointer-events:none`, `visibility:hidden` ni `opacity:0` sobre controles funcionales
+- revision de selectores criticos:
+  - `.handle`
+  - `.slot.selected`
+  - `.slot.locked`
+  - `.geometry-validation-*`
+  - `.editor-tabs`
+  - `.editor-tab-panels`
+  - `.preview-area`
+  - `.pdf-output`
+  - `.panel-ctp`
+  - `.panel-cuadernillos`
+- `geometry-validation-panel` aparece una sola vez en el template
+- preview/PDF, CTP y cuadernillos siguen presentes/accesibles en HTML
+
+Playwright:
+
+- Playwright funciona manualmente desde Git CMD segun cierre operativo del usuario.
+- En entorno Codex persiste `PermissionError: [WinError 5] Acceso denegado` al crear pipe/subprocess de Playwright antes de abrir navegador.
+- Ese error se registra como bloqueo del entorno Codex, no como regresion del Editor Visual IA.
+
+### Cierre de Fase 10
+
+Fase 10 queda considerada estable y cerrada.
+
+No se cambiaron:
+
+- contratos JSON
+- HTML
+- JS
+- Flask
+- services
+- engines
+- Step & Repeat PRO
+- preview/PDF
+- CTP productivo
+- cuadernillos
+
+Fase futura sugerida:
+
+- Fase 11: `Canvas Geometry Polish`

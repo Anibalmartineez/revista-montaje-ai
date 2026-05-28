@@ -83,7 +83,8 @@ El motor prioritario actual del Editor Visual IA es:
 - `ai_agent/editor_advisor/` contiene el prototipo actual con OpenAI Agents SDK y perfil UX/UI SAFE para el Editor Visual IA.
 - El agente SDK `editor_advisor` es por ahora CLI-only y read-only: no esta integrado a Flask, no tiene endpoints, no esta conectado a la UI y no debe modificar archivos.
 - El agente usa `AGENTS.md` y `DOCS/OFFSET/14_MAPA_FUNCIONAL_EDITOR_VISUAL_IA.md` como memoria/contexto arquitectonico principal.
-- `summarize_editor_ux_surface()` permite detectar tabs, paneles, ids criticos, listeners, selectores sensibles y `geometry-validation-panel` sin modificar el repo.
+- Fase 10 queda cerrada como Editor UX Canvas Pro: shell/topbar CAD-preprensa, canvas mas protagonista, panel derecho con density pass y QA visual/regresion documentado.
+- `summarize_editor_ux_surface()` permite detectar header/topbar/subtoolbar, workspace, canvas/sheet/zoom, tabs, paneles, ids criticos por zona, listeners sensibles, selectores shell/canvas/panel derecho y `geometry-validation-panel` sin modificar el repo.
 - Fase 9.4 agrega Codex Prompt Builder: el reporte incluye `prompt_para_codex`, un prompt SAFE listo para pegar en Codex.
 - El CLI permite `--codex-prompt-only` para imprimir solo `prompt_para_codex`, sin JSON.
 - `prompt_para_codex` debe pedir siempre plan SAFE antes de implementar y no autoriza escritura ni aplicacion automatica de cambios.
@@ -437,10 +438,11 @@ Contiene:
 - responsabilidades de frontend/backend
 - responsabilidades de Step & Repeat PRO
 - estado actual de Fase 9 y del agente SDK `ai_agent/editor_advisor`
+- estado actual de Fase 10 cerrada y del agente SDK `ai_agent/editor_advisor`
 - riesgos técnicos
 - partes mezcladas
 - arquitectura objetivo
-- roadmap Fase 8.x / Fase 9
+- roadmap Fase 8.x / Fase 9 / Fase 10 y Fase 11 futura
 - estrategia SAFE de evolución
 
 Antes de realizar:
