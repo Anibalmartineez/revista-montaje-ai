@@ -26,6 +26,7 @@ Consolidar el Editor Visual IA como flujo operativo profesional del modulo Offse
   - prototipo OpenAI Agents SDK `ai_agent/editor_advisor/` como asesor CLI-only/read-only
   - Fase 9.2 completada: `editor_advisor` especializado como UX SAFE Advisor
   - Fase 9.3 completada: premium pass CSS-only del panel derecho en `static/css/editor_offset_visual.css`
+  - Fase 9.4 completada: Codex Prompt Builder con `prompt_para_codex` y `--codex-prompt-only`
 
 ## Plan propuesto por fases
 
@@ -259,13 +260,15 @@ Estado real:
 - Fase 9.2 clasifica cambios como `CSS-only seguro`, `HTML/DOM riesgoso`, `JS/listeners riesgoso` y `backend/contrato prohibido`
 - Fase 9.3 completada: refinamiento visual CSS-only del panel derecho, aplicado solo sobre `static/css/editor_offset_visual.css`
 - Fase 9.3 mejora `.side-panel`, `.editor-tabs`, scroll interno, accordions, formularios, `geometry-validation-panel`, foco visible y estetica premium tecnica sin cambiar DOM ni listeners
+- Fase 9.4 completada: el agente genera `prompt_para_codex` para convertir auditorias en prompts SAFE listos para Codex
+- Fase 9.4 agrega `--codex-prompt-only` para imprimir solo el prompt accionable, sin JSON
 
 Prioridades SAFE:
 
 - mantener documentacion base alineada con el codigo real
 - no integrar `editor_advisor` a Flask/UI sin fase separada
 - no permitir que `editor_advisor` escriba archivos ni modifique HTML/JS automaticamente
-- sostener workflow: agente analiza -> propone SAFE phase -> Codex implementa -> validaciones -> agente vuelve a auditar
+- sostener workflow: agente audita -> genera prompt SAFE para Codex -> Codex planifica -> Codex implementa solo si se aprueba -> validaciones -> agente vuelve a auditar
 - ampliar Playwright para drag, resize, seleccion y flujos productivos
 - evolucionar `geometry-validation-panel` solo si aporta valor y sin duplicar informacion
 - evaluar inspector contextual y modularizacion frontend como cambios separados
@@ -276,7 +279,7 @@ Prioridades SAFE:
 2. Ampliar pruebas de regresion para Step & Repeat PRO inteligente
 3. Ampliar Playwright para drag, resize, seleccion y flujos productivos antes de mas cambios UX grandes
 4. Endurecer guardrails y pruebas del flujo OpenAI tool calling sobre `ai_agent/`
-5. Mantener `ai_agent/editor_advisor` aislado, read-only y CLI-only hasta definir integracion
+5. Mantener `ai_agent/editor_advisor` aislado, read-only y CLI-only hasta definir integracion, aunque genere prompts para Codex
 6. Mejorar feedback no bloqueante de errores/warnings
 7. Avanzar en schema/validaciones adicionales solo con tests dedicados
 8. Evaluar sistema de modos (`exact`, `maximize`, etc.) sin romper el contrato actual

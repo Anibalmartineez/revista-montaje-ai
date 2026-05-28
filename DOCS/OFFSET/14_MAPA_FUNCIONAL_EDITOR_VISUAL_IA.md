@@ -21,8 +21,9 @@ Este documento sigue siendo la fuente de verdad arquitectonica del Editor Visual
 - existe un prototipo de agente asesor con OpenAI Agents SDK en `ai_agent/editor_advisor/`
 - Fase 9.2 especializa ese agente como UX/UI SAFE Advisor
 - Fase 9.3 aplica un premium pass CSS-only del panel derecho en `static/css/editor_offset_visual.css`
+- Fase 9.4 agrega Codex Prompt Builder con `prompt_para_codex` y `--codex-prompt-only`
 
-El agente SDK es actualmente **CLI-only y read-only**. No esta integrado a Flask, no tiene endpoints, no esta conectado a la UI, no modifica archivos y debe tratarse como una herramienta de analisis/planificacion, no como automatizacion productiva.
+El agente SDK es actualmente **CLI-only y read-only**. No esta integrado a Flask, no tiene endpoints, no esta conectado a la UI, no modifica archivos y debe tratarse como una herramienta de analisis/planificacion y generacion de prompts SAFE para Codex, no como automatizacion productiva.
 
 ## 1. Resumen general del Editor Visual IA
 
@@ -265,6 +266,11 @@ Estado Fase 9:
   - mejoras recomendadas
   - validaciones necesarias
   - proximo paso sugerido
+- Codex Prompt Builder:
+  - `prompt_para_codex` dentro de `EditorAdvisorReport`
+  - prompt SAFE listo para pegar en Codex
+  - cierre obligatorio: "Antes de implementar, dame un plan SAFE."
+  - no autoriza escritura ni aplicacion automatica de cambios
 - salida extendida UX SAFE con `EditorAdvisorReport`:
   - problemas UX visuales
   - riesgos DOM/listeners
@@ -273,12 +279,14 @@ Estado Fase 9:
   - zonas peligrosas de tocar
   - checklist UX antes/despues
   - fase SAFE sugerida
+  - prompt para Codex
 - clasificacion obligatoria de propuestas:
   - CSS-only seguro
   - HTML/DOM riesgoso
   - JS/listeners riesgoso
   - backend/contrato prohibido
 - no modifica archivos
+- no aplica cambios automaticamente
 - no crea endpoints
 - no esta integrado al panel IA ni a la UI
 - no reemplaza al asistente IA Step & Repeat actual
@@ -1194,6 +1202,7 @@ Idealmente con Playwright o equivalente:
 - Prototipo Agents SDK creado: `ai_agent/editor_advisor/` como asesor CLI-only/read-only.
 - Fase 9.2 completada: UX SAFE Advisor sobre `ai_agent/editor_advisor/`.
 - Fase 9.3 completada: CSS-only premium pass del panel derecho aplicado solo en `static/css/editor_offset_visual.css`.
+- Fase 9.4 completada: Codex Prompt Builder con `prompt_para_codex` y `--codex-prompt-only`.
 
 Antes de continuar con cambios mayores de UX o IA, conviene mantener revision SAFE, documentacion alineada y ampliar Playwright para drag/resize/seleccion y flujos productivos.
 
@@ -1546,15 +1555,56 @@ Validaciones pendientes:
 - `node --check static/js/editor_offset_visual.js` quedo bloqueado por `Acceso denegado` a `node.exe`.
 - Playwright quedo pendiente porque Flask fue detenido manualmente con `CTRL+C` y no debe relanzarse en ese contexto.
 
+### Fase 9.4: Codex Prompt Builder (completada)
+
+Problema real:
+
+- el agente SDK auditaba bien, pero el usuario tenia que convertir manualmente el diagnostico en un prompt accionable para Codex.
+
+Valor operativo:
+
+- reducir friccion entre auditoria, planificacion SAFE e implementacion posterior.
+- hacer que cada reporte pueda incluir un prompt limpio, seguro y listo para pegar en Codex.
+
+Resultado real:
+
+- `EditorAdvisorReport` agrega `prompt_para_codex: str = ""`.
+- `prompts/editor_advisor.md` exige generar un prompt con objetivo, alcance, archivos permitidos/prohibidos, riesgos, instrucciones SAFE, validaciones y cierre "Antes de implementar, dame un plan SAFE."
+- `cli.py` agrega `--codex-prompt-only` para imprimir solo el prompt limpio, sin JSON.
+- `tests/test_editor_advisor_tools.py` cubre el nuevo campo y el render CLI sin llamar OpenAI.
+
+Comando real de uso desde PowerShell:
+
+```powershell
+venv\Scripts\python.exe -m ai_agent.editor_advisor.cli --codex-prompt-only "analiza el panel derecho y propone mejoras CSS-only"
+```
+
+Validacion ejecutada:
+
+- `python -m compileall ai_agent`: OK
+- `venv\Scripts\pytest.exe -p no:cacheprovider tests\test_editor_advisor_tools.py`: OK, `10 passed`
+- `git diff --check`: OK, solo warnings CRLF
+- alcance: solo archivos del agente/tests; sin Flask, frontend productivo, services, engines, contratos ni Step & Repeat PRO
+
+Garantias:
+
+- CLI-only
+- read-only
+- sin Flask/UI/endpoints
+- sin escritura de archivos
+- sin aplicacion automatica de cambios
+- no reemplaza la planificacion SAFE; la refuerza
+
 ### Workflow SAFE actual con agente SDK
 
 Para fases visuales o arquitectonicas amplias:
 
 1. `editor_advisor` analiza usando `AGENTS.md` y este documento como contexto principal.
-2. El agente propone una SAFE phase y clasifica riesgos.
-3. Codex implementa solo el alcance aprobado.
-4. Se validan diff, alcance, formato y regresiones disponibles.
-5. El agente vuelve a auditar antes de una nueva fase.
+2. El agente propone una SAFE phase, clasifica riesgos y genera `prompt_para_codex`.
+3. Codex recibe el prompt y devuelve plan SAFE antes de implementar.
+4. Codex implementa solo si el usuario aprueba el alcance.
+5. Se validan diff, alcance, formato y regresiones disponibles.
+6. El agente vuelve a auditar antes de una nueva fase.
 
 ## Conclusiones actualizadas
 
@@ -1577,4 +1627,4 @@ El Step & Repeat PRO automatico actual esta en `engines/step_repeat_pro_engine.p
 
 La evolucion segura hacia UX profesional ya dejo cerrada una base usable: shell, tabs, scroll interno, premium visual pass, Fase 9.3 CSS-only del panel derecho y QA Playwright inicial. La validacion geometrica queda como area contextual existente; no conviene duplicarla con otra barra inferior sin redisenio previo.
 
-En Fase 9, las prioridades SAFE son mantener actualizado este mapa, sostener el redisenio del panel derecho sin romper ids/listeners/contratos, usar `ai_agent/editor_advisor/` como UX SAFE Advisor CLI-only/read-only, ampliar Playwright para drag/resize/seleccion y flujos productivos, y no integrar el SDK a Flask/UI hasta que exista una fase explicita con guardrails y tests.
+En Fase 9, las prioridades SAFE son mantener actualizado este mapa, sostener el redisenio del panel derecho sin romper ids/listeners/contratos, usar `ai_agent/editor_advisor/` como UX SAFE Advisor y Codex Prompt Builder CLI-only/read-only, ampliar Playwright para drag/resize/seleccion y flujos productivos, y no integrar el SDK a Flask/UI hasta que exista una fase explicita con guardrails y tests.

@@ -961,3 +961,52 @@ Uso de `rg` en validaciones SAFE:
 git diff --name-only | rg "routes.py|app.py|templates/|static/js/|static/css/|engines/|services/|ai_agent/"
 rg -n "9\.2|9\.3|summarize_editor_ux_surface|CSS-only seguro|HTML/DOM riesgoso|JS/listeners riesgoso|backend/contrato prohibido|static/css/editor_offset_visual.css" AGENTS.md DOCS/OFFSET
 ```
+
+## Fase 9.4 - Codex Prompt Builder
+
+### Objetivo
+
+Hacer que `ai_agent/editor_advisor/` no solo entregue auditoria tecnica/UX, sino tambien un prompt SAFE listo para pegar en Codex y convertir el diagnostico en una siguiente fase planificable.
+
+### Cambios reales
+
+- `ai_agent/editor_advisor/schemas.py` agrega `prompt_para_codex: str = ""` a `EditorAdvisorReport`.
+- `ai_agent/editor_advisor/prompts/editor_advisor.md` exige generar un prompt accionable para Codex con:
+  - objetivo de fase
+  - alcance permitido
+  - archivos permitidos
+  - archivos prohibidos
+  - riesgos detectados
+  - instrucciones SAFE
+  - validaciones requeridas
+  - cierre textual: "Antes de implementar, dame un plan SAFE."
+- `ai_agent/editor_advisor/cli.py` agrega `--codex-prompt-only` para imprimir solo el prompt limpio, sin JSON.
+- `tests/test_editor_advisor_tools.py` agrega tests del nuevo campo y del render CLI sin llamar OpenAI.
+
+### Comando nuevo
+
+```powershell
+venv\Scripts\python.exe -m ai_agent.editor_advisor.cli --codex-prompt-only "analiza el panel derecho y propone mejoras CSS-only"
+```
+
+### Garantias conservadas
+
+- CLI-only
+- read-only
+- sin Flask
+- sin endpoints
+- sin UI
+- sin escritura de archivos
+- sin cambios automaticos
+- sin tocar frontend productivo, services, engines, contratos JSON ni Step & Repeat PRO
+
+### Validacion ejecutada
+
+- `python -m compileall ai_agent`: OK
+- `venv\Scripts\pytest.exe -p no:cacheprovider tests\test_editor_advisor_tools.py`: OK, `10 passed`
+- `git diff --check`: OK, solo warnings CRLF
+- validacion de alcance: solo 4 archivos del agente/tests; no toco Flask, frontend productivo, services, engines, contratos ni Step & Repeat PRO
+
+### Decision de seguridad
+
+`prompt_para_codex` acelera el traspaso desde auditoria hacia trabajo en Codex, pero no reemplaza la fase de plan. El prompt generado debe pedir explicitamente un plan SAFE antes de implementar.

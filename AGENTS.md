@@ -84,6 +84,9 @@ El motor prioritario actual del Editor Visual IA es:
 - El agente SDK `editor_advisor` es por ahora CLI-only y read-only: no esta integrado a Flask, no tiene endpoints, no esta conectado a la UI y no debe modificar archivos.
 - El agente usa `AGENTS.md` y `DOCS/OFFSET/14_MAPA_FUNCIONAL_EDITOR_VISUAL_IA.md` como memoria/contexto arquitectonico principal.
 - `summarize_editor_ux_surface()` permite detectar tabs, paneles, ids criticos, listeners, selectores sensibles y `geometry-validation-panel` sin modificar el repo.
+- Fase 9.4 agrega Codex Prompt Builder: el reporte incluye `prompt_para_codex`, un prompt SAFE listo para pegar en Codex.
+- El CLI permite `--codex-prompt-only` para imprimir solo `prompt_para_codex`, sin JSON.
+- `prompt_para_codex` debe pedir siempre plan SAFE antes de implementar y no autoriza escritura ni aplicacion automatica de cambios.
 - En diagnosticos UX debe clasificar propuestas como:
   - CSS-only seguro
   - HTML/DOM riesgoso
