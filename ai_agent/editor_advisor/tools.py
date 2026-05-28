@@ -203,7 +203,7 @@ def _unique_sorted(values: Iterable[str]) -> List[str]:
 
 
 def summarize_editor_ux_surface(repo_root: str | Path | None = None) -> str:
-    """Return deterministic UX/DOM signals for the Editor Visual IA right panel."""
+    """Return deterministic UX/DOM signals for the Editor Visual IA surface."""
     html = read_repo_file("templates/editor_offset_visual.html", max_chars=50000, repo_root=repo_root)
     js = read_repo_file("static/js/editor_offset_visual.js", max_chars=50000, repo_root=repo_root)
     css = read_repo_file("static/css/editor_offset_visual.css", max_chars=50000, repo_root=repo_root)
@@ -214,6 +214,17 @@ def summarize_editor_ux_surface(repo_root: str | Path | None = None) -> str:
     js_ids = _unique_sorted(re.findall(r"getElementById\('([^']+)'\)", js))
     missing_html_ids = [item for item in js_ids if item not in html_ids]
     css_selectors = [
+        ".editor-header",
+        ".editor-shell",
+        ".editor-topbar",
+        ".editor-workspace",
+        ".sheet-toolbar",
+        ".sheet-subtoolbar",
+        ".control-block",
+        ".manual-tools",
+        ".sheet-wrapper",
+        ".zoom-controls",
+        ".sheet-canvas",
         ".side-panel",
         ".editor-tabs",
         ".editor-tab",
@@ -228,6 +239,84 @@ def summarize_editor_ux_surface(repo_root: str | Path | None = None) -> str:
     listener_count = len(re.findall(r"\.addEventListener\(", js))
     direct_id_lookup_count = len(js_ids)
 
+    structure_selectors = [
+        ".editor-header",
+        ".editor-topbar",
+        ".sheet-toolbar",
+        ".sheet-subtoolbar",
+        ".editor-workspace",
+        ".sheet-wrapper",
+        ".sheet-canvas",
+        ".zoom-controls",
+        ".geometry-validation-panel",
+        ".side-panel",
+        ".editor-tabs",
+        ".editor-tab-panels",
+    ]
+    present_structure = [selector for selector in structure_selectors if selector in html or selector in css]
+    canvas_ids = [item for item in ["sheet-canvas", "sheet", "zoom-in", "zoom-out", "zoom-label"] if item in html_ids]
+    geometry_ids = [
+        item
+        for item in ["geometry-validation-panel", "geometry-validation-summary", "geometry-validation-list"]
+        if item in html_ids
+    ]
+    topbar_ids = [
+        item
+        for item in [
+            "btn-save",
+            "btn-auto",
+            "btn-new-slot",
+            "btn-dup-slot",
+            "btn-del-slot",
+            "btn-group-slots",
+            "btn-ungroup-slots",
+            "face-front",
+            "face-back",
+            "btn-duplicate-face",
+        ]
+        if item in html_ids
+    ]
+    snap_spacing_ids = [
+        item
+        for item in [
+            "snap-slots",
+            "snap-margins",
+            "snap-grid",
+            "snap-tolerance",
+            "spacing-x",
+            "spacing-y",
+            "btn-spacing-apply-all",
+            "btn-spacing-rows",
+            "btn-spacing-cols",
+            "btn-spacing-live",
+        ]
+        if item in html_ids
+    ]
+    edition_ids = [
+        item
+        for item in html_ids
+        if item.startswith(("btn-select-", "btn-center-", "btn-nudge-", "btn-align-", "btn-distribute-"))
+        or item in {"nudge-step", "btn-manual-advanced-toggle", "manual-advanced-tools"}
+    ]
+    sensitive_listener_ids = [
+        item
+        for item in [
+            *topbar_ids,
+            *snap_spacing_ids,
+            *edition_ids,
+            *canvas_ids,
+            "btn-preview",
+            "btn-pdf",
+            "btn-apply-imposition",
+            "btn-ai-run",
+            "btn-ai-apply",
+            "btn-cuadernillo-simular",
+            "btn-ctp-apply",
+            "btn-ctp-disable",
+        ]
+        if item in js_ids
+    ]
+
     critical_ids = [
         item
         for item in html_ids
@@ -236,14 +325,24 @@ def summarize_editor_ux_surface(repo_root: str | Path | None = None) -> str:
 
     lines = [
         "Superficie UX del Editor Visual IA:",
+        f"- Shell detectado: {', '.join(present_structure) or 'sin selectores principales detectados'}.",
+        f"- Header/topbar/subtoolbar: header={'.editor-header' in present_css_selectors}, topbar={'.editor-topbar' in present_css_selectors}, toolbar={'.sheet-toolbar' in present_css_selectors}, subtoolbar={'.sheet-subtoolbar' in present_css_selectors}.",
+        f"- Workspace principal: editor-workspace={'.editor-workspace' in present_css_selectors}, sheet-wrapper={'.sheet-wrapper' in present_css_selectors}.",
+        f"- Canvas/sheet/zoom: ids {', '.join(canvas_ids) or 'ninguno detectado'}; selectores CSS canvas presentes: {', '.join(selector for selector in ['.sheet-canvas', '.zoom-controls'] if selector in present_css_selectors) or 'ninguno'}.",
+        f"- Geometry panel: ids {', '.join(geometry_ids) or 'ninguno detectado'}; no duplicar geometry-validation-panel.",
         f"- Tabs del panel derecho ({len(tabs)}): {', '.join(tabs)}.",
         f"- Paneles por data-editor-tab-panel ({len(panels)}): {', '.join(panels)}.",
         f"- IDs en template: {len(html_ids)}.",
         f"- IDs buscados por JS con getElementById: {direct_id_lookup_count}.",
         f"- Listeners detectados en JS: {listener_count}.",
         f"- Selectores CSS relevantes presentes: {', '.join(present_css_selectors)}.",
-        "- Zonas visuales sensibles: side-panel, editor-tabs, editor-tab-panels, panel-accordion, geometry-validation-panel.",
-        "- Reglas SAFE: preferir CSS-only; no renombrar ids; no cambiar data-editor-tab/data-editor-tab-panel; no mover controles sin revisar listeners.",
+        f"- IDs topbar/cara detectados: {', '.join(topbar_ids) or 'ninguno'}.",
+        f"- IDs snap/spacing detectados: {', '.join(snap_spacing_ids) or 'ninguno'}.",
+        f"- IDs edicion rapida detectados: {', '.join(edition_ids[:30]) or 'ninguno'}.",
+        f"- IDs con listeners sensibles para Fase 10: {', '.join(sensitive_listener_ids[:50]) or 'sin muestra'}.",
+        "- Zonas visuales sensibles: editor-header, editor-topbar, sheet-toolbar, sheet-subtoolbar, editor-workspace, sheet-canvas, side-panel, editor-tabs, editor-tab-panels, panel-accordion, geometry-validation-panel.",
+        "- Riesgo Fase 10: compactar botones o controles puede romper legibilidad, hit area o scroll sin tocar JS; si se mueven nodos, los listeners acoplados por getElementById/querySelector deben revisarse.",
+        "- Reglas SAFE: preferir CSS-only; no renombrar ids; no cambiar data-editor-tab/data-editor-tab-panel; no mover controles sin revisar listeners; no duplicar geometry-validation-panel; no tocar contratos, preview/PDF, CTP, Step & Repeat PRO ni cuadernillos.",
     ]
     if critical_ids:
         lines.append(f"- Muestra de IDs criticos: {', '.join(critical_ids[:40])}.")

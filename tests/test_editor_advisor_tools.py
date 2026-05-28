@@ -61,6 +61,42 @@ def test_ux_surface_summary_reports_right_panel_signals():
     assert "no renombrar ids" in summary
 
 
+def test_ux_surface_summary_reports_canvas_pro_shell_signals():
+    summary = tools.summarize_editor_ux_surface()
+
+    assert "Header/topbar/subtoolbar" in summary
+    assert ".editor-header" in summary
+    assert ".editor-topbar" in summary
+    assert ".sheet-subtoolbar" in summary
+    assert "Workspace principal" in summary
+    assert "editor-workspace" in summary
+    assert "Canvas/sheet/zoom" in summary
+    assert "sheet-canvas" in summary
+    assert "zoom-in" in summary
+    assert "Geometry panel" in summary
+    assert "geometry-validation-panel" in summary
+    assert "no duplicar geometry-validation-panel" in summary
+    assert "compactar botones" in summary
+    assert "preferir CSS-only" in summary
+    assert "no cambiar data-editor-tab/data-editor-tab-panel" in summary
+
+
+def test_ux_surface_summary_reports_listener_risk_groups():
+    summary = tools.summarize_editor_ux_surface()
+
+    assert "IDs topbar/cara detectados" in summary
+    assert "btn-save" in summary
+    assert "face-front" in summary
+    assert "IDs snap/spacing detectados" in summary
+    assert "snap-slots" in summary
+    assert "spacing-x" in summary
+    assert "IDs edicion rapida detectados" in summary
+    assert "btn-nudge-up" in summary
+    assert "IDs con listeners sensibles para Fase 10" in summary
+    assert "btn-preview" in summary
+    assert "btn-pdf" in summary
+
+
 def test_editor_advisor_report_keeps_legacy_fields_and_ux_defaults():
     report = EditorAdvisorReport()
 
