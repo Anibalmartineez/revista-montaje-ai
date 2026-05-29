@@ -254,6 +254,19 @@ def test_repeat_ai_tool_matches_canonical_engine_and_marks_change_type():
     assert generated["ai_agent"]["last_repeat_slot_count"] == len(engine_slots)
 
 
+def test_repeat_ai_tool_does_not_depend_on_routes_wrapper(monkeypatch):
+    layout = _repeat_layout()
+
+    def fail_if_routes_wrapper_is_used(_layout):
+        raise AssertionError("generar_repeat no debe depender de routes._build_step_repeat_slots")
+
+    monkeypatch.setattr("routes._build_step_repeat_slots", fail_if_routes_wrapper_is_used)
+
+    generated = generar_repeat(layout, {})
+
+    assert generated["slots"] == build_step_repeat_slots(layout)
+
+
 def test_montar_offset_desde_layout_splits_front_back_and_applies_ctp_pinza(
     work_dir, monkeypatch
 ):

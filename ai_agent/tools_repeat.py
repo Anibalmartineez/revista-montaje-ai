@@ -2,6 +2,8 @@ import re
 from copy import deepcopy
 from typing import Any, Dict, Iterable, List, Optional, Tuple
 
+from engines.step_repeat_pro_engine import build_step_repeat_slots
+
 
 EPSILON = 1e-6
 REPEAT_VISIBLE_ZONES = {"auto", "top", "bottom", "left", "right", "center"}
@@ -150,9 +152,7 @@ def generar_repeat(layout: Dict[str, Any], config: Optional[Dict[str, Any]] = No
                 updated[key] = value
     updated["imposition_engine"] = "repeat"
 
-    from routes import _build_step_repeat_slots
-
-    updated["slots"] = _build_step_repeat_slots(updated)
+    updated["slots"] = build_step_repeat_slots(updated)
     updated.setdefault("ai_agent", {})["layout_change_type"] = "layout_with_slots"
     updated.setdefault("ai_agent", {})["last_repeat_slot_count"] = len(updated.get("slots") or [])
     return updated
