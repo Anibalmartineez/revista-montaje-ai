@@ -1,15 +1,20 @@
 (function () {
-  const sheetEl = document.getElementById('sheet');
-  const sheetCanvas = document.getElementById('sheet-canvas');
-  const worksListEl = document.getElementById('works-list');
-  const designsListEl = document.getElementById('designs-list');
-  const previewImg = document.getElementById('preview-image');
-  const pdfOutput = document.getElementById('pdf-output');
-  const slotForm = document.getElementById('slot-form');
-  const slotNone = document.getElementById('slot-none');
-  const uploadForm = document.getElementById('upload-form');
-  const geometryValidationSummaryEl = document.getElementById('geometry-validation-summary');
-  const geometryValidationListEl = document.getElementById('geometry-validation-list');
+  const editorModules = window.EditorOffsetVisual || {};
+  const domRefs = editorModules.domRefs;
+  const defaults = editorModules.defaults;
+  const geometry = editorModules.geometry;
+  const geometryValidation = editorModules.geometryValidation;
+  const sheetEl = domRefs.byId(domRefs.ids.sheet);
+  const sheetCanvas = domRefs.byId(domRefs.ids.sheetCanvas);
+  const worksListEl = domRefs.byId(domRefs.ids.worksList);
+  const designsListEl = domRefs.byId(domRefs.ids.designsList);
+  const previewImg = domRefs.byId(domRefs.ids.previewImage);
+  const pdfOutput = domRefs.byId(domRefs.ids.pdfOutput);
+  const slotForm = domRefs.byId(domRefs.ids.slotForm);
+  const slotNone = domRefs.byId(domRefs.ids.slotNone);
+  const uploadForm = domRefs.byId(domRefs.ids.uploadForm);
+  const geometryValidationSummaryEl = domRefs.byId(domRefs.ids.geometryValidationSummary);
+  const geometryValidationListEl = domRefs.byId(domRefs.ids.geometryValidationList);
   let aiResultLayout = null;
   let aiResultChangeType = null;
 
@@ -139,92 +144,32 @@
   }
 
   function ensureEngineDefaults() {
-    if (!Array.isArray(state.layout.allowed_engines) || state.layout.allowed_engines.length === 0) {
-      state.layout.allowed_engines = ['repeat', 'nesting', 'hybrid'];
-    }
-    if (!state.layout.imposition_engine || !state.layout.allowed_engines.includes(state.layout.imposition_engine)) {
-      state.layout.imposition_engine = state.layout.allowed_engines[0];
-    }
+    defaults.ensureEngineDefaults(state.layout);
   }
 
   function ensureCtpDefaults() {
-    if (!state.layout) return;
-    if (!state.layout.ctp) {
-      state.layout.ctp = {};
-    }
-    const ctp = state.layout.ctp;
-    if (ctp.enabled === undefined) ctp.enabled = false;
-    if (ctp.gripper_mm === undefined) ctp.gripper_mm = 40;
-    if (ctp.lock_after === undefined) ctp.lock_after = true;
-    if (ctp.show_guide === undefined) ctp.show_guide = false;
-
-    if (!ctp.marks) {
-      ctp.marks = {};
-    }
-    if (ctp.marks.registro === undefined) ctp.marks.registro = false;
-    if (ctp.marks.control_strip === undefined) ctp.marks.control_strip = false;
-
-    if (!ctp.technical_text) {
-      ctp.technical_text = {};
-    }
-    const t = ctp.technical_text;
-    if (t.job_name === undefined) t.job_name = '';
-    if (t.client === undefined) t.client = '';
-    if (t.notes === undefined) t.notes = '';
-    if (t.auto_cmyk === undefined) t.auto_cmyk = true;
-    if (t.extra_text === undefined) t.extra_text = '';
+    defaults.ensureCtpDefaults(state.layout);
   }
 
   function ensureExportDefaults() {
-    if (!state.layout) return;
-    if (!state.layout.export_settings || typeof state.layout.export_settings !== 'object') {
-      state.layout.export_settings = { bleed_mm: 3, crop_marks: true, output_mode: 'raster' };
-    } else {
-      if (state.layout.export_settings.bleed_mm === undefined) {
-        state.layout.export_settings.bleed_mm = 3;
-      }
-      if (state.layout.export_settings.crop_marks === undefined) {
-        state.layout.export_settings.crop_marks = true;
-      }
-      if (!state.layout.export_settings.output_mode) {
-        state.layout.export_settings.output_mode = 'raster';
-      }
-    }
-    if (!state.layout.design_export || typeof state.layout.design_export !== 'object') {
-      state.layout.design_export = {};
-    }
+    defaults.ensureExportDefaults(state.layout);
   }
 
-  const REPEAT_DESIGN_DEFAULT_PRIORITY = 100;
-  const REPEAT_DESIGN_ZONES = new Set(['auto', 'top', 'bottom', 'left', 'right', 'center', 'fill']);
-  const REPEAT_DESIGN_FLOWS = new Set(['auto', 'horizontal', 'vertical']);
-  const REPEAT_DESIGN_ROLES = new Set(['primary', 'secondary', 'fill']);
+  const REPEAT_DESIGN_DEFAULT_PRIORITY = defaults.REPEAT_DESIGN_DEFAULT_PRIORITY;
+  const REPEAT_DESIGN_ZONES = defaults.REPEAT_DESIGN_ZONES;
+  const REPEAT_DESIGN_FLOWS = defaults.REPEAT_DESIGN_FLOWS;
+  const REPEAT_DESIGN_ROLES = defaults.REPEAT_DESIGN_ROLES;
 
   function normalizeRepeatDesignChoice(value, allowed, fallback) {
-    const normalized = String(value || fallback).trim().toLowerCase();
-    return allowed.has(normalized) ? normalized : fallback;
+    return defaults.normalizeRepeatDesignChoice(value, allowed, fallback);
   }
 
   function normalizeRepeatDesignPriority(value) {
-    const parsed = parseFloat(value);
-    if (!Number.isFinite(parsed)) return REPEAT_DESIGN_DEFAULT_PRIORITY;
-    return parsed;
+    return defaults.normalizeRepeatDesignPriority(value);
   }
 
   function normalizeRepeatManualOverrides(d) {
-    const current = (d && typeof d.repeat_manual_overrides === 'object' && d.repeat_manual_overrides) || {};
-    const normalized = {
-      priority: typeof current.priority === 'boolean'
-        ? current.priority
-        : normalizeRepeatDesignPriority(d?.priority) !== REPEAT_DESIGN_DEFAULT_PRIORITY,
-      preferred_flow: typeof current.preferred_flow === 'boolean'
-        ? current.preferred_flow
-        : normalizeRepeatDesignChoice(d?.preferred_flow, REPEAT_DESIGN_FLOWS, 'auto') !== 'auto',
-      repeat_role: typeof current.repeat_role === 'boolean'
-        ? current.repeat_role
-        : normalizeRepeatDesignChoice(d?.repeat_role, REPEAT_DESIGN_ROLES, 'secondary') !== 'secondary',
-    };
-    return normalized;
+    return defaults.normalizeRepeatManualOverrides(d);
   }
 
   function appendOptions(select, options) {
@@ -239,59 +184,23 @@
   }
 
   function normalizeDesignDefaults() {
-    state.layout.designs = (state.layout.designs || []).map((d) => ({
-      ...d,
-      width_mm: d.width_mm ?? d.w_mm ?? 0,
-      height_mm: d.height_mm ?? d.h_mm ?? 0,
-      bleed_mm: d.bleed_mm ?? state.layout.bleed_default_mm ?? 0,
-      allow_rotation: d.allow_rotation !== false,
-      forms_per_plate: Math.max(1, parseInt(d.forms_per_plate || '1', 10)),
-      priority: normalizeRepeatDesignPriority(d.priority),
-      preferred_zone: normalizeRepeatDesignChoice(d.preferred_zone, REPEAT_DESIGN_ZONES, 'auto'),
-      preferred_flow: normalizeRepeatDesignChoice(d.preferred_flow, REPEAT_DESIGN_FLOWS, 'auto'),
-      repeat_role: normalizeRepeatDesignChoice(d.repeat_role, REPEAT_DESIGN_ROLES, 'secondary'),
-      repeat_manual_overrides: normalizeRepeatManualOverrides(d),
-    }));
+    defaults.normalizeDesignDefaults(state.layout);
   }
 
   function normalizeFormsPerPlateValue(value) {
-    const parsed = parseInt(value, 10);
-    if (!Number.isFinite(parsed) || parsed < 1) return 1;
-    return parsed;
+    return defaults.normalizeFormsPerPlateValue(value);
   }
 
   function normalizeNonNegativeNumber(value, fallback = 0) {
-    const parsed = parseFloat(value);
-    if (!Number.isFinite(parsed) || parsed < 0) return fallback;
-    return parsed;
+    return defaults.normalizeNonNegativeNumber(value, fallback);
   }
 
   function firstDefinedNumber(...values) {
-    for (const value of values) {
-      if (value === undefined || value === null || value === '') continue;
-      const parsed = parseFloat(value);
-      if (Number.isFinite(parsed)) return parsed;
-    }
-    return 0;
+    return defaults.firstDefinedNumber(...values);
   }
 
   function normalizeLayoutFaces() {
-    if (!state.layout) return;
-    if (!Array.isArray(state.layout.faces) || state.layout.faces.length === 0) {
-      state.layout.faces = ['front'];
-    }
-    if (!state.layout.active_face || !state.layout.faces.includes(state.layout.active_face)) {
-      state.layout.active_face = state.layout.faces[0];
-    }
-    if (!state.layout.slots) {
-      state.layout.slots = [];
-    }
-    state.layout.slots.forEach((slot) => {
-      if (!slot.face) {
-        slot.face = 'front';
-      }
-    });
-    state.activeFace = state.layout.active_face || 'front';
+    state.activeFace = defaults.normalizeLayoutFaces(state.layout);
   }
 
   function pushHistory() {
@@ -339,50 +248,19 @@
   }
 
   function mmToPx(mm) {
-    return mm * state.scale;
+    return geometry.mmToPx(mm, state.scale);
   }
 
   function getEffectiveSlotBox(slot, override = {}) {
-    const baseW = slot.w_mm || 0;
-    const baseH = slot.h_mm || 0;
-    const x = override.x ?? slot.x_mm;
-    const y = override.y ?? slot.y_mm;
-    const rotation = ((slot.rotation_deg || 0) % 360 + 360) % 360;
-    const cx = x + baseW / 2;
-    const cy = y + baseH / 2;
-
-    return {
-      rotation,
-      baseW,
-      baseH,
-      effW: baseW,
-      effH: baseH,
-      cx,
-      cy,
-      x,
-      y,
-    };
+    return geometry.getEffectiveSlotBox(slot, override);
   }
 
   function slotCoordsFromBox(box) {
-    return {
-      x: box.cx - box.baseW / 2,
-      y: box.cy - box.baseH / 2,
-    };
+    return geometry.slotCoordsFromBox(box);
   }
 
   function getSlotRenderBox(slot) {
-    const baseW = slot.w_mm || 0;
-    const baseH = slot.h_mm || 0;
-    const rotation = ((slot.rotation_deg || 0) % 360 + 360) % 360;
-
-    return {
-      x: slot.x_mm,
-      y: slot.y_mm,
-      w: baseW,
-      h: baseH,
-      rotation,
-    };
+    return geometry.getSlotRenderBox(slot);
   }
 
   function recalcScale() {
@@ -463,7 +341,7 @@
     const handles = document.querySelectorAll('.slot .handle');
     const zoom = state.zoom || 1;
 
-    // Tamaño base muy pequeño (4 px a 100%)
+    // TamaÃ±o base muy pequeÃ±o (4 px a 100%)
     let size = 4 * zoom;
 
     // Limitar para que nunca se hagan molestos
@@ -559,7 +437,7 @@
     if (!state.layout.designs || state.layout.designs.length === 0) {
       const empty = document.createElement('p');
       empty.className = 'muted';
-      empty.textContent = 'Subí PDFs para configurar ajustes de sangrado y marcas opcionales por diseño.';
+      empty.textContent = 'SubÃ­ PDFs para configurar ajustes de sangrado y marcas opcionales por diseÃ±o.';
       listEl.appendChild(empty);
       return;
     }
@@ -721,131 +599,11 @@
   }
 
   function getSimpleSlotBox(slot) {
-    return {
-      x: Number(slot.x_mm || 0),
-      y: Number(slot.y_mm || 0),
-      w: Number(slot.w_mm || 0),
-      h: Number(slot.h_mm || 0),
-    };
+    return geometry.getSimpleSlotBox(slot);
   }
 
   function validateGeometry(layout) {
-    const result = {
-      errors: [],
-      warnings: [],
-      bySlot: {},
-    };
-
-    if (!layout || !Array.isArray(layout.slots)) {
-      return result;
-    }
-
-    const sheet = Array.isArray(layout.sheet_mm) ? layout.sheet_mm : [0, 0];
-    const margins = Array.isArray(layout.margins_mm) ? layout.margins_mm : [0, 0, 0, 0];
-    const sheetW = Number(sheet[0] || 0);
-    const sheetH = Number(sheet[1] || 0);
-    const [marginLeft, marginRight, marginTop, marginBottom] = margins.map((value) => Number(value || 0));
-    const usableLeft = marginLeft;
-    const usableRight = sheetW - marginRight;
-    const usableBottom = marginBottom;
-    const usableTop = sheetH - marginTop;
-    const ctp = layout.ctp || {};
-    const gripperEnabled = !!ctp.enabled;
-    const gripper = Number(ctp.gripper_mm || 0);
-
-    const addIssue = (level, type, slotId, message, extra = {}) => {
-      const issue = { type, slot_id: slotId, message, ...extra };
-      if (level === 'error') {
-        result.errors.push(issue);
-      } else {
-        result.warnings.push(issue);
-      }
-
-      if (!slotId) return;
-      if (!result.bySlot[slotId]) {
-        result.bySlot[slotId] = { level, issues: [issue] };
-        return;
-      }
-      result.bySlot[slotId].issues.push(issue);
-      if (result.bySlot[slotId].level !== 'error' && level === 'error') {
-        result.bySlot[slotId].level = 'error';
-      }
-    };
-
-    const slots = layout.slots.filter((slot) => slot && typeof slot === 'object');
-
-    slots.forEach((slot) => {
-      const slotId = slot.id || '(sin id)';
-      const face = slot.face || 'front';
-      const { x, y, w, h } = getSimpleSlotBox(slot);
-      const right = x + w;
-      const top = y + h;
-
-      if (x < 0 || y < 0 || right > sheetW || top > sheetH) {
-        addIssue(
-          'error',
-          'OUT_OF_SHEET',
-          slotId,
-          `Slot ${slotId} (${face}) está fuera del pliego total.`,
-          { face },
-        );
-      }
-
-      if (x < usableLeft || y < usableBottom || right > usableRight || top > usableTop) {
-        addIssue(
-          'warning',
-          'OUT_OF_USABLE_AREA',
-          slotId,
-          `Slot ${slotId} (${face}) invade márgenes o sale del área útil del pliego.`,
-          { face },
-        );
-      }
-
-      if (gripperEnabled && y < gripper) {
-        addIssue(
-          'warning',
-          'GRIPPER',
-          slotId,
-          `Slot ${slotId} (${face}) invade la zona de pinza/CTP (${gripper} mm).`,
-          { face },
-        );
-      }
-    });
-
-    for (let i = 0; i < slots.length; i += 1) {
-      const a = slots[i];
-      const boxA = getSimpleSlotBox(a);
-      const aRight = boxA.x + boxA.w;
-      const aTop = boxA.y + boxA.h;
-      for (let j = i + 1; j < slots.length; j += 1) {
-        const b = slots[j];
-        const faceA = a.face || 'front';
-        const faceB = b.face || 'front';
-        if (faceA !== faceB) continue;
-        const boxB = getSimpleSlotBox(b);
-        const bRight = boxB.x + boxB.w;
-        const bTop = boxB.y + boxB.h;
-        const overlaps = boxA.x < bRight && aRight > boxB.x && boxA.y < bTop && aTop > boxB.y;
-        if (!overlaps) continue;
-
-        addIssue(
-          'warning',
-          'OVERLAP',
-          a.id || '(sin id)',
-          `Slot ${a.id || '(sin id)'} (${faceA}) se superpone con ${b.id || '(sin id)'}.`,
-          { face: faceA, other_slot_id: b.id || '(sin id)' },
-        );
-        addIssue(
-          'warning',
-          'OVERLAP',
-          b.id || '(sin id)',
-          `Slot ${b.id || '(sin id)'} (${faceB}) se superpone con ${a.id || '(sin id)'}.`,
-          { face: faceB, other_slot_id: a.id || '(sin id)' },
-        );
-      }
-    }
-
-    return result;
+    return geometryValidation.validateGeometry(layout);
   }
 
   function refreshGeometryValidation() {
@@ -863,8 +621,8 @@
     const visibleIssues = visibleErrors.concat(visibleWarnings);
 
     if (!visibleIssues.length) {
-      geometryValidationSummaryEl.textContent = `Cara ${activeFace}: sin problemas geométricos`;
-      geometryValidationListEl.innerHTML = '<div class="geometry-validation-empty">No se detectaron conflictos geométricos en la cara visible.</div>';
+      geometryValidationSummaryEl.textContent = `Cara ${activeFace}: sin problemas geomÃ©tricos`;
+      geometryValidationListEl.innerHTML = '<div class="geometry-validation-empty">No se detectaron conflictos geomÃ©tricos en la cara visible.</div>';
       return;
     }
 
@@ -1037,14 +795,11 @@
   }
 
   function formatSignedDistance(value) {
-    const rounded = Number(value || 0).toFixed(1);
-    return `${rounded} mm`;
+    return geometry.formatSignedDistance(value);
   }
 
   function rectDistance(boxA, boxB) {
-    const dx = Math.max(boxB.x - (boxA.x + boxA.w), boxA.x - (boxB.x + boxB.w), 0);
-    const dy = Math.max(boxB.y - (boxA.y + boxA.h), boxA.y - (boxB.y + boxB.h), 0);
-    return Math.sqrt(dx * dx + dy * dy);
+    return geometry.rectDistance(boxA, boxB);
   }
 
   function updateDistanceIndicator(slot) {
@@ -1072,10 +827,10 @@
     const face = slot.face || state.activeFace || 'front';
 
     const marginCandidates = [
-      { label: 'Margen útil izq.', value: box.x - usableLeft },
-      { label: 'Margen útil der.', value: usableRight - (box.x + box.w) },
-      { label: 'Margen útil inf.', value: box.y - usableBottom },
-      { label: 'Margen útil sup.', value: usableTop - (box.y + box.h) },
+      { label: 'Margen Ãºtil izq.', value: box.x - usableLeft },
+      { label: 'Margen Ãºtil der.', value: usableRight - (box.x + box.w) },
+      { label: 'Margen Ãºtil inf.', value: box.y - usableBottom },
+      { label: 'Margen Ãºtil sup.', value: usableTop - (box.y + box.h) },
     ];
     marginCandidates.sort((a, b) => Math.abs(a.value) - Math.abs(b.value));
     const nearestMargin = marginCandidates[0];
@@ -1311,7 +1066,7 @@
   }
 
   function roundMm(value) {
-    return Math.round((Number(value) || 0) * 1000) / 1000;
+    return geometry.roundMm(value);
   }
 
   function setSlotEffectiveBox(slot, left, bottom) {
@@ -1328,17 +1083,11 @@
   }
 
   function rectsIntersect(a, b) {
-    return a.minX <= b.maxX && a.maxX >= b.minX && a.minY <= b.maxY && a.maxY >= b.minY;
+    return geometry.rectsIntersect(a, b);
   }
 
   function slotFootprintRect(slot) {
-    const box = getEffectiveSlotBox(slot);
-    return {
-      minX: box.x,
-      maxX: box.x + box.effW,
-      minY: box.y,
-      maxY: box.y + box.effH,
-    };
+    return geometry.slotFootprintRect(slot);
   }
 
   function refreshSelectionAfterEdit() {
@@ -1351,17 +1100,7 @@
   }
 
   function getUsableSheetBounds() {
-    const sheet = state.layout.sheet_mm || [0, 0];
-    const margins = state.layout.margins_mm || [0, 0, 0, 0];
-    const [left = 0, right = 0, top = 0, bottom = 0] = margins;
-    const sheetW = Number(sheet[0] || 0);
-    const sheetH = Number(sheet[1] || 0);
-    return {
-      minX: Number(left || 0),
-      maxX: Math.max(Number(left || 0), sheetW - Number(right || 0)),
-      minY: Number(bottom || 0),
-      maxY: Math.max(Number(bottom || 0), sheetH - Number(top || 0)),
-    };
+    return geometry.getUsableSheetBounds(state.layout);
   }
 
   function selectAllSlotsOnActiveFace() {
@@ -1429,14 +1168,14 @@
       clearChildren(workSelectForUpload);
       const defaultOpt = document.createElement('option');
       defaultOpt.value = '';
-      defaultOpt.textContent = '-- Sin trabajo específico --';
+      defaultOpt.textContent = '-- Sin trabajo especÃ­fico --';
       workSelectForUpload.appendChild(defaultOpt);
     }
     state.layout.works.forEach((w) => {
       const item = document.createElement('div');
       item.className = 'item';
       if (state.selectedWork && state.selectedWork.id === w.id) item.classList.add('active');
-      item.textContent = `${w.name} · ${w.final_size_mm?.join('x')} mm · copias ${w.desired_copies}`;
+      item.textContent = `${w.name} Â· ${w.final_size_mm?.join('x')} mm Â· copias ${w.desired_copies}`;
       item.addEventListener('click', () => {
         state.selectedWork = w;
         fillWorkForm(w);
@@ -1520,7 +1259,7 @@
       const title = document.createElement('div');
       title.className = 'design-title';
       const work = state.layout.works.find((w) => w.id === d.work_id);
-      const workLabel = work ? ` · Trabajo: ${work.name}` : '';
+      const workLabel = work ? ` Â· Trabajo: ${work.name}` : '';
       title.textContent = `${d.filename || d.ref} (${d.ref})${workLabel}`;
       li.appendChild(title);
 
@@ -1597,14 +1336,14 @@
         pushHistory();
       });
       rotationLabel.appendChild(rotationInput);
-      rotationLabel.append(' Permitir rotación');
+      rotationLabel.append(' Permitir rotaciÃ³n');
       grid.appendChild(rotationLabel);
 
       const zoneLabel = document.createElement('label');
-      zoneLabel.textContent = 'Ubicación';
+      zoneLabel.textContent = 'UbicaciÃ³n';
       const zoneSelect = document.createElement('select');
       appendOptions(zoneSelect, [
-        { label: 'Automático', value: 'auto' },
+        { label: 'AutomÃ¡tico', value: 'auto' },
         { label: 'Arriba', value: 'top' },
         { label: 'Abajo', value: 'bottom' },
         { label: 'Izquierda', value: 'left' },
@@ -1637,11 +1376,11 @@
     const hint = document.getElementById('imposition-engine-hint');
     if (hint) {
       if (engine === 'nesting') {
-        hint.textContent = 'Nesting PRO optimiza la ubicación de cada diseño con rotación opcional.';
+        hint.textContent = 'Nesting PRO optimiza la ubicaciÃ³n de cada diseÃ±o con rotaciÃ³n opcional.';
       } else if (engine === 'hybrid') {
-        hint.textContent = 'Híbrido: se arma un patrón con Nesting PRO y se repite como bloque donde haya espacio disponible.';
+        hint.textContent = 'HÃ­brido: se arma un patrÃ³n con Nesting PRO y se repite como bloque donde haya espacio disponible.';
       } else {
-        hint.textContent = 'Step & Repeat PRO repetirá las formas declaradas respetando márgenes y pinzas.';
+        hint.textContent = 'Step & Repeat PRO repetirÃ¡ las formas declaradas respetando mÃ¡rgenes y pinzas.';
       }
     }
 
@@ -1718,7 +1457,7 @@
 
   function groupSelectedSlots() {
     if (!state.selectedSlots || state.selectedSlots.size < 2) {
-      alert('Seleccioná al menos dos slots para agrupar.');
+      alert('SeleccionÃ¡ al menos dos slots para agrupar.');
       return;
     }
 
@@ -1753,23 +1492,13 @@
   }
 
   function getSelectionBounds(slots) {
-    const boxes = slots.map((slot) => ({ slot, box: getEffectiveSlotBox(slot) }));
-    return boxes.reduce(
-      (acc, item) => {
-        acc.minX = Math.min(acc.minX, item.box.x);
-        acc.maxX = Math.max(acc.maxX, item.box.x + item.box.effW);
-        acc.minY = Math.min(acc.minY, item.box.y);
-        acc.maxY = Math.max(acc.maxY, item.box.y + item.box.effH);
-        return acc;
-      },
-      { minX: Infinity, maxX: -Infinity, minY: Infinity, maxY: -Infinity },
-    );
+    return geometry.getSelectionBounds(slots);
   }
 
   function alignSelectedSlots(mode) {
     const slots = getSelectedSlots({ editableOnly: true });
     if (slots.length < 2) {
-      alert('Seleccioná al menos dos slots desbloqueados para alinear.');
+      alert('SeleccionÃ¡ al menos dos slots desbloqueados para alinear.');
       return;
     }
 
@@ -1799,7 +1528,7 @@
   function distributeSelectedSlots(axis) {
     const slots = getSelectedSlots({ editableOnly: true });
     if (slots.length < 3) {
-      alert('Seleccioná al menos tres slots desbloqueados para distribuir.');
+      alert('SeleccionÃ¡ al menos tres slots desbloqueados para distribuir.');
       return;
     }
 
@@ -1874,65 +1603,11 @@
   }
 
   function groupSlotsByRow(slots) {
-    const margin = 2; // tolerancia extra en mm
-    const rows = [];
-    const byCenterY = [...slots].sort((a, b) => {
-      const boxA = getEffectiveSlotBox(a);
-      const boxB = getEffectiveSlotBox(b);
-      return boxA.cy - boxB.cy;
-    });
-
-    byCenterY.forEach((slot) => {
-      const box = getEffectiveSlotBox(slot);
-      const centerY = box.cy;
-      let targetRow = rows.find(
-        (row) => Math.abs(row.centerY - centerY) <= (Math.max(row.maxHeight, box.effH) / 2 + margin),
-      );
-      if (!targetRow) {
-        targetRow = { slots: [], centerY, maxHeight: box.effH };
-        rows.push(targetRow);
-      }
-      targetRow.slots.push(slot);
-      targetRow.centerY =
-        (targetRow.centerY * (targetRow.slots.length - 1) + centerY) / targetRow.slots.length;
-      targetRow.maxHeight = Math.max(targetRow.maxHeight, box.effH);
-    });
-
-    rows.sort((a, b) => a.centerY - b.centerY);
-    rows.forEach((row) => row.slots.sort((a, b) => getEffectiveSlotBox(a).x - getEffectiveSlotBox(b).x));
-    return rows;
+    return geometry.groupSlotsByRow(slots);
   }
 
   function groupSlotsByColumn(slots) {
-    const margin = 2;
-    const cols = [];
-    const byCenterX = [...slots].sort((a, b) => {
-      const boxA = getEffectiveSlotBox(a);
-      const boxB = getEffectiveSlotBox(b);
-      return boxA.cx - boxB.cx;
-    });
-
-    byCenterX.forEach((slot) => {
-      const box = getEffectiveSlotBox(slot);
-      const centerX = box.cx;
-      let targetCol = cols.find(
-        (col) => Math.abs(col.centerX - centerX) <= (Math.max(col.maxWidth, box.effW) / 2 + margin),
-      );
-      if (!targetCol) {
-        targetCol = { slots: [], centerX, maxWidth: box.effW };
-        cols.push(targetCol);
-      }
-      targetCol.slots.push(slot);
-      targetCol.centerX =
-        (targetCol.centerX * (targetCol.slots.length - 1) + centerX) / targetCol.slots.length;
-      targetCol.maxWidth = Math.max(targetCol.maxWidth, box.effW);
-    });
-
-    cols.sort((a, b) => a.centerX - b.centerX);
-    cols.forEach((col) =>
-      col.slots.sort((a, b) => getEffectiveSlotBox(a).y - getEffectiveSlotBox(b).y),
-    );
-    return cols;
+    return geometry.groupSlotsByColumn(slots);
   }
 
   function applyGapToSlots() {
@@ -1950,7 +1625,7 @@
         : null;
 
     if (!targetSlots) {
-      alert('Selecciona al menos 2 slots o ninguno para aplicar la separación.');
+      alert('Selecciona al menos 2 slots o ninguno para aplicar la separaciÃ³n.');
       return;
     }
 
@@ -2156,7 +1831,7 @@
     if (!ctp) return;
     const bbox = computeFrontBlockBBox();
     if (!bbox) {
-      alert('No hay slots en el frente para aplicar Producción / CTP.');
+      alert('No hay slots en el frente para aplicar ProducciÃ³n / CTP.');
       return;
     }
 
@@ -2198,7 +1873,7 @@
   async function generateStepRepeatFromSelectedSlot() {
     const master = getSelectedSlot();
     if (!master) {
-      alert('Seleccioná primero un slot maestro.');
+      alert('SeleccionÃ¡ primero un slot maestro.');
       return;
     }
 
@@ -2606,7 +2281,7 @@
 
   async function requestAutoLayout() {
     if (!state.layout.works || state.layout.works.length === 0) {
-      alert('Primero crea al menos un Trabajo lógico con su medida final y copias.');
+      alert('Primero crea al menos un Trabajo lÃ³gico con su medida final y copias.');
       return;
     }
     await saveLayout();
@@ -2635,7 +2310,7 @@
     if (!state.layout.designs || state.layout.designs.length === 0) {
       const warning = document.getElementById('imposition-warning');
       if (warning) warning.classList.remove('hidden');
-      alert('Configura al menos un diseño antes de aplicar el motor de imposición.');
+      alert('Configura al menos un diseÃ±o antes de aplicar el motor de imposiciÃ³n.');
       return;
     }
     normalizeDesignDefaults();
@@ -2643,9 +2318,9 @@
     syncSettingsToLayout();
     if (Array.isArray(state.layout.slots) && state.layout.slots.length > 0) {
       const confirmed = window.confirm(
-        'Aplicar el motor de imposición reemplazará los slots actuales del pliego.\n'
-          + 'Si realizaste ajustes manuales, se perderán esos cambios.\n'
-          + '¿Deseas continuar?',
+        'Aplicar el motor de imposiciÃ³n reemplazarÃ¡ los slots actuales del pliego.\n'
+          + 'Si realizaste ajustes manuales, se perderÃ¡n esos cambios.\n'
+          + 'Â¿Deseas continuar?',
       );
       if (!confirmed) return;
     }
@@ -3077,7 +2752,7 @@
     renderGeometryValidationPanel();
     if (geometry.errors.length || geometry.warnings.length) {
       alert(
-        `Advertencia geométrica antes de la preview:\n- ${geometry.errors.length} errores\n- ${geometry.warnings.length} advertencias\nRevisa el panel debajo del pliego para más detalle.`,
+        `Advertencia geomÃ©trica antes de la preview:\n- ${geometry.errors.length} errores\n- ${geometry.warnings.length} advertencias\nRevisa el panel debajo del pliego para mÃ¡s detalle.`,
       );
     }
     await saveLayout();
@@ -3107,7 +2782,7 @@
     renderGeometryValidationPanel();
     if (geometry.errors.length || geometry.warnings.length) {
       alert(
-        `Advertencia geométrica antes del PDF:\n- ${geometry.errors.length} errores\n- ${geometry.warnings.length} advertencias\nRevisa el panel debajo del pliego para más detalle.`,
+        `Advertencia geomÃ©trica antes del PDF:\n- ${geometry.errors.length} errores\n- ${geometry.warnings.length} advertencias\nRevisa el panel debajo del pliego para mÃ¡s detalle.`,
       );
     }
     await saveLayout();

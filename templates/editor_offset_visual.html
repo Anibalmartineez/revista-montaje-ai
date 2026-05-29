@@ -527,6 +527,10 @@
     window.INITIAL_LAYOUT_JSON = {{ layout_json|tojson|safe }};
     window.JOB_ID = {{ job_id|tojson|safe }};
   </script>
+  <script src="{{ url_for('static', filename='js/editor_offset_visual/dom_refs.js') }}"></script>
+  <script src="{{ url_for('static', filename='js/editor_offset_visual/defaults.js') }}"></script>
+  <script src="{{ url_for('static', filename='js/editor_offset_visual/geometry.js') }}"></script>
+  <script src="{{ url_for('static', filename='js/editor_offset_visual/geometry_validation.js') }}"></script>
   <script src="{{ url_for('static', filename='js/editor_offset_visual.js') }}"></script>
 </body>
 </html>
