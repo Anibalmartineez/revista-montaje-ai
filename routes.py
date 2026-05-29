@@ -2,7 +2,6 @@ import os
 import base64
 import io
 import math
-from copy import deepcopy
 import fitz
 import uuid
 import tempfile
@@ -40,6 +39,7 @@ from services.editor_layout_contracts import (
 )
 from services import editor_offset_jobs as editor_jobs
 from services import editor_offset_imposition_service as editor_imposition
+from services import editor_offset_http_service as editor_http
 from services import editor_offset_layout_defaults as editor_layout_defaults
 from services import editor_offset_uploads as editor_uploads
 from services.editor_offset_output_contract import validate_constructor_output_layout
@@ -70,7 +70,6 @@ from montaje_offset import montar_pliego_offset
 from montaje_offset_inteligente import (
     Diseno,
     MontajeConfig,
-    montar_offset_desde_layout,
     realizar_montaje_inteligente,
     generar_preview_pliego,
 )
@@ -86,7 +85,6 @@ from diagnostico_flexo import (
     obtener_coeficientes_material,
 )
 from simulador_riesgos import simular_riesgos
-from cuadernillos.simulator import CuadernilloSimulationError, simular_cuadernillo
 
 # Carpeta de subidas dentro de ``static`` para persistir archivos entre
 # formularios y poder servirlos directamente.
@@ -124,6 +122,12 @@ def _json_error(msg, code=422, **payload):
     body = {"ok": False, "error": msg}
     body.update(payload)
     return jsonify(body), code
+
+
+def _editor_http_response(result: editor_http.EditorHttpResult):
+    if result.status == 200:
+        return jsonify(result.payload)
+    return jsonify(result.payload), result.status
 
 
 @routes_bp.app_errorhandler(RequestEntityTooLarge)
@@ -288,62 +292,27 @@ def _load_or_init_constructor_layout(job_id: str) -> tuple[str, Dict]:
 
 @routes_bp.route("/editor_offset_visual", methods=["GET"])
 def editor_offset_visual():
-    job_id_param = request.args.get("job_id")
-    job_id = _safe_job_id(job_id_param) or uuid.uuid4().hex[:12]
-    job_dir, layout = _load_or_init_constructor_layout(job_id)
-    layout_json = json.dumps(layout)
-    return render_template(
-        "editor_offset_visual.html",
-        job_id=job_id,
-        layout_json=layout_json,
-    )
+    template_name, context = editor_http.editor_visual_context(request.args.get("job_id"))
+    return render_template(template_name, **context)
 
 
 @routes_bp.route("/editor_offset/save", methods=["POST"])
 def editor_offset_save():
     job_id_raw, layout = _parse_constructor_payload()
-    job_id = _safe_job_id(job_id_raw)
-    if not job_id:
-        return _json_error("job_id inválido")
-    if layout is None:
-        return _json_error("layout_json faltante")
-    layout, _ = _ensure_faces_fields(layout)
-    layout, _ = _ensure_imposition_fields(layout)
-    layout, _ = _ensure_export_fields(layout)
-    job_dir = _constructor_job_dir(job_id)
-    _save_constructor_layout(job_dir, layout)
-    return jsonify({"ok": True, "job_id": job_id})
+    return _editor_http_response(editor_http.save_constructor_layout_from_payload(job_id_raw, layout))
 
 
 @routes_bp.route("/editor_offset/cuadernillos/simular", methods=["POST"])
 def editor_offset_cuadernillos_simular():
     payload = request.get_json(silent=True) or {}
-    try:
-        resultado = simular_cuadernillo(payload)
-    except CuadernilloSimulationError as exc:
-        return _json_error(str(exc), 422)
-    return jsonify({"ok": True, "simulacion": resultado})
+    return _editor_http_response(editor_http.simulate_cuadernillo(payload))
 
 
 @routes_bp.route("/editor_offset/upload/<job_id>", methods=["POST"])
 def editor_offset_upload(job_id: str):
-    safe_job_id = _safe_job_id(job_id)
-    if not safe_job_id:
-        return _json_error("job_id inválido")
-    job_dir, layout = _load_or_init_constructor_layout(safe_job_id)
     files = request.files.getlist("files") or request.files.getlist("file")
-    if not files:
-        return _json_error("No se enviaron PDFs")
-
     work_id_form = request.form.get("work_id") or None
-    designs = editor_uploads.append_uploaded_designs(
-        job_dir=job_dir,
-        layout=layout,
-        files=files,
-        work_id_form=work_id_form,
-    )
-    _save_constructor_layout(job_dir, layout)
-    return jsonify({"designs": designs})
+    return _editor_http_response(editor_http.upload_editor_designs(job_id, files, work_id_form))
 
 
 def _build_fake_pdf(path: str, size_mm: tuple[float, float]) -> None:
@@ -647,56 +616,18 @@ def _select_imposition_engine(
 
 @routes_bp.route("/editor_offset/auto_layout/<job_id>", methods=["POST"])
 def editor_offset_auto_layout(job_id: str):
-    safe_job_id = _safe_job_id(job_id)
-    if not safe_job_id:
-        return _json_error("job_id inválido")
     payload_layout = (_parse_constructor_payload()[1])
-    job_dir = _constructor_job_dir(safe_job_id)
-    layout = payload_layout or _load_constructor_layout(job_dir) or _default_constructor_layout()
-    updated = _generate_slots_with_ai(layout, job_dir)
-    return jsonify({"ok": True, "layout": updated})
+    return _editor_http_response(
+        editor_http.generate_auto_layout(job_id, payload_layout, _generate_slots_with_ai)
+    )
 
 
 @routes_bp.post("/editor_offset_visual/apply_imposition")
 def editor_offset_apply_imposition():
     job_id_raw, payload_layout = _parse_constructor_payload()
-    job_id = _safe_job_id(job_id_raw)
-    if not job_id:
-        return _json_error("job_id inválido")
-
-    job_dir, stored_layout = _load_or_init_constructor_layout(job_id)
-    layout = payload_layout or stored_layout or _default_constructor_layout()
-    layout, _ = _ensure_faces_fields(layout)
-    layout, _ = _ensure_imposition_fields(layout)
-
-    if not layout.get("designs"):
-        return _json_error("Configurá al menos un diseño con sus formas por pliego antes de aplicar la imposición.")
-
-    selected_engine = _select_imposition_engine(
-        layout,
-        payload_layout,
-        request.form.get("selected_engine"),
+    return _editor_http_response(
+        editor_http.apply_imposition(job_id_raw, payload_layout, request.form.get("selected_engine"))
     )
-    layout["imposition_engine"] = selected_engine
-
-    try:
-        layout_for_engine = deepcopy(layout)
-        layout_for_engine["slots"] = []
-        slots = _apply_imposition_engine(layout_for_engine, selected_engine)
-    except IncompleteImpositionError as exc:
-        current_app.logger.warning(
-            "Imposicion incompleta en Step & Repeat PRO para job %s: %s | details=%s",
-            job_id,
-            str(exc),
-            exc.details,
-        )
-        return _json_error(str(exc), details=exc.details)
-    except ValueError as exc:
-        return _json_error(str(exc))
-
-    layout["slots"] = slots
-    _save_constructor_layout(job_dir, layout)
-    return jsonify({"ok": True, "layout": layout})
 
 
 @routes_bp.post("/ai/step_repeat_action")
@@ -776,40 +707,12 @@ def ai_step_repeat_action_openai():
 
 @routes_bp.route("/editor_offset/preview/<job_id>", methods=["POST"])
 def editor_offset_preview(job_id: str):
-    safe_job_id = _safe_job_id(job_id)
-    if not safe_job_id:
-        return _json_error("job_id inválido")
-    job_dir, layout = _load_or_init_constructor_layout(safe_job_id)
-    errors, warnings = _validate_constructor_output_layout(layout)
-    if errors:
-        return _json_error(
-            "El layout contiene errores de contrato y no se puede generar la preview.",
-            422,
-            errors=errors,
-            warnings=warnings,
-        )
-    preview_path = montar_offset_desde_layout(layout, job_dir, preview=True)
-    rel = os.path.relpath(preview_path, current_app.static_folder).replace("\\", "/")
-    return jsonify({"ok": True, "url": url_for("static", filename=rel), "warnings": warnings})
+    return _editor_http_response(editor_http.generate_preview(job_id))
 
 
 @routes_bp.route("/editor_offset/generar_pdf/<job_id>", methods=["POST"])
 def editor_offset_generar_pdf(job_id: str):
-    safe_job_id = _safe_job_id(job_id)
-    if not safe_job_id:
-        return _json_error("job_id inválido")
-    job_dir, layout = _load_or_init_constructor_layout(safe_job_id)
-    errors, warnings = _validate_constructor_output_layout(layout)
-    if errors:
-        return _json_error(
-            "El layout contiene errores de contrato y no se puede generar el PDF final.",
-            422,
-            errors=errors,
-            warnings=warnings,
-        )
-    pdf_path = montar_offset_desde_layout(layout, job_dir, preview=False)
-    rel = os.path.relpath(pdf_path, current_app.static_folder).replace("\\", "/")
-    return jsonify({"ok": True, "url": url_for("static", filename=rel), "warnings": warnings})
+    return _editor_http_response(editor_http.generate_pdf(job_id))
 
 
 def call_openai_for_editor_chat(user_message: str, layout_state: Dict, job_id: str) -> Dict:
