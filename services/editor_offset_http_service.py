@@ -9,11 +9,11 @@ from flask import current_app, url_for
 from werkzeug.datastructures import FileStorage
 
 from cuadernillos.simulator import CuadernilloSimulationError, simular_cuadernillo
-from montaje_offset_inteligente import montar_offset_desde_layout
 from services import editor_offset_imposition_service as editor_imposition
 from services import editor_offset_jobs as editor_jobs
 from services import editor_offset_layout_defaults as editor_layout_defaults
 from services import editor_offset_uploads as editor_uploads
+from services.editor_offset_output_service import montar_offset_desde_layout
 from services.editor_offset_output_contract import validate_constructor_output_layout
 
 
