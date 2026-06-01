@@ -42,6 +42,15 @@ El foco prioritario del proyecto es:
 - `templates/editor_offset_visual.html`
 - `static/js/editor_offset_visual.js`
 - `static/css/editor_offset_visual.css`
+- `static/js/editor_offset_visual/` contiene modulos auxiliares ya extraidos en Fase 5A/5B.
+- `static/js/editor_offset_visual.js` sigue siendo el entrypoint compatible del editor.
+
+### Modulos frontend extraidos Fase 5A/5B
+
+- Fase 5A: `dom_refs.js`, `defaults.js`, `geometry.js`, `geometry_validation.js`.
+- Fase 5B: `api_client.js`, `output_panel.js`, `ai_panel.js`, `ctp_panel.js`, `booklet_panel.js`.
+- Estos modulos no deben registrar listeners nuevos ni cambiar IDs/DOM sin una fase separada.
+- `renderSheet`, drag/resize, seleccion, box select, nudge, align y distribute siguen siendo zonas de alto riesgo para Fase 5C/5D.
 
 ## Backend Flask
 
@@ -52,8 +61,10 @@ El foco prioritario del proyecto es:
 
 - `engines/step_repeat_pro_engine.py` contiene el motor canónico actual de Step & Repeat PRO automático.
 - `services/editor_offset_imposition_service.py` decide y aplica el motor seleccionado: `repeat`, `nesting` o `hybrid`.
-- `routes.py` funciona como fachada/orquestador Flask y mantiene wrappers compatibles para endpoints, imports legacy y herramientas IA.
-- `montaje_offset_inteligente.py` sigue siendo el motor de salida/render para preview y PDF final.
+- `services/editor_offset_http_service.py` contiene la fachada backend del Editor Visual IA para endpoints HTTP ya separados en Fase 2.
+- `routes.py` funciona como wrapper/fachada Flask compatible y mantiene URLs publicas, imports legacy y wrappers necesarios.
+- `services/editor_offset_output_service.py` contiene la salida preview/PDF del editor extraida en Fase 3.
+- `montaje_offset_inteligente.py` conserva wrapper compatible para `montar_offset_desde_layout` y mantiene funciones legacy de montaje inteligente.
 - `cuadernillos/simulator.py` sigue siendo el motor aislado del simulador de cuadernillos.
 
 ## Motores alternativos o secundarios
@@ -80,6 +91,7 @@ El motor prioritario actual del Editor Visual IA es:
 ## IA / Agents SDK
 
 - `ai_agent/tools_repeat.py` y `ai_agent/openai_tool_bridge.py` pertenecen al asistente IA integrado al panel del Editor Visual IA para Step & Repeat.
+- Desde Fase 4 SAFE, `ai_agent/tools_repeat.py` depende del motor canonico `engines.step_repeat_pro_engine.build_step_repeat_slots`, no de helpers internos de `routes.py`.
 - `ai_agent/editor_advisor/` contiene el prototipo actual con OpenAI Agents SDK y perfil UX/UI SAFE para el Editor Visual IA.
 - El agente SDK `editor_advisor` es por ahora CLI-only y read-only: no esta integrado a Flask, no tiene endpoints, no esta conectado a la UI y no debe modificar archivos.
 - El agente usa `AGENTS.md` y `DOCS/OFFSET/14_MAPA_FUNCIONAL_EDITOR_VISUAL_IA.md` como memoria/contexto arquitectonico principal.
@@ -95,6 +107,17 @@ El motor prioritario actual del Editor Visual IA es:
   - backend/contrato prohibido
 - No modificar ni integrar `ai_agent/editor_advisor/` sin plan tecnico previo, revision de documentacion y validacion de alcance.
 - No conectar `editor_advisor` a Flask/UI ni darle tools de escritura sin una fase separada con guardrails, tests y aprobacion explicita.
+
+## Cierre parcial separacion modular SAFE
+
+- Fases 1, 2, 3, 4, 5A y 5B de separacion modular del Editor Visual IA quedan completadas documentalmente.
+- Fase 1 agrego tests de caracterizacion antes de mover responsabilidades.
+- Fase 2 separo fachada HTTP en `services/editor_offset_http_service.py` manteniendo `routes.py` como wrapper compatible.
+- Fase 3 separo output del editor en `services/editor_offset_output_service.py` manteniendo compatibilidad en `montaje_offset_inteligente.py`.
+- Fase 4 normalizo IA repeat para no depender de `routes.py`.
+- Fase 5A/5B inicio modularizacion frontend por funciones puras, API y paneles independientes.
+- Fase 5C, Fase 5D y Fase 6 siguen pendientes y son de alto riesgo: renderer/canvas, interacciones complejas y movimiento fisico de estructura.
+- `node --check` puede quedar bloqueado en entorno Codex por `Acceso denegado` a `node.exe`; documentar ese bloqueo sin tocar configuracion del sistema.
 
 ## Documentación
 
@@ -294,6 +317,14 @@ git diff --check
 ```bash
 node --check static/js/editor_offset_visual.js
 ```
+
+Para Fase 5A/5B tambien validar, cuando Node este disponible:
+
+```bash
+node --check static/js/editor_offset_visual/*.js
+```
+
+Si `node --check` falla por `Acceso denegado` a `node.exe` en entorno Codex, registrar el bloqueo y continuar con las demas validaciones sin tocar configuracion del sistema.
 
 ## Validación tests
 

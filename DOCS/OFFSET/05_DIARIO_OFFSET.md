@@ -1164,3 +1164,46 @@ No se cambiaron:
 Fase futura sugerida:
 
 - Fase 11: `Canvas Geometry Polish`
+
+## 2026-06-01 Cierre parcial separacion modular SAFE Fases 1-5B
+
+### Objetivo
+
+Actualizar el estado documental del proyecto despues de completar las Fases 1, 2, 3, 4, 5A y 5B del roadmap de separacion del Editor Visual IA, sin modificar codigo productivo, frontend funcional, backend, tests ni contratos JSON.
+
+### Estado completado
+
+- Fase 1: tests de caracterizacion para congelar comportamiento antes de extraer responsabilidades.
+- Fase 2: fachada backend en `services/editor_offset_http_service.py`; `routes.py` conserva URLs publicas y wrappers compatibles.
+- Fase 3: output del editor extraido a `services/editor_offset_output_service.py`; `montaje_offset_inteligente.py` conserva wrapper compatible y funciones legacy.
+- Fase 4: `ai_agent/tools_repeat.py` usa `engines.step_repeat_pro_engine.build_step_repeat_slots` y deja de depender de helpers internos de `routes.py`.
+- Fase 5A: modulos frontend puros extraidos en `static/js/editor_offset_visual/dom_refs.js`, `defaults.js`, `geometry.js`, `geometry_validation.js`.
+- Fase 5B: modulos frontend de red/paneles extraidos en `api_client.js`, `output_panel.js`, `ai_panel.js`, `ctp_panel.js`, `booklet_panel.js`.
+
+### Metricas registradas
+
+- Servicios extraidos en el roadmap de separacion: 2 (`editor_offset_http_service.py`, `editor_offset_output_service.py`).
+- Modulos JS extraidos: 9 bajo `static/js/editor_offset_visual/`.
+- Tests relevantes actuales:
+  - `tests/test_editor_offset_characterization.py`
+  - `tests/test_step_repeat_pro_engine.py`
+  - `tests/test_editor_offset_output_contract.py`
+  - `tests/test_cuadernillos_simulator.py`
+  - `tests/test_editor_advisor_tools.py`
+
+### Validacion de cierre Fase 5B
+
+- `python -m compileall routes.py montaje_offset_inteligente.py engines cuadernillos ai_agent services strategies`: OK.
+- `venv\Scripts\pytest.exe tests\test_step_repeat_pro_engine.py tests\test_editor_offset_output_contract.py tests\test_cuadernillos_simulator.py tests\test_editor_offset_characterization.py -q -p no:cacheprovider`: OK, `53 passed`.
+- `git diff --check`: OK.
+- `node --check` sobre `static/js/editor_offset_visual.js` y modulos 5B: bloqueado por `Acceso denegado` a `node.exe` en entorno Codex. No se toco configuracion del sistema.
+
+### Riesgos pendientes
+
+- Fase 5C: renderer/canvas/sheet sigue siendo alto riesgo por `renderSheet`, CTP guide, geometry markers, zoom y dependencias visuales.
+- Fase 5D: interacciones complejas siguen siendo alto riesgo por seleccion, drag, resize, box select, nudge, align, distribute y listeners acoplados a IDs.
+- Fase 6: movimiento fisico a paquete `editor_offset/` sigue bloqueado hasta tener aliases legacy, tests e imports completamente estabilizados.
+
+### Decision documental
+
+Fase 10 queda como baseline UX historica cerrada. El roadmap activo actual pasa a ser la separacion modular SAFE del Editor Visual IA, con Fases 1-5B completadas y Fases 5C/5D/6 pendientes.

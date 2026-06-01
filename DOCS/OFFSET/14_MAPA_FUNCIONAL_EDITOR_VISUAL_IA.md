@@ -30,6 +30,39 @@ Este documento sigue siendo la fuente de verdad arquitectonica del Editor Visual
 
 El agente SDK es actualmente **CLI-only y read-only**. No esta integrado a Flask, no tiene endpoints, no esta conectado a la UI, no modifica archivos y debe tratarse como una herramienta de analisis/planificacion y generacion de prompts SAFE para Codex, no como automatizacion productiva.
 
+## Estado actual separacion modular SAFE Fases 1-5B
+
+Este documento tambien registra el cierre parcial del roadmap activo de separacion modular del Editor Visual IA:
+
+- Fase 1 completada: tests de caracterizacion antes de extraer responsabilidades.
+- Fase 2 completada: `services/editor_offset_http_service.py` concentra la fachada HTTP del editor; `routes.py` conserva endpoints publicos y wrappers compatibles.
+- Fase 3 completada: `services/editor_offset_output_service.py` concentra la salida preview/PDF del editor; `montaje_offset_inteligente.py` conserva wrapper compatible y funciones legacy.
+- Fase 4 completada: `ai_agent/tools_repeat.py` usa `engines.step_repeat_pro_engine.build_step_repeat_slots` y ya no depende de helpers internos de `routes.py`.
+- Fase 5A completada: `dom_refs.js`, `defaults.js`, `geometry.js`, `geometry_validation.js`.
+- Fase 5B completada: `api_client.js`, `output_panel.js`, `ai_panel.js`, `ctp_panel.js`, `booklet_panel.js`.
+
+Garantias conservadas:
+
+- no se cambiaron URLs publicas
+- no se cambiaron contratos JSON
+- no se cambio semantica de `slot_box_final`, `rotation_deg`, `face`, `design_ref`, `forms_per_plate` ni `spacingSettings`
+- no se tocaron motores de imposicion ni Step & Repeat PRO como comportamiento productivo
+- `static/js/editor_offset_visual.js` sigue siendo entrypoint compatible
+- los modulos frontend nuevos no registran listeners
+
+Pendientes de alto riesgo:
+
+- Fase 5C: renderer/canvas/sheet, especialmente `renderSheet`, zoom, CTP guide y geometry markers.
+- Fase 5D: seleccion, drag, resize, box select, nudge, align, distribute y listeners acoplados a IDs.
+- Fase 6: movimiento fisico hacia paquete `editor_offset/` con aliases legacy e imports graduales.
+
+Metrica de cierre Fase 5B:
+
+- `python -m compileall routes.py montaje_offset_inteligente.py engines cuadernillos ai_agent services strategies`: OK
+- suite obligatoria de cierre: `53 passed`
+- `git diff --check`: OK
+- `node --check`: bloqueado por `Acceso denegado` a `node.exe` en entorno Codex, registrado como bloqueo de entorno
+
 ## 1. Resumen general del Editor Visual IA
 
 El Editor Visual IA es hoy el flujo principal y mas moderno del modulo offset. Funciona como un constructor visual por job para preparar montajes de imprenta:
@@ -45,14 +78,17 @@ El Editor Visual IA es hoy el flujo principal y mas moderno del modulo offset. F
 La fuente operativa principal esta repartida entre:
 
 - frontend vivo: `static/js/editor_offset_visual.js`
+- modulos frontend auxiliares: `static/js/editor_offset_visual/`
 - template: `templates/editor_offset_visual.html`
 - estilos: `static/css/editor_offset_visual.css`
-- orquestacion Flask / fachada compatible: `routes.py`
+- orquestacion Flask / wrapper compatible: `routes.py`
+- fachada HTTP del editor: `services/editor_offset_http_service.py`
 - persistencia, defaults y uploads: `services/editor_offset_jobs.py`, `services/editor_offset_layout_defaults.py`, `services/editor_offset_uploads.py`
 - selector de imposicion: `services/editor_offset_imposition_service.py`
 - motor Step & Repeat PRO: `engines/step_repeat_pro_engine.py`
 - validacion de salida: `services/editor_offset_output_contract.py`
-- salida preview/PDF: `montaje_offset_inteligente.py`
+- salida preview/PDF del editor: `services/editor_offset_output_service.py`
+- wrapper/legacy de salida: `montaje_offset_inteligente.py`
 - nesting auxiliar: `engines/nesting_pro_engine.py`
 - simulador aislado: `cuadernillos/simulator.py`
 - asesor SDK read-only: `ai_agent/editor_advisor/`
@@ -206,7 +242,8 @@ Estado Fase 9:
 - PDF final: `POST /editor_offset/generar_pdf/<job_id>`
 - ambos leen el layout persistido desde disco
 - ambos validan con `validate_constructor_output_layout(layout)`
-- ambos generan salida con `montaje_offset_inteligente.montar_offset_desde_layout`
+- ambos generan salida mediante `services.editor_offset_output_service.montar_offset_desde_layout`
+- `montaje_offset_inteligente.montar_offset_desde_layout` queda como wrapper compatible
 - salida por frente/dorso segun `slots[].face`
 - soporte de `export_settings`
 - soporte de `design_export`
@@ -225,7 +262,7 @@ Estado Fase 9:
   - texto tecnico
 - aplicacion de alineacion CTP desde frontend
 - bloqueo opcional de slots despues de aplicar CTP
-- interpretacion final en `montaje_offset_inteligente.py`
+- interpretacion final del editor en `services/editor_offset_output_service.py`, con compatibilidad legacy en `montaje_offset_inteligente.py`
 
 ### Simulador de cuadernillos
 
@@ -344,9 +381,10 @@ Estado Fase 9:
 13. Para preview/PDF, el frontend solicita primero guardar el layout.
 14. Preview/PDF no leen el estado efimero del navegador; releen el JSON persistido.
 15. `services.editor_offset_output_contract.validate_constructor_output_layout` bloquea errores de contrato.
-16. `montaje_offset_inteligente.montar_offset_desde_layout` transforma `slots[]` en posiciones de frente/dorso.
-17. `montaje_offset_inteligente.realizar_montaje_inteligente` genera preview o PDF final.
-18. El frontend muestra la imagen de preview o el enlace al PDF.
+16. `services.editor_offset_output_service.montar_offset_desde_layout` transforma `slots[]` en posiciones de frente/dorso.
+17. El wrapper compatible de `montaje_offset_inteligente.montar_offset_desde_layout` conserva imports legacy.
+18. El servicio de salida genera preview o PDF final reutilizando las dependencias legacy necesarias.
+19. El frontend muestra la imagen de preview o el enlace al PDF.
 
 ## 4. Mapa de archivos conectados al editor
 
@@ -354,6 +392,7 @@ Estado Fase 9:
 
 - `templates/editor_offset_visual.html`
 - `static/js/editor_offset_visual.js`
+- `static/js/editor_offset_visual/`
 - `static/css/editor_offset_visual.css`
 
 ### Backend Flask directo
@@ -365,6 +404,7 @@ Estado Fase 9:
 
 - `engines/step_repeat_pro_engine.py`
 - `services/editor_offset_imposition_service.py`
+- `services/editor_offset_output_service.py`
 - `montaje_offset_inteligente.py`
 - `engines/nesting_pro_engine.py`
 - `cuadernillos/simulator.py`
@@ -374,8 +414,10 @@ Estado Fase 9:
 - `services/editor_offset_jobs.py`
 - `services/editor_offset_layout_defaults.py`
 - `services/editor_offset_uploads.py`
+- `services/editor_offset_http_service.py`
 - `services/editor_offset_imposition_service.py`
 - `services/editor_offset_output_contract.py`
+- `services/editor_offset_output_service.py`
 - `services/editor_layout_contracts.py` para editor post-imposicion, no fuente principal del Editor Visual IA
 - `services/openai_client.py`
 
@@ -705,9 +747,9 @@ Servicio de uploads:
 - lectura de medidas PDF
 - construccion de metadata `designs[]`
 
-### `montaje_offset_inteligente.py`
+### `services/editor_offset_output_service.py`
 
-Es el motor real de salida final. Para el Editor Visual IA:
+Servicio de salida del Editor Visual IA extraido en Fase 3:
 
 - recibe `layout_constructor.json`
 - resuelve PDFs reales desde `designs[]`
@@ -720,7 +762,9 @@ Es el motor real de salida final. Para el Editor Visual IA:
 - arma frente/dorso cuando corresponde
 - aplica CTP y marcas tecnicas segun configuracion
 
-No debe tratarse como el motor principal de Step & Repeat del editor. Es el motor de render/salida.
+### `montaje_offset_inteligente.py`
+
+Conserva wrapper compatible para `montar_offset_desde_layout` y funciones legacy de montaje inteligente. No debe tratarse como el motor principal de Step & Repeat del editor ni como el unico punto de salida del Editor Visual IA.
 
 ### `engines/nesting_pro_engine.py`
 
@@ -764,13 +808,13 @@ Validador de contrato minimo previo a preview/PDF:
 Tools locales para IA:
 
 - analiza layout
-- genera repeat usando wrappers compatibles de `routes.py`, que delegan al motor en `engines/step_repeat_pro_engine.py`
+- genera repeat usando directamente `engines.step_repeat_pro_engine.build_step_repeat_slots`
 - valida repeat
 - cambia zonas de disenos
 - centra layout
 - optimiza repeat con retry controlado
 
-Depende de la fachada compatible de `routes.py`; el motor real vive en `engines/step_repeat_pro_engine.py`.
+Ya no depende de helpers internos de `routes.py`; el motor real vive en `engines/step_repeat_pro_engine.py`.
 
 ### `ai_agent/openai_tool_bridge.py`
 
@@ -851,11 +895,11 @@ Dependen directamente de `routes.py` como fachada Flask y capa de compatibilidad
 - preview y PDF como endpoints Flask
 - alias de validacion de salida
 
-Riesgo: `routes.py` sigue concentrando endpoints y compatibilidad. Un refactor apresurado puede romper imports legacy o endpoints aunque jobs, defaults, uploads, imposicion, validacion de salida y Step & Repeat PRO ya tengan modulos dedicados.
+Riesgo: `routes.py` sigue exponiendo endpoints y compatibilidad publica. Un refactor apresurado puede romper imports legacy o endpoints aunque jobs, defaults, uploads, imposicion, validacion de salida, fachada HTTP, output del editor y Step & Repeat PRO ya tengan modulos dedicados.
 
 ## 9. Funcionalidades que dependen de `montaje_offset_inteligente.py`
 
-Dependen directamente de este archivo:
+Dependen del flujo de salida que ahora esta separado para el editor entre `services/editor_offset_output_service.py` y el wrapper compatible de `montaje_offset_inteligente.py`:
 
 - render real de preview
 - generacion real de PDF final
@@ -873,19 +917,32 @@ Dependen directamente de este archivo:
 - armado de PDF final frente/dorso
 - funciones legacy de montaje inteligente usadas por otras rutas
 
-Riesgo: cambios hechos pensando solo en el Editor Visual IA pueden romper `/montaje_offset_inteligente` u otros flujos que comparten este motor.
+Riesgo: cambios hechos pensando solo en el Editor Visual IA pueden romper `/montaje_offset_inteligente` u otros flujos que comparten funciones legacy de `montaje_offset_inteligente.py`.
 
 ## 10. Partes mezcladas que conviene separar en el futuro
 
 ### En frontend
 
-- estado global + render + IO + herramientas + IA + cuadernillos en un solo JS
+- estado global + render + herramientas e interacciones complejas siguen concentrados en el entrypoint
+- API, paneles independientes, defaults, DOM refs, geometria pura y validacion geometrica ya tienen modulos auxiliares
 - listeners acoplados a ids especificos
 - validacion visual mezclada con render de pliego
 - `geometry-validation-panel` ya funciona como area contextual/status, pero puede evolucionar a status bar tecnica compacta
 - CTP mezcla configuracion, alineacion y render
 - cuadernillos comparte archivo JS/CSS con el editor principal aunque no modifica layout
 - preview/PDF usa alerts y manejo de errores dentro del mismo flujo del editor
+
+Separacion ya realizada:
+
+- `dom_refs.js`
+- `defaults.js`
+- `geometry.js`
+- `geometry_validation.js`
+- `api_client.js`
+- `output_panel.js`
+- `ai_panel.js`
+- `ctp_panel.js`
+- `booklet_panel.js`
 
 Separacion futura recomendada:
 
@@ -895,21 +952,15 @@ Separacion futura recomendada:
 - `slot_interactions.js`
 - `manual_tools.js`
 - `designs_panel.js`
-- `ctp_panel.js`
-- `output_panel.js`
-- `ai_panel.js`
-- `booklet_simulator_panel.js`
 - `editor_status_bar.js` si se decide evolucionar la validacion geometrica existente sin duplicarla
 
 ### En backend
 
 - `routes.py` todavia concentra:
-  - HTTP
   - wrappers de compatibilidad
   - IA endpoints
-  - preview/PDF endpoints
-  - endpoint de cuadernillos
-- persistencia, defaults, uploads, Step & Repeat PRO y selector de imposicion ya tienen modulos dedicados
+  - endpoints publicos Flask que delegan al servicio HTTP del editor
+- persistencia, defaults, uploads, Step & Repeat PRO, selector de imposicion, fachada HTTP y output del editor ya tienen modulos dedicados
 - validaciones de layout estan parcialmente en frontend, parcialmente en service y parcialmente implicitas en motores
 - CTP vive repartido entre frontend y salida
 - `montaje_offset_inteligente.py` sirve al editor y a flujos legacy
@@ -921,10 +972,11 @@ Separacion ya realizada:
 - `services/editor_offset_uploads.py`
 - `engines/step_repeat_pro_engine.py`
 - `services/editor_offset_imposition_service.py`
+- `services/editor_offset_http_service.py`
+- `services/editor_offset_output_service.py`
 
 Separacion futura recomendada:
 
-- `services/editor_offset_output_service.py`
 - `services/editor_offset_ctp_service.py`
 - mantener `services/editor_offset_output_contract.py` como validador incremental
 
@@ -947,8 +999,12 @@ Separar sin cambiar contrato externo. Primero mover responsabilidades internas c
 
 ```text
 routes.py
-  solo endpoints del editor
-  llama servicios
+  wrapper Flask compatible
+  expone URLs publicas y aliases legacy
+
+services/editor_offset_http_service.py
+  fachada HTTP del editor
+  orquesta save/upload/apply/preview/PDF/cuadernillos
 
 services/editor_offset_jobs.py
   job_id, paths, cargar/guardar layout

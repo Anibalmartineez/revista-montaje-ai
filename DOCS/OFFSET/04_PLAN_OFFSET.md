@@ -6,12 +6,13 @@ Consolidar el Editor Visual IA como flujo operativo profesional del modulo Offse
 
 ## Etapa actual
 
-- Estado documentado: Fase 10 cerrada y estable antes de merge a `main`
+- Estado documentado: Fase 10 UX cerrada como baseline historica y cierre parcial de separacion modular SAFE Fases 1-5B completado
 - Fase 8 queda como base cerrada de arquitectura SAFE y shell UX del Editor Visual IA
 - Sin refactor masivo
 - Sin limpieza agresiva
 - Sin eliminacion de archivos
 - Cambios acotados sobre el Editor Visual IA
+- Roadmap activo actual: separar el Editor Visual IA por fachadas y modulos compatibles antes de mover estructura fisica
 - Foco real acumulado:
   - Step & Repeat PRO Inteligente cerrado como Fase 5
   - simulador de cuadernillos cerrado como Fase 6 visual/logica
@@ -32,6 +33,36 @@ Consolidar el Editor Visual IA como flujo operativo profesional del modulo Offse
   - Fase 10.2 completada: Panel Derecho Pro Density CSS-only, con tabs, scroll, formularios y paneles mas compactos
   - Fase 10.3 completada: Agent SDK UX Surface v2, con `summarize_editor_ux_surface()` ampliado
   - Fase 10.4 completada: QA visual/regresion; advisor tests `12 passed`; Playwright manual funciona desde Git CMD y `WinError 5` queda acotado al entorno Codex
+  - Separacion modular Fase 1 completada: tests de caracterizacion antes de extraer responsabilidades
+  - Separacion modular Fase 2 completada: `services/editor_offset_http_service.py` y `routes.py` como wrapper compatible
+  - Separacion modular Fase 3 completada: `services/editor_offset_output_service.py` y wrapper compatible en `montaje_offset_inteligente.py`
+  - Separacion modular Fase 4 completada: IA repeat deja de depender de `routes.py`
+  - Separacion modular Fase 5A completada: modulos puros frontend (`dom_refs`, `defaults`, `geometry`, `geometry_validation`)
+  - Separacion modular Fase 5B completada: modulos API/paneles (`api_client`, `output_panel`, `ai_panel`, `ctp_panel`, `booklet_panel`)
+
+## Roadmap activo de separacion modular SAFE
+
+### Fases completadas
+
+- Fase 1: caracterizacion y seguridad antes de mover codigo.
+- Fase 2: fachada backend del Editor Visual IA sin cambiar URLs ni JSON.
+- Fase 3: output preview/PDF del editor extraido sin cambiar `slot_box_final`, `rotation_deg`, `face` ni `design_ref`.
+- Fase 4: IA repeat normalizada sobre el motor canonico `engines.step_repeat_pro_engine`.
+- Fase 5A: extraccion frontend de defaults, DOM refs, geometria pura y validacion geometrica.
+- Fase 5B: extraccion frontend de cliente API y paneles IA/CTP/cuadernillos/salida.
+
+### Fases pendientes de alto riesgo
+
+- Fase 5C: extraer renderer/canvas/sheet. No tocar sin cobertura y plan SAFE; riesgo directo sobre `renderSheet`, CTP guide, geometry markers, zoom y canvas.
+- Fase 5D: extraer interacciones complejas. No tocar sin cobertura y plan SAFE; riesgo directo sobre drag, resize, seleccion, box select, nudge, align, distribute y listeners.
+- Fase 6: mover estructura fisica hacia `editor_offset/`. No ejecutar hasta tener wrappers, aliases legacy, tests e imports estabilizados.
+
+### Validacion base del cierre 5B
+
+- `python -m compileall routes.py montaje_offset_inteligente.py engines cuadernillos ai_agent services strategies`: OK.
+- `venv\Scripts\pytest.exe tests\test_step_repeat_pro_engine.py tests\test_editor_offset_output_contract.py tests\test_cuadernillos_simulator.py tests\test_editor_offset_characterization.py -q -p no:cacheprovider`: OK, `53 passed`.
+- `git diff --check`: OK.
+- `node --check`: bloqueado por `Acceso denegado` a `node.exe` en entorno Codex; no tocar configuracion del sistema.
 
 ## Plan propuesto por fases
 

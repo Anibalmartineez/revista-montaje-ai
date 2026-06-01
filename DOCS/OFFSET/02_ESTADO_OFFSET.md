@@ -4,6 +4,19 @@
 
 Hoy el repo sigue teniendo varios flujos offset coexistiendo, pero el **Editor Visual IA** ya quedo delimitado, auditado y documentado como subsistema propio dentro del modulo.
 
+## Cierre parcial separacion modular SAFE Fases 1-5B
+
+El roadmap activo de separacion modular del Editor Visual IA queda documentado hasta Fase 5B:
+
+- Fase 1 completada: tests de caracterizacion del editor antes de mover responsabilidades.
+- Fase 2 completada: fachada backend en `services/editor_offset_http_service.py`; `routes.py` conserva URLs publicas y wrappers compatibles.
+- Fase 3 completada: salida preview/PDF extraida a `services/editor_offset_output_service.py`; `montaje_offset_inteligente.py` conserva wrapper compatible y legacy.
+- Fase 4 completada: `ai_agent/tools_repeat.py` deja de depender de helpers internos de `routes.py` y usa el motor canonico Step & Repeat PRO.
+- Fase 5A completada: modulos frontend puros `dom_refs.js`, `defaults.js`, `geometry.js`, `geometry_validation.js`.
+- Fase 5B completada: modulos frontend de red/paneles `api_client.js`, `output_panel.js`, `ai_panel.js`, `ctp_panel.js`, `booklet_panel.js`.
+
+Esta separacion se hizo sin cambiar URLs publicas, contratos JSON, motores de imposicion, Step & Repeat PRO, preview/PDF, CTP, cuadernillos ni endpoints IA publicos.
+
 ## Flujo bajo foco en esta fase
 
 ### Editor visual IA nuevo
@@ -11,16 +24,20 @@ Hoy el repo sigue teniendo varios flujos offset coexistiendo, pero el **Editor V
 - ruta: `GET /editor_offset_visual`
 - template: `templates/editor_offset_visual.html`
 - frontend principal: `static/js/editor_offset_visual.js`
+- modulos frontend auxiliares: `static/js/editor_offset_visual/`
 - estilos principales: `static/css/editor_offset_visual.css`
-- backend de orquestacion: `routes.py`
+- backend de orquestacion compatible: `routes.py`
 - servicios internos:
   - `services/editor_offset_jobs.py`
   - `services/editor_offset_layout_defaults.py`
   - `services/editor_offset_uploads.py`
   - `services/editor_offset_imposition_service.py`
+  - `services/editor_offset_http_service.py`
+  - `services/editor_offset_output_service.py`
 - motor Step & Repeat PRO: `engines/step_repeat_pro_engine.py`
 - validador de contrato de salida: `services/editor_offset_output_contract.py`
-- motor de salida final: `montaje_offset_inteligente.py`
+- salida final del editor: `services/editor_offset_output_service.py`
+- compatibilidad/legacy de salida: `montaje_offset_inteligente.py`
 - motor de nesting auxiliar: `engines/nesting_pro_engine.py`
 - simulador de cuadernillos: `cuadernillos/simulator.py`
 - agente SDK asesor: `ai_agent/editor_advisor/` (CLI-only/read-only, sin Flask/UI)
@@ -356,12 +373,20 @@ Reglas actuales observadas:
 - `apply_imposition` no debe aplicar layouts incompletos:
   - backend devuelve `ok: false`
   - frontend no reemplaza `state.layout` en ese caso
+- Separacion modular SAFE Fases 1-5B:
+  - tests de caracterizacion activos en `tests/test_editor_offset_characterization.py`
+  - fachada HTTP del editor extraida a `services/editor_offset_http_service.py`
+  - output del editor extraido a `services/editor_offset_output_service.py`
+  - IA repeat alineada con `engines.step_repeat_pro_engine.build_step_repeat_slots`
+  - `static/js/editor_offset_visual.js` se conserva como entrypoint compatible
+  - 9 modulos frontend auxiliares activos bajo `static/js/editor_offset_visual/`
+  - validacion reciente: `53 passed` en suite obligatoria de cierre Fase 5B
 
 ## Limitaciones conocidas
 
 - siguen coexistiendo flujos offset legacy en el repo
-- `routes.py` continua concentrando mucha orquestacion, aunque la validacion de salida ya fue extraida a `services/`
-- `routes.py` ya no contiene el motor Step & Repeat PRO canonico, pero sigue concentrando endpoints y compatibilidad
+- `routes.py` conserva endpoints publicos y wrappers compatibles; la fachada HTTP del editor ya vive en `services/editor_offset_http_service.py`
+- `montaje_offset_inteligente.py` conserva wrapper y funciones legacy; la salida del editor ya vive en `services/editor_offset_output_service.py`
 - la semantica de `w_mm/h_mm` ya quedo consolidada para `repeat`, pero sigue siendo punto sensible frente a otros engines y flujos legacy
 - la validacion geometrica usa bounding box simple, no geometria rotada exacta
 - parte del feedback UX sigue apoyandose en `alert()`
@@ -373,7 +398,10 @@ Reglas actuales observadas:
 - `prompt_para_codex` mejora el traspaso hacia Codex, pero no reemplaza la revision humana ni la planificacion SAFE previa a implementar
 - no debe integrarse a Flask/UI ni modificar HTML/JS automaticamente hasta existir una fase especifica con guardrails y tests
 - Playwright manual funciona desde Git CMD para la QA disponible de carga y tabs/scroll; en el entorno Codex sigue apareciendo `WinError 5` antes de abrir navegador, por permisos de pipe/subprocess, y no se considera regresion del editor
-- `node --check static/js/editor_offset_visual.js` quedo pendiente/bloqueado por `Acceso denegado` a `node.exe`
+- `node --check` sobre `static/js/editor_offset_visual.js` y modulos 5B queda bloqueado por `Acceso denegado` a `node.exe` en entorno Codex; se registra como bloqueo de entorno
+- Fase 5C es pendiente de alto riesgo: extraer renderer/canvas/sheet sin tocar `renderSheet`, IDs, DOM ni listeners.
+- Fase 5D es pendiente de alto riesgo: extraer seleccion, drag, resize, box select, nudge, align y distribute sin duplicar listeners.
+- Fase 6 es pendiente de alto riesgo: mover estructura fisica hacia paquete `editor_offset/` con aliases legacy y migracion gradual.
 - falta edicion masiva avanzada de propiedades de slots
 - `preferred_flow` existe en contrato pero todavia no tiene efecto real en el motor
 - no hay compactacion horizontal de grupos zonales
@@ -394,9 +422,12 @@ Reglas actuales observadas:
 - `/editor_offset_visual`
 - `templates/editor_offset_visual.html`
 - `static/js/editor_offset_visual.js`
+- `static/js/editor_offset_visual/`
 - `static/css/editor_offset_visual.css`
 - endpoints `/editor_offset/*` y `/editor_offset_visual/apply_imposition`
 - endpoint `/editor_offset/cuadernillos/simular`
+- `services/editor_offset_http_service.py`
+- `services/editor_offset_output_service.py`
 - `montaje_offset_inteligente.py`
 - `engines/nesting_pro_engine.py`
 - `cuadernillos/simulator.py`
@@ -430,5 +461,8 @@ Reglas actuales observadas:
 5. medir con casos reales si la heuristica automatica de `repeat_role` necesita ajuste
 6. evaluar modos futuros y expansion horizontal solo con pruebas de regresion
 7. definir, en una fase separada, si el simulador de cuadernillos debe integrarse con PDF o mantenerse como herramienta de consulta visual
-8. tras Fase 10 cerrada, mantener documentacion base alineada, conservar el agente SDK aislado hasta una fase de integracion, usar el workflow agente analiza -> genera prompt SAFE para Codex -> Codex planifica -> Codex implementa solo si se aprueba -> validaciones -> agente audita, y ampliar Playwright a drag/resize/seleccion, upload/apply repeat/preview/PDF
-9. abrir Fase 11 futura como `Canvas Geometry Polish`, enfocada en pulido geometrico/visual del canvas sin mezclar cambios de contrato ni motores
+8. mantener documentacion base alineada con el cierre parcial Fases 1-5B, conservar el agente SDK aislado hasta una fase de integracion, usar el workflow agente analiza -> genera prompt SAFE para Codex -> Codex planifica -> Codex implementa solo si se aprueba -> validaciones -> agente audita
+9. preparar Fase 5C solo con plan SAFE y cobertura previa para renderer/canvas/sheet
+10. preparar Fase 5D solo con plan SAFE para interacciones complejas
+11. reservar Fase 6 para movimiento fisico de estructura cuando wrappers, tests e imports esten estables
+12. abrir Fase 11 futura como `Canvas Geometry Polish`, enfocada en pulido geometrico/visual del canvas sin mezclar cambios de contrato ni motores
