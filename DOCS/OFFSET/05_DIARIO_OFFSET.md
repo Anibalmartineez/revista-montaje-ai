@@ -1368,3 +1368,131 @@ Implementar la primera extraccion SAFE del renderer/canvas/sheet hacia un modulo
 - `git diff --check`: OK, solo warnings LF/CRLF de Git sobre archivos editados.
 - `git diff --check --no-index NUL static/js/editor_offset_visual/renderer_canvas.js`: sin errores de whitespace; exit code 1 esperado por diferencias contra `NUL`.
 - Playwright no se ejecuto porque no habia servidor Flask escuchando en `http://127.0.0.1:5000/editor_offset_visual`.
+
+## 2026-06-01 Fase 5D-0 Auditoria SAFE de Interacciones Complejas
+
+### Objetivo
+
+Auditar las interacciones complejas del Editor Visual IA antes de extraerlas a modulos, sin modificar codigo productivo.
+
+La auditoria se enfoca en seleccion simple/multiple, box select, drag, resize, nudge, align, distribute, group/ungroup, shortcuts y listeners acoplados a IDs/clases. Tambien documenta la frontera con `renderer_canvas.js`, creado en Fase 5C real inicial.
+
+### Mapa de funciones actuales
+
+- Seleccion:
+  - `selectSlot`
+  - `getSelectedSlotIds`
+  - `getSelectedSlots`
+  - `selectAllSlotsOnActiveFace`
+  - `refreshSelectionAfterEdit`
+- Box select:
+  - `sheetPointFromEvent`
+  - `getBoxSelectionRectMm`
+  - `renderBoxSelectionRect`
+  - `clearBoxSelectionRect`
+  - `resetBoxSelectState`
+  - `selectSlotsInBox`
+  - `startBoxSelect`
+  - `moveBoxSelect`
+  - `endBoxSelect`
+- Drag/resize:
+  - `startDrag`
+  - `moveDrag`
+  - `endDrag`
+  - `onSlotPointerDown`
+- Herramientas manuales:
+  - `duplicateSlot`
+  - `deleteSlot`
+  - `groupSelectedSlots`
+  - `ungroupSelectedSlots`
+  - `alignSelectedSlots`
+  - `distributeSelectedSlots`
+  - `centerSelectedBlock`
+  - `nudgeSelectedSlots`
+  - `applyGapToSlots`
+  - `applySpacing`
+- Listeners acoplados:
+  - `attachSlotHandlers` pasado a `renderer_canvas.js`
+  - `sheetEl.addEventListener('pointerdown', startBoxSelect)`
+  - listeners temporales `document.pointermove`, `document.pointerup`, `document.pointercancel`
+  - `document.click` para limpiar seleccion
+  - `document.keydown` para undo, Ctrl/Cmd+A y flechas/nudge
+  - botones `btn-*` de edicion manual, alineacion, distribucion, nudge, group/ungroup y slots
+
+### Dependencias de estado
+
+- `state.selectedSlot` y `state.selectedSlots` sostienen seleccion simple y multiple.
+- `state.activeFace` y `state.layout.active_face` filtran operaciones por frente/dorso.
+- `state.layout.slots` es mutado por seleccion aplicada, drag, resize, duplicado, borrado, agrupacion, alineacion, distribucion, nudge, gap y spacing.
+- `state.scale` y `state.zoom` participan en conversion pointer -> mm.
+- `state.spacingSettings.live` permite aplicar spacing durante drag.
+- `dragState` sostiene pointer activo, slot, elemento, coordenadas iniciales, handle, grupo, posiciones iniciales y handlers temporales.
+- `boxSelectState` sostiene pointer activo, rectangulo visual, seleccion aditiva, suppress click-clear y handlers temporales.
+- `renderer_canvas.js` pinta slots y recibe `attachSlotHandlers`, pero no registra listeners por su cuenta.
+
+### Riesgos detectados
+
+- `moveDrag` mezcla movimiento, resize, snap, grupo, live spacing, distance indicator, render y formulario.
+- `boxSelectState.suppressClickClear` evita que el click global borre la seleccion despues de box select; romperlo degrada seleccion.
+- `renderSheet` recrea nodos de slot, por lo que los handlers deben re-adjuntarse en cada render desde el entrypoint.
+- `applySpacing` se usa desde botones y desde drag live; extraerlo sin caracterizacion puede cambiar posiciones durante arrastre.
+- `selectedSlot` y `selectedSlots` conviven como fuentes de seleccion; hay que conservar la semantica de primer seleccionado para el formulario.
+- `group_id` afecta drag grupal, duplicado y spacing; no debe tratarse como metadata pasiva.
+- shortcuts deben ignorar inputs, textareas y selects para no interferir con edicion de formularios.
+
+### Contrato interno futuro
+
+`slot_interactions.js` futuro:
+
+- debe concentrar seleccion, box select, drag/resize y handlers de interaccion directa con slots.
+- API candidata:
+  - `createSelectionController(ctx)`
+  - `createBoxSelectController(ctx)`
+  - `createDragController(ctx)`
+  - `attachSlotHandlers(slotEl, slot)`
+- debe recibir dependencias explicitas: `state`, `sheetEl`, `sheetCanvas`, geometria, `renderSheet`, `renderSlotForm`, `pushHistory`, `applySnap`, `applySpacing`, `updateDistanceIndicator`, `hideDistanceIndicator`.
+- no debe registrar listeners globales en la primera extraccion real; el wiring debe quedar en el entrypoint hasta una fase separada.
+
+`manual_tools.js` futuro:
+
+- debe concentrar operaciones PRO sobre slots seleccionados:
+  - duplicar
+  - borrar
+  - agrupar/desagrupar
+  - alinear
+  - distribuir
+  - centrar bloque
+  - nudge
+  - gap
+  - spacing
+- debe conservar proteccion de slots bloqueados, historial, seleccion actual y render mediante wrappers/callbacks del entrypoint.
+- no debe tocar DOM estructural, listeners globales, backend ni contratos.
+
+### Que NO debe moverse todavia
+
+- `document.keydown`, `document.click`, `window.resize` y wiring de botones `btn-*`.
+- drag/resize completo.
+- box select completo.
+- listeners temporales de pointer.
+- clases e IDs criticos: `.slot`, `.selected`, `.locked`, `.box-selection-rect`, `#sheet`, `#sheet-canvas`, `slot-*`.
+- backend, services, engines, contracts JSON, preview/PDF, CTP productivo, cuadernillos y Step & Repeat PRO.
+
+### Plan por fases 5D
+
+- Fase 5D-1: caracterizacion de seleccion simple/multiple, limpiar seleccion, box select, shortcuts y nudge.
+- Fase 5D-2: extraer `manual_tools.js` para operaciones sin listeners, manteniendo wrappers en entrypoint.
+- Fase 5D-3: extraer controlador de seleccion en `slot_interactions.js`, manteniendo wiring en entrypoint.
+- Fase 5D-4: extraer box select con cobertura de click vs drag y seleccion aditiva.
+- Fase 5D-5: extraer drag/resize solo con cobertura especifica de snap, grupos, live spacing, distancia util e historial.
+
+### Garantias conservadas
+
+- No se modifico `static/js/editor_offset_visual.js`.
+- No se creo `slot_interactions.js`.
+- No se creo `manual_tools.js`.
+- No se tocaron templates, CSS, backend, services, engines, strategies, contratos JSON, preview/PDF, CTP productivo ni cuadernillos.
+- No se agregaron tests.
+
+### Validacion solicitada
+
+- `git diff --check`: OK, solo warnings LF/CRLF de Git sobre los Markdown editados.
