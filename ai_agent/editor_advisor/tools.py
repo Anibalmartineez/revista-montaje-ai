@@ -31,17 +31,60 @@ ALLOWED_READ_FILES = {
     "DOCS/OFFSET/14_MAPA_FUNCIONAL_EDITOR_VISUAL_IA.md",
     "templates/editor_offset_visual.html",
     "static/js/editor_offset_visual.js",
+    "static/js/editor_offset_visual/ai_panel.js",
+    "static/js/editor_offset_visual/api_client.js",
+    "static/js/editor_offset_visual/booklet_panel.js",
+    "static/js/editor_offset_visual/ctp_panel.js",
+    "static/js/editor_offset_visual/defaults.js",
+    "static/js/editor_offset_visual/dom_refs.js",
+    "static/js/editor_offset_visual/geometry.js",
+    "static/js/editor_offset_visual/geometry_validation.js",
+    "static/js/editor_offset_visual/output_panel.js",
     "static/css/editor_offset_visual.css",
+    "ai_agent/tools_repeat.py",
+    "ai_agent/openai_tool_bridge.py",
     "engines/step_repeat_pro_engine.py",
     "engines/nesting_pro_engine.py",
+    "services/editor_offset_http_service.py",
     "services/editor_offset_imposition_service.py",
     "services/editor_offset_jobs.py",
     "services/editor_offset_layout_defaults.py",
     "services/editor_offset_output_contract.py",
+    "services/editor_offset_output_service.py",
     "services/editor_offset_uploads.py",
     "montaje_offset_inteligente.py",
     "cuadernillos/simulator.py",
 }
+
+FRONTEND_5A_MODULES = [
+    "static/js/editor_offset_visual/dom_refs.js",
+    "static/js/editor_offset_visual/defaults.js",
+    "static/js/editor_offset_visual/geometry.js",
+    "static/js/editor_offset_visual/geometry_validation.js",
+]
+
+FRONTEND_5B_MODULES = [
+    "static/js/editor_offset_visual/api_client.js",
+    "static/js/editor_offset_visual/output_panel.js",
+    "static/js/editor_offset_visual/ai_panel.js",
+    "static/js/editor_offset_visual/ctp_panel.js",
+    "static/js/editor_offset_visual/booklet_panel.js",
+]
+
+ENTRYPOINT_RISK_PATTERNS = [
+    ("renderSheet", r"\bfunction\s+renderSheet\b"),
+    ("estado global", r"\bconst\s+state\s*="),
+    ("historia/undo", r"\bconst\s+history\s*="),
+    ("zoom/canvas", r"\bfunction\s+(recalcScale|applyZoom|updateHandleScale)\b"),
+    ("seleccion", r"\bfunction\s+(selectSlot|getSelectedSlots|selectAllSlotsOnActiveFace)\b"),
+    ("box select", r"\bfunction\s+(startBoxSelect|moveBoxSelect|endBoxSelect)\b"),
+    ("drag", r"\bfunction\s+(startDrag|moveDrag|endDrag)\b"),
+    ("align", r"\bfunction\s+alignSelectedSlots\b"),
+    ("distribute", r"\bfunction\s+distributeSelectedSlots\b"),
+    ("nudge", r"\bfunction\s+nudgeSelectedSlots\b"),
+    ("formularios", r"\bfunction\s+(renderSlotForm|applySlotForm|renderWorks|renderDesigns)\b"),
+    ("listeners/init", r"\bfunction\s+init\b"),
+]
 
 ALLOWED_SEARCH_ROOTS = {
     "AGENTS.md",
@@ -139,6 +182,18 @@ def read_repo_file(path: str, max_chars: int = 12000, repo_root: str | Path | No
     return text
 
 
+def _read_allowed_file_full(path: str, repo_root: str | Path | None = None) -> str:
+    """Read an allowlisted file without the public truncation cap for deterministic summaries."""
+    rel = _relative_path(path, repo_root)
+    if not _is_allowed_file(rel):
+        raise ValueError(f"Archivo no permitido para lectura: {rel}")
+    root = _repo_root(repo_root)
+    abs_path = root / rel
+    if not abs_path.is_file():
+        raise FileNotFoundError(rel)
+    return abs_path.read_text(encoding="utf-8", errors="replace")
+
+
 def list_editor_files(repo_root: str | Path | None = None) -> List[str]:
     """Return the canonical files the advisor should consider for the editor."""
     root = _repo_root(repo_root)
@@ -183,14 +238,21 @@ def summarize_editor_architecture(repo_root: str | Path | None = None) -> str:
     files = list_editor_files(repo_root)
     service_files = [item for item in files if item.startswith("services/")]
     engine_files = [item for item in files if item.startswith("engines/")]
+    frontend_modules = [item for item in FRONTEND_5A_MODULES + FRONTEND_5B_MODULES if item in files]
     return "\n".join(
         [
             "Editor Visual IA Offset - resumen base:",
             "- Frontend canonico: templates/editor_offset_visual.html, static/js/editor_offset_visual.js, static/css/editor_offset_visual.css.",
-            "- Fachada Flask: routes.py. No asumir que toda la logica vive alli; parte ya fue extraida a services/.",
+            f"- Modulos frontend 5A/5B detectados: {', '.join(frontend_modules) or 'ninguno detectado'}.",
+            "- Fachada Flask: routes.py conserva URLs publicas y wrappers compatibles; no asumir que toda la logica vive alli.",
+            "- Fachada HTTP del editor: services/editor_offset_http_service.py.",
             "- Motor principal de imposicion: engines/step_repeat_pro_engine.py.",
             "- Selector de motores: services/editor_offset_imposition_service.py.",
-            "- Salida preview/PDF: montaje_offset_inteligente.py con validacion en services/editor_offset_output_contract.py.",
+            "- Salida preview/PDF del editor: services/editor_offset_output_service.py.",
+            "- Validacion minima antes de salida: services/editor_offset_output_contract.py.",
+            "- Wrapper legacy de salida: montaje_offset_inteligente.py.",
+            "- IA operativa del panel: ai_agent/tools_repeat.py y ai_agent/openai_tool_bridge.py.",
+            "- Advisor SDK: ai_agent/editor_advisor/ sigue CLI-only/read-only, sin Flask/UI/endpoints ni escritura.",
             "- Simulador aislado: cuadernillos/simulator.py.",
             f"- Servicios disponibles: {', '.join(service_files) or 'ninguno detectado'}.",
             f"- Motores disponibles: {', '.join(engine_files) or 'ninguno detectado'}.",
@@ -204,14 +266,17 @@ def _unique_sorted(values: Iterable[str]) -> List[str]:
 
 def summarize_editor_ux_surface(repo_root: str | Path | None = None) -> str:
     """Return deterministic UX/DOM signals for the Editor Visual IA surface."""
-    html = read_repo_file("templates/editor_offset_visual.html", max_chars=50000, repo_root=repo_root)
-    js = read_repo_file("static/js/editor_offset_visual.js", max_chars=50000, repo_root=repo_root)
-    css = read_repo_file("static/css/editor_offset_visual.css", max_chars=50000, repo_root=repo_root)
+    html = _read_allowed_file_full("templates/editor_offset_visual.html", repo_root=repo_root)
+    js = _read_allowed_file_full("static/js/editor_offset_visual.js", repo_root=repo_root)
+    css = _read_allowed_file_full("static/css/editor_offset_visual.css", repo_root=repo_root)
 
     tabs = _unique_sorted(re.findall(r'data-editor-tab="([^"]+)"', html))
     panels = _unique_sorted(re.findall(r'data-editor-tab-panel="([^"]+)"', html))
     html_ids = _unique_sorted(re.findall(r'\sid="([^"]+)"', html))
-    js_ids = _unique_sorted(re.findall(r"getElementById\('([^']+)'\)", js))
+    js_ids = _unique_sorted(
+        re.findall(r"getElementById\(['\"]([^'\"]+)['\"]\)", js)
+        + re.findall(r"domRefs\.byId\((?:domRefs\.ids\.)?([A-Za-z0-9_]+)\)", js)
+    )
     missing_html_ids = [item for item in js_ids if item not in html_ids]
     css_selectors = [
         ".editor-header",
@@ -353,12 +418,85 @@ def summarize_editor_ux_surface(repo_root: str | Path | None = None) -> str:
     return "\n".join(lines)
 
 
+def summarize_editor_modular_surface(repo_root: str | Path | None = None) -> str:
+    """Return deterministic post-5A/5B modularization signals for the advisor."""
+    root = _repo_root(repo_root)
+    html = _read_allowed_file_full("templates/editor_offset_visual.html", repo_root=repo_root)
+    entrypoint = _read_allowed_file_full("static/js/editor_offset_visual.js", repo_root=repo_root)
+
+    script_modules = _unique_sorted(
+        re.findall(r"js/editor_offset_visual/([^\"']+\.js)", html)
+    )
+    disk_modules = [
+        path
+        for path in FRONTEND_5A_MODULES + FRONTEND_5B_MODULES
+        if (root / path).exists()
+    ]
+    loaded_expected = [
+        path
+        for path in FRONTEND_5A_MODULES + FRONTEND_5B_MODULES
+        if Path(path).name in script_modules
+    ]
+    missing_from_html = [
+        path
+        for path in FRONTEND_5A_MODULES + FRONTEND_5B_MODULES
+        if Path(path).name not in script_modules
+    ]
+    missing_on_disk = [
+        path
+        for path in FRONTEND_5A_MODULES + FRONTEND_5B_MODULES
+        if not (root / path).exists()
+    ]
+    detected_entrypoint_risks = [
+        label for label, pattern in ENTRYPOINT_RISK_PATTERNS if re.search(pattern, entrypoint)
+    ]
+    module_exports = []
+    for module_path in disk_modules:
+        text = _read_allowed_file_full(module_path, repo_root=repo_root)
+        exports = re.findall(r"window\.EditorOffsetVisual\.([A-Za-z0-9_]+)\s*=", text)
+        module_exports.append(f"{module_path} -> {', '.join(exports) or 'sin export detectado'}")
+
+    lines = [
+        "Mapa modular post Fases 5A/5B:",
+        f"- Modulos 5A esperados: {', '.join(FRONTEND_5A_MODULES)}.",
+        f"- Modulos 5B esperados: {', '.join(FRONTEND_5B_MODULES)}.",
+        f"- Modulos cargados por HTML: {', '.join(script_modules) or 'ninguno detectado'}.",
+        f"- Modulos esperados presentes en disco: {len(disk_modules)}/9.",
+        f"- Modulos esperados cargados en HTML: {len(loaded_expected)}/9.",
+        f"- Exports detectados: {'; '.join(module_exports) or 'sin exports detectados'}.",
+        f"- Entry point compatible: static/js/editor_offset_visual.js ({len(entrypoint.splitlines())} lineas).",
+        f"- Responsabilidades criticas aun en entrypoint: {', '.join(detected_entrypoint_risks) or 'sin muestra'}.",
+        "- Fase 5C pendiente: renderer/canvas/sheet, renderSheet, zoom, CTP guide, geometry markers y estados visuales.",
+        "- Fase 5D pendiente: seleccion, drag, resize, box select, nudge, align, distribute, shortcuts y listeners.",
+        "- Fase 6 pendiente: movimiento fisico de estructura hacia editor_offset/ con aliases y tests previos.",
+        "- Regla SAFE: no mover renderer ni interacciones desde el advisor; solo auditar y generar planes/prompts SAFE.",
+    ]
+    if missing_from_html:
+        lines.append(f"- Modulos esperados no cargados por HTML: {', '.join(missing_from_html)}.")
+    if missing_on_disk:
+        lines.append(f"- Modulos esperados no encontrados en disco: {', '.join(missing_on_disk)}.")
+    if not missing_from_html and not missing_on_disk:
+        lines.append("- Los 9 modulos esperados 5A/5B estan presentes y cargados antes del entrypoint.")
+    return "\n".join(lines)
+
+
 def list_validation_commands() -> List[str]:
     """Return safe validation commands for future implementation work."""
     return [
         "python -m compileall routes.py montaje_offset_inteligente.py engines cuadernillos ai_agent services strategies",
+        "venv\\Scripts\\pytest.exe tests\\test_step_repeat_pro_engine.py tests\\test_editor_offset_output_contract.py tests\\test_cuadernillos_simulator.py tests\\test_editor_offset_characterization.py -q -p no:cacheprovider",
+        "venv\\Scripts\\pytest.exe -p no:cacheprovider tests\\test_editor_advisor_tools.py",
         "git diff --check",
         "node --check static/js/editor_offset_visual.js",
+        "node --check static/js/editor_offset_visual/dom_refs.js",
+        "node --check static/js/editor_offset_visual/defaults.js",
+        "node --check static/js/editor_offset_visual/geometry.js",
+        "node --check static/js/editor_offset_visual/geometry_validation.js",
+        "node --check static/js/editor_offset_visual/api_client.js",
+        "node --check static/js/editor_offset_visual/output_panel.js",
+        "node --check static/js/editor_offset_visual/ai_panel.js",
+        "node --check static/js/editor_offset_visual/ctp_panel.js",
+        "node --check static/js/editor_offset_visual/booklet_panel.js",
         "pytest",
         "venv\\Scripts\\pytest.exe tests/playwright/test_editor_load.py -s",
     ]

@@ -1207,3 +1207,42 @@ Actualizar el estado documental del proyecto despues de completar las Fases 1, 2
 ### Decision documental
 
 Fase 10 queda como baseline UX historica cerrada. El roadmap activo actual pasa a ser la separacion modular SAFE del Editor Visual IA, con Fases 1-5B completadas y Fases 5C/5D/6 pendientes.
+
+## 2026-06-01 Actualizacion SAFE Editor Advisor SDK post Fases 1-5B
+
+### Objetivo
+
+Actualizar `ai_agent/editor_advisor/` para que audite el estado real del Editor Visual IA despues de las Fases 1-5B, sin modificar codigo productivo del editor, frontend funcional, backend, engines ni contratos JSON.
+
+### Cambios reales
+
+- `ai_agent/editor_advisor/tools.py` amplio la allowlist read-only para incluir:
+  - `services/editor_offset_http_service.py`
+  - `services/editor_offset_output_service.py`
+  - los 9 modulos frontend 5A/5B bajo `static/js/editor_offset_visual/`
+  - `ai_agent/tools_repeat.py`
+  - `ai_agent/openai_tool_bridge.py`
+- `summarize_editor_architecture()` ahora reconoce:
+  - `routes.py` como wrapper compatible
+  - `editor_offset_http_service.py` como fachada HTTP
+  - `editor_offset_output_service.py` como salida preview/PDF real del editor
+  - `montaje_offset_inteligente.py` como wrapper legacy
+  - modulos JS 5A/5B
+  - IA operativa del panel vs advisor SDK
+- Se agrego `summarize_editor_modular_surface()` para resumir:
+  - modulos cargados por HTML
+  - modulos presentes en disco
+  - exports `window.EditorOffsetVisual.*`
+  - responsabilidades criticas aun en `static/js/editor_offset_visual.js`
+  - riesgos pendientes Fase 5C/5D/6
+- `summarize_editor_ux_surface()` lee el entrypoint completo para evitar subconteos por truncado.
+- `ai_agent/editor_advisor/prompts/editor_advisor.md` queda reenfocado a auditoria estructural post Fases 1-5B, manteniendo UX SAFE.
+- `tests/test_editor_advisor_tools.py` cubre servicios, modulos JS, IA operativa, resumen arquitectonico, resumen modular y validaciones recomendadas.
+
+### Garantias conservadas
+
+- `editor_advisor` sigue CLI-only/read-only.
+- No se integro a Flask/UI.
+- No se agregaron endpoints.
+- No se agregaron tools de escritura.
+- No se tocaron HTML, JS productivo, CSS productivo, Flask, services productivos, engines, preview/PDF, CTP, cuadernillos ni contratos JSON.

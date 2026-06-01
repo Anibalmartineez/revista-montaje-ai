@@ -16,7 +16,13 @@ def test_list_editor_files_includes_canonical_editor_files():
     assert "AGENTS.md" in files
     assert "templates/editor_offset_visual.html" in files
     assert "static/js/editor_offset_visual.js" in files
+    assert "static/js/editor_offset_visual/api_client.js" in files
+    assert "static/js/editor_offset_visual/booklet_panel.js" in files
+    assert "services/editor_offset_http_service.py" in files
     assert "services/editor_offset_imposition_service.py" in files
+    assert "services/editor_offset_output_service.py" in files
+    assert "ai_agent/tools_repeat.py" in files
+    assert "ai_agent/openai_tool_bridge.py" in files
 
 
 def test_read_repo_file_allows_only_allowlisted_files():
@@ -47,7 +53,41 @@ def test_validation_commands_are_read_only_recommendations():
     commands = tools.list_validation_commands()
 
     assert any("compileall" in command for command in commands)
+    assert any("test_editor_advisor_tools.py" in command for command in commands)
+    assert any("test_editor_offset_characterization.py" in command for command in commands)
+    assert any("static/js/editor_offset_visual/api_client.js" in command for command in commands)
     assert all("rm " not in command.lower() for command in commands)
+
+
+def test_architecture_summary_reports_post_5b_services_and_ai_split():
+    summary = tools.summarize_editor_architecture()
+
+    assert "services/editor_offset_http_service.py" in summary
+    assert "services/editor_offset_output_service.py" in summary
+    assert "Wrapper legacy de salida: montaje_offset_inteligente.py" in summary
+    assert "static/js/editor_offset_visual/api_client.js" in summary
+    assert "ai_agent/tools_repeat.py" in summary
+    assert "ai_agent/openai_tool_bridge.py" in summary
+    assert "Advisor SDK" in summary
+    assert "CLI-only/read-only" in summary
+
+
+def test_modular_surface_summary_reports_5a_5b_and_pending_risks():
+    summary = tools.summarize_editor_modular_surface()
+
+    assert "Mapa modular post Fases 5A/5B" in summary
+    assert "Modulos esperados presentes en disco: 9/9" in summary
+    assert "Modulos esperados cargados en HTML: 9/9" in summary
+    assert "dom_refs.js -> domRefs" in summary
+    assert "api_client.js -> apiClient" in summary
+    assert "booklet_panel.js -> bookletPanel" in summary
+    assert "Entry point compatible: static/js/editor_offset_visual.js" in summary
+    assert "renderSheet" in summary
+    assert "box select" in summary
+    assert "Fase 5C pendiente" in summary
+    assert "Fase 5D pendiente" in summary
+    assert "Fase 6 pendiente" in summary
+    assert "Los 9 modulos esperados 5A/5B estan presentes" in summary
 
 
 def test_ux_surface_summary_reports_right_panel_signals():
@@ -58,6 +98,7 @@ def test_ux_surface_summary_reports_right_panel_signals():
     assert "editor-tab-panels" in summary
     assert "geometry-validation-panel" in summary
     assert "getElementById" in summary
+    assert "Listeners detectados en JS: 91" in summary
     assert "no renombrar ids" in summary
 
 

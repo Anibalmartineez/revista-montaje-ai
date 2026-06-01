@@ -77,6 +77,13 @@ El motor prioritario actual del Editor Visual IA es **Step & Repeat PRO automati
 
 El panel IA del editor aplica Step & Repeat y preferencias de layout. El agente SDK `editor_advisor` es distinto: CLI-only/read-only, sin Flask, sin endpoints, sin UI y sin herramientas de escritura. Usa `AGENTS.md` y este documento como memoria arquitectonica principal.
 
+Actualizacion SAFE del advisor post Fases 1-5B:
+
+- `ai_agent/editor_advisor/tools.py` puede auditar en modo allowlist/read-only `services/editor_offset_http_service.py`, `services/editor_offset_output_service.py`, los 9 modulos frontend 5A/5B y la IA operativa `ai_agent/tools_repeat.py` / `ai_agent/openai_tool_bridge.py`.
+- `summarize_editor_architecture()` reconoce `routes.py` como wrapper compatible, `editor_offset_http_service.py` como fachada HTTP, `editor_offset_output_service.py` como salida real del editor y `montaje_offset_inteligente.py` como wrapper legacy.
+- `summarize_editor_modular_surface()` resume modulos cargados por HTML, modulos presentes en disco, exports `window.EditorOffsetVisual.*`, responsabilidades criticas aun en `static/js/editor_offset_visual.js` y riesgos pendientes Fase 5C/5D/6.
+- `summarize_editor_ux_surface()` lee el JS completo del entrypoint para evitar subconteos de listeners o IDs por truncado.
+
 ### Simulador De Cuadernillos
 
 - Motor aislado: `cuadernillos/simulator.py`.

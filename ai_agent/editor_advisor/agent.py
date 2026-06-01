@@ -48,6 +48,12 @@ def summarize_editor_ux_surface() -> str:
 
 
 @function_tool
+def summarize_editor_modular_surface() -> str:
+    """Resume el mapa post 5A/5B: modulos JS, entrypoint y riesgos 5C/5D."""
+    return advisor_tools.summarize_editor_modular_surface()
+
+
+@function_tool
 def list_validation_commands() -> list[str]:
     """Lista comandos de validacion recomendados para cambios futuros."""
     return advisor_tools.list_validation_commands()
@@ -64,6 +70,7 @@ def build_editor_advisor_agent(model: str | None = None) -> Agent:
             list_editor_files,
             summarize_editor_architecture,
             summarize_editor_ux_surface,
+            summarize_editor_modular_surface,
             list_validation_commands,
         ],
         output_type=EditorAdvisorReport,

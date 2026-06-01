@@ -162,8 +162,14 @@ Este fue el unico flujo trabajado funcionalmente en esta fase.
   - `geometry-validation-panel` quedo como area contextual unica, mas compacta y visible; no se duplico con otra barra/status
   - Fase 10.3 Agent SDK UX Surface v2 amplio `summarize_editor_ux_surface()` para auditar header/topbar/subtoolbar, workspace, canvas/sheet/zoom, panel derecho, ids por zona y listeners sensibles
   - `editor_advisor` sigue CLI-only/read-only, sin Flask/UI, sin endpoints, sin escritura y sin cambiar schema ni CLI
-  - Fase 10.4 QA visual/regresion completo validacion estatica y tecnica: `git diff --check`, `python -m compileall ai_agent`, `tests/test_editor_advisor_tools.py` con `12 passed`, revision de selectores criticos y unicidad de `geometry-validation-panel`
-  - Playwright funciona manualmente desde Git CMD; en entorno Codex persiste `WinError 5` al crear pipe/subprocess de Playwright, registrado como bloqueo de entorno y no como regresion del editor
+- Fase 10.4 QA visual/regresion completo validacion estatica y tecnica: `git diff --check`, `python -m compileall ai_agent`, `tests/test_editor_advisor_tools.py` con `12 passed`, revision de selectores criticos y unicidad de `geometry-validation-panel`
+- Playwright funciona manualmente desde Git CMD; en entorno Codex persiste `WinError 5` al crear pipe/subprocess de Playwright, registrado como bloqueo de entorno y no como regresion del editor
+- Actualizacion SAFE post Fases 1-5B del Editor Advisor SDK:
+  - allowlist read-only ampliada para `services/editor_offset_http_service.py`, `services/editor_offset_output_service.py`, los 9 modulos frontend 5A/5B y la IA operativa `ai_agent/tools_repeat.py` / `ai_agent/openai_tool_bridge.py`
+  - `summarize_editor_architecture()` refleja la fachada HTTP, output service real, wrapper legacy, modulos JS 5A/5B e IA operativa vs advisor SDK
+  - nuevo `summarize_editor_modular_surface()` resume modulos cargados por HTML, exports, responsabilidades criticas aun en el entrypoint y riesgos Fase 5C/5D/6
+  - `summarize_editor_ux_surface()` lee el entrypoint completo para evitar subconteos por truncado
+  - sigue CLI-only/read-only, sin Flask/UI/endpoints ni herramientas de escritura
 
 ## Validaciones implementadas
 

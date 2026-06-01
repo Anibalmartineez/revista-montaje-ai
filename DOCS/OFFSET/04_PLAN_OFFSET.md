@@ -318,6 +318,7 @@ Estado real:
 - Fase 10.2 completada: refinamiento CSS-only de density del panel derecho, manteniendo tabs, scroll interno, ids y listeners.
 - Fase 10.3 completada: `ai_agent/editor_advisor/` incorpora UX Surface v2; `summarize_editor_ux_surface()` ahora audita header, topbar, subtoolbar, workspace, canvas, zoom, panel derecho, ids por zona y listeners sensibles.
 - Fase 10.4 completada: QA visual y regresion documentation-safe; `git diff --check`, `python -m compileall ai_agent`, `tests/test_editor_advisor_tools.py` con `12 passed`, revision estatica de selectores criticos y `geometry-validation-panel` unico.
+- Actualizacion SAFE post Fases 1-5B del Editor Advisor SDK completada: allowlist read-only ampliada a servicios HTTP/output, modulos JS 5A/5B e IA operativa; resumen arquitectonico actualizado; nuevo resumen modular 5A/5B; prompt del advisor reenfocado a auditoria estructural post 1-5B sin perder UX SAFE.
 
 Garantias:
 

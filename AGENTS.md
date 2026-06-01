@@ -97,6 +97,8 @@ El motor prioritario actual del Editor Visual IA es:
 - El agente usa `AGENTS.md` y `DOCS/OFFSET/14_MAPA_FUNCIONAL_EDITOR_VISUAL_IA.md` como memoria/contexto arquitectonico principal.
 - Fase 10 queda cerrada como Editor UX Canvas Pro: shell/topbar CAD-preprensa, canvas mas protagonista, panel derecho con density pass y QA visual/regresion documentado.
 - `summarize_editor_ux_surface()` permite detectar header/topbar/subtoolbar, workspace, canvas/sheet/zoom, tabs, paneles, ids criticos por zona, listeners sensibles, selectores shell/canvas/panel derecho y `geometry-validation-panel` sin modificar el repo.
+- `summarize_editor_modular_surface()` permite detectar modulos frontend 5A/5B cargados por HTML, modulos presentes en disco, exports `window.EditorOffsetVisual.*`, responsabilidades criticas que siguen en `static/js/editor_offset_visual.js` y riesgos pendientes Fase 5C/5D/6 sin modificar el repo.
+- El advisor SDK puede leer en modo allowlist/read-only los servicios extraidos `services/editor_offset_http_service.py` y `services/editor_offset_output_service.py`, los 9 modulos JS 5A/5B y la IA operativa `ai_agent/tools_repeat.py` / `ai_agent/openai_tool_bridge.py`.
 - Fase 9.4 agrega Codex Prompt Builder: el reporte incluye `prompt_para_codex`, un prompt SAFE listo para pegar en Codex.
 - El CLI permite `--codex-prompt-only` para imprimir solo `prompt_para_codex`, sin JSON.
 - `prompt_para_codex` debe pedir siempre plan SAFE antes de implementar y no autoriza escritura ni aplicacion automatica de cambios.
