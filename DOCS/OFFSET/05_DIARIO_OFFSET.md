@@ -1246,3 +1246,83 @@ Actualizar `ai_agent/editor_advisor/` para que audite el estado real del Editor 
 - No se agregaron endpoints.
 - No se agregaron tools de escritura.
 - No se tocaron HTML, JS productivo, CSS productivo, Flask, services productivos, engines, preview/PDF, CTP, cuadernillos ni contratos JSON.
+
+## 2026-06-01 Fase 5C-0 Preparacion SAFE del Renderer Canvas
+
+### Objetivo
+
+Auditar y planificar la futura extraccion del renderer/canvas/sheet del Editor Visual IA sin implementar todavia Fase 5C.
+
+La fase documenta el contrato interno propuesto para `renderSheet`, zoom, sheet, guia CTP, marcadores geometricos y estados visuales, separando las interacciones complejas que quedan reservadas para Fase 5D.
+
+### Mapa de dependencias confirmado
+
+- `renderSheet` sigue siendo la funcion critica del renderer visual.
+- `renderSheet` recalcula validacion geometrica, dimensiona `#sheet`, limpia y recrea slots, aplica clases visuales, conecta listeners por slot, renderiza CTP guide, aplica zoom, renderiza distance indicator y actualiza `geometry-validation-panel`.
+- `recalcScale`, `mmToPx`, `applyZoom` y `sheetPointFromEvent` conectan `#sheet-canvas`, `#sheet`, `state.scale`, `state.zoom` y `layout.sheet_mm`.
+- los estados visuales de slot dependen de `slot.locked`, `state.selectedSlot`, `state.selectedSlots` y `state.geometryValidation.bySlot`.
+- `renderCtpGuideOverlay` depende de `layout.ctp.enabled`, `layout.ctp.show_guide`, `layout.ctp.gripper_mm` y de que la cara activa sea `front`.
+- `renderGeometryValidationPanel` depende del resultado de `geometry_validation.js` y debe seguir usando el panel unico existente.
+- `renderDistanceIndicator` depende de `state.distanceIndicator` y se monta dentro de `#sheet`.
+
+### Contrato interno propuesto para Fase 5C
+
+Futuro modulo sugerido, aun no creado:
+
+- `static/js/editor_offset_visual/renderer_canvas.js`
+
+Responsabilidad esperada:
+
+- renderizar superficie visual del pliego y slots visibles.
+- calcular view models de slots sin mutar layout.
+- aplicar zoom y escala visual con dependencias explicitas.
+- renderizar guia CTP, indicador de distancia y panel de validacion geometrica.
+- recibir callbacks de interaccion desde el entrypoint compatible.
+
+Funciones candidatas:
+
+- `recalcSheetScale({ sheetCanvas, layout, minScale })`
+- `applySheetZoom({ sheetEl, zoom, zoomLabelEl })`
+- `buildVisibleSlotViewModels({ layout, activeFace, selectedSlotId, selectedSlotIds, geometryValidation })`
+- `renderSheetSurface(context)`
+- `renderCtpGuide({ sheetEl, ctp, activeFace, mmToPx })`
+- `renderGeometryValidationPanel({ validation, activeFace, summaryEl, listEl })`
+- `renderDistanceIndicator({ sheetEl, distanceIndicator, activeFace, mmToPx })`
+
+Regla clave:
+
+- `renderer_canvas.js` no debe registrar listeners globales ni mutar `state.layout`, seleccion, historial, drag state o contratos.
+- `onSlotPointerDown` y `onSlotClick` deben seguir definidos fuera del modulo y pasarse como callbacks hasta una Fase 5D separada.
+
+### Fuera de alcance
+
+- no se implemento `renderer_canvas.js`.
+- no se modifico `static/js/editor_offset_visual.js`.
+- no se modificaron modulos JS 5A/5B.
+- no se modificaron templates.
+- no se modifico CSS.
+- no se modifico backend, services, engines, strategies, contratos JSON, preview/PDF, CTP productivo, cuadernillos ni Step & Repeat PRO.
+- no se agregaron tests en esta fase.
+
+### Checklist de caracterizacion previa a Fase 5C
+
+- `#sheet`, `#sheet-canvas` y `#geometry-validation-panel` deben existir una sola vez.
+- cambio de `sheet_mm` debe actualizar ancho y alto visuales del pliego.
+- zoom por botones y `Ctrl + wheel` debe conservar transform y label.
+- cambio de cara debe filtrar slots `front`/`back` sin mezclar seleccion.
+- slots deben conservar clases `.selected`, `.locked`, `.geometry-warning` y `.geometry-error`.
+- `.ctp-guide` debe aparecer solo en `front` cuando CTP esta activo y `show_guide` esta habilitado.
+- `.distance-indicator` debe aparecer durante drag real y ocultarse al finalizar.
+- `geometry-validation-panel` debe mostrar resumen y lista de errores/warnings de la cara activa.
+- resize de ventana debe recalcular escala y re-renderizar sin romper la superficie.
+
+### Clasificacion SAFE
+
+- CSS-only seguro: pulido visual de selectores existentes sin ocultar controles.
+- HTML/DOM riesgoso: mover `#sheet`, `#sheet-canvas`, `#geometry-validation-panel`, tabs o paneles.
+- JS/listeners riesgoso: `renderSheet`, zoom, slot click, pointerdown, box select, drag, resize, nudge, align y distribute.
+- backend/contrato prohibido: rutas, services, engines, contratos JSON, preview/PDF, CTP productivo, cuadernillos y Step & Repeat PRO.
+
+### Validacion solicitada
+
+- `git diff --check`: OK, solo warnings LF/CRLF de Git sobre los Markdown editados.
