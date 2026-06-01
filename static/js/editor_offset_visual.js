@@ -4,6 +4,11 @@
   const defaults = editorModules.defaults;
   const geometry = editorModules.geometry;
   const geometryValidation = editorModules.geometryValidation;
+  const apiClient = editorModules.apiClient;
+  const outputPanel = editorModules.outputPanel;
+  const aiPanel = editorModules.aiPanel;
+  const ctpPanel = editorModules.ctpPanel;
+  const bookletPanel = editorModules.bookletPanel;
   const sheetEl = domRefs.byId(domRefs.ids.sheet);
   const sheetCanvas = domRefs.byId(domRefs.ids.sheetCanvas);
   const worksListEl = domRefs.byId(domRefs.ids.worksList);
@@ -1741,135 +1746,36 @@
   }
 
   function readCtpParamsFromUI() {
-    if (!state.layout) return;
-    state.layout.ctp = state.layout.ctp || {};
-    ensureCtpDefaults();
-    const gripperInput = document.getElementById('ctp-gripper-mm');
-    const showGuideInput = document.getElementById('ctp-show-guide');
-    const lockAfterInput = document.getElementById('ctp-lock-after');
-    const marksRegistroInput = document.getElementById('ctp-marks-registro');
-    const stripInput = document.getElementById('ctp-strip-cmyk');
-    const jobNameInput = document.getElementById('ctp-job-name');
-    const clientInput = document.getElementById('ctp-client');
-    const notesInput = document.getElementById('ctp-notes');
-    const autoCmykInput = document.getElementById('ctp-auto-cmyk');
-    const extraTextInput = document.getElementById('ctp-extra-text');
-
-    const gripperVal = gripperInput ? parseFloat(gripperInput.value || '0') : state.layout.ctp.gripper_mm;
-    state.layout.ctp.gripper_mm = Number.isFinite(gripperVal) ? gripperVal : state.layout.ctp.gripper_mm || 0;
-    state.layout.ctp.show_guide = !!showGuideInput?.checked;
-    state.layout.ctp.lock_after = lockAfterInput?.checked !== false;
-
-    state.layout.ctp.marks = state.layout.ctp.marks || {};
-    state.layout.ctp.marks.registro = !!marksRegistroInput?.checked;
-    state.layout.ctp.marks.control_strip = !!stripInput?.checked;
-
-    state.layout.ctp.technical_text = state.layout.ctp.technical_text || {};
-    const t = state.layout.ctp.technical_text;
-    t.job_name = jobNameInput ? jobNameInput.value || '' : t.job_name || '';
-    t.client = clientInput ? clientInput.value || '' : t.client || '';
-    t.notes = notesInput ? notesInput.value || '' : t.notes || '';
-    t.auto_cmyk = autoCmykInput ? !!autoCmykInput.checked : t.auto_cmyk !== false;
-    t.extra_text = extraTextInput ? extraTextInput.value || '' : t.extra_text || '';
+    return ctpPanel.readParamsFromUI({ state, ensureCtpDefaults });
   }
 
   function syncCtpUIFromLayout() {
-    ensureCtpDefaults();
-    const ctp = state.layout?.ctp || {};
-    const t = ctp.technical_text || {};
-    const marks = ctp.marks || {};
-    const gripperInput = document.getElementById('ctp-gripper-mm');
-    const showGuideInput = document.getElementById('ctp-show-guide');
-    const lockAfterInput = document.getElementById('ctp-lock-after');
-    const marksRegistroInput = document.getElementById('ctp-marks-registro');
-    const stripInput = document.getElementById('ctp-strip-cmyk');
-    const jobNameInput = document.getElementById('ctp-job-name');
-    const clientInput = document.getElementById('ctp-client');
-    const notesInput = document.getElementById('ctp-notes');
-    const autoCmykInput = document.getElementById('ctp-auto-cmyk');
-    const extraTextInput = document.getElementById('ctp-extra-text');
-    if (gripperInput) gripperInput.value = ctp.gripper_mm ?? 40;
-    if (showGuideInput) showGuideInput.checked = !!ctp.show_guide;
-    if (lockAfterInput) lockAfterInput.checked = ctp.lock_after !== false;
-    if (marksRegistroInput) marksRegistroInput.checked = !!marks.registro;
-    if (stripInput) stripInput.checked = !!marks.control_strip;
-    if (jobNameInput) jobNameInput.value = t.job_name ?? '';
-    if (clientInput) clientInput.value = t.client ?? '';
-    if (notesInput) notesInput.value = t.notes ?? '';
-    if (autoCmykInput) autoCmykInput.checked = t.auto_cmyk !== false;
-    if (extraTextInput) extraTextInput.value = t.extra_text ?? '';
+    return ctpPanel.syncUIFromLayout({ state, ensureCtpDefaults });
   }
 
   function computeFrontBlockBBox() {
-    const frontSlots = (state.layout.slots || []).filter((s) => (s.face || 'front') === 'front');
-    if (!frontSlots.length) return null;
-    let minX = Infinity;
-    let maxX = -Infinity;
-    let minY = Infinity;
-    let maxY = -Infinity;
-
-    frontSlots.forEach((slot) => {
-      const baseW = Number(slot.w_mm || 0);
-      const baseH = Number(slot.h_mm || 0);
-      const x0 = Number(slot.x_mm || 0);
-      const y0 = Number(slot.y_mm || 0);
-      const x1 = x0 + baseW;
-      const y1 = y0 + baseH;
-      minX = Math.min(minX, x0);
-      maxX = Math.max(maxX, x1);
-      minY = Math.min(minY, y0);
-      maxY = Math.max(maxY, y1);
-    });
-
-    if (!isFinite(minX) || !isFinite(minY)) return null;
-    return { minX, maxX, minY, maxY };
+    return ctpPanel.computeFrontBlockBBox(state.layout);
   }
 
   function applyCtpAlignment() {
-    readCtpParamsFromUI();
-    const ctp = state.layout?.ctp;
-    if (!ctp) return;
-    const bbox = computeFrontBlockBBox();
-    if (!bbox) {
-      alert('No hay slots en el frente para aplicar ProducciÃ³n / CTP.');
-      return;
-    }
-
-    const sheetW = (state.layout.sheet_mm && state.layout.sheet_mm[0]) || 0;
-    const blockWidth = bbox.maxX - bbox.minX;
-    const desiredMinX = (sheetW - blockWidth) / 2;
-    const deltaX = desiredMinX - bbox.minX;
-    const desiredMinY = Number(ctp.gripper_mm || 0);
-    const deltaY = desiredMinY - bbox.minY;
-
-    state.layout.slots.forEach((slot) => {
-      if ((slot.face || 'front') !== 'front') return;
-      slot.x_mm = (slot.x_mm || 0) + deltaX;
-      slot.y_mm = (slot.y_mm || 0) + deltaY;
-      if (ctp.lock_after !== false) {
-        slot.locked = true;
-      }
+    return ctpPanel.applyAlignment({
+      state,
+      ensureCtpDefaults,
+      renderSheet,
+      renderSlotForm,
+      pushHistory,
     });
-
-    ctp.enabled = true;
-    renderSheet();
-    renderSlotForm();
-    pushHistory();
   }
 
   function disableCtpAdjustments() {
-    if (!state.layout?.ctp) return;
-    state.layout.ctp.enabled = false;
-    state.layout.ctp.show_guide = false;
-    (state.layout.slots || []).forEach((slot) => {
-      slot.locked = false;
+    return ctpPanel.disableAdjustments({
+      state,
+      ensureCtpDefaults,
+      renderSheet,
+      renderSlotForm,
+      pushHistory,
     });
-    syncCtpUIFromLayout();
-    renderSheet();
-    renderSlotForm();
-    pushHistory();
   }
-
   async function generateStepRepeatFromSelectedSlot() {
     const master = getSelectedSlot();
     if (!master) {
@@ -2272,11 +2178,7 @@
   }
 
   async function saveLayout() {
-    const body = new FormData();
-    body.append('job_id', window.JOB_ID);
-    body.append('layout_json', layoutToJson());
-    const res = await fetch('/editor_offset/save', { method: 'POST', body });
-    return res.json();
+    return apiClient.saveLayout(window.JOB_ID, layoutToJson());
   }
 
   async function requestAutoLayout() {
@@ -2285,12 +2187,7 @@
       return;
     }
     await saveLayout();
-    const res = await fetch(`/editor_offset/auto_layout/${window.JOB_ID}`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ layout_json: layoutToJson() }),
-    });
-    const data = await res.json();
+    const data = await apiClient.requestAutoLayout(window.JOB_ID, layoutToJson());
     if (data.layout) {
       state.layout = data.layout;
       ensureExportDefaults();
@@ -2324,12 +2221,7 @@
       );
       if (!confirmed) return;
     }
-    const body = new FormData();
-    body.append('job_id', window.JOB_ID);
-    body.append('selected_engine', state.layout.imposition_engine);
-    body.append('layout_json', layoutToJson());
-    const res = await fetch('/editor_offset_visual/apply_imposition', { method: 'POST', body });
-    const data = await res.json();
+    const data = await apiClient.applyImposition(window.JOB_ID, state.layout.imposition_engine, layoutToJson());
     if (!data.ok && data.error) {
       alert(data.error);
       return;
@@ -2360,55 +2252,13 @@
       pushHistory();
     }
   }
-
   function formatAiResponse(data) {
-    if (!data || data.ok === false) {
-      return (data && (data.message || data.error)) || 'No se pudo ejecutar la accion.';
-    }
-    const parts = [data.message || 'Accion ejecutada.'];
-    const toolsUsed = Array.isArray(data.tools_used) ? data.tools_used.filter(Boolean) : [];
-    const toolUsed = data.tool_used || (data.raw_tool_result && data.raw_tool_result.tool);
-    if (toolsUsed.length) {
-      parts.push(`Tools: ${toolsUsed.join(' -> ')}`);
-    } else if (toolUsed) {
-      parts.push(`Tool: ${toolUsed}`);
-    }
-    const zoneLabels = {
-      auto: 'Automatico',
-      top: 'Arriba',
-      bottom: 'Abajo',
-      left: 'Izquierda',
-      right: 'Derecha',
-      center: 'Centro',
-    };
-    const zoneChanges = data.data && Array.isArray(data.data.zone_changes) ? data.data.zone_changes : [];
-    if (zoneChanges.length) {
-      parts.push(
-        `Zonas: ${zoneChanges
-          .map((change) => `${change.design_ref || 'Diseno'} -> ${zoneLabels[change.preferred_zone] || change.preferred_zone || 'Automatico'}`)
-          .join(', ')}`,
-      );
-    }
-    const analysis = data.data && data.data.analysis;
-    if (analysis) {
-      parts.push(
-        `Slots: ${analysis.slot_count}`,
-        `Aprovechamiento: ${analysis.aprovechamiento_pct}%`,
-      );
-      if (analysis.area_libre_mm2 !== undefined) {
-        parts.push(`Area libre: ${analysis.area_libre_mm2} mm2`);
-      }
-    }
-    return parts.filter(Boolean).join('\n');
+    return aiPanel.formatResponse(data);
   }
 
   function getAiLayoutChangeType(data) {
-    if (data && data.layout_change_type) return data.layout_change_type;
-    const layoutMeta = data && data.layout && data.layout.ai_agent;
-    if (layoutMeta && layoutMeta.layout_change_type) return layoutMeta.layout_change_type;
-    return null;
+    return aiPanel.getLayoutChangeType(data);
   }
-
   function refreshEditorAfterLayoutReplace() {
     ensureEngineDefaults();
     ensureCtpDefaults();
@@ -2440,382 +2290,79 @@
   }
 
   async function runAiAssistant() {
-    const promptEl = document.getElementById('ai-prompt');
-    const responseEl = document.getElementById('ai-response');
-    const applyBtn = document.getElementById('btn-ai-apply');
-    const runBtn = document.getElementById('btn-ai-run');
-    if (!promptEl || !responseEl || !applyBtn) return;
-
-    const prompt = promptEl.value.trim();
-    if (!prompt) {
-      responseEl.innerText = 'Escribi una instruccion.';
-      return;
-    }
-
-    aiResultLayout = null;
-    aiResultChangeType = null;
-    applyBtn.hidden = true;
-    responseEl.innerText = 'Procesando...';
-    if (runBtn) runBtn.disabled = true;
-
-    try {
-      syncSettingsToLayout();
-      const res = await fetch('/ai/step_repeat_action_openai', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          prompt,
-          layout_json: state.layout,
-        }),
-      });
-      const data = await res.json();
-      responseEl.innerText = formatAiResponse(data);
-
-      if (data.ok === false) {
-        if (data.error) alert(data.error);
-        return;
-      }
-
-      if (data.layout && typeof data.layout === 'object') {
-        aiResultLayout = data.layout;
-        aiResultChangeType = getAiLayoutChangeType(data);
-        applyBtn.hidden = false;
-        if (aiResultChangeType === 'metadata_only') {
-          responseEl.innerText = `${responseEl.innerText}\n\nPreferencias listas para aplicar. No se regeneraron slots.`;
-        } else {
-          responseEl.innerText = `${responseEl.innerText}\n\nCambios listos para aplicar.`;
-        }
-      }
-    } catch (err) {
-      console.error(err);
-      responseEl.innerText = 'Error al ejecutar la IA.';
-    } finally {
-      if (runBtn) runBtn.disabled = false;
-    }
+    return aiPanel.runAssistant({ state, syncSettingsToLayout });
   }
 
   function applyAiAssistantLayout() {
-    const responseEl = document.getElementById('ai-response');
-    const applyBtn = document.getElementById('btn-ai-apply');
-    if (!aiResultLayout) return;
-
-    state.layout = aiResultLayout;
-    aiResultLayout = null;
-    const appliedChangeType = aiResultChangeType;
-    aiResultChangeType = null;
-    refreshEditorAfterLayoutReplace();
-    pushHistory();
-
-    if (applyBtn) applyBtn.hidden = true;
-    if (responseEl) {
-      responseEl.innerText = appliedChangeType === 'metadata_only' ? 'Preferencias aplicadas.' : 'Cambios aplicados.';
-    }
+    return aiPanel.applyLayout({
+      state,
+      setLayout(nextLayout) {
+        state.layout = nextLayout;
+      },
+      refreshEditorAfterLayoutReplace,
+      pushHistory,
+    });
   }
-
   function renderCuadernilloPages(pages) {
-    return (pages || [])
-      .map((pageItem) => {
-        const isVisualPage = pageItem && typeof pageItem === 'object';
-        const pageNumber = isVisualPage ? pageItem.pagina : pageItem;
-        const rotation = isVisualPage ? Number(pageItem.rotacion || 0) : 0;
-        const isBlank = pageNumber === 'BLANCO';
-        let rotationClass = ' pagina-rotada-0';
-        let pageRotationClass = ' cuadernillo-page-rot-0';
-        let rotationLabel = '0';
-        if (rotation === 90) rotationClass = ' pagina-rotada-90';
-        if (rotation === 90) {
-          pageRotationClass = ' cuadernillo-page-rot-90';
-          rotationLabel = '90';
-        }
-        if (rotation === -90) {
-          rotationClass = ' pagina-rotada--90';
-          pageRotationClass = ' cuadernillo-page-rot--90';
-          rotationLabel = '-90';
-        }
-        if (rotation === 180) {
-          rotationClass = ' pagina-rotada-180';
-          pageRotationClass = ' cuadernillo-page-rot-180';
-          rotationLabel = '180';
-        }
-        return `
-          <span class="cuadernillo-page${pageRotationClass}${isBlank ? ' cuadernillo-page-blank' : ''}">
-            <span class="cuadernillo-page-rotation">${rotationLabel}</span>
-            <span class="cuadernillo-page-number${rotationClass}">${pageNumber}</span>
-          </span>
-        `;
-      })
-      .join('');
+    return bookletPanel.renderPages(pages);
   }
 
   function getCuadernilloPagesClass(pliego) {
-    const paginasPorCara = Number(pliego?.paginas_por_cara || 4);
-    if (paginasPorCara === 8) return 'cuadernillo-pages cuadernillo-pages-8 cuadernillo-grid-2x4';
-    return 'cuadernillo-pages cuadernillo-pages-4 cuadernillo-grid-2x2';
+    return bookletPanel.getPagesClass(pliego);
   }
 
   function getCuadernilloModeLabel(pliego) {
-    if (pliego?.tipo === 'vyv_8' || pliego?.modo === 'vyv_8_paginas') return 'VYV 8 paginas';
-    if (pliego?.tipo === 'vyv_4' || pliego?.modo === 'vyv_4_paginas') return 'VYV 4 paginas';
-    if (pliego?.tipo === 'cuadernillo_16') return 'Cuadernillo 16';
-    if (pliego?.tipo === 'cuadernillo_8') return 'Cuadernillo 8';
-    return '';
+    return bookletPanel.getModeLabel(pliego);
   }
 
   function renderCuadernilloTechSummary(simulacion) {
-    const tipoTapaLabel = simulacion.tipo_tapa === 'tapa_completa' ? 'Tapa completa' : 'Sin tapa';
-    const tipoCuadernillo = Number(simulacion.tipo_cuadernillo || 0);
-    const tipoCuadernilloLabel = tipoCuadernillo ? `${tipoCuadernillo} paginas` : 'Automatico';
-    const pliegos = simulacion.tipo_tapa === 'tapa_completa'
-      ? (simulacion.tripa?.pliegos || simulacion.pliegos || [])
-      : (simulacion.pliegos || []);
-    const totalPliegos = pliegos.length + (simulacion.tapa ? 1 : 0);
-    const items = [
-      ['Original', simulacion.total_paginas_original],
-      ['Final', simulacion.total_paginas_final],
-      ['Blancas', simulacion.blancas_agregadas],
-      ['Tapa', tipoTapaLabel],
-      ['Cuadernillo', tipoCuadernilloLabel],
-      ['Pliegos', totalPliegos],
-    ];
-
-    return `
-      <section class="cuadernillo-tech-summary" aria-label="Resumen operativo del cuadernillo">
-        <div class="cuadernillo-summary-grid">
-          ${items
-            .map(([label, value]) => `
-              <div class="cuadernillo-summary-card">
-                <span>${label}</span>
-                <strong>${value ?? 0}</strong>
-              </div>
-            `)
-            .join('')}
-        </div>
-        <p class="cuadernillo-summary-note">Simulacion visual: no genera PDF ni modifica el montaje.</p>
-      </section>
-    `;
+    return bookletPanel.renderTechSummary(simulacion);
   }
 
   function renderCuadernilloPliegos(pliegos, title) {
-    const pliegosHtml = (pliegos || [])
-      .map((pliego) => {
-        const isVyv = pliego.tipo === 'vyv_8' || pliego.tipo === 'vyv_4' || String(pliego.modo || '').startsWith('vyv_');
-        const pagesClass = getCuadernilloPagesClass(pliego);
-        const modeLabel = getCuadernilloModeLabel(pliego);
-        const label = modeLabel ? `<span class="cuadernillo-mode-label">${modeLabel}</span>` : '';
-        const pagesLabel = `<span class="cuadernillo-mode-label">${Number(pliego.paginas_por_cara || 4)} pags cara</span>`;
-        const vyvLabel = isVyv
-          ? '<span class="cuadernillo-mode-label cuadernillo-vyv-badge">Cara unica</span>'
-          : '';
-        const caraUnica = Array.isArray(pliego.cara)
-          ? `
-            <div class="cuadernillo-face cuadernillo-single-face">
-              <div class="cuadernillo-face-heading">
-                <strong>Cara unica VYV</strong>
-                <span class="cuadernillo-face-badge">Sin dorso</span>
-              </div>
-              <span class="cuadernillo-orientation-label">Cabeza con cabeza</span>
-              <div class="${pagesClass}">${renderCuadernilloPages(pliego.cara_visual || pliego.cara)}</div>
-            </div>
-          `
-          : '';
-        const frenteDorso = !caraUnica
-          ? `
-            <div class="cuadernillo-face cuadernillo-front">
-              <div class="cuadernillo-face-heading">
-                <strong>Frente</strong>
-                <span class="cuadernillo-face-badge cuadernillo-orientation-label">Cabeza con cabeza</span>
-              </div>
-              <div class="${pagesClass}">${renderCuadernilloPages(pliego.frente_visual || pliego.frente)}</div>
-            </div>
-            <div class="cuadernillo-face cuadernillo-back">
-              <div class="cuadernillo-face-heading">
-                <strong>Dorso</strong>
-                <span class="cuadernillo-face-badge cuadernillo-orientation-label">Cabeza con cabeza</span>
-              </div>
-              <div class="${pagesClass}">${renderCuadernilloPages(pliego.dorso_visual || pliego.dorso)}</div>
-            </div>
-          `
-          : '';
-        return `
-          <article class="cuadernillo-card${isVyv ? ' pliego-vyv' : ''}">
-            <h4>
-              <span>Pliego ${pliego.pliego}</span>
-              <span class="cuadernillo-card-badges">${label}${pagesLabel}${vyvLabel}</span>
-            </h4>
-            ${caraUnica || frenteDorso}
-          </article>
-        `;
-      })
-      .join('');
-    return `
-      <section class="cuadernillo-block cuadernillo-tripa-block">
-        ${title ? `<h4 class="cuadernillo-section-title"><span>${title}</span><span class="cuadernillo-section-badge">Pliegos interiores</span></h4>` : ''}
-        ${pliegosHtml}
-      </section>
-    `;
+    return bookletPanel.renderPliegos(pliegos, title);
   }
 
   function renderCuadernilloTapa(tapa) {
-    if (!tapa) return '';
-    if (Array.isArray(tapa.cara) || Array.isArray(tapa.cara_visual)) {
-      return `
-        <section class="cuadernillo-block cuadernillo-tapa-block tapa-vyv">
-          <h4 class="cuadernillo-section-title"><span>TAPA</span><span class="cuadernillo-section-badge">VYV 4 - Cara unica</span></h4>
-          <div class="cuadernillo-face cuadernillo-single-face">
-            <div class="cuadernillo-face-heading">
-              <strong>Cara unica VYV</strong>
-              <span class="cuadernillo-face-badge">Tapa completa</span>
-            </div>
-            <span class="cuadernillo-orientation-label">Cabeza con cabeza</span>
-            <div class="cuadernillo-pages cuadernillo-pages-4 cuadernillo-grid-2x2">
-              ${renderCuadernilloPages(tapa.cara_visual || tapa.cara)}
-            </div>
-          </div>
-        </section>
-      `;
-    }
-    return `
-      <section class="cuadernillo-block cuadernillo-tapa-block">
-        <h4 class="cuadernillo-section-title"><span>TAPA</span><span class="cuadernillo-section-badge">Separada</span></h4>
-        <div class="cuadernillo-face cuadernillo-front">
-          <div class="cuadernillo-face-heading">
-            <strong>Frente</strong>
-            <span class="cuadernillo-face-badge cuadernillo-orientation-label">Cabeza con cabeza</span>
-          </div>
-          <div class="cuadernillo-pages cuadernillo-pages-cover">${renderCuadernilloPages(tapa.frente_visual || tapa.frente)}</div>
-        </div>
-        <div class="cuadernillo-face cuadernillo-back">
-          <div class="cuadernillo-face-heading">
-            <strong>Dorso</strong>
-            <span class="cuadernillo-face-badge cuadernillo-orientation-label">Cabeza con cabeza</span>
-          </div>
-          <div class="cuadernillo-pages cuadernillo-pages-cover">${renderCuadernilloPages(tapa.dorso_visual || tapa.dorso)}</div>
-        </div>
-      </section>
-    `;
+    return bookletPanel.renderTapa(tapa);
   }
 
   function renderCuadernilloSimulation(simulacion) {
-    const resultEl = document.getElementById('cuadernillo-resultado');
-    if (!resultEl) return;
-    const resumen = renderCuadernilloTechSummary(simulacion);
-    if (simulacion.tipo_tapa === 'tapa_completa') {
-      resultEl.innerHTML = `
-        ${resumen}
-        ${renderCuadernilloTapa(simulacion.tapa)}
-        ${renderCuadernilloPliegos(simulacion.tripa?.pliegos || simulacion.pliegos || [], 'TRIPA')}
-      `;
-      return;
-    }
-    resultEl.innerHTML = `${resumen}${renderCuadernilloPliegos(simulacion.pliegos || [], '')}`;
+    return bookletPanel.renderSimulation(simulacion);
   }
 
   async function simularCuadernillo() {
-    const resultEl = document.getElementById('cuadernillo-resultado');
-    const totalInput = document.getElementById('cuadernillo-total-paginas');
-    const tipoSelect = document.getElementById('cuadernillo-tipo');
-    const tipoTapaSelect = document.getElementById('cuadernillo-tipo-tapa');
-    const tipoCuadernilloSelect = document.getElementById('cuadernillo-tipo-cuadernillo');
-    if (!resultEl || !totalInput || !tipoSelect || !tipoTapaSelect || !tipoCuadernilloSelect) return;
-
-    resultEl.textContent = 'Simulando...';
-    const payload = {
-      total_paginas: parseInt(totalInput.value, 10),
-      tipo_encuadernacion: tipoSelect.value,
-      tipo_tapa: tipoTapaSelect.value,
-      tipo_cuadernillo: parseInt(tipoCuadernilloSelect.value, 10),
-    };
-
-    try {
-      const res = await fetch('/editor_offset/cuadernillos/simular', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
-      });
-      const data = await res.json();
-      if (!res.ok || !data.ok) {
-        resultEl.innerHTML = `<p class="cuadernillo-error">${data.error || 'No se pudo simular el cuadernillo.'}</p>`;
-        return;
-      }
-      renderCuadernilloSimulation(data.simulacion);
-    } catch (err) {
-      resultEl.innerHTML = '<p class="cuadernillo-error">No se pudo conectar con el simulador.</p>';
-    }
+    return bookletPanel.simulate();
   }
-
   async function requestPreview() {
-    if (!state.layout.slots || state.layout.slots.length === 0) {
-      alert('No hay slots en el pliego. Crea o genera los cuadros antes de generar la preview/PDF.');
-      return;
-    }
-    const geometry = refreshGeometryValidation();
-    renderGeometryValidationPanel();
-    if (geometry.errors.length || geometry.warnings.length) {
-      alert(
-        `Advertencia geomÃ©trica antes de la preview:\n- ${geometry.errors.length} errores\n- ${geometry.warnings.length} advertencias\nRevisa el panel debajo del pliego para mÃ¡s detalle.`,
-      );
-    }
-    await saveLayout();
-    const res = await fetch(`/editor_offset/preview/${window.JOB_ID}`, { method: 'POST' });
-    const data = await res.json();
-    if (!res.ok || data.ok === false) {
-      const details = []
-        .concat((data.errors || []).map((item) => `- ${item.message}`))
-        .concat((data.warnings || []).map((item) => `- Warning: ${item.message}`));
-      alert([data.error || 'No se pudo generar la preview.', ...details].join('\n'));
-      return;
-    }
-    if (data.url) {
-      previewImg.src = data.url + `?t=${Date.now()}`;
-    }
-    if (data.warnings && data.warnings.length) {
-      alert(`Preview generada con advertencias:\n${data.warnings.map((item) => `- ${item.message}`).join('\n')}`);
-    }
+    return outputPanel.requestPreview({
+      state,
+      jobId: window.JOB_ID,
+      previewImg,
+      saveLayout,
+      refreshGeometryValidation,
+      renderGeometryValidationPanel,
+    });
   }
 
   async function requestPdf() {
-    if (!state.layout.slots || state.layout.slots.length === 0) {
-      alert('No hay slots en el pliego. Crea o genera los cuadros antes de generar la preview/PDF.');
-      return;
-    }
-    const geometry = refreshGeometryValidation();
-    renderGeometryValidationPanel();
-    if (geometry.errors.length || geometry.warnings.length) {
-      alert(
-        `Advertencia geomÃ©trica antes del PDF:\n- ${geometry.errors.length} errores\n- ${geometry.warnings.length} advertencias\nRevisa el panel debajo del pliego para mÃ¡s detalle.`,
-      );
-    }
-    await saveLayout();
-    const res = await fetch(`/editor_offset/generar_pdf/${window.JOB_ID}`, { method: 'POST' });
-    const data = await res.json();
-    if (!res.ok || data.ok === false) {
-      const details = []
-        .concat((data.errors || []).map((item) => `- ${item.message}`))
-        .concat((data.warnings || []).map((item) => `- Warning: ${item.message}`));
-      alert([data.error || 'No se pudo generar el PDF final.', ...details].join('\n'));
-      return;
-    }
-    if (data.url) {
-      pdfOutput.innerHTML = `<a href="${data.url}" target="_blank">Descargar PDF</a>`;
-    }
-    if (data.warnings && data.warnings.length) {
-      alert(`PDF generado con advertencias:\n${data.warnings.map((item) => `- ${item.message}`).join('\n')}`);
-    }
+    return outputPanel.requestPdf({
+      state,
+      jobId: window.JOB_ID,
+      pdfOutput,
+      saveLayout,
+      refreshGeometryValidation,
+      renderGeometryValidationPanel,
+    });
   }
 
   async function uploadDesigns(ev) {
     ev.preventDefault();
     const filesInput = document.getElementById('design-files');
     if (!filesInput.files.length) return;
-    const body = new FormData();
-    for (const f of filesInput.files) body.append('files', f);
     const workSelectForUpload = document.getElementById('design-work-select');
     const selectedWorkId = workSelectForUpload ? workSelectForUpload.value : '';
-    if (selectedWorkId) {
-      body.append('work_id', selectedWorkId);
-    }
-    const res = await fetch(`/editor_offset/upload/${window.JOB_ID}`, { method: 'POST', body });
-    const data = await res.json();
+    const data = await apiClient.uploadDesigns(window.JOB_ID, filesInput.files, selectedWorkId);
     if (data.designs) {
       state.layout.designs = data.designs;
       normalizeDesignDefaults();
@@ -2826,7 +2373,6 @@
       pushHistory();
     }
   }
-
   function initEditorTabs() {
     const tabs = Array.from(document.querySelectorAll('[data-editor-tab]'));
     const panels = Array.from(document.querySelectorAll('[data-editor-tab-panel]'));
