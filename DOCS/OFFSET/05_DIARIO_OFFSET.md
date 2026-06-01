@@ -1496,3 +1496,42 @@ La auditoria se enfoca en seleccion simple/multiple, box select, drag, resize, n
 ### Validacion solicitada
 
 - `git diff --check`: OK, solo warnings LF/CRLF de Git sobre los Markdown editados.
+
+---
+
+## 2026-06-01 - Fase 5D-1 SAFE: caracterizacion UI de herramientas manuales
+
+Se agrego cobertura Playwright de caracterizacion para interacciones complejas antes de extraer `manual_tools.js`.
+
+Archivo creado:
+
+- `tests/playwright/test_editor_manual_interactions.py`
+
+Cobertura agregada:
+
+- seleccion simple mediante click sobre `.slot`
+- seleccion multiple mediante Ctrl+click
+- Ctrl+A sobre el editor
+- duplicado de seleccion desde `#btn-dup-slot`
+- borrado de seleccion desde `#btn-del-slot`
+- agrupar y desagrupar desde `#btn-group-slots` y `#btn-ungroup-slots`
+- nudge desde controles UI reales y `#nudge-step`
+- alineacion desde herramientas avanzadas
+- distribucion desde herramientas avanzadas
+
+Garantias conservadas:
+
+- Los tests operan exclusivamente mediante UI publica.
+- No se accede a `state` interno ni a APIs privadas del editor.
+- No se aplican monkeypatches ni hacks sobre el editor.
+- Los locators de slots se reconsultan despues de renders.
+- Las coordenadas se modifican desde controles UI reales del formulario de slot.
+- No se modifico `static/js/editor_offset_visual.js`.
+- No se modifico `static/js/editor_offset_visual/renderer_canvas.js`.
+- No se tocaron templates, CSS, backend, services, engines, contratos JSON, preview/PDF, CTP productivo ni cuadernillos.
+
+Validaciones:
+
+- `git diff --check`: OK antes del cierre documental.
+- `venv\Scripts\pytest.exe tests\playwright\test_editor_manual_interactions.py -s`: fallo inicialmente en sandbox por `PermissionError: [WinError 5] Acceso denegado` al inicializar Playwright/subprocess.
+- `venv\Scripts\pytest.exe tests\playwright\test_editor_manual_interactions.py -s` fuera del sandbox: OK, 2 passed.
