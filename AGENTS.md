@@ -462,21 +462,24 @@ El agente debe revisar y mantener alineada la documentación.
 
 - `14_MAPA_FUNCIONAL_EDITOR_VISUAL_IA.md`
 
-Este documento es actualmente la fuente de verdad arquitectónica del Editor Visual IA.
+Este documento es actualmente la fuente arquitectónica compacta del Editor Visual IA.
 
 Contiene:
 
-- mapa funcional completo
-- dependencias por archivo
-- responsabilidades de frontend/backend
-- responsabilidades de Step & Repeat PRO
-- estado actual de Fase 9 y del agente SDK `ai_agent/editor_advisor`
-- estado actual de Fase 10 cerrada y del agente SDK `ai_agent/editor_advisor`
-- riesgos técnicos
-- partes mezcladas
-- arquitectura objetivo
-- roadmap Fase 8.x / Fase 9 / Fase 10 y Fase 11 futura
-- estrategia SAFE de evolución
+- estado actual canónico del Editor Visual IA
+- arquitectura frontend/backend actual
+- módulos JS 5A/5B
+- flujo funcional actual
+- contratos y semánticas críticas
+- mapa de dependencias por subsistema
+- zonas de alto riesgo
+- validaciones canónicas
+- historial breve
+- referencias a Estado, Plan, Diario y reglas de agentes
+
+El historial cronológico vive en `05_DIARIO_OFFSET.md`.
+El roadmap futuro vive en `04_PLAN_OFFSET.md`.
+Las reglas operativas para agentes viven en `AGENTS.md`.
 
 Antes de realizar:
 
