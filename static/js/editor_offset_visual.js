@@ -9,6 +9,7 @@
   const aiPanel = editorModules.aiPanel;
   const ctpPanel = editorModules.ctpPanel;
   const bookletPanel = editorModules.bookletPanel;
+  const rendererCanvas = editorModules.rendererCanvas;
   const sheetEl = domRefs.byId(domRefs.ids.sheet);
   const sheetCanvas = domRefs.byId(domRefs.ids.sheetCanvas);
   const worksListEl = domRefs.byId(domRefs.ids.worksList);
@@ -269,19 +270,12 @@
   }
 
   function recalcScale() {
-    const sheet = state.layout.sheet_mm || [640, 880];
-    const prevScale = state.scale || 1;
-    const maxW = Math.max((sheetCanvas?.clientWidth || 0) - 20, 0);
-    const maxH = Math.max(Math.max((sheetCanvas?.clientHeight || 0) - 20, 400), 0);
-    if (!maxW || !maxH || !sheet[0] || !sheet[1]) {
-      return;
-    }
-    const scale = Math.min(maxW / sheet[0], maxH / sheet[1]);
-    if (!Number.isFinite(scale) || scale <= 0) {
-      state.scale = prevScale;
-      return;
-    }
-    state.scale = Math.max(scale, 0.2);
+    state.scale = rendererCanvas.recalcSheetScale({
+      sheetCanvas,
+      layout: state.layout,
+      previousScale: state.scale || 1,
+      minScale: 0.2,
+    });
   }
 
   function applySnap(x, y, slot) {
@@ -360,15 +354,12 @@
   }
 
   function applyZoom() {
-    const sheet = document.getElementById('sheet');
-    if (!sheet) return;
-    sheet.style.transformOrigin = 'top left';
-    sheet.style.transform = `scale(${state.zoom})`;
-    const label = document.getElementById('zoom-label');
-    if (label) {
-      label.textContent = `${Math.round(state.zoom * 100)}%`;
-    }
-    updateHandleScale();
+    rendererCanvas.applySheetZoom({
+      sheetEl,
+      zoom: state.zoom,
+      zoomLabelEl: document.getElementById('zoom-label'),
+      updateHandleScale,
+    });
   }
 
   function syncSettingsToLayout() {
@@ -617,6 +608,14 @@
   }
 
   function renderGeometryValidationPanel() {
+    rendererCanvas.renderGeometryValidationPanel({
+      validation: state.geometryValidation,
+      activeFace: state.activeFace || 'front',
+      summaryEl: geometryValidationSummaryEl,
+      listEl: geometryValidationListEl,
+    });
+    return;
+
     if (!geometryValidationSummaryEl || !geometryValidationListEl) return;
 
     const validation = state.geometryValidation || { errors: [], warnings: [], bySlot: {} };
@@ -887,6 +886,14 @@
   }
 
   function renderDistanceIndicator() {
+    rendererCanvas.renderDistanceIndicator({
+      sheetEl,
+      distanceIndicator: state.distanceIndicator,
+      activeFace: state.activeFace || 'front',
+      mmToPx,
+    });
+    return;
+
     if (!state.distanceIndicator?.active) return;
     if ((state.distanceIndicator.face || 'front') !== (state.activeFace || 'front')) return;
 
@@ -929,6 +936,32 @@
 
   function renderSheet() {
     refreshGeometryValidation();
+    rendererCanvas.renderSheetSurface({
+      sheetEl,
+      layout: state.layout,
+      activeFace: state.activeFace || 'front',
+      selectedSlot: state.selectedSlot,
+      selectedSlots: state.selectedSlots,
+      geometryValidation: state.geometryValidation,
+      distanceIndicator: state.distanceIndicator,
+      mmToPx,
+      getSlotRenderBox,
+      attachSlotHandlers: (slotEl, slot) => {
+        slotEl.addEventListener('pointerdown', (ev) => onSlotPointerDown(ev, slot, slotEl));
+        slotEl.addEventListener('click', (ev) => {
+          ev.stopPropagation();
+          const toggle = ev.ctrlKey || ev.metaKey || ev.shiftKey;
+          selectSlot(slot.id, { toggle });
+        });
+      },
+      updateHandleScale,
+      zoom: state.zoom,
+      zoomLabelEl: document.getElementById('zoom-label'),
+      geometryValidationSummaryEl,
+      geometryValidationListEl,
+    });
+    return;
+
     const [sheetW, sheetH] = state.layout.sheet_mm;
     sheetEl.style.width = `${mmToPx(sheetW)}px`;
     sheetEl.style.height = `${mmToPx(sheetH)}px`;
@@ -986,6 +1019,14 @@
   }
 
   function renderCtpGuideOverlay() {
+    rendererCanvas.renderCtpGuide({
+      sheetEl,
+      ctp: state.layout?.ctp,
+      activeFace: state.activeFace || 'front',
+      mmToPx,
+    });
+    return;
+
     const ctp = state.layout?.ctp;
     if (!ctp || !ctp.show_guide || !ctp.enabled) return;
     if ((state.activeFace || 'front') !== 'front') return;

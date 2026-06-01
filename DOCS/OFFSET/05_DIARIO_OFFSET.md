@@ -1326,3 +1326,45 @@ Regla clave:
 ### Validacion solicitada
 
 - `git diff --check`: OK, solo warnings LF/CRLF de Git sobre los Markdown editados.
+
+## 2026-06-01 Fase 5C Real inicial - Renderer Canvas
+
+### Objetivo
+
+Implementar la primera extraccion SAFE del renderer/canvas/sheet hacia un modulo frontend clasico, manteniendo `static/js/editor_offset_visual.js` como entrypoint compatible y sin mover interacciones complejas.
+
+### Cambios reales
+
+- Se creo `static/js/editor_offset_visual/renderer_canvas.js` como script clasico bajo `window.EditorOffsetVisual.rendererCanvas`.
+- Se cargo el nuevo modulo desde `templates/editor_offset_visual.html` antes del entrypoint principal.
+- `static/js/editor_offset_visual.js` conserva wrappers compatibles:
+  - `renderSheet`
+  - `recalcScale`
+  - `applyZoom`
+  - `renderGeometryValidationPanel`
+- El modulo nuevo contiene helpers de render visual:
+  - `recalcSheetScale`
+  - `applySheetZoom`
+  - `buildVisibleSlotViewModels`
+  - `renderSheetSurface`
+  - `renderCtpGuide`
+  - `renderGeometryValidationPanel`
+  - `renderDistanceIndicator`
+
+### Garantias conservadas
+
+- `renderer_canvas.js` no registra listeners globales ni listeners de slot por cuenta propia.
+- Los listeners `pointerdown` y `click` de slot siguen registrandose desde el entrypoint mediante callback.
+- No se tocaron drag, resize, seleccion, box select, nudge, align, distribute, group/ungroup ni shortcuts.
+- No se cambiaron IDs, DOM funcional, CSS, contratos JSON, backend, services, engines, strategies, preview/PDF, CTP productivo, cuadernillos ni Step & Repeat PRO.
+- `renderSheet` sigue existiendo como callback compatible para CTP y otros flujos frontend.
+
+### Validacion
+
+- `node --check static/js/editor_offset_visual/renderer_canvas.js`: bloqueado por `Acceso denegado` a `node.exe` en entorno Codex.
+- `node --check static/js/editor_offset_visual.js`: bloqueado por `Acceso denegado` a `node.exe` en entorno Codex.
+- `python -m compileall routes.py montaje_offset_inteligente.py engines cuadernillos ai_agent services strategies`: OK.
+- `venv\Scripts\pytest.exe tests\test_step_repeat_pro_engine.py tests\test_editor_offset_output_contract.py tests\test_cuadernillos_simulator.py tests\test_editor_offset_characterization.py -q -p no:cacheprovider`: OK, `53 passed`.
+- `git diff --check`: OK, solo warnings LF/CRLF de Git sobre archivos editados.
+- `git diff --check --no-index NUL static/js/editor_offset_visual/renderer_canvas.js`: sin errores de whitespace; exit code 1 esperado por diferencias contra `NUL`.
+- Playwright no se ejecuto porque no habia servidor Flask escuchando en `http://127.0.0.1:5000/editor_offset_visual`.
