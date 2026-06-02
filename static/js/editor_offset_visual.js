@@ -10,6 +10,7 @@
   const ctpPanel = editorModules.ctpPanel;
   const bookletPanel = editorModules.bookletPanel;
   const rendererCanvas = editorModules.rendererCanvas;
+  const manualTools = editorModules.manualTools;
   const sheetEl = domRefs.byId(domRefs.ids.sheet);
   const sheetCanvas = domRefs.byId(domRefs.ids.sheetCanvas);
   const worksListEl = domRefs.byId(domRefs.ids.worksList);
@@ -1464,44 +1465,46 @@
   }
 
   function duplicateSlot() {
-    const bases = getSelectedSlots({ sameFaceOnly: false });
-    if (!bases.length) return;
-
-    const groupMap = new Map();
-    const copies = bases.map((base, index) => {
-      const copy = { ...base, id: `s${Date.now()}_${index + 1}` };
-      copy.face = copy.face || base.face || state.activeFace || 'front';
-      copy.x_mm = roundMm((copy.x_mm || 0) + 5);
-      copy.y_mm = roundMm((copy.y_mm || 0) + 5);
-      if (base.group_id) {
-        if (!groupMap.has(base.group_id)) {
-          groupMap.set(base.group_id, `g${Date.now()}_${groupMap.size + 1}`);
-        }
-        copy.group_id = groupMap.get(base.group_id);
-      }
-      return copy;
+    const result = manualTools.duplicateSelectedSlots({
+      layout: state.layout,
+      bases: getSelectedSlots({ sameFaceOnly: false }),
+      activeFace: state.activeFace,
+      roundMm,
     });
-
-    state.layout.slots.push(...copies);
-    state.selectedSlots = new Set(copies.map((copy) => copy.id));
-    state.selectedSlot = copies[0] || null;
+    if (!result.changed) return;
+    state.selectedSlots = new Set(result.selectedSlotIds || []);
+    state.selectedSlot = result.selectedSlot || null;
     pushHistory();
     renderSheet();
     renderSlotForm();
   }
 
   function deleteSlot() {
-    const selectedIds = new Set(getSelectedSlotIds());
-    if (!selectedIds.size) return;
-    state.layout.slots = state.layout.slots.filter((s) => !selectedIds.has(s.id));
-    state.selectedSlot = null;
-    state.selectedSlots = new Set();
+    const result = manualTools.deleteSelectedSlots({
+      layout: state.layout,
+      selectedSlotIds: getSelectedSlotIds(),
+    });
+    if (!result.changed) return;
+    state.selectedSlot = result.selectedSlot || null;
+    state.selectedSlots = new Set(result.selectedSlotIds || []);
     pushHistory();
     renderSheet();
     renderSlotForm();
   }
 
   function groupSelectedSlots() {
+    const result = manualTools.groupSelectedSlots({
+      layout: state.layout,
+      selectedSlotIds: getSelectedSlotIds(),
+    });
+    if (!result.changed) {
+      if (result.message) alert(result.message);
+      return;
+    }
+    pushHistory();
+    renderSheet();
+    renderSlotForm();
+    return;
     if (!state.selectedSlots || state.selectedSlots.size < 2) {
       alert('SeleccionÃ¡ al menos dos slots para agrupar.');
       return;
@@ -1521,6 +1524,18 @@
   }
 
   function ungroupSelectedSlots() {
+    const result = manualTools.ungroupSelectedSlots({
+      layout: state.layout,
+      selectedSlotIds: getSelectedSlotIds(),
+    });
+    if (!result.changed) {
+      if (result.message) alert(result.message);
+      return;
+    }
+    pushHistory();
+    renderSheet();
+    renderSlotForm();
+    return;
     if (!state.selectedSlots || state.selectedSlots.size === 0) {
       alert('No hay slots seleccionados para desagrupar.');
       return;
@@ -1542,6 +1557,21 @@
   }
 
   function alignSelectedSlots(mode) {
+    const result = manualTools.alignSelectedSlots({
+      slots: getSelectedSlots({ editableOnly: true }),
+      mode,
+      getSelectionBounds,
+      getEffectiveSlotBox,
+      setSlotEffectiveBox,
+    });
+    if (!result.changed) {
+      if (result.message) alert(result.message);
+      return;
+    }
+    pushHistory();
+    refreshSelectionAfterEdit();
+    return;
+
     const slots = getSelectedSlots({ editableOnly: true });
     if (slots.length < 2) {
       alert('SeleccionÃ¡ al menos dos slots desbloqueados para alinear.');
@@ -1572,6 +1602,20 @@
   }
 
   function distributeSelectedSlots(axis) {
+    const result = manualTools.distributeSelectedSlots({
+      slots: getSelectedSlots({ editableOnly: true }),
+      axis,
+      getEffectiveSlotBox,
+      setSlotEffectiveBox,
+    });
+    if (!result.changed) {
+      if (result.message) alert(result.message);
+      return;
+    }
+    pushHistory();
+    refreshSelectionAfterEdit();
+    return;
+
     const slots = getSelectedSlots({ editableOnly: true });
     if (slots.length < 3) {
       alert('SeleccionÃ¡ al menos tres slots desbloqueados para distribuir.');
@@ -1608,6 +1652,18 @@
   }
 
   function centerSelectedBlock(axis = 'both') {
+    const result = manualTools.centerSelectedBlock({
+      slots: getSelectedSlots({ editableOnly: true }),
+      axis,
+      getSelectionBounds,
+      getUsableSheetBounds,
+      roundMm,
+    });
+    if (!result.changed) return false;
+    pushHistory();
+    refreshSelectionAfterEdit();
+    return true;
+
     const slots = getSelectedSlots({ editableOnly: true });
     if (!slots.length) return false;
 
@@ -1635,6 +1691,17 @@
   }
 
   function nudgeSelectedSlots(dx, dy, opts = {}) {
+    const result = manualTools.nudgeSelectedSlots({
+      slots: getSelectedSlots({ editableOnly: true, sameFaceOnly: false }),
+      dx,
+      dy,
+      roundMm,
+    });
+    if (!result.changed) return false;
+    if (opts.push !== false) pushHistory();
+    refreshSelectionAfterEdit();
+    return true;
+
     const slots = getSelectedSlots({ editableOnly: true, sameFaceOnly: false });
     if (!slots.length) return false;
 
@@ -1657,6 +1724,22 @@
   }
 
   function applyGapToSlots() {
+    const result = manualTools.applyGapToSlots({
+      layout: state.layout,
+      selectedSlotIds: state.selectedSlots ? Array.from(state.selectedSlots) : [],
+      gapX: parseFloat(document.getElementById('gap-x').value || '0'),
+      gapY: parseFloat(document.getElementById('gap-y').value || '0'),
+      groupSlotsByRow,
+    });
+    if (!result.changed) {
+      if (result.message) alert(result.message);
+      return;
+    }
+    renderSheet();
+    renderSlotForm();
+    pushHistory();
+    return;
+
     if (!state.layout.slots || state.layout.slots.length === 0) {
       alert('No hay slots para reordenar.');
       return;
@@ -1700,6 +1783,25 @@
   }
 
   function applySpacing(mode = 'all', opts = {}) {
+    const { render: shouldRender = true, push: shouldPush = false, face: targetFace = state.activeFace || 'front' } = opts;
+    const result = manualTools.applySpacing({
+      layout: state.layout,
+      mode,
+      face: targetFace,
+      spacingX: Number(state.spacingSettings.spacingX_mm) || 0,
+      spacingY: Number(state.spacingSettings.spacingY_mm) || 0,
+      getEffectiveSlotBox,
+      groupSlotsByRow,
+      groupSlotsByColumn,
+    });
+    if (!result.changed) return false;
+    if (shouldRender) {
+      renderSheet();
+      renderSlotForm();
+    }
+    if (shouldPush) pushHistory();
+    return true;
+
     const { render = true, push = false, face = state.activeFace || 'front' } = opts;
     const spacingX = Number(state.spacingSettings.spacingX_mm) || 0;
     const spacingY = Number(state.spacingSettings.spacingY_mm) || 0;

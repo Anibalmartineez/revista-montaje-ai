@@ -1535,3 +1535,43 @@ Validaciones:
 - `git diff --check`: OK antes del cierre documental.
 - `venv\Scripts\pytest.exe tests\playwright\test_editor_manual_interactions.py -s`: fallo inicialmente en sandbox por `PermissionError: [WinError 5] Acceso denegado` al inicializar Playwright/subprocess.
 - `venv\Scripts\pytest.exe tests\playwright\test_editor_manual_interactions.py -s` fuera del sandbox: OK, 2 passed.
+
+---
+
+## 2026-06-01 - Fase 5D-2 SAFE: manual_tools puro-compatible
+
+Se implemento la primera extraccion SAFE de herramientas manuales hacia un modulo frontend clasico sin listeners.
+
+Cambios reales:
+
+- Se creo `static/js/editor_offset_visual/manual_tools.js` bajo `window.EditorOffsetVisual.manualTools`.
+- Se cargo `manual_tools.js` desde `templates/editor_offset_visual.html` antes del entrypoint.
+- `static/js/editor_offset_visual.js` conserva wrappers compatibles para:
+  - `duplicateSlot`
+  - `deleteSlot`
+  - `groupSelectedSlots`
+  - `ungroupSelectedSlots`
+  - `alignSelectedSlots`
+  - `distributeSelectedSlots`
+  - `centerSelectedBlock`
+  - `nudgeSelectedSlots`
+  - `applyGapToSlots`
+  - `applySpacing`
+
+Garantias conservadas:
+
+- `manual_tools.js` no accede al DOM, no registra eventos, no llama `renderSheet`, `renderSlotForm`, `pushHistory` ni `alert`.
+- El entrypoint conserva wiring de botones, shortcuts, render, historial, seleccion y lectura de inputs DOM.
+- `applySpacing` mantiene el wrapper actual y sigue siendo llamado desde drag live sin mover `moveDrag` ni estado efimero de drag.
+- No se tocaron drag, resize, box select, selection controller, `document.keydown`, `document.click` ni `sheetEl.pointerdown`.
+- No se tocaron backend, services, engines, contracts JSON, CSS, preview/PDF, CTP productivo ni cuadernillos.
+
+Validaciones:
+
+- `node --check static/js/editor_offset_visual/manual_tools.js`: bloqueado por `Acceso denegado` a `node.exe` en entorno Codex.
+- `node --check static/js/editor_offset_visual.js`: bloqueado por `Acceso denegado` a `node.exe` en entorno Codex.
+- `node --check static/js/editor_offset_visual/renderer_canvas.js`: bloqueado por `Acceso denegado` a `node.exe` en entorno Codex.
+- `python -m compileall routes.py montaje_offset_inteligente.py engines cuadernillos ai_agent services strategies`: OK.
+- `venv\Scripts\pytest.exe tests\test_step_repeat_pro_engine.py tests\test_editor_offset_output_contract.py tests\test_cuadernillos_simulator.py tests\test_editor_offset_characterization.py -q -p no:cacheprovider`: OK, 53 passed.
+- `venv\Scripts\pytest.exe tests/playwright/test_editor_manual_interactions.py -s`: fallo inicialmente en sandbox por `PermissionError: [WinError 5] Acceso denegado`; reejecutado fuera del sandbox: OK, 2 passed.
+- `git diff --check`: OK antes del cierre documental, solo warnings LF/CRLF de Git sobre archivos editados.
