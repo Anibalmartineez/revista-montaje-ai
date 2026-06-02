@@ -96,11 +96,150 @@
     };
   }
 
+  function getBoxSelectionRectMm(ctx) {
+    const { boxSelectState, scale, sheetMm } = ctx;
+    if (!boxSelectState?.startPx || !boxSelectState?.currentPx) return null;
+    const [sheetW, sheetH] = sheetMm || [0, 0];
+    const minXPx = Math.min(boxSelectState.startPx.xPx, boxSelectState.currentPx.xPx);
+    const maxXPx = Math.max(boxSelectState.startPx.xPx, boxSelectState.currentPx.xPx);
+    const minYPx = Math.min(boxSelectState.startPx.yPx, boxSelectState.currentPx.yPx);
+    const maxYPx = Math.max(boxSelectState.startPx.yPx, boxSelectState.currentPx.yPx);
+    return {
+      minX: Math.max(0, minXPx / scale),
+      maxX: Math.min(sheetW, maxXPx / scale),
+      minY: Math.max(0, sheetH - maxYPx / scale),
+      maxY: Math.min(sheetH, sheetH - minYPx / scale),
+    };
+  }
+
+  function renderBoxSelectionRect(ctx) {
+    const { boxSelectState } = ctx;
+    if (!boxSelectState?.startPx || !boxSelectState?.currentPx) return null;
+    const minX = Math.min(boxSelectState.startPx.xPx, boxSelectState.currentPx.xPx);
+    const maxX = Math.max(boxSelectState.startPx.xPx, boxSelectState.currentPx.xPx);
+    const minY = Math.min(boxSelectState.startPx.yPx, boxSelectState.currentPx.yPx);
+    const maxY = Math.max(boxSelectState.startPx.yPx, boxSelectState.currentPx.yPx);
+    return {
+      left: `${minX}px`,
+      top: `${minY}px`,
+      width: `${maxX - minX}px`,
+      height: `${maxY - minY}px`,
+    };
+  }
+
+  function clearBoxSelectionRect() {
+    return {
+      rectEl: null,
+    };
+  }
+
+  function resetBoxSelectState() {
+    return {
+      active: false,
+      pointerId: null,
+      startPx: null,
+      currentPx: null,
+      additive: false,
+      moved: false,
+      moveHandler: null,
+      upHandler: null,
+    };
+  }
+
+  function selectSlotsInBox(ctx) {
+    const {
+      layout,
+      activeFace,
+      selectedSlots: currentSelectedSlots,
+      boxSelectState,
+      scale,
+      rectsIntersect,
+      slotFootprintRect,
+    } = ctx;
+    const rect = getBoxSelectionRectMm({
+      boxSelectState,
+      scale,
+      sheetMm: layout?.sheet_mm || [0, 0],
+    });
+    if (!rect) return null;
+
+    const face = activeFace || 'front';
+    const matchedIds = (layout?.slots || [])
+      .filter((slot) => (slot.face || 'front') === face)
+      .filter((slot) => rectsIntersect(rect, slotFootprintRect(slot)))
+      .map((slot) => slot.id);
+
+    const selectedSlots = boxSelectState?.additive ? normalizeSelectedSlots(currentSelectedSlots) : new Set();
+    matchedIds.forEach((id) => selectedSlots.add(id));
+
+    return {
+      selectedSlot: firstSelectedSlot(layout, selectedSlots),
+      selectedSlots,
+      matchedIds,
+    };
+  }
+
+  function startBoxSelect(ctx) {
+    const { point, pointerId, clientX, clientY, additive } = ctx;
+    return {
+      active: true,
+      pointerId,
+      startClientX: clientX,
+      startClientY: clientY,
+      startPx: point,
+      currentPx: point,
+      additive: !!additive,
+      moved: false,
+    };
+  }
+
+  function moveBoxSelect(ctx) {
+    const { boxSelectState, pointerId, clientX, clientY, point, dragThresholdPx } = ctx;
+    if (!boxSelectState?.active) return { shouldMove: false };
+    if (boxSelectState.pointerId != null && pointerId !== boxSelectState.pointerId) {
+      return { shouldMove: false };
+    }
+    const dragDistancePx = Math.hypot(
+      clientX - boxSelectState.startClientX,
+      clientY - boxSelectState.startClientY,
+    );
+    if (!boxSelectState.moved && dragDistancePx < dragThresholdPx) {
+      return { shouldMove: false };
+    }
+    return {
+      shouldMove: true,
+      moved: true,
+      currentPx: point,
+    };
+  }
+
+  function endBoxSelect(ctx) {
+    const { boxSelectState, pointerId } = ctx;
+    if (!boxSelectState?.active) return { shouldEnd: false };
+    if (boxSelectState.pointerId != null && pointerId !== boxSelectState.pointerId) {
+      return { shouldEnd: false };
+    }
+    return {
+      shouldEnd: true,
+      moved: !!boxSelectState.moved,
+    };
+  }
+
   window.EditorOffsetVisual.slotInteractions = {
     selectSlot,
     getSelectedSlotIds,
     getSelectedSlots,
     selectAllSlotsOnActiveFace,
     refreshSelectionAfterEdit,
+    boxSelect: {
+      getBoxSelectionRectMm,
+      renderBoxSelectionRect,
+      clearBoxSelectionRect,
+      resetBoxSelectState,
+      selectSlotsInBox,
+      startBoxSelect,
+      moveBoxSelect,
+      endBoxSelect,
+    },
   };
 })();

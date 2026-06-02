@@ -1628,3 +1628,44 @@ Validaciones:
 - `python -m compileall routes.py montaje_offset_inteligente.py engines cuadernillos ai_agent services strategies`: OK.
 - `venv\Scripts\pytest.exe tests\test_step_repeat_pro_engine.py tests\test_editor_offset_output_contract.py tests\test_cuadernillos_simulator.py tests\test_editor_offset_characterization.py -q -p no:cacheprovider`: OK, 53 passed.
 - `venv\Scripts\pytest.exe tests/playwright/test_editor_manual_interactions.py -s`: fallo inicialmente en sandbox por `PermissionError: [WinError 5] Acceso denegado`; reejecutado fuera del sandbox: OK, 2 passed.
+
+---
+
+## 2026-06-02 - Fase 5D-4 SAFE: Box Select Controller
+
+Se implemento la extraccion SAFE de la logica de box select hacia el controlador de interacciones existente, sin mover listeners ni estado efimero sensible.
+
+Cambios reales:
+
+- `static/js/editor_offset_visual/slot_interactions.js` ahora expone `slotInteractions.boxSelect`.
+- `static/js/editor_offset_visual.js` conserva wrappers compatibles para:
+  - `getBoxSelectionRectMm`
+  - `renderBoxSelectionRect`
+  - `clearBoxSelectionRect`
+  - `resetBoxSelectState`
+  - `selectSlotsInBox`
+  - `startBoxSelect`
+  - `moveBoxSelect`
+  - `endBoxSelect`
+- Se agrego cobertura Playwright minima de box select en `tests/playwright/test_editor_manual_interactions.py`.
+
+Garantias conservadas:
+
+- `boxSelectState` sigue viviendo en el entrypoint.
+- `suppressClickClear` sigue viviendo en el entrypoint.
+- `dragState.active` sigue validandose en el entrypoint.
+- `sheetEl.pointerdown` no se movio.
+- `document.pointermove`, `document.pointerup` y `document.pointercancel` temporales no se movieron.
+- `slotInteractions.boxSelect` no accede al DOM, no registra eventos, no llama `renderSheet`, `renderSlotForm`, `pushHistory` ni `alert`.
+- No se tocaron drag, resize, `manual_tools.js`, `renderer_canvas.js`, templates, CSS, backend, services, engines, contratos JSON, preview/PDF, CTP productivo ni cuadernillos.
+
+Validaciones:
+
+- `node --check static/js/editor_offset_visual/slot_interactions.js`: bloqueado por `Acceso denegado` a `node.exe` en entorno Codex.
+- `node --check static/js/editor_offset_visual.js`: bloqueado por `Acceso denegado` a `node.exe` en entorno Codex.
+- `node --check static/js/editor_offset_visual/manual_tools.js`: bloqueado por `Acceso denegado` a `node.exe` en entorno Codex.
+- `node --check static/js/editor_offset_visual/renderer_canvas.js`: bloqueado por `Acceso denegado` a `node.exe` en entorno Codex.
+- `python -m compileall routes.py montaje_offset_inteligente.py engines cuadernillos ai_agent services strategies`: OK.
+- `venv\Scripts\pytest.exe tests\test_step_repeat_pro_engine.py tests\test_editor_offset_output_contract.py tests\test_cuadernillos_simulator.py tests\test_editor_offset_characterization.py -q -p no:cacheprovider`: OK, 53 passed.
+- `venv\Scripts\pytest.exe tests\playwright\test_editor_manual_interactions.py -s`: OK, 3 passed con Flask temporal local.
+- `git diff --check`: OK antes del cierre documental, solo warnings LF/CRLF de Git sobre archivos editados.

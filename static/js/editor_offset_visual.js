@@ -12,6 +12,7 @@
   const rendererCanvas = editorModules.rendererCanvas;
   const manualTools = editorModules.manualTools;
   const slotInteractions = editorModules.slotInteractions;
+  const boxSelectController = slotInteractions.boxSelect;
   const sheetEl = domRefs.byId(domRefs.ids.sheet);
   const sheetCanvas = domRefs.byId(domRefs.ids.sheetCanvas);
   const worksListEl = domRefs.byId(domRefs.ids.worksList);
@@ -665,68 +666,49 @@
   }
 
   function getBoxSelectionRectMm() {
-    if (!boxSelectState.startPx || !boxSelectState.currentPx) return null;
-    const [sheetW, sheetH] = state.layout.sheet_mm || [0, 0];
-    const minXPx = Math.min(boxSelectState.startPx.xPx, boxSelectState.currentPx.xPx);
-    const maxXPx = Math.max(boxSelectState.startPx.xPx, boxSelectState.currentPx.xPx);
-    const minYPx = Math.min(boxSelectState.startPx.yPx, boxSelectState.currentPx.yPx);
-    const maxYPx = Math.max(boxSelectState.startPx.yPx, boxSelectState.currentPx.yPx);
-    return {
-      minX: Math.max(0, minXPx / state.scale),
-      maxX: Math.min(sheetW, maxXPx / state.scale),
-      minY: Math.max(0, sheetH - maxYPx / state.scale),
-      maxY: Math.min(sheetH, sheetH - minYPx / state.scale),
-    };
+    return boxSelectController.getBoxSelectionRectMm({
+      boxSelectState,
+      scale: state.scale,
+      sheetMm: state.layout.sheet_mm || [0, 0],
+    });
   }
 
   function renderBoxSelectionRect() {
     if (!boxSelectState.rectEl || !boxSelectState.startPx || !boxSelectState.currentPx) return;
-    const minX = Math.min(boxSelectState.startPx.xPx, boxSelectState.currentPx.xPx);
-    const maxX = Math.max(boxSelectState.startPx.xPx, boxSelectState.currentPx.xPx);
-    const minY = Math.min(boxSelectState.startPx.yPx, boxSelectState.currentPx.yPx);
-    const maxY = Math.max(boxSelectState.startPx.yPx, boxSelectState.currentPx.yPx);
-    boxSelectState.rectEl.style.left = `${minX}px`;
-    boxSelectState.rectEl.style.top = `${minY}px`;
-    boxSelectState.rectEl.style.width = `${maxX - minX}px`;
-    boxSelectState.rectEl.style.height = `${maxY - minY}px`;
+    const rectStyle = boxSelectController.renderBoxSelectionRect({ boxSelectState });
+    if (!rectStyle) return;
+    boxSelectState.rectEl.style.left = rectStyle.left;
+    boxSelectState.rectEl.style.top = rectStyle.top;
+    boxSelectState.rectEl.style.width = rectStyle.width;
+    boxSelectState.rectEl.style.height = rectStyle.height;
   }
 
   function clearBoxSelectionRect() {
     if (boxSelectState.rectEl?.parentNode) {
       boxSelectState.rectEl.parentNode.removeChild(boxSelectState.rectEl);
     }
-    boxSelectState.rectEl = null;
+    Object.assign(boxSelectState, boxSelectController.clearBoxSelectionRect());
     sheetEl?.classList.remove('box-selecting');
   }
 
   function resetBoxSelectState() {
     clearBoxSelectionRect();
-    boxSelectState.active = false;
-    boxSelectState.pointerId = null;
-    boxSelectState.startPx = null;
-    boxSelectState.currentPx = null;
-    boxSelectState.additive = false;
-    boxSelectState.moved = false;
-    boxSelectState.moveHandler = null;
-    boxSelectState.upHandler = null;
+    Object.assign(boxSelectState, boxSelectController.resetBoxSelectState());
   }
 
   function selectSlotsInBox() {
-    const rect = getBoxSelectionRectMm();
-    if (!rect) return;
-    const activeFace = state.activeFace || 'front';
-    const matchedIds = (state.layout.slots || [])
-      .filter((slot) => (slot.face || 'front') === activeFace)
-      .filter((slot) => rectsIntersect(rect, slotFootprintRect(slot)))
-      .map((slot) => slot.id);
-
-    const nextSelection = boxSelectState.additive ? new Set(state.selectedSlots || []) : new Set();
-    matchedIds.forEach((id) => nextSelection.add(id));
-    state.selectedSlots = nextSelection;
-    const firstSelectedId = state.selectedSlots.values().next().value;
-    state.selectedSlot = firstSelectedId
-      ? (state.layout.slots || []).find((slot) => slot.id === firstSelectedId) || null
-      : null;
+    const result = boxSelectController.selectSlotsInBox({
+      layout: state.layout,
+      activeFace: state.activeFace,
+      selectedSlots: state.selectedSlots,
+      boxSelectState,
+      scale: state.scale,
+      rectsIntersect,
+      slotFootprintRect,
+    });
+    if (!result) return;
+    state.selectedSlots = result.selectedSlots;
+    state.selectedSlot = result.selectedSlot;
     renderSheet();
     renderSlotForm();
   }
@@ -738,14 +720,13 @@
     if (ev.target !== sheetEl) return;
 
     const point = sheetPointFromEvent(ev);
-    boxSelectState.active = true;
-    boxSelectState.pointerId = ev.pointerId;
-    boxSelectState.startClientX = ev.clientX;
-    boxSelectState.startClientY = ev.clientY;
-    boxSelectState.startPx = point;
-    boxSelectState.currentPx = point;
-    boxSelectState.additive = !!(ev.shiftKey || ev.ctrlKey || ev.metaKey);
-    boxSelectState.moved = false;
+    Object.assign(boxSelectState, boxSelectController.startBoxSelect({
+      point,
+      pointerId: ev.pointerId,
+      clientX: ev.clientX,
+      clientY: ev.clientY,
+      additive: ev.shiftKey || ev.ctrlKey || ev.metaKey,
+    }));
     boxSelectState.rectEl = document.createElement('div');
     boxSelectState.rectEl.className = 'box-selection-rect';
     sheetEl.appendChild(boxSelectState.rectEl);
@@ -765,21 +746,27 @@
   }
 
   function moveBoxSelect(ev) {
-    if (!boxSelectState.active) return;
-    if (boxSelectState.pointerId != null && ev.pointerId !== boxSelectState.pointerId) return;
-    const dragDistancePx = Math.hypot(ev.clientX - boxSelectState.startClientX, ev.clientY - boxSelectState.startClientY);
-    if (!boxSelectState.moved && dragDistancePx < DRAG_THRESHOLD_PX) {
-      return;
-    }
+    const moveResult = boxSelectController.moveBoxSelect({
+      boxSelectState,
+      pointerId: ev.pointerId,
+      clientX: ev.clientX,
+      clientY: ev.clientY,
+      point: sheetPointFromEvent(ev),
+      dragThresholdPx: DRAG_THRESHOLD_PX,
+    });
+    if (!moveResult.shouldMove) return;
     ev.preventDefault();
-    boxSelectState.moved = true;
-    boxSelectState.currentPx = sheetPointFromEvent(ev);
+    boxSelectState.moved = moveResult.moved;
+    boxSelectState.currentPx = moveResult.currentPx;
     renderBoxSelectionRect();
   }
 
   function endBoxSelect(ev) {
-    if (!boxSelectState.active) return;
-    if (boxSelectState.pointerId != null && ev.pointerId !== boxSelectState.pointerId) return;
+    const endResult = boxSelectController.endBoxSelect({
+      boxSelectState,
+      pointerId: ev.pointerId,
+    });
+    if (!endResult.shouldEnd) return;
     document.removeEventListener('pointermove', boxSelectState.moveHandler);
     document.removeEventListener('pointerup', boxSelectState.upHandler);
     document.removeEventListener('pointercancel', boxSelectState.upHandler);
@@ -791,7 +778,7 @@
       }
     }
 
-    if (boxSelectState.moved) {
+    if (endResult.moved) {
       ev.preventDefault();
       boxSelectState.currentPx = sheetPointFromEvent(ev);
       boxSelectState.suppressClickClear = true;
