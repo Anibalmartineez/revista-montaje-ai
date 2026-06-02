@@ -13,6 +13,7 @@
   const manualTools = editorModules.manualTools;
   const slotInteractions = editorModules.slotInteractions;
   const boxSelectController = slotInteractions.boxSelect;
+  const dragResizeController = slotInteractions.dragResize;
   const sheetEl = domRefs.byId(domRefs.ids.sheet);
   const sheetCanvas = domRefs.byId(domRefs.ids.sheetCanvas);
   const worksListEl = domRefs.byId(domRefs.ids.worksList);
@@ -2039,35 +2040,16 @@
     if (typeof ev.button === 'number' && ev.button !== 0) return;
     ev.preventDefault();
 
-    const target = ev.target;
-    const isHandle = target.classList.contains('handle');
-    const handleType = isHandle
-      ? [...target.classList].find((c) => ['br', 'bl', 'tr', 'tl'].includes(c))
-      : null;
-    const isGroupMove = !isHandle && slot.group_id;
-    const groupSlots = isGroupMove
-      ? state.layout.slots.filter((s) => s.group_id === slot.group_id)
-      : [];
-    const groupInitialPositions = new Map();
-    if (isGroupMove) {
-      groupSlots.forEach((s) => {
-        groupInitialPositions.set(s.id, { x: s.x_mm, y: s.y_mm });
-      });
-    }
-
-    dragState.active = true;
-    dragState.pointerId = ev.pointerId;
-    dragState.slot = slot;
+    const targetClassNames = Array.from(ev.target?.classList || []);
+    Object.assign(dragState, dragResizeController.startDrag({
+      layout: state.layout,
+      slot,
+      targetClassNames,
+      pointerId: ev.pointerId,
+      clientX: ev.clientX,
+      clientY: ev.clientY,
+    }));
     dragState.slotElement = slotElement;
-    dragState.startX = ev.clientX;
-    dragState.startY = ev.clientY;
-    dragState.initSlot = { ...slot };
-    dragState.handleType = handleType;
-    dragState.isHandle = isHandle;
-    dragState.isGroupMove = isGroupMove;
-    dragState.groupSlots = groupSlots;
-    dragState.groupInitialPositions = groupInitialPositions;
-    dragState.moved = false;
     hideDistanceIndicator();
 
     const moveHandler = (moveEv) => moveDrag(moveEv);
@@ -2090,49 +2072,20 @@
     if (dragState.pointerId != null && moveEv.pointerId !== dragState.pointerId) return;
     moveEv.preventDefault();
 
-    const {
-      startX,
-      startY,
-      initSlot,
-      slot,
-      isHandle,
-      handleType,
-      isGroupMove,
-      groupSlots,
-      groupInitialPositions,
-    } = dragState;
+    const moveResult = dragResizeController.moveDrag({
+      dragState,
+      pointerId: moveEv.pointerId,
+      clientX: moveEv.clientX,
+      clientY: moveEv.clientY,
+      effectiveScale: state.scale * state.zoom,
+      dragThresholdPx: DRAG_THRESHOLD_PX,
+      applySnap,
+    });
+    if (!moveResult.shouldMove) return;
 
-    const dxPx = moveEv.clientX - startX;
-    const dyPx = startY - moveEv.clientY; // invert because bottom reference
-    const dragDistancePx = Math.hypot(dxPx, dyPx);
-    if (!dragState.moved && dragDistancePx < DRAG_THRESHOLD_PX) {
-      return;
-    }
-    const effectiveScale = state.scale * state.zoom;
-    const dx = dxPx / effectiveScale;
-    const dy = dyPx / effectiveScale;
-
-    if (!isHandle) {
-      if (isGroupMove) {
-        const snapped = applySnap(initSlot.x_mm + dx, initSlot.y_mm + dy, slot);
-        const deltaX = snapped.x - initSlot.x_mm;
-        const deltaY = snapped.y - initSlot.y_mm;
-        groupSlots.forEach((s) => {
-          const initPos = groupInitialPositions.get(s.id);
-          if (!initPos) return;
-          s.x_mm = initPos.x + deltaX;
-          s.y_mm = initPos.y + deltaY;
-        });
-      } else {
-        const snapped = applySnap(initSlot.x_mm + dx, initSlot.y_mm + dy, slot);
-        slot.x_mm = snapped.x;
-        slot.y_mm = snapped.y;
-      }
-      if (state.spacingSettings.live) {
-        applySpacing('all', { render: false, push: false, face: slot.face || state.activeFace });
-      }
-      updateDistanceIndicator(slot);
-    } else {
+    if (moveResult.resizeLatent) {
+      const { initSlot, slot, handleType } = dragState;
+      const { dx, dy } = moveResult;
       hideDistanceIndicator();
       if (handleType.includes('b')) {
         slot.h_mm = Math.max(5, initSlot.h_mm + dy);
@@ -2150,9 +2103,14 @@
         slot.w_mm = newW;
         slot.x_mm = initSlot.x_mm + dx;
       }
+    } else {
+      if (state.spacingSettings.live) {
+        applySpacing('all', { render: false, push: false, face: dragState.slot.face || state.activeFace });
+      }
+      updateDistanceIndicator(dragState.slot);
     }
 
-    dragState.moved = true;
+    dragState.moved = moveResult.moved;
     renderSheet();
     renderSlotForm();
   }
@@ -2177,29 +2135,20 @@
     if (dragState.moved) {
       pushHistory();
       hideDistanceIndicator();
-      if (state.selectedSlots && state.selectedSlots.size > 1 && state.selectedSlots.has(dragState.slot?.id)) {
-        state.selectedSlot = state.layout.slots.find((s) => s.id === dragState.slot?.id) || null;
-      } else if (dragState.slot?.id) {
-        state.selectedSlots = new Set([dragState.slot.id]);
-        state.selectedSlot = state.layout.slots.find((s) => s.id === dragState.slot.id) || null;
-      }
+      const selectionResult = dragResizeController.endDrag({
+        layout: state.layout,
+        selectedSlots: state.selectedSlots,
+        dragState,
+      });
+      state.selectedSlot = selectionResult.selectedSlot;
+      state.selectedSlots = selectionResult.selectedSlots;
       renderSheet();
       renderSlotForm();
     } else {
       hideDistanceIndicator();
     }
 
-    dragState.active = false;
-    dragState.pointerId = null;
-    dragState.slot = null;
-    dragState.slotElement = null;
-    dragState.isHandle = false;
-    dragState.handleType = null;
-    dragState.isGroupMove = false;
-    dragState.groupSlots = [];
-    dragState.groupInitialPositions = new Map();
-    dragState.moveHandler = null;
-    dragState.upHandler = null;
+    Object.assign(dragState, dragResizeController.resetDragState());
   }
 
   function onSlotPointerDown(ev, slot, slotElement) {

@@ -1700,3 +1700,46 @@ Validaciones:
 - `git diff --check`: OK antes del cierre documental.
 - `venv\Scripts\pytest.exe tests/playwright/test_editor_drag_resize_interactions.py -s`: OK, 4 passed con Flask temporal local.
 - `venv\Scripts\pytest.exe tests/playwright/test_editor_manual_interactions.py -s`: OK, 3 passed con Flask temporal local.
+
+---
+
+## 2026-06-02 - Fase 5D-5 Real SAFE: Drag Controller inicial
+
+Se implemento la extraccion inicial de logica de drag/move no-resize hacia `slotInteractions.dragResize`, manteniendo el entrypoint compatible y sin activar resize.
+
+Cambios reales:
+
+- `static/js/editor_offset_visual/slot_interactions.js` ahora expone `slotInteractions.dragResize`.
+- `static/js/editor_offset_visual.js` conserva wrappers compatibles para:
+  - `onSlotPointerDown`
+  - `startDrag`
+  - `moveDrag`
+  - `endDrag`
+- Se extrajo al subcontrolador:
+  - construccion de estado inicial de drag
+  - deteccion de drag grupal
+  - `groupInitialPositions`
+  - calculo de delta mm desde pointer y escala efectiva
+  - movimiento de slot o grupo usando `applySnap` como callback
+  - resultado final de seleccion al terminar drag
+  - reset de `dragState`
+
+Garantias conservadas:
+
+- Los listeners temporales `document.pointermove`, `document.pointerup` y `document.pointercancel` siguen en `static/js/editor_offset_visual.js`.
+- `setPointerCapture` y `releasePointerCapture` siguen en el entrypoint.
+- `renderSheet`, `renderSlotForm`, `pushHistory`, `applySpacing` live, `updateDistanceIndicator` y `hideDistanceIndicator` siguen en el entrypoint.
+- Resize queda latente: no se crearon handles, no se activo resize y la rama legacy por `.handle` no se movio al controller.
+- No se tocaron `renderer_canvas.js`, `manual_tools.js`, templates, CSS, backend, services, engines, contracts JSON, preview/PDF, CTP productivo ni cuadernillos.
+
+Validaciones:
+
+- `node --check static/js/editor_offset_visual/slot_interactions.js`: bloqueado por `Acceso denegado` a `node.exe` en entorno Codex.
+- `node --check static/js/editor_offset_visual.js`: bloqueado por `Acceso denegado` a `node.exe` en entorno Codex.
+- `node --check static/js/editor_offset_visual/manual_tools.js`: bloqueado por `Acceso denegado` a `node.exe` en entorno Codex.
+- `node --check static/js/editor_offset_visual/renderer_canvas.js`: bloqueado por `Acceso denegado` a `node.exe` en entorno Codex.
+- `python -m compileall routes.py montaje_offset_inteligente.py engines cuadernillos ai_agent services strategies`: OK.
+- `venv\Scripts\pytest.exe tests\test_step_repeat_pro_engine.py tests\test_editor_offset_output_contract.py tests\test_cuadernillos_simulator.py tests\test_editor_offset_characterization.py -q -p no:cacheprovider`: OK, 53 passed.
+- `venv\Scripts\pytest.exe tests/playwright/test_editor_manual_interactions.py -s`: OK, 3 passed con Flask temporal local.
+- `venv\Scripts\pytest.exe tests/playwright/test_editor_drag_resize_interactions.py -s`: OK, 4 passed con Flask temporal local.
+- `git diff --check`: OK antes del cierre documental, solo warnings LF/CRLF de Git sobre archivos editados.
