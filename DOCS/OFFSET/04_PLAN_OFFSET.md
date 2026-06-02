@@ -42,6 +42,10 @@ Consolidar el Editor Visual IA como flujo operativo profesional del modulo Offse
   - Separacion modular Fase 5C completada: `renderer_canvas.js` extraido inicialmente con wrappers compatibles
   - Separacion modular Fase 5D-1 completada: caracterizacion Playwright de herramientas manuales
   - Separacion modular Fase 5D-2 completada: `manual_tools.js` extraido inicialmente sin listeners propios
+  - Separacion modular Fase 5D-3 completada: `slot_interactions.js` extrae seleccion simple/multiple y helpers de seleccion
+  - Separacion modular Fase 5D-4 completada: box select extraido dentro de `slot_interactions.js`, manteniendo listeners en el entrypoint
+  - Separacion modular Fase 5D-5 completada: drag/move no-resize extraido inicialmente en `slotInteractions.dragResize`
+  - Fase DOC-Encoding completada: correccion dirigida de textos visibles con mojibake, sin tocar contratos ni logica
 
 ## Roadmap activo de separacion modular SAFE
 
@@ -56,12 +60,16 @@ Consolidar el Editor Visual IA como flujo operativo profesional del modulo Offse
 - Fase 5C: extraccion inicial de renderer/canvas/sheet en `static/js/editor_offset_visual/renderer_canvas.js`.
 - Fase 5D-1: caracterizacion Playwright de seleccion y herramientas manuales en `tests/playwright/test_editor_manual_interactions.py`.
 - Fase 5D-2: extraccion inicial de herramientas manuales puras en `static/js/editor_offset_visual/manual_tools.js`.
+- Fase 5D-3: extraccion inicial de seleccion simple/multiple y helpers en `static/js/editor_offset_visual/slot_interactions.js`.
+- Fase 5D-4: extraccion inicial de box select dentro de `slot_interactions.js`, con cobertura Playwright minima.
+- Fase 5D-5-0: caracterizacion Playwright de drag/resize en `tests/playwright/test_editor_drag_resize_interactions.py`.
+- Fase 5D-5: extraccion inicial de drag/move no-resize en `slotInteractions.dragResize`.
+- Fase DOC-Encoding: correccion dirigida de mojibake en textos visibles, comentarios y mensajes seguros.
 
 ### Fases pendientes de alto riesgo
 
-- Fase 5D-3: extraer selection controller en `slot_interactions.js`, manteniendo wiring en el entrypoint.
-- Fase 5D-4: extraer box select con cobertura de click vs drag y seleccion aditiva.
-- Fase 5D-5: extraer drag/resize solo con cobertura especifica de snap, grupos, live spacing, distancia util e historial.
+- Resize operativo: sigue latente; no hay handles activos en el renderer actual y no debe activarse sin fase propia.
+- Listeners globales y temporales: `document.keydown`, `document.click`, `window.resize`, `sheetEl.pointerdown`, `document.pointermove/pointerup/pointercancel` siguen en el entrypoint.
 - Fase 6: mover estructura fisica hacia `editor_offset/`. No ejecutar hasta tener wrappers, aliases legacy, tests e imports estabilizados.
 
 ### Validacion base del cierre 5B
@@ -340,7 +348,7 @@ Objetivo:
 
 - `renderer_canvas.js` ya fue implementado como extraccion inicial del renderer/canvas/sheet.
 - `static/js/editor_offset_visual.js` conserva wrappers compatibles para render, zoom y panel geometrico.
-- se separa explicitamente renderer visual de interacciones complejas, que quedan para Fase 5D-3/5D-5.
+- se separa explicitamente renderer visual de interacciones complejas, ya extraidas parcialmente en Fase 5D mediante `manual_tools.js` y `slot_interactions.js`.
 
 Mapa de dependencias actual:
 
@@ -363,12 +371,12 @@ Contrato interno implementado inicialmente:
   - `renderCtpGuide({ sheetEl, ctp, activeFace, mmToPx })`
   - `renderGeometryValidationPanel({ validation, activeFace, summaryEl, listEl })`
   - `renderDistanceIndicator({ sheetEl, distanceIndicator, activeFace, mmToPx })`
-- los callbacks `onSlotPointerDown` y `onSlotClick` siguen entrando desde `static/js/editor_offset_visual.js` hasta Fase 5D-3/5D-5.
+- los callbacks `onSlotPointerDown` y `onSlotClick` siguen entrando desde `static/js/editor_offset_visual.js`; el entrypoint conserva wiring, listeners, pointer capture/release y wrappers compatibles.
 
 Fuera de alcance que sigue vigente:
 
 - no mover DOM, no renombrar IDs, no tocar `data-editor-tab` ni `data-editor-tab-panel`.
-- no tocar drag, resize, box select, seleccion, nudge, align, distribute, shortcuts ni listeners globales.
+- no tocar resize latente, shortcuts ni listeners globales sin fase propia.
 - no tocar backend, services, engines, preview/PDF, CTP productivo, cuadernillos, Step & Repeat PRO ni contratos JSON.
 
 Checklist de caracterizacion renderer/canvas:
@@ -414,12 +422,12 @@ Dependencias de estado:
 - helpers de geometria: `getEffectiveSlotBox`, `slotCoordsFromBox`, `slotFootprintRect`, `getSelectionBounds`, `groupSlotsByRow`, `groupSlotsByColumn`, `roundMm`.
 - callbacks actuales: `renderSheet`, `renderSlotForm`, `pushHistory`, `applySnap`, `applySpacing`, `updateDistanceIndicator`, `hideDistanceIndicator`.
 
-Contrato futuro propuesto y estado actual:
+Contrato implementado y estado actual:
 
 - `slot_interactions.js`:
-  - controladores candidatos: seleccion, box select, drag/resize y shortcuts de interaccion directa.
-  - API futura: `createSelectionController(ctx)`, `createBoxSelectController(ctx)`, `createDragController(ctx)`, `attachSlotHandlers(slotEl, slot)`.
-  - debe recibir `state`, `sheetEl`, `sheetCanvas`, geometria y callbacks explicitos; no debe tocar DOM estructural ni backend.
+  - concentra seleccion simple/multiple, helpers de seleccion, box select y drag/move no-resize.
+  - expone subcontroladores bajo `window.EditorOffsetVisual.slotInteractions`, incluyendo `boxSelect` y `dragResize`.
+  - recibe estado, geometria y callbacks explicitos desde el entrypoint; no debe tocar DOM estructural ni backend.
 - `manual_tools.js` implementado:
   - concentra duplicar, borrar, agrupar, desagrupar, alinear, distribuir, centrar, nudge, gap y spacing.
   - preserva historial, seleccion, render y lectura DOM mediante wrappers del entrypoint.
@@ -428,8 +436,9 @@ Contrato futuro propuesto y estado actual:
 Que no debe moverse todavia:
 
 - `document.keydown`, `document.click`, `window.resize` y wiring de botones `btn-*`.
-- drag/resize completo, box select completo y listeners temporales de pointer.
-- selection controller y shortcuts globales.
+- `sheetEl.pointerdown`, listeners temporales de pointer y pointer capture/release.
+- resize operativo: sigue latente porque no hay handles activos en el renderer actual.
+- shortcuts globales.
 - clases/IDs `.slot`, `.selected`, `.locked`, `.box-selection-rect`, `#sheet`, `#sheet-canvas`, `slot-*`.
 - contratos JSON, backend, preview/PDF, CTP productivo, cuadernillos, engines y services.
 
@@ -437,9 +446,10 @@ Plan por fases 5D:
 
 - Fase 5D-1 completada: caracterizacion Playwright de seleccion simple/multiple, Ctrl+A, duplicate/delete, group/ungroup, nudge, align y distribute.
 - Fase 5D-2 completada: extraer `manual_tools.js` para operaciones sin listeners, manteniendo wrappers en entrypoint.
-- Fase 5D-3: extraer controlador de seleccion en `slot_interactions.js`, manteniendo wiring en entrypoint.
-- Fase 5D-4: extraer box select con cobertura de click vs drag y seleccion aditiva.
-- Fase 5D-5: extraer drag/resize solo con cobertura especifica de snap, grupos, live spacing, distancia util e historial.
+- Fase 5D-3 completada: extraer controlador de seleccion en `slot_interactions.js`, manteniendo wiring en entrypoint.
+- Fase 5D-4 completada: extraer box select con cobertura de click vs drag y seleccion aditiva.
+- Fase 5D-5-0 completada: caracterizar drag/resize por UI publica; resize queda latente por ausencia de handles activos.
+- Fase 5D-5 completada: extraer drag/move no-resize en `slotInteractions.dragResize`, manteniendo listeners, pointer capture, render, historial, spacing live e indicador de distancia en entrypoint.
 
 ### Fase 11 futura. Canvas Geometry Polish
 
@@ -453,7 +463,7 @@ Objetivo futuro:
 
 1. Mantener documentados los contratos despues de cada cambio de semantica
 2. Ampliar pruebas de regresion para Step & Repeat PRO inteligente
-3. Ampliar Playwright para drag, resize, seleccion y flujos productivos antes de mas cambios UX grandes
+3. Mantener Playwright manual y drag/resize como red de regresion antes de mas cambios UX grandes
 4. Endurecer guardrails y pruebas del flujo OpenAI tool calling sobre `ai_agent/`
 5. Mantener `ai_agent/editor_advisor` aislado, read-only y CLI-only hasta definir integracion, aunque genere prompts para Codex
 6. Mejorar feedback no bloqueante de errores/warnings
@@ -461,7 +471,7 @@ Objetivo futuro:
 8. Evaluar sistema de modos (`exact`, `maximize`, etc.) sin romper el contrato actual
 9. Evaluar compactacion o expansion horizontal solo si mantiene seguridad
 10. Mantener el simulador de cuadernillos aislado hasta definir una integracion PDF explicita
-11. Avanzar Fase 11 `Canvas Geometry Polish` como siguiente fase futura, sin mezclar contratos, motores ni integracion del agente SDK
+11. Preparar Fase 6 solo con plan SAFE especifico, sin declarar resize operativo ni mezclar contratos, motores o integracion del agente SDK
 
 ## Cambios explicitamente postergados
 

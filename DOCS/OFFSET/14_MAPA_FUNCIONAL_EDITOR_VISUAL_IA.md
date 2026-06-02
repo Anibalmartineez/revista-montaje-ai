@@ -27,6 +27,10 @@ Estado del roadmap activo de separacion modular:
 - Fase 5C completada: renderer/canvas/sheet extraido inicialmente en `renderer_canvas.js`, con wrappers compatibles en el entrypoint.
 - Fase 5D-1 completada: cobertura Playwright de herramientas manuales en `tests/playwright/test_editor_manual_interactions.py`.
 - Fase 5D-2 completada: herramientas manuales puras extraidas inicialmente en `manual_tools.js`, sin listeners propios.
+- Fase 5D-3 completada: seleccion simple/multiple y helpers de seleccion extraidos inicialmente en `slot_interactions.js`.
+- Fase 5D-4 completada: box select extraido como subcontrolador dentro de `slot_interactions.js`, manteniendo listeners en el entrypoint.
+- Fase 5D-5 completada: drag/move no-resize extraido inicialmente en `slotInteractions.dragResize`; resize queda latente porque no hay handles activos en el renderer actual.
+- Fase DOC-Encoding completada: correccion dirigida de textos visibles con mojibake, sin tocar contratos ni logica.
 
 Fase 10 queda como baseline UX historica cerrada: shell/topbar CAD-preprensa, canvas mas protagonista, panel derecho mas denso, `geometry-validation-panel` unico y agente SDK con UX Surface v2.
 
@@ -52,8 +56,9 @@ Modulos frontend activos:
 - `ctp_panel.js`: panel CTP y alineacion.
 - `booklet_panel.js`: panel del simulador de cuadernillos.
 - `manual_tools.js`: operaciones manuales puras o casi puras sobre slots seleccionados, sin DOM ni listeners propios.
+- `slot_interactions.js`: seleccion simple/multiple, helpers de seleccion, box select y drag/move no-resize, sin registrar listeners globales.
 
-`static/js/editor_offset_visual.js` sigue siendo el entrypoint compatible y mantiene wrappers, wiring de botones, shortcuts, seleccion, drag, resize, box select, historia/estado global y callbacks de render/interaccion. Siguen pendientes Fase 5D-3/5D-4/5D-5: selection controller, box select y drag/resize.
+`static/js/editor_offset_visual.js` sigue siendo el entrypoint compatible y mantiene wrappers, wiring de botones, shortcuts, listeners globales y temporales, pointer capture/release, historia/estado global, callbacks de render/interaccion, `renderSheet`, `renderSlotForm`, `pushHistory`, spacing live, indicador de distancia y la rama legacy de resize latente. Fase 6 sigue pendiente.
 
 ### Backend Flask Y Servicios
 
@@ -102,7 +107,7 @@ El simulador no modifica `layout_constructor.json`, no crea `slots[]`, no genera
 1. El usuario entra a `GET /editor_offset_visual`.
 2. `routes.py` mantiene la URL publica y delega la logica del editor a servicios.
 3. Se crea o carga el job desde `static/constructor_offset_jobs/<job_id>/layout_constructor.json`.
-4. El frontend inicializa `static/js/editor_offset_visual.js` y modulos auxiliares 5A/5B.
+4. El frontend inicializa `static/js/editor_offset_visual.js` y modulos auxiliares 5A/5B/5C/5D.
 5. El usuario configura pliego, trabajos logicos, disenos, forms per plate, spacing, bleed, caras y CTP.
 6. `POST /editor_offset/upload/<job_id>` guarda PDFs y actualiza `designs[]`.
 7. `POST /editor_offset_visual/apply_imposition` aplica `repeat`, `nesting` o `hybrid`.
@@ -230,6 +235,7 @@ No integrar `editor_advisor` a Flask/UI ni darle tools de escritura sin fase sep
 - `tests/playwright/test_editor_load.py`
 - `tests/playwright/test_tabs_scroll.py`
 - `tests/playwright/test_editor_manual_interactions.py`
+- `tests/playwright/test_editor_drag_resize_interactions.py`
 
 Tests legacy relevantes para salida:
 
@@ -254,18 +260,17 @@ Zonas todavia sensibles:
 - render de slots frente/dorso
 - estados selected/locked/warnings
 
-### Fase 5D Pendiente Parcial
+### Fase 5D Implementada Hasta Drag Inicial
 
-Fase 5D-1 y Fase 5D-2 estan completadas: existe cobertura Playwright de herramientas manuales y `manual_tools.js` concentra operaciones manuales sin listeners. La extraccion de interacciones complejas sigue siendo alto riesgo y no debe avanzar sin plan SAFE y pruebas especificas.
+Fase 5D-1 a Fase 5D-5 estan completadas en alcance inicial SAFE: existe cobertura Playwright de herramientas manuales y drag/resize, `manual_tools.js` concentra operaciones manuales sin listeners y `slot_interactions.js` concentra seleccion, box select y drag/move no-resize.
 
-Zonas pendientes:
+Zonas todavia sensibles:
 
-- seleccion simple y multiple
-- drag
-- resize
-- box select
-- selection controller
+- resize operativo: no hay handles activos en el renderer actual; la rama legacy queda latente y no debe declararse productiva sin fase propia
 - keyboard shortcuts
+- listeners globales y temporales que siguen en el entrypoint
+- pointer capture/release durante drag
+- integracion entre render, seleccion, historial, spacing live e indicador de distancia
 - listeners acoplados a IDs y clases
 
 ### Fase 6 Pendiente
@@ -325,19 +330,17 @@ Validacion frontend, si Node esta disponible:
 
 ```bash
 node --check static/js/editor_offset_visual.js
-node --check static/js/editor_offset_visual/api_client.js
-node --check static/js/editor_offset_visual/output_panel.js
-node --check static/js/editor_offset_visual/ai_panel.js
-node --check static/js/editor_offset_visual/ctp_panel.js
-node --check static/js/editor_offset_visual/booklet_panel.js
+node --check static/js/editor_offset_visual/*.js
 ```
 
 En entorno Codex, `node --check` puede fallar por `Acceso denegado` a `node.exe`. Ese caso se registra como bloqueo de entorno y no debe llevar a tocar configuracion del sistema.
 
-Estado de cierre Fase 5B:
+Estado modular actual post Fase 5D-5:
 
 - `python -m compileall ...`: OK
 - suite minima: OK, `53 passed`
+- Playwright manual: OK, `3 passed`
+- Playwright drag/resize: OK, `4 passed`
 - `git diff --check`: OK
 - `node --check`: bloqueado por `Acceso denegado` a `node.exe`
 
@@ -346,8 +349,9 @@ Estado de cierre Fase 5B:
 - Fase 8: base de arquitectura SAFE, servicios iniciales, extraccion de Step & Repeat PRO a engine, servicio de imposicion, shell UX y tabs.
 - Fase 9: documentacion base, `ai_agent/editor_advisor/` como asesor SDK CLI-only/read-only, UX SAFE Advisor y Codex Prompt Builder.
 - Fase 10: baseline UX Canvas Pro cerrada; shell/topbar CAD-preprensa, canvas mas protagonista, panel derecho denso y QA visual/regresion documentada.
-- Fases 1-5D-2 de separacion modular: caracterizacion, fachada HTTP, output service, IA repeat sin `routes.py`, modulos puros frontend, paneles/API frontend, renderer canvas inicial, caracterizacion Playwright manual y `manual_tools.js`.
-- Fase 11: referencia futura de `Canvas Geometry Polish`; no es el roadmap activo inmediato frente a Fase 5D-3/5D-5 y Fase 6.
+- Fases 1-5D-5 de separacion modular: caracterizacion, fachada HTTP, output service, IA repeat sin `routes.py`, modulos puros frontend, paneles/API frontend, renderer canvas inicial, Playwright manual, `manual_tools.js`, `slot_interactions.js`, box select y drag controller inicial.
+- Fase DOC-Encoding: correccion dirigida de mojibake en textos visibles sin tocar contratos ni comportamiento.
+- Fase 11: referencia futura de `Canvas Geometry Polish`; no es el roadmap activo inmediato frente a Fase 6.
 
 ## Referencias
 

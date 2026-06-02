@@ -1743,3 +1743,27 @@ Validaciones:
 - `venv\Scripts\pytest.exe tests/playwright/test_editor_manual_interactions.py -s`: OK, 3 passed con Flask temporal local.
 - `venv\Scripts\pytest.exe tests/playwright/test_editor_drag_resize_interactions.py -s`: OK, 4 passed con Flask temporal local.
 - `git diff --check`: OK antes del cierre documental, solo warnings LF/CRLF de Git sobre archivos editados.
+
+---
+
+## 2026-06-02 - Sincronizacion documental post Fase 5D-5
+
+Se sincronizo la documentacion arquitectonica antes de iniciar Fase 6.
+
+Cambios documentales:
+
+- `DOCS/OFFSET/14_MAPA_FUNCIONAL_EDITOR_VISUAL_IA.md` ahora refleja Fases 5D-3, 5D-4, 5D-5-0 y 5D-5 como completadas en alcance SAFE.
+- `DOCS/OFFSET/04_PLAN_OFFSET.md` mueve selection controller, box select y drag controller inicial a completadas.
+- Se registra `slot_interactions.js` como modulo activo para seleccion, box select y drag/move no-resize.
+- Se registra `tests/playwright/test_editor_drag_resize_interactions.py` como cobertura existente.
+
+Limites conservados:
+
+- Fase 6 sigue pendiente y no se declara iniciada.
+- Resize no se declara operativo: permanece latente porque el renderer activo no expone handles reales.
+- No se tocaron JS, templates, CSS, backend, services, engines, contracts JSON ni tests.
+
+Validaciones:
+
+- `git diff --check`: OK, solo warnings LF/CRLF de Git sobre los documentos editados.
+- `git status --short`: solo muestra cambios en `DOCS/OFFSET/04_PLAN_OFFSET.md`, `DOCS/OFFSET/05_DIARIO_OFFSET.md` y `DOCS/OFFSET/14_MAPA_FUNCIONAL_EDITOR_VISUAL_IA.md`.
