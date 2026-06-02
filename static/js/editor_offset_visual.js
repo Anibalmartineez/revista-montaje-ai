@@ -11,6 +11,7 @@
   const bookletPanel = editorModules.bookletPanel;
   const rendererCanvas = editorModules.rendererCanvas;
   const manualTools = editorModules.manualTools;
+  const slotInteractions = editorModules.slotInteractions;
   const sheetEl = domRefs.byId(domRefs.ids.sheet);
   const sheetCanvas = domRefs.byId(domRefs.ids.sheetCanvas);
   const worksListEl = domRefs.byId(domRefs.ids.worksList);
@@ -1065,50 +1066,35 @@
   }
 
   function selectSlot(id, opts = {}) {
-    const toggle = opts.toggle;
-    if (!id) {
-      state.selectedSlots = new Set();
-      state.selectedSlot = null;
-      renderSheet();
-      renderSlotForm();
-      return;
-    }
-
-    if (!state.selectedSlots) {
-      state.selectedSlots = new Set();
-    }
-
-    if (toggle) {
-      if (state.selectedSlots.has(id)) {
-        state.selectedSlots.delete(id);
-      } else {
-        state.selectedSlots.add(id);
-      }
-    } else {
-      state.selectedSlots = new Set([id]);
-    }
-
-    const firstSelectedId = state.selectedSlots.values().next().value;
-    state.selectedSlot = state.layout.slots.find((s) => s.id === firstSelectedId) || null;
+    const result = slotInteractions.selectSlot({
+      layout: state.layout,
+      selectedSlot: state.selectedSlot,
+      selectedSlots: state.selectedSlots,
+      id,
+      toggle: opts.toggle,
+    });
+    state.selectedSlots = result.selectedSlots;
+    state.selectedSlot = result.selectedSlot;
     renderSheet();
     renderSlotForm();
   }
 
   function getSelectedSlotIds() {
-    if (state.selectedSlots && state.selectedSlots.size > 0) {
-      return Array.from(state.selectedSlots);
-    }
-    return state.selectedSlot?.id ? [state.selectedSlot.id] : [];
+    return slotInteractions.getSelectedSlotIds({
+      selectedSlot: state.selectedSlot,
+      selectedSlots: state.selectedSlots,
+    });
   }
 
   function getSelectedSlots(opts = {}) {
     const { editableOnly = false, sameFaceOnly = true } = opts;
-    const ids = new Set(getSelectedSlotIds());
-    return (state.layout.slots || []).filter((slot) => {
-      if (!ids.has(slot.id)) return false;
-      if (editableOnly && slot.locked) return false;
-      if (sameFaceOnly && (slot.face || 'front') !== (state.activeFace || 'front')) return false;
-      return true;
+    return slotInteractions.getSelectedSlots({
+      layout: state.layout,
+      selectedSlot: state.selectedSlot,
+      selectedSlots: state.selectedSlots,
+      activeFace: state.activeFace,
+      editableOnly,
+      sameFaceOnly,
     });
   }
 
@@ -1138,10 +1124,12 @@
   }
 
   function refreshSelectionAfterEdit() {
-    const selectedId = state.selectedSlot?.id || getSelectedSlotIds()[0];
-    state.selectedSlot = selectedId
-      ? (state.layout.slots || []).find((slot) => slot.id === selectedId) || null
-      : null;
+    const result = slotInteractions.refreshSelectionAfterEdit({
+      layout: state.layout,
+      selectedSlot: state.selectedSlot,
+      selectedSlotIds: getSelectedSlotIds(),
+    });
+    state.selectedSlot = result.selectedSlot;
     renderSheet();
     renderSlotForm();
   }
@@ -1151,11 +1139,13 @@
   }
 
   function selectAllSlotsOnActiveFace() {
-    const activeFace = state.activeFace || 'front';
-    const slots = (state.layout.slots || []).filter((slot) => (slot.face || 'front') === activeFace);
-    if (!slots.length) return false;
-    state.selectedSlots = new Set(slots.map((slot) => slot.id));
-    state.selectedSlot = slots[0] || null;
+    const result = slotInteractions.selectAllSlotsOnActiveFace({
+      layout: state.layout,
+      activeFace: state.activeFace,
+    });
+    if (!result.changed) return false;
+    state.selectedSlots = result.selectedSlots;
+    state.selectedSlot = result.selectedSlot;
     renderSheet();
     renderSlotForm();
     return true;

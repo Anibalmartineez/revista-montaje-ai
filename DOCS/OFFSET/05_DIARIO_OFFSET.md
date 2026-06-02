@@ -1593,3 +1593,38 @@ Garantias:
 - No se declaro Fase 5D completa.
 - Drag, resize, box select, selection controller y shortcuts globales siguen pendientes.
 - No se tocaron JS, templates, CSS, backend, services, engines, contratos JSON ni tests.
+
+---
+
+## 2026-06-01 - Fase 5D-3 SAFE: Selection Controller
+
+Se implemento la extraccion inicial de seleccion simple/multiple hacia un modulo frontend clasico sin listeners.
+
+Cambios reales:
+
+- Se creo `static/js/editor_offset_visual/slot_interactions.js` bajo `window.EditorOffsetVisual.slotInteractions`.
+- Se cargo `slot_interactions.js` desde `templates/editor_offset_visual.html` antes del entrypoint.
+- `static/js/editor_offset_visual.js` conserva wrappers compatibles para:
+  - `selectSlot`
+  - `getSelectedSlotIds`
+  - `getSelectedSlots`
+  - `selectAllSlotsOnActiveFace`
+  - `refreshSelectionAfterEdit`
+
+Garantias conservadas:
+
+- `slot_interactions.js` no accede al DOM, no registra eventos, no llama `renderSheet`, `renderSlotForm`, `pushHistory` ni `alert`.
+- El entrypoint conserva render, formulario, wiring, shortcuts, `attachSlotHandlers`, `document.keydown`, `document.click` y `sheetEl.pointerdown`.
+- No se movio `getSelectedSlot`.
+- No se movio `selectSlotsInBox`.
+- No se tocaron drag, resize, box select, `manual_tools.js`, `renderer_canvas.js`, backend, services, engines, CSS, contracts JSON, preview/PDF, CTP productivo ni cuadernillos.
+
+Validaciones:
+
+- `node --check static/js/editor_offset_visual/slot_interactions.js`: bloqueado por `Acceso denegado` a `node.exe` en entorno Codex.
+- `node --check static/js/editor_offset_visual.js`: bloqueado por `Acceso denegado` a `node.exe` en entorno Codex.
+- `node --check static/js/editor_offset_visual/manual_tools.js`: bloqueado por `Acceso denegado` a `node.exe` en entorno Codex.
+- `node --check static/js/editor_offset_visual/renderer_canvas.js`: bloqueado por `Acceso denegado` a `node.exe` en entorno Codex.
+- `python -m compileall routes.py montaje_offset_inteligente.py engines cuadernillos ai_agent services strategies`: OK.
+- `venv\Scripts\pytest.exe tests\test_step_repeat_pro_engine.py tests\test_editor_offset_output_contract.py tests\test_cuadernillos_simulator.py tests\test_editor_offset_characterization.py -q -p no:cacheprovider`: OK, 53 passed.
+- `venv\Scripts\pytest.exe tests/playwright/test_editor_manual_interactions.py -s`: fallo inicialmente en sandbox por `PermissionError: [WinError 5] Acceso denegado`; reejecutado fuera del sandbox: OK, 2 passed.
