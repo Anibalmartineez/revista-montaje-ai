@@ -44,7 +44,7 @@ def editor_visual_context(job_id_param: str | None) -> tuple[str, Dict]:
 def save_constructor_layout_from_payload(job_id_raw: str | None, layout: Dict | None) -> EditorHttpResult:
     job_id = editor_jobs.safe_job_id(job_id_raw)
     if not job_id:
-        return _error_result("job_id invÃ¡lido")
+        return _error_result("job_id inválido")
     if layout is None:
         return _error_result("layout_json faltante")
 
@@ -71,7 +71,7 @@ def upload_editor_designs(
 ) -> EditorHttpResult:
     safe_job_id = editor_jobs.safe_job_id(job_id)
     if not safe_job_id:
-        return _error_result("job_id invÃ¡lido")
+        return _error_result("job_id inválido")
     job_dir, layout = editor_jobs.load_or_init_constructor_layout(safe_job_id)
     files = list(files)
     if not files:
@@ -94,7 +94,7 @@ def generate_auto_layout(
 ) -> EditorHttpResult:
     safe_job_id = editor_jobs.safe_job_id(job_id)
     if not safe_job_id:
-        return _error_result("job_id invÃ¡lido")
+        return _error_result("job_id inválido")
     job_dir = editor_jobs.constructor_job_dir(safe_job_id)
     layout = (
         payload_layout
@@ -112,7 +112,7 @@ def apply_imposition(
 ) -> EditorHttpResult:
     job_id = editor_jobs.safe_job_id(job_id_raw)
     if not job_id:
-        return _error_result("job_id invÃ¡lido")
+        return _error_result("job_id inválido")
 
     job_dir, stored_layout = editor_jobs.load_or_init_constructor_layout(job_id)
     layout = payload_layout or stored_layout or editor_layout_defaults.default_constructor_layout()
@@ -120,7 +120,7 @@ def apply_imposition(
     layout, _ = editor_layout_defaults.ensure_imposition_fields(layout)
 
     if not layout.get("designs"):
-        return _error_result("ConfigurÃ¡ al menos un diseÃ±o con sus formas por pliego antes de aplicar la imposiciÃ³n.")
+        return _error_result("Configurá al menos un diseño con sus formas por pliego antes de aplicar la imposición.")
 
     engine = editor_imposition.select_imposition_engine(layout, payload_layout, selected_engine)
     layout["imposition_engine"] = engine
@@ -148,7 +148,7 @@ def apply_imposition(
 def generate_preview(job_id: str) -> EditorHttpResult:
     safe_job_id = editor_jobs.safe_job_id(job_id)
     if not safe_job_id:
-        return _error_result("job_id invÃ¡lido")
+        return _error_result("job_id inválido")
     job_dir, layout = editor_jobs.load_or_init_constructor_layout(safe_job_id)
     errors, warnings = validate_constructor_output_layout(layout)
     if errors:
@@ -166,7 +166,7 @@ def generate_preview(job_id: str) -> EditorHttpResult:
 def generate_pdf(job_id: str) -> EditorHttpResult:
     safe_job_id = editor_jobs.safe_job_id(job_id)
     if not safe_job_id:
-        return _error_result("job_id invÃ¡lido")
+        return _error_result("job_id inválido")
     job_dir, layout = editor_jobs.load_or_init_constructor_layout(safe_job_id)
     errors, warnings = validate_constructor_output_layout(layout)
     if errors:

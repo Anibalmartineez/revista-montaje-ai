@@ -343,7 +343,7 @@
     const handles = document.querySelectorAll('.slot .handle');
     const zoom = state.zoom || 1;
 
-    // TamaÃ±o base muy pequeÃ±o (4 px a 100%)
+    // Tamaño base muy pequeño (4 px a 100%)
     let size = 4 * zoom;
 
     // Limitar para que nunca se hagan molestos
@@ -436,7 +436,7 @@
     if (!state.layout.designs || state.layout.designs.length === 0) {
       const empty = document.createElement('p');
       empty.className = 'muted';
-      empty.textContent = 'SubÃ­ PDFs para configurar ajustes de sangrado y marcas opcionales por diseÃ±o.';
+      empty.textContent = 'Subí PDFs para configurar ajustes de sangrado y marcas opcionales por diseño.';
       listEl.appendChild(empty);
       return;
     }
@@ -628,8 +628,8 @@
     const visibleIssues = visibleErrors.concat(visibleWarnings);
 
     if (!visibleIssues.length) {
-      geometryValidationSummaryEl.textContent = `Cara ${activeFace}: sin problemas geomÃ©tricos`;
-      geometryValidationListEl.innerHTML = '<div class="geometry-validation-empty">No se detectaron conflictos geomÃ©tricos en la cara visible.</div>';
+      geometryValidationSummaryEl.textContent = `Cara ${activeFace}: sin problemas geométricos`;
+      geometryValidationListEl.innerHTML = '<div class="geometry-validation-empty">No se detectaron conflictos geométricos en la cara visible.</div>';
       return;
     }
 
@@ -820,10 +820,10 @@
     const face = slot.face || state.activeFace || 'front';
 
     const marginCandidates = [
-      { label: 'Margen Ãºtil izq.', value: box.x - usableLeft },
-      { label: 'Margen Ãºtil der.', value: usableRight - (box.x + box.w) },
-      { label: 'Margen Ãºtil inf.', value: box.y - usableBottom },
-      { label: 'Margen Ãºtil sup.', value: usableTop - (box.y + box.h) },
+      { label: 'Margen útil izq.', value: box.x - usableLeft },
+      { label: 'Margen útil der.', value: usableRight - (box.x + box.w) },
+      { label: 'Margen útil inf.', value: box.y - usableBottom },
+      { label: 'Margen útil sup.', value: usableTop - (box.y + box.h) },
     ];
     marginCandidates.sort((a, b) => Math.abs(a.value) - Math.abs(b.value));
     const nearestMargin = marginCandidates[0];
@@ -1192,14 +1192,14 @@
       clearChildren(workSelectForUpload);
       const defaultOpt = document.createElement('option');
       defaultOpt.value = '';
-      defaultOpt.textContent = '-- Sin trabajo especÃ­fico --';
+      defaultOpt.textContent = '-- Sin trabajo específico --';
       workSelectForUpload.appendChild(defaultOpt);
     }
     state.layout.works.forEach((w) => {
       const item = document.createElement('div');
       item.className = 'item';
       if (state.selectedWork && state.selectedWork.id === w.id) item.classList.add('active');
-      item.textContent = `${w.name} Â· ${w.final_size_mm?.join('x')} mm Â· copias ${w.desired_copies}`;
+      item.textContent = `${w.name} · ${w.final_size_mm?.join('x')} mm · copias ${w.desired_copies}`;
       item.addEventListener('click', () => {
         state.selectedWork = w;
         fillWorkForm(w);
@@ -1283,7 +1283,7 @@
       const title = document.createElement('div');
       title.className = 'design-title';
       const work = state.layout.works.find((w) => w.id === d.work_id);
-      const workLabel = work ? ` Â· Trabajo: ${work.name}` : '';
+      const workLabel = work ? ` · Trabajo: ${work.name}` : '';
       title.textContent = `${d.filename || d.ref} (${d.ref})${workLabel}`;
       li.appendChild(title);
 
@@ -1360,14 +1360,14 @@
         pushHistory();
       });
       rotationLabel.appendChild(rotationInput);
-      rotationLabel.append(' Permitir rotaciÃ³n');
+      rotationLabel.append(' Permitir rotación');
       grid.appendChild(rotationLabel);
 
       const zoneLabel = document.createElement('label');
-      zoneLabel.textContent = 'UbicaciÃ³n';
+      zoneLabel.textContent = 'Ubicación';
       const zoneSelect = document.createElement('select');
       appendOptions(zoneSelect, [
-        { label: 'AutomÃ¡tico', value: 'auto' },
+        { label: 'Automático', value: 'auto' },
         { label: 'Arriba', value: 'top' },
         { label: 'Abajo', value: 'bottom' },
         { label: 'Izquierda', value: 'left' },
@@ -1400,11 +1400,11 @@
     const hint = document.getElementById('imposition-engine-hint');
     if (hint) {
       if (engine === 'nesting') {
-        hint.textContent = 'Nesting PRO optimiza la ubicaciÃ³n de cada diseÃ±o con rotaciÃ³n opcional.';
+        hint.textContent = 'Nesting PRO optimiza la ubicación de cada diseño con rotación opcional.';
       } else if (engine === 'hybrid') {
-        hint.textContent = 'HÃ­brido: se arma un patrÃ³n con Nesting PRO y se repite como bloque donde haya espacio disponible.';
+        hint.textContent = 'Híbrido: se arma un patrón con Nesting PRO y se repite como bloque donde haya espacio disponible.';
       } else {
-        hint.textContent = 'Step & Repeat PRO repetirÃ¡ las formas declaradas respetando mÃ¡rgenes y pinzas.';
+        hint.textContent = 'Step & Repeat PRO repetirá las formas declaradas respetando márgenes y pinzas.';
       }
     }
 
@@ -1483,7 +1483,7 @@
     renderSlotForm();
     return;
     if (!state.selectedSlots || state.selectedSlots.size < 2) {
-      alert('SeleccionÃ¡ al menos dos slots para agrupar.');
+      alert('Seleccioná al menos dos slots para agrupar.');
       return;
     }
 
@@ -1551,7 +1551,7 @@
 
     const slots = getSelectedSlots({ editableOnly: true });
     if (slots.length < 2) {
-      alert('SeleccionÃ¡ al menos dos slots desbloqueados para alinear.');
+      alert('Seleccioná al menos dos slots desbloqueados para alinear.');
       return;
     }
 
@@ -1595,7 +1595,7 @@
 
     const slots = getSelectedSlots({ editableOnly: true });
     if (slots.length < 3) {
-      alert('SeleccionÃ¡ al menos tres slots desbloqueados para distribuir.');
+      alert('Seleccioná al menos tres slots desbloqueados para distribuir.');
       return;
     }
 
@@ -1731,7 +1731,7 @@
         : null;
 
     if (!targetSlots) {
-      alert('Selecciona al menos 2 slots o ninguno para aplicar la separaciÃ³n.');
+      alert('Selecciona al menos 2 slots o ninguno para aplicar la separación.');
       return;
     }
 
@@ -1899,7 +1899,7 @@
   async function generateStepRepeatFromSelectedSlot() {
     const master = getSelectedSlot();
     if (!master) {
-      alert('SeleccionÃ¡ primero un slot maestro.');
+      alert('Seleccioná primero un slot maestro.');
       return;
     }
 
@@ -2303,7 +2303,7 @@
 
   async function requestAutoLayout() {
     if (!state.layout.works || state.layout.works.length === 0) {
-      alert('Primero crea al menos un Trabajo lÃ³gico con su medida final y copias.');
+      alert('Primero crea al menos un Trabajo lógico con su medida final y copias.');
       return;
     }
     await saveLayout();
@@ -2327,7 +2327,7 @@
     if (!state.layout.designs || state.layout.designs.length === 0) {
       const warning = document.getElementById('imposition-warning');
       if (warning) warning.classList.remove('hidden');
-      alert('Configura al menos un diseÃ±o antes de aplicar el motor de imposiciÃ³n.');
+      alert('Configura al menos un diseño antes de aplicar el motor de imposición.');
       return;
     }
     normalizeDesignDefaults();
@@ -2335,9 +2335,9 @@
     syncSettingsToLayout();
     if (Array.isArray(state.layout.slots) && state.layout.slots.length > 0) {
       const confirmed = window.confirm(
-        'Aplicar el motor de imposiciÃ³n reemplazarÃ¡ los slots actuales del pliego.\n'
-          + 'Si realizaste ajustes manuales, se perderÃ¡n esos cambios.\n'
-          + 'Â¿Deseas continuar?',
+        'Aplicar el motor de imposición reemplazará los slots actuales del pliego.\n'
+          + 'Si realizaste ajustes manuales, se perderán esos cambios.\n'
+          + '¿Deseas continuar?',
       );
       if (!confirmed) return;
     }

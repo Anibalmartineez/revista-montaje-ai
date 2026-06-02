@@ -702,7 +702,7 @@ def compact_vertical_zonal_and_auto_groups(
 def build_step_repeat_slots(layout: Dict) -> List[Dict]:
     designs = ordered_repeat_designs(layout)
     if not designs:
-        raise ValueError("No hay diseÃ±os configurados para aplicar Step & Repeat.")
+        raise ValueError("No hay diseños configurados para aplicar Step & Repeat.")
     usable_w, usable_h, left, _, _, bottom = sheet_area(layout)
     if usable_w <= 0 or usable_h <= 0:
         return []
@@ -736,7 +736,7 @@ def build_step_repeat_slots(layout: Dict) -> List[Dict]:
             for item in incomplete:
                 design_name = item.get("filename") or item.get("design_ref")
                 messages.append(
-                    f"DiseÃ±o {design_name}: solicitadas {item['requested_forms']}, "
+                    f"Diseño {design_name}: solicitadas {item['requested_forms']}, "
                     f"colocadas {item['placed_forms']}, faltan {item['missing_forms']}."
                 )
             raise IncompleteImpositionError(
@@ -869,7 +869,7 @@ def build_step_repeat_slots(layout: Dict) -> List[Dict]:
         for item in incomplete:
             design_name = item.get("filename") or item.get("design_ref")
             messages.append(
-                f"DiseÃ±o {design_name}: solicitadas {item['requested_forms']}, "
+                f"Diseño {design_name}: solicitadas {item['requested_forms']}, "
                 f"colocadas {item['placed_forms']}, faltan {item['missing_forms']}."
             )
         raise IncompleteImpositionError(

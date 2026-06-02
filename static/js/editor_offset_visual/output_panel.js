@@ -16,7 +16,7 @@
     ctx.renderGeometryValidationPanel();
     if (validation.errors.length || validation.warnings.length) {
       alert(
-        `Advertencia geomÃƒÂ©trica antes de la preview:\n- ${validation.errors.length} errores\n- ${validation.warnings.length} advertencias\nRevisa el panel debajo del pliego para mÃƒÂ¡s detalle.`,
+        `Advertencia geométrica antes de la preview:\n- ${validation.errors.length} errores\n- ${validation.warnings.length} advertencias\nRevisa el panel debajo del pliego para más detalle.`,
       );
     }
     await ctx.saveLayout();
@@ -43,7 +43,7 @@
     ctx.renderGeometryValidationPanel();
     if (validation.errors.length || validation.warnings.length) {
       alert(
-        `Advertencia geomÃƒÂ©trica antes del PDF:\n- ${validation.errors.length} errores\n- ${validation.warnings.length} advertencias\nRevisa el panel debajo del pliego para mÃƒÂ¡s detalle.`,
+        `Advertencia geométrica antes del PDF:\n- ${validation.errors.length} errores\n- ${validation.warnings.length} advertencias\nRevisa el panel debajo del pliego para más detalle.`,
       );
     }
     await ctx.saveLayout();

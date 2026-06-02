@@ -97,7 +97,7 @@
     if (!ctp) return;
     const bbox = computeFrontBlockBBox(state.layout);
     if (!bbox) {
-      alert('No hay slots en el frente para aplicar ProducciÃƒÂ³n / CTP.');
+      alert('No hay slots en el frente para aplicar Producción / CTP.');
       return;
     }
 

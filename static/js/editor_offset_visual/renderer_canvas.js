@@ -101,8 +101,8 @@
     const visibleIssues = visibleErrors.concat(visibleWarnings);
 
     if (!visibleIssues.length) {
-      summaryEl.textContent = `Cara ${face}: sin problemas geomÃƒÂ©tricos`;
-      listEl.innerHTML = '<div class="geometry-validation-empty">No se detectaron conflictos geomÃƒÂ©tricos en la cara visible.</div>';
+      summaryEl.textContent = `Cara ${face}: sin problemas geométricos`;
+      listEl.innerHTML = '<div class="geometry-validation-empty">No se detectaron conflictos geométricos en la cara visible.</div>';
       return;
     }
 
