@@ -1669,3 +1669,34 @@ Validaciones:
 - `venv\Scripts\pytest.exe tests\test_step_repeat_pro_engine.py tests\test_editor_offset_output_contract.py tests\test_cuadernillos_simulator.py tests\test_editor_offset_characterization.py -q -p no:cacheprovider`: OK, 53 passed.
 - `venv\Scripts\pytest.exe tests\playwright\test_editor_manual_interactions.py -s`: OK, 3 passed con Flask temporal local.
 - `git diff --check`: OK antes del cierre documental, solo warnings LF/CRLF de Git sobre archivos editados.
+
+---
+
+## 2026-06-02 - Fase 5D-5-0 SAFE: caracterizacion drag/resize
+
+Se agrego cobertura Playwright UI-only para caracterizar drag/resize antes de extraer un controller.
+
+Archivo creado:
+
+- `tests/playwright/test_editor_drag_resize_interactions.py`
+
+Cobertura agregada:
+
+- drag simple mueve un slot desde la UI y conserva seleccion.
+- durante drag simple aparece `.distance-indicator` y se limpia al finalizar.
+- drag de slot agrupado mueve tambien los miembros del grupo.
+- live spacing activo no rompe render ni seleccion durante drag.
+- resize queda caracterizado como latente cuando no existen handles reales `.slot .handle` en el renderer activo.
+
+Hallazgos:
+
+- El renderer activo no crea handles reales de resize en los slots; por tanto, la logica de resize por `.handle.br/.bl/.tr/.tl` queda como soporte latente en `static/js/editor_offset_visual.js`.
+- No se implemento `dragResize` controller.
+- No se modifico `static/js/editor_offset_visual.js`.
+- No se modificaron `slot_interactions.js`, `renderer_canvas.js`, `manual_tools.js`, templates, CSS, backend, services, engines, contracts JSON, preview/PDF, CTP productivo ni cuadernillos.
+
+Validaciones:
+
+- `git diff --check`: OK antes del cierre documental.
+- `venv\Scripts\pytest.exe tests/playwright/test_editor_drag_resize_interactions.py -s`: OK, 4 passed con Flask temporal local.
+- `venv\Scripts\pytest.exe tests/playwright/test_editor_manual_interactions.py -s`: OK, 3 passed con Flask temporal local.
