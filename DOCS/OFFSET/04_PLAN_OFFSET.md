@@ -39,6 +39,9 @@ Consolidar el Editor Visual IA como flujo operativo profesional del modulo Offse
   - Separacion modular Fase 4 completada: IA repeat deja de depender de `routes.py`
   - Separacion modular Fase 5A completada: modulos puros frontend (`dom_refs`, `defaults`, `geometry`, `geometry_validation`)
   - Separacion modular Fase 5B completada: modulos API/paneles (`api_client`, `output_panel`, `ai_panel`, `ctp_panel`, `booklet_panel`)
+  - Separacion modular Fase 5C completada: `renderer_canvas.js` extraido inicialmente con wrappers compatibles
+  - Separacion modular Fase 5D-1 completada: caracterizacion Playwright de herramientas manuales
+  - Separacion modular Fase 5D-2 completada: `manual_tools.js` extraido inicialmente sin listeners propios
 
 ## Roadmap activo de separacion modular SAFE
 
@@ -50,13 +53,15 @@ Consolidar el Editor Visual IA como flujo operativo profesional del modulo Offse
 - Fase 4: IA repeat normalizada sobre el motor canonico `engines.step_repeat_pro_engine`.
 - Fase 5A: extraccion frontend de defaults, DOM refs, geometria pura y validacion geometrica.
 - Fase 5B: extraccion frontend de cliente API y paneles IA/CTP/cuadernillos/salida.
+- Fase 5C: extraccion inicial de renderer/canvas/sheet en `static/js/editor_offset_visual/renderer_canvas.js`.
+- Fase 5D-1: caracterizacion Playwright de seleccion y herramientas manuales en `tests/playwright/test_editor_manual_interactions.py`.
+- Fase 5D-2: extraccion inicial de herramientas manuales puras en `static/js/editor_offset_visual/manual_tools.js`.
 
 ### Fases pendientes de alto riesgo
 
-- Fase 5C-0: preparacion SAFE del renderer/canvas/sheet. Documentar contrato interno, dependencias y checklist antes de extraer codigo; no implementa `renderer_canvas.js`.
-- Fase 5C: extraer renderer/canvas/sheet. No tocar sin cobertura y plan SAFE; riesgo directo sobre `renderSheet`, CTP guide, geometry markers, zoom y canvas.
-- Fase 5D-0: auditoria SAFE de interacciones complejas. Documentar funciones, estado, listeners, relacion con `renderer_canvas.js` y contratos futuros antes de mover codigo.
-- Fase 5D: extraer interacciones complejas. No tocar sin cobertura y plan SAFE; riesgo directo sobre drag, resize, seleccion, box select, nudge, align, distribute y listeners.
+- Fase 5D-3: extraer selection controller en `slot_interactions.js`, manteniendo wiring en el entrypoint.
+- Fase 5D-4: extraer box select con cobertura de click vs drag y seleccion aditiva.
+- Fase 5D-5: extraer drag/resize solo con cobertura especifica de snap, grupos, live spacing, distancia util e historial.
 - Fase 6: mover estructura fisica hacia `editor_offset/`. No ejecutar hasta tener wrappers, aliases legacy, tests e imports estabilizados.
 
 ### Validacion base del cierre 5B
@@ -329,13 +334,13 @@ Garantias:
 - `editor_advisor` sigue CLI-only/read-only, sin Flask/UI/endpoints ni escritura.
 - Playwright manual funciona desde Git CMD; `WinError 5` queda registrado solo como bloqueo del entorno Codex.
 
-### Fase 5C-0. Preparacion SAFE del Renderer Canvas
+### Fase 5C. Renderer Canvas Inicial
 
 Objetivo:
 
-- auditar y documentar la futura extraccion del renderer/canvas/sheet sin ejecutar todavia Fase 5C.
-- congelar un contrato interno para `renderSheet`, zoom, sheet, guia CTP, marcadores geometricos y estados visuales.
-- separar explicitamente renderer visual de interacciones complejas, que quedan para Fase 5D.
+- `renderer_canvas.js` ya fue implementado como extraccion inicial del renderer/canvas/sheet.
+- `static/js/editor_offset_visual.js` conserva wrappers compatibles para render, zoom y panel geometrico.
+- se separa explicitamente renderer visual de interacciones complejas, que quedan para Fase 5D-3/5D-5.
 
 Mapa de dependencias actual:
 
@@ -345,9 +350,9 @@ Mapa de dependencias actual:
 - los estados visuales de slot dependen de `slot.locked`, `state.selectedSlot`, `state.selectedSlots` y `state.geometryValidation.bySlot`.
 - el indicador de distancia depende de `state.distanceIndicator` y se renderiza dentro de `#sheet`.
 
-Contrato interno futuro propuesto para Fase 5C:
+Contrato interno implementado inicialmente:
 
-- futuro modulo sugerido: `static/js/editor_offset_visual/renderer_canvas.js`, solo cuando se apruebe Fase 5C.
+- modulo: `static/js/editor_offset_visual/renderer_canvas.js`.
 - no debe registrar listeners globales ni mutar `state.layout`, seleccion, historial, drag state o contratos.
 - debe recibir dependencias explicitas: `sheetEl`, `sheetCanvas`, elementos del panel geometrico, `layout`, `activeFace`, `scale`, `zoom`, seleccion, `distanceIndicator`, helpers de geometria y callbacks de interaccion.
 - funciones esperadas:
@@ -358,15 +363,15 @@ Contrato interno futuro propuesto para Fase 5C:
   - `renderCtpGuide({ sheetEl, ctp, activeFace, mmToPx })`
   - `renderGeometryValidationPanel({ validation, activeFace, summaryEl, listEl })`
   - `renderDistanceIndicator({ sheetEl, distanceIndicator, activeFace, mmToPx })`
-- los callbacks `onSlotPointerDown` y `onSlotClick` deben seguir entrando desde `static/js/editor_offset_visual.js` hasta Fase 5D.
+- los callbacks `onSlotPointerDown` y `onSlotClick` siguen entrando desde `static/js/editor_offset_visual.js` hasta Fase 5D-3/5D-5.
 
-Fuera de alcance de 5C-0 y de la primera extraccion 5C:
+Fuera de alcance que sigue vigente:
 
 - no mover DOM, no renombrar IDs, no tocar `data-editor-tab` ni `data-editor-tab-panel`.
 - no tocar drag, resize, box select, seleccion, nudge, align, distribute, shortcuts ni listeners globales.
 - no tocar backend, services, engines, preview/PDF, CTP productivo, cuadernillos, Step & Repeat PRO ni contratos JSON.
 
-Checklist de caracterizacion previa a Fase 5C:
+Checklist de caracterizacion renderer/canvas:
 
 - `#sheet`, `#sheet-canvas` y `#geometry-validation-panel` existen una sola vez.
 - cambio de `sheet_mm` actualiza ancho/alto visual del pliego.
@@ -390,7 +395,7 @@ Clasificacion SAFE:
 Objetivo:
 
 - auditar seleccion, multi-seleccion, box select, drag, resize, nudge, align, distribute, group/ungroup y shortcuts antes de extraerlos a modulos.
-- congelar contratos futuros para `slot_interactions.js` y `manual_tools.js`.
+- congelar contratos para `slot_interactions.js` y `manual_tools.js`.
 - mantener la frontera con `renderer_canvas.js`: el renderer pinta slots y recibe `attachSlotHandlers`, pero la interaccion sigue en el entrypoint hasta fases posteriores.
 
 Mapa funcional actual:
@@ -409,28 +414,29 @@ Dependencias de estado:
 - helpers de geometria: `getEffectiveSlotBox`, `slotCoordsFromBox`, `slotFootprintRect`, `getSelectionBounds`, `groupSlotsByRow`, `groupSlotsByColumn`, `roundMm`.
 - callbacks actuales: `renderSheet`, `renderSlotForm`, `pushHistory`, `applySnap`, `applySpacing`, `updateDistanceIndicator`, `hideDistanceIndicator`.
 
-Contrato futuro propuesto:
+Contrato futuro propuesto y estado actual:
 
 - `slot_interactions.js`:
   - controladores candidatos: seleccion, box select, drag/resize y shortcuts de interaccion directa.
   - API futura: `createSelectionController(ctx)`, `createBoxSelectController(ctx)`, `createDragController(ctx)`, `attachSlotHandlers(slotEl, slot)`.
   - debe recibir `state`, `sheetEl`, `sheetCanvas`, geometria y callbacks explicitos; no debe tocar DOM estructural ni backend.
-- `manual_tools.js`:
-  - operaciones candidatas: duplicar, borrar, agrupar, desagrupar, alinear, distribuir, centrar, nudge, gap y spacing.
-  - debe preservar proteccion de slots bloqueados, seleccion actual, historial y render mediante wrappers del entrypoint.
-  - no debe registrar listeners por su cuenta en la primera extraccion real.
+- `manual_tools.js` implementado:
+  - concentra duplicar, borrar, agrupar, desagrupar, alinear, distribuir, centrar, nudge, gap y spacing.
+  - preserva historial, seleccion, render y lectura DOM mediante wrappers del entrypoint.
+  - no registra listeners ni accede al DOM por su cuenta.
 
 Que no debe moverse todavia:
 
 - `document.keydown`, `document.click`, `window.resize` y wiring de botones `btn-*`.
 - drag/resize completo, box select completo y listeners temporales de pointer.
+- selection controller y shortcuts globales.
 - clases/IDs `.slot`, `.selected`, `.locked`, `.box-selection-rect`, `#sheet`, `#sheet-canvas`, `slot-*`.
 - contratos JSON, backend, preview/PDF, CTP productivo, cuadernillos, engines y services.
 
 Plan por fases 5D:
 
-- Fase 5D-1: caracterizacion de seleccion simple/multiple, limpiar seleccion, box select, shortcuts y nudge.
-- Fase 5D-2: extraer `manual_tools.js` para operaciones sin listeners, manteniendo wrappers en entrypoint.
+- Fase 5D-1 completada: caracterizacion Playwright de seleccion simple/multiple, Ctrl+A, duplicate/delete, group/ungroup, nudge, align y distribute.
+- Fase 5D-2 completada: extraer `manual_tools.js` para operaciones sin listeners, manteniendo wrappers en entrypoint.
 - Fase 5D-3: extraer controlador de seleccion en `slot_interactions.js`, manteniendo wiring en entrypoint.
 - Fase 5D-4: extraer box select con cobertura de click vs drag y seleccion aditiva.
 - Fase 5D-5: extraer drag/resize solo con cobertura especifica de snap, grupos, live spacing, distancia util e historial.

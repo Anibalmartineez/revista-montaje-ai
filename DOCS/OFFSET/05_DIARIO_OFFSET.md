@@ -1575,3 +1575,21 @@ Validaciones:
 - `venv\Scripts\pytest.exe tests\test_step_repeat_pro_engine.py tests\test_editor_offset_output_contract.py tests\test_cuadernillos_simulator.py tests\test_editor_offset_characterization.py -q -p no:cacheprovider`: OK, 53 passed.
 - `venv\Scripts\pytest.exe tests/playwright/test_editor_manual_interactions.py -s`: fallo inicialmente en sandbox por `PermissionError: [WinError 5] Acceso denegado`; reejecutado fuera del sandbox: OK, 2 passed.
 - `git diff --check`: OK antes del cierre documental, solo warnings LF/CRLF de Git sobre archivos editados.
+
+---
+
+## 2026-06-01 - Sincronizacion documental post 5C y 5D-2
+
+Se actualizo la documentacion corta para reflejar el estado real antes de planificar Fase 5D-3.
+
+Cambios documentales:
+
+- `DOCS/OFFSET/14_MAPA_FUNCIONAL_EDITOR_VISUAL_IA.md` ahora registra `renderer_canvas.js`, `manual_tools.js` y `tests/playwright/test_editor_manual_interactions.py` como activos.
+- `DOCS/OFFSET/04_PLAN_OFFSET.md` mueve Fase 5C, Fase 5D-1 y Fase 5D-2 a completadas.
+- Se mantienen como pendientes Fase 5D-3, Fase 5D-4, Fase 5D-5 y Fase 6.
+
+Garantias:
+
+- No se declaro Fase 5D completa.
+- Drag, resize, box select, selection controller y shortcuts globales siguen pendientes.
+- No se tocaron JS, templates, CSS, backend, services, engines, contratos JSON ni tests.

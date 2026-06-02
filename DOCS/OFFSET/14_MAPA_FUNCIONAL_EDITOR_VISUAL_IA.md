@@ -24,6 +24,9 @@ Estado del roadmap activo de separacion modular:
 - Fase 4 completada: `ai_agent/tools_repeat.py` usa `engines.step_repeat_pro_engine.build_step_repeat_slots` y ya no depende de helpers internos de `routes.py`.
 - Fase 5A completada: modulos puros frontend `dom_refs.js`, `defaults.js`, `geometry.js`, `geometry_validation.js`.
 - Fase 5B completada: modulos frontend de red/paneles `api_client.js`, `output_panel.js`, `ai_panel.js`, `ctp_panel.js`, `booklet_panel.js`.
+- Fase 5C completada: renderer/canvas/sheet extraido inicialmente en `renderer_canvas.js`, con wrappers compatibles en el entrypoint.
+- Fase 5D-1 completada: cobertura Playwright de herramientas manuales en `tests/playwright/test_editor_manual_interactions.py`.
+- Fase 5D-2 completada: herramientas manuales puras extraidas inicialmente en `manual_tools.js`, sin listeners propios.
 
 Fase 10 queda como baseline UX historica cerrada: shell/topbar CAD-preprensa, canvas mas protagonista, panel derecho mas denso, `geometry-validation-panel` unico y agente SDK con UX Surface v2.
 
@@ -36,19 +39,21 @@ Fase 10 queda como baseline UX historica cerrada: shell/topbar CAD-preprensa, ca
 - Estilos principales: `static/css/editor_offset_visual.css`.
 - Modulos auxiliares: `static/js/editor_offset_visual/`.
 
-Modulos 5A/5B activos:
+Modulos frontend activos:
 
 - `dom_refs.js`: IDs y referencias DOM criticas.
 - `defaults.js`: defaults y normalizadores puros.
 - `geometry.js`: geometria pura.
 - `geometry_validation.js`: validacion geometrica frontend.
+- `renderer_canvas.js`: render visual/canvas/sheet, guia CTP, marcadores geometricos, zoom y panel geometrico, con listeners recibidos por callback desde el entrypoint.
 - `api_client.js`: llamadas HTTP del editor.
 - `output_panel.js`: preview/PDF y errores de salida.
 - `ai_panel.js`: panel IA operativo del editor.
 - `ctp_panel.js`: panel CTP y alineacion.
 - `booklet_panel.js`: panel del simulador de cuadernillos.
+- `manual_tools.js`: operaciones manuales puras o casi puras sobre slots seleccionados, sin DOM ni listeners propios.
 
-`static/js/editor_offset_visual.js` sigue siendo el entrypoint y mantiene zonas sensibles todavia no extraidas: `renderSheet`, seleccion, drag, resize, box select, nudge, align, distribute, historia/estado global y partes del render del pliego.
+`static/js/editor_offset_visual.js` sigue siendo el entrypoint compatible y mantiene wrappers, wiring de botones, shortcuts, seleccion, drag, resize, box select, historia/estado global y callbacks de render/interaccion. Siguen pendientes Fase 5D-3/5D-4/5D-5: selection controller, box select y drag/resize.
 
 ### Backend Flask Y Servicios
 
@@ -224,6 +229,7 @@ No integrar `editor_advisor` a Flask/UI ni darle tools de escritura sin fase sep
 - `tests/test_editor_advisor_tools.py`
 - `tests/playwright/test_editor_load.py`
 - `tests/playwright/test_tabs_scroll.py`
+- `tests/playwright/test_editor_manual_interactions.py`
 
 Tests legacy relevantes para salida:
 
@@ -234,11 +240,11 @@ Tests legacy relevantes para salida:
 
 ## Zonas De Alto Riesgo
 
-### Fase 5C Pendiente
+### Fase 5C Implementada Inicial
 
-Extraer renderer/canvas/sheet es alto riesgo. No tocar sin plan SAFE, cobertura y validacion visual.
+La primera extraccion renderer/canvas/sheet ya existe en `static/js/editor_offset_visual/renderer_canvas.js`. No registra listeners propios; el entrypoint conserva wrappers y callbacks de interaccion.
 
-Zonas sensibles:
+Zonas todavia sensibles:
 
 - `renderSheet`
 - zoom/canvas/sheet
@@ -248,20 +254,17 @@ Zonas sensibles:
 - render de slots frente/dorso
 - estados selected/locked/warnings
 
-### Fase 5D Pendiente
+### Fase 5D Pendiente Parcial
 
-Extraer interacciones complejas es alto riesgo. No tocar sin plan SAFE y pruebas especificas.
+Fase 5D-1 y Fase 5D-2 estan completadas: existe cobertura Playwright de herramientas manuales y `manual_tools.js` concentra operaciones manuales sin listeners. La extraccion de interacciones complejas sigue siendo alto riesgo y no debe avanzar sin plan SAFE y pruebas especificas.
 
-Zonas sensibles:
+Zonas pendientes:
 
 - seleccion simple y multiple
 - drag
 - resize
 - box select
-- nudge
-- align
-- distribute
-- group/ungroup
+- selection controller
 - keyboard shortcuts
 - listeners acoplados a IDs y clases
 
@@ -343,8 +346,8 @@ Estado de cierre Fase 5B:
 - Fase 8: base de arquitectura SAFE, servicios iniciales, extraccion de Step & Repeat PRO a engine, servicio de imposicion, shell UX y tabs.
 - Fase 9: documentacion base, `ai_agent/editor_advisor/` como asesor SDK CLI-only/read-only, UX SAFE Advisor y Codex Prompt Builder.
 - Fase 10: baseline UX Canvas Pro cerrada; shell/topbar CAD-preprensa, canvas mas protagonista, panel derecho denso y QA visual/regresion documentada.
-- Fases 1-5B de separacion modular: caracterizacion, fachada HTTP, output service, IA repeat sin `routes.py`, modulos puros frontend y paneles/API frontend.
-- Fase 11: referencia futura de `Canvas Geometry Polish`; no es el roadmap activo inmediato frente a Fase 5C/5D/6.
+- Fases 1-5D-2 de separacion modular: caracterizacion, fachada HTTP, output service, IA repeat sin `routes.py`, modulos puros frontend, paneles/API frontend, renderer canvas inicial, caracterizacion Playwright manual y `manual_tools.js`.
+- Fase 11: referencia futura de `Canvas Geometry Polish`; no es el roadmap activo inmediato frente a Fase 5D-3/5D-5 y Fase 6.
 
 ## Referencias
 
