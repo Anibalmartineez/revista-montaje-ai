@@ -528,9 +528,9 @@
     window.JOB_ID = {{ job_id|tojson|safe }};
   </script>
   <script src="{{ url_for('static', filename='js/editor_offset_visual/dom_refs.js') }}"></script>
-  <script src="{{ url_for('static', filename='js/editor_offset_visual/defaults.js') }}"></script>
-  <script src="{{ url_for('static', filename='js/editor_offset_visual/geometry.js') }}"></script>
-  <script src="{{ url_for('static', filename='js/editor_offset_visual/geometry_validation.js') }}"></script>
+  <script src="{{ url_for('static', filename='js/editor_offset_visual/core/defaults.js') }}"></script>
+  <script src="{{ url_for('static', filename='js/editor_offset_visual/core/geometry.js') }}"></script>
+  <script src="{{ url_for('static', filename='js/editor_offset_visual/core/geometry_validation.js') }}"></script>
   <script src="{{ url_for('static', filename='js/editor_offset_visual/renderer_canvas.js') }}"></script>
   <script src="{{ url_for('static', filename='js/editor_offset_visual/manual_tools.js') }}"></script>
   <script src="{{ url_for('static', filename='js/editor_offset_visual/slot_interactions.js') }}"></script>
