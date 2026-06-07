@@ -6,7 +6,7 @@ Consolidar el Editor Visual IA como flujo operativo profesional del modulo Offse
 
 ## Etapa actual
 
-- Estado documentado: Fase 10 UX cerrada como baseline historica y separacion modular SAFE completada hasta Fase 5D-5, con Fase 6-0/6A documental cerrada
+- Estado documentado: Fase 10 UX cerrada como baseline historica y separacion modular SAFE completada hasta Fase 5D-5, con Fase 6-0, 6A, 6B, 6C-0 y 6C-1 cerradas
 - Fase 8 queda como base cerrada de arquitectura SAFE y shell UX del Editor Visual IA
 - Sin refactor masivo
 - Sin limpieza agresiva
@@ -48,6 +48,9 @@ Consolidar el Editor Visual IA como flujo operativo profesional del modulo Offse
   - Fase DOC-Encoding completada: correccion dirigida de textos visibles con mojibake, sin tocar contratos ni logica
   - Fase 6-0 completada: auditoria SAFE del frontend post 5D-5, sin modificar archivos
   - Fase 6A documental completada: fuentes de verdad y roadmap modular 6A-6E consolidados
+  - Fase 6B completada: cobertura Playwright de workflows productivos en `tests/playwright/test_editor_productive_workflows.py`
+  - Fase 6C-0 completada: auditoria SAFE de reorganizacion fisica y decision de avanzar por subfases
+  - Fase 6C-1 completada: modulos puros movidos a `static/js/editor_offset_visual/core/` conservando entrypoint y namespace
 
 ## Roadmap activo de separacion modular SAFE
 
@@ -69,15 +72,20 @@ Consolidar el Editor Visual IA como flujo operativo profesional del modulo Offse
 - Fase DOC-Encoding: correccion dirigida de mojibake en textos visibles, comentarios y mensajes seguros.
 - Fase 6-0: auditoria SAFE del frontend post 5D-5.
 - Fase 6A: consolidacion documental/arquitectonica SAFE.
+- Fase 6B: cobertura Playwright de workflows productivos (`front/back`, zoom, save, Step & Repeat UI, undo, upload PDF, apply_imposition, preview y generar_pdf).
+- Fase 6C-0: auditoria SAFE de reorganizacion fisica del frontend.
+- Fase 6C-1: movimiento de `defaults.js`, `geometry.js` y `geometry_validation.js` a `static/js/editor_offset_visual/core/`.
 
 ### Fases pendientes de alto riesgo
 
 - Resize operativo: sigue latente; no hay handles activos en el renderer actual y no debe activarse sin fase propia.
 - Listeners globales y temporales: `document.keydown`, `document.click`, `window.resize`, `sheetEl.pointerdown`, `document.pointermove/pointerup/pointercancel` siguen en el entrypoint.
-- Fase 6B: cobertura Playwright de workflows productivos antes de mover estructura.
-- Fase 6C: mover estructura fisica hacia `editor_offset/`. No ejecutar hasta tener wrappers, aliases legacy, tests, orden de carga e imports estabilizados.
-- Fase 6D: evaluar store/state architecture solo si el entrypoint deja de escalar de forma manejable.
-- Fase 6E: resize real, separado y con caracterizacion previa; no mezclar con reorganizacion fisica.
+- Fase 6C-2: mover `dom_refs.js` y `api_client.js` con orden de carga y namespace protegidos.
+- Fase 6C-3: mover paneles (`output_panel.js`, `ai_panel.js`, `ctp_panel.js`, `booklet_panel.js`) sin cambiar UX ni listeners.
+- Fase 6C-4: mover renderer/interacciones (`renderer_canvas.js`, `manual_tools.js`, `slot_interactions.js`) solo con wrappers/aliases y validaciones especificas.
+- Fase 6C-5: sincronizar advisor/tests/docs y limpiar aliases solo si la compatibilidad ya esta probada.
+- Fase 6D futura: evaluar store/state architecture solo si el entrypoint deja de escalar de forma manejable.
+- Fase 6E futura: resize real, separado y con caracterizacion previa; no mezclar con reorganizacion fisica.
 
 ### Validacion base post 5D-5
 
@@ -85,6 +93,8 @@ Consolidar el Editor Visual IA como flujo operativo profesional del modulo Offse
 - `venv\Scripts\pytest.exe tests\test_step_repeat_pro_engine.py tests\test_editor_offset_output_contract.py tests\test_cuadernillos_simulator.py tests\test_editor_offset_characterization.py -q -p no:cacheprovider`: OK, `53 passed`.
 - `venv\Scripts\pytest.exe tests/playwright/test_editor_manual_interactions.py -s`: OK, `3 passed` con Flask temporal local.
 - `venv\Scripts\pytest.exe tests/playwright/test_editor_drag_resize_interactions.py -s`: OK, `4 passed` con Flask temporal local.
+- `venv\Scripts\pytest.exe tests/playwright/test_editor_productive_workflows.py -s -p no:cacheprovider`: OK local, `4 passed`.
+- `venv\Scripts\pytest.exe tests/playwright/test_editor_load.py -s -p no:cacheprovider`: OK local, `1 passed`.
 - `git diff --check`: OK.
 - `node --check`: bloqueado por `Acceso denegado` a `node.exe` en entorno Codex; no tocar configuracion del sistema.
 
@@ -471,9 +481,9 @@ Objetivo futuro:
 ## Priorizacion sugerida
 
 1. Mantener documentados los contratos despues de cada cambio de semantica.
-2. Ejecutar Fase 6B: cobertura Playwright de workflows productivos antes de reorganizacion fisica.
-3. Preparar Fase 6C solo despues de 6B, con aliases/wrappers, orden de carga e imports protegidos.
-4. Mantener Playwright manual y drag/resize como red de regresion antes de mas cambios UX grandes.
+2. Ejecutar Fase 6C-2: mover `dom_refs.js` y `api_client.js` con aliases/wrappers y orden de carga protegidos.
+3. Mantener Playwright load, tabs, manual, drag/resize y workflows productivos como red de regresion antes de cada subfase 6C.
+4. Preparar Fase 6C-3 solo despues de validar 6C-2, sin mover paneles en bloque si aparecen dependencias cruzadas.
 5. Endurecer guardrails y pruebas del flujo OpenAI tool calling sobre `ai_agent/`.
 6. Mantener `ai_agent/editor_advisor` aislado, read-only y CLI-only hasta definir integracion, aunque genere prompts para Codex.
 7. Evaluar Fase 6D store/state architecture solo si la orquestacion del entrypoint deja de ser manejable.

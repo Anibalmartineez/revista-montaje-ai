@@ -42,16 +42,19 @@ El foco prioritario del proyecto es:
 - `templates/editor_offset_visual.html`
 - `static/js/editor_offset_visual.js`
 - `static/css/editor_offset_visual.css`
-- `static/js/editor_offset_visual/` contiene modulos auxiliares ya extraidos en Fases 5A-5D-5.
+- `static/js/editor_offset_visual/` contiene modulos auxiliares ya extraidos en Fases 5A-6C-1; los modulos puros `defaults`, `geometry` y `geometry_validation` viven ahora en `static/js/editor_offset_visual/core/`.
 - `static/js/editor_offset_visual.js` sigue siendo el entrypoint compatible del editor.
 
-### Modulos frontend extraidos Fase 5A-5D-5
+### Modulos frontend extraidos Fase 5A-6C-1
 
-- Fase 5A: `dom_refs.js`, `defaults.js`, `geometry.js`, `geometry_validation.js`.
+- Fase 5A: `dom_refs.js`, `core/defaults.js`, `core/geometry.js`, `core/geometry_validation.js`.
 - Fase 5B: `api_client.js`, `output_panel.js`, `ai_panel.js`, `ctp_panel.js`, `booklet_panel.js`.
 - Fase 5C: `renderer_canvas.js` extrae render/canvas/sheet inicial.
 - Fase 5D-2: `manual_tools.js` extrae herramientas manuales puras o casi puras.
 - Fase 5D-3/5D-4/5D-5: `slot_interactions.js` extrae seleccion, box select y drag/move no-resize.
+- Fase 6B: `tests/playwright/test_editor_productive_workflows.py` cubre workflows productivos clave por UI.
+- Fase 6C-0: auditoria SAFE de reorganizacion fisica completada; decision de avanzar por subfases.
+- Fase 6C-1: `defaults.js`, `geometry.js` y `geometry_validation.js` movidos a `core/` conservando `window.EditorOffsetVisual.*`.
 - Estos modulos no deben registrar listeners nuevos ni cambiar IDs/DOM sin una fase separada.
 - `static/js/editor_offset_visual.js` mantiene entrypoint, estado global, wrappers, wiring, listeners globales/temporales, `renderSheet`, `renderSlotForm`, `pushHistory`, spacing live e indicador de distancia.
 - Resize permanece latente: no existen handles activos en el renderer actual y no debe declararse operativo ni activarse sin fase propia.
@@ -116,7 +119,7 @@ El motor prioritario actual del Editor Visual IA es:
 
 ## Cierre parcial separacion modular SAFE
 
-- Fases 1, 2, 3, 4, 5A, 5B, 5C y 5D-1 a 5D-5 de separacion modular del Editor Visual IA quedan completadas documentalmente.
+- Fases 1, 2, 3, 4, 5A, 5B, 5C, 5D-1 a 5D-5, 6A, 6B, 6C-0 y 6C-1 de separacion modular/documental del Editor Visual IA quedan completadas documentalmente.
 - Fase 1 agrego tests de caracterizacion antes de mover responsabilidades.
 - Fase 2 separo fachada HTTP en `services/editor_offset_http_service.py` manteniendo `routes.py` como wrapper compatible.
 - Fase 3 separo output del editor en `services/editor_offset_output_service.py` manteniendo compatibilidad en `montaje_offset_inteligente.py`.
@@ -127,8 +130,9 @@ El motor prioritario actual del Editor Visual IA es:
 - Fase 5D-2 extrajo herramientas manuales puras en `manual_tools.js`.
 - Fase 5D-3/5D-4/5D-5 extrajo seleccion, box select y drag/move no-resize en `slot_interactions.js`.
 - Auditoria SAFE 6-0 detecto que `editor_offset_visual.js` sigue concentrando estado global, listeners, wrappers y alrededor de 2446 lineas / 117 funciones; la modularizacion observable ronda 44% por lineas JS auditadas.
-- Fase 6 debe avanzar por consolidacion y cobertura antes de mover estructura fisica: 6A documentacion, 6B workflows productivos, 6C reorganizacion fisica, 6D store/state architecture y 6E resize real.
-- Fase 6C sigue siendo de alto riesgo: movimiento fisico de estructura. No debe ejecutarse hasta tener aliases legacy, tests, imports y orden de carga estabilizados.
+- Fase 6A sincronizo documentacion y roadmap; Fase 6B agrego cobertura Playwright de workflows productivos; Fase 6C-0 audito reorganizacion fisica; Fase 6C-1 movio modulos puros a `static/js/editor_offset_visual/core/`.
+- Fase 6C debe continuar por subfases: 6C-2 `dom_refs`/`api_client`, 6C-3 paneles, 6C-4 renderer/interacciones y 6C-5 advisor/tests/docs. No mover estructura fisica en bloque.
+- Fase 6D store/state architecture y Fase 6E resize real quedan futuras. Resize sigue latente/no operativo.
 - `node --check` puede quedar bloqueado en entorno Codex por `Acceso denegado` a `node.exe`; documentar ese bloqueo sin tocar configuracion del sistema.
 
 ## Documentación

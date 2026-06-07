@@ -33,6 +33,9 @@ Estado del roadmap activo de separacion modular:
 - Fase DOC-Encoding completada: correccion dirigida de textos visibles con mojibake, sin tocar contratos ni logica.
 - Fase 6-0 completada: auditoria SAFE del frontend post 5D-5, sin modificar archivos.
 - Fase 6A documental completada: consolidacion arquitectonica de fuentes de verdad y roadmap modular 6A-6E.
+- Fase 6B completada: cobertura Playwright de workflows productivos en `tests/playwright/test_editor_productive_workflows.py`.
+- Fase 6C-0 completada: auditoria SAFE de reorganizacion fisica del frontend, con decision de avanzar por subfases.
+- Fase 6C-1 completada: modulos puros movidos a `static/js/editor_offset_visual/core/` conservando `static/js/editor_offset_visual.js` como entrypoint y `window.EditorOffsetVisual.*`.
 
 Fase 10 queda como baseline UX historica cerrada: shell/topbar CAD-preprensa, canvas mas protagonista, panel derecho mas denso, `geometry-validation-panel` unico y agente SDK con UX Surface v2.
 
@@ -48,9 +51,9 @@ Fase 10 queda como baseline UX historica cerrada: shell/topbar CAD-preprensa, ca
 Modulos frontend activos:
 
 - `dom_refs.js`: IDs y referencias DOM criticas.
-- `defaults.js`: defaults y normalizadores puros.
-- `geometry.js`: geometria pura.
-- `geometry_validation.js`: validacion geometrica frontend.
+- `core/defaults.js`: defaults y normalizadores puros.
+- `core/geometry.js`: geometria pura.
+- `core/geometry_validation.js`: validacion geometrica frontend.
 - `renderer_canvas.js`: render visual/canvas/sheet, guia CTP, marcadores geometricos, zoom y panel geometrico, con listeners recibidos por callback desde el entrypoint.
 - `api_client.js`: llamadas HTTP del editor.
 - `output_panel.js`: preview/PDF y errores de salida.
@@ -60,7 +63,7 @@ Modulos frontend activos:
 - `manual_tools.js`: operaciones manuales puras o casi puras sobre slots seleccionados, sin DOM ni listeners propios.
 - `slot_interactions.js`: seleccion simple/multiple, helpers de seleccion, box select y drag/move no-resize, sin registrar listeners globales.
 
-`static/js/editor_offset_visual.js` sigue siendo el entrypoint compatible y mantiene wrappers, wiring de botones, shortcuts, listeners globales y temporales, pointer capture/release, historia/estado global, callbacks de render/interaccion, `renderSheet`, `renderSlotForm`, `pushHistory`, spacing live, indicador de distancia y la rama legacy de resize latente. El roadmap modular continua desde Fase 6B/6C.
+`static/js/editor_offset_visual.js` sigue siendo el entrypoint compatible y mantiene wrappers, wiring de botones, shortcuts, listeners globales y temporales, pointer capture/release, historia/estado global, callbacks de render/interaccion, `renderSheet`, `renderSlotForm`, `pushHistory`, spacing live, indicador de distancia y la rama legacy de resize latente. El roadmap modular continua desde Fase 6C-2, sin mover estructura fisica en bloque.
 
 Metricas observadas en Auditoria SAFE 6-0:
 
@@ -245,6 +248,7 @@ No integrar `editor_advisor` a Flask/UI ni darle tools de escritura sin fase sep
 - `tests/playwright/test_tabs_scroll.py`
 - `tests/playwright/test_editor_manual_interactions.py`
 - `tests/playwright/test_editor_drag_resize_interactions.py`
+- `tests/playwright/test_editor_productive_workflows.py`
 
 Tests legacy relevantes para salida:
 
@@ -290,10 +294,15 @@ Estado:
 
 - Fase 6-0 completada: auditoria SAFE del estado frontend post 5D-5.
 - Fase 6A documental completada: consolidacion de fuentes de verdad y roadmap corregido.
-- Fase 6B pendiente: cobertura Playwright de workflows productivos antes de mover estructura.
-- Fase 6C pendiente: reorganizacion fisica controlada hacia `editor_offset/`, solo con aliases/wrappers y orden de carga protegido.
-- Fase 6D pendiente: evaluar store/state architecture si el entrypoint deja de escalar de forma manejable.
-- Fase 6E pendiente: resize real, separado, con handles activos y caracterizacion previa.
+- Fase 6B completada: cobertura Playwright de workflows productivos, incluyendo front/back, zoom, guardado, Step & Repeat UI, undo, upload PDF, apply_imposition, preview, generar_pdf y resize latente sin handles.
+- Fase 6C-0 completada: auditoria SAFE de reorganizacion fisica; decision de avanzar por subfases.
+- Fase 6C-1 completada: modulos puros movidos a `static/js/editor_offset_visual/core/` y HTML actualizado para conservar orden de carga.
+- Fase 6C-2 pendiente: mover `dom_refs.js` y `api_client.js` con compatibilidad protegida.
+- Fase 6C-3 pendiente: mover paneles (`output_panel`, `ai_panel`, `ctp_panel`, `booklet_panel`).
+- Fase 6C-4 pendiente: mover renderer/interacciones solo con wrappers y validacion especifica.
+- Fase 6C-5 pendiente: sincronizar advisor/tests/docs y limpiar aliases si corresponde.
+- Fase 6D futura: evaluar store/state architecture si el entrypoint deja de escalar de forma manejable.
+- Fase 6E futura: resize real, separado, con handles activos y caracterizacion previa.
 
 Mover estructura fisica hacia `editor_offset/` es alto riesgo. Solo debe hacerse cuando wrappers, aliases legacy, tests e imports esten estables.
 
@@ -361,6 +370,8 @@ Estado modular actual post Fase 5D-5:
 - suite minima: OK, `53 passed`
 - Playwright manual: OK, `3 passed`
 - Playwright drag/resize: OK, `4 passed`
+- Playwright workflows productivos: OK local, `4 passed`
+- Playwright smoke editor load: OK local, `1 passed`
 - `git diff --check`: OK
 - `node --check`: bloqueado por `Acceso denegado` a `node.exe`
 - Auditoria SAFE 6-0: sin cambios de archivos; confirma entrypoint de ~2446 lineas / 117 funciones y resize latente.
@@ -373,7 +384,9 @@ Estado modular actual post Fase 5D-5:
 - Fases 1-5D-5 de separacion modular: caracterizacion, fachada HTTP, output service, IA repeat sin `routes.py`, modulos puros frontend, paneles/API frontend, renderer canvas inicial, Playwright manual, `manual_tools.js`, `slot_interactions.js`, box select y drag controller inicial.
 - Fase DOC-Encoding: correccion dirigida de mojibake en textos visibles sin tocar contratos ni comportamiento.
 - Fase 6-0/6A: auditoria SAFE post 5D-5 y consolidacion documental del roadmap modular 6A-6E.
-- Fase 11: referencia futura de `Canvas Geometry Polish`; no es el roadmap activo inmediato frente a Fase 6B/6C.
+- Fase 6B: cobertura Playwright de workflows productivos clave.
+- Fase 6C-0/6C-1: auditoria SAFE de reorganizacion fisica y primer movimiento controlado de modulos puros a `core/`.
+- Fase 11: referencia futura de `Canvas Geometry Polish`; no es el roadmap activo inmediato frente a Fase 6C-2/6C-5.
 
 ## Referencias
 

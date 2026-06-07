@@ -1813,3 +1813,100 @@ Limites conservados:
 - No se declara Fase 6C iniciada.
 - No se declara resize operativo.
 - La reorganizacion fisica queda pendiente hasta tener cobertura 6B y plan SAFE especifico.
+
+---
+
+## 2026-06-07 - Fase 6B SAFE: cobertura Playwright de workflows productivos
+
+Se agrego cobertura Playwright para caracterizar workflows productivos clave antes de avanzar con reorganizacion fisica del frontend.
+
+Archivo creado:
+
+- `tests/playwright/test_editor_productive_workflows.py`
+
+Cobertura registrada:
+
+- cambio de cara `front/back`.
+- zoom del editor.
+- guardado del layout desde UI.
+- Step & Repeat desde UI.
+- undo/history cuando existe flujo estable.
+- upload PDF con fixture controlada.
+- `apply_imposition` desde UI.
+- preview desde UI.
+- generar PDF desde UI.
+- resize latente sin handles activos en el renderer actual.
+
+Validacion local reportada:
+
+- `venv\Scripts\pytest.exe tests/playwright/test_editor_productive_workflows.py -s -p no:cacheprovider`: OK, `4 passed`.
+- `venv\Scripts\pytest.exe tests/playwright/test_editor_load.py -s -p no:cacheprovider`: OK, `1 passed`.
+
+Garantias conservadas:
+
+- No se modifico frontend productivo.
+- No se modifico backend.
+- No se tocaron CSS, HTML, services, engines, contratos JSON ni documentacion durante la fase de tests.
+- Resize sigue latente/no operativo.
+
+---
+
+## 2026-06-07 - Fase 6C-0 SAFE: auditoria de reorganizacion fisica
+
+Se realizo la auditoria SAFE previa a reorganizar fisicamente los modulos frontend del Editor Visual IA.
+
+Decision arquitectonica:
+
+- Avanzar por subfases.
+- No mover todos los modulos en bloque.
+- Proteger orden de carga clasico, `window.EditorOffsetVisual.*`, wrappers legacy y entrypoint compatible.
+- Mantener `static/js/editor_offset_visual.js` como entrypoint durante la reorganizacion.
+
+Subfases definidas:
+
+- 6C-1: mover modulos puros a `core/`.
+- 6C-2: mover `dom_refs.js` y `api_client.js`.
+- 6C-3: mover paneles.
+- 6C-4: mover renderer/interacciones con compatibilidad.
+- 6C-5: sincronizar advisor/tests/docs y limpiar aliases solo si corresponde.
+
+Garantias:
+
+- No se modificaron archivos durante la auditoria.
+- No se tocaron JS, templates, CSS, backend, services, engines, contratos JSON ni tests.
+- No se activo resize.
+
+---
+
+## 2026-06-07 - Fase 6C-1 SAFE: reorganizacion fisica de modulos puros
+
+Se implemento la primera subfase de reorganizacion fisica moviendo solo modulos puros de frontend a `core/`.
+
+Movimientos realizados:
+
+- `static/js/editor_offset_visual/defaults.js` -> `static/js/editor_offset_visual/core/defaults.js`.
+- `static/js/editor_offset_visual/geometry.js` -> `static/js/editor_offset_visual/core/geometry.js`.
+- `static/js/editor_offset_visual/geometry_validation.js` -> `static/js/editor_offset_visual/core/geometry_validation.js`.
+
+HTML actualizado:
+
+- `templates/editor_offset_visual.html` carga ahora los modulos puros desde `static/js/editor_offset_visual/core/`.
+- Se conserva el orden de carga: `defaults`, `geometry`, `geometry_validation`.
+
+Garantias conservadas:
+
+- `static/js/editor_offset_visual.js` sigue siendo el entrypoint compatible.
+- Se conserva `window.EditorOffsetVisual.*`.
+- No se modifico logica productiva.
+- No se tocaron `renderer_canvas.js`, `manual_tools.js`, `slot_interactions.js`, paneles, API client, CSS, backend, services, engines, contratos JSON ni tests.
+- Resize sigue latente/no operativo.
+
+Validaciones de cierre:
+
+- `git diff --check`: OK.
+- `python -m py_compile tests\playwright\test_editor_productive_workflows.py`: OK.
+- `node --check static/js/editor_offset_visual/core/defaults.js`: OK.
+- `node --check static/js/editor_offset_visual/core/geometry.js`: OK.
+- `node --check static/js/editor_offset_visual/core/geometry_validation.js`: OK.
+- `node --check static/js/editor_offset_visual.js`: OK.
+- Playwright en entorno Codex quedo bloqueado por `PermissionError: [WinError 5] Acceso denegado` al inicializar navegador; no se toco configuracion del sistema.
