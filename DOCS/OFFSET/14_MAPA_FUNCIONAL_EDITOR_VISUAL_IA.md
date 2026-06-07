@@ -11,7 +11,7 @@ El Editor Visual IA es el flujo principal y mas moderno del modulo offset. Funci
 1. carga o inicializa un `layout_constructor.json`
 2. permite configurar pliego, trabajos logicos, PDFs, formas, bleed, spacing y CTP
 3. permite generar slots automaticamente con Step & Repeat PRO, nesting o hybrid
-4. permite editar manualmente slots con seleccion, drag, resize y herramientas PRO
+4. permite editar manualmente slots con seleccion, drag y herramientas PRO; resize permanece latente/no operativo
 5. permite simular cuadernillos como herramienta visual aislada
 6. guarda el layout persistido por job
 7. genera preview y PDF final desde el layout persistido
@@ -31,6 +31,8 @@ Estado del roadmap activo de separacion modular:
 - Fase 5D-4 completada: box select extraido como subcontrolador dentro de `slot_interactions.js`, manteniendo listeners en el entrypoint.
 - Fase 5D-5 completada: drag/move no-resize extraido inicialmente en `slotInteractions.dragResize`; resize queda latente porque no hay handles activos en el renderer actual.
 - Fase DOC-Encoding completada: correccion dirigida de textos visibles con mojibake, sin tocar contratos ni logica.
+- Fase 6-0 completada: auditoria SAFE del frontend post 5D-5, sin modificar archivos.
+- Fase 6A documental completada: consolidacion arquitectonica de fuentes de verdad y roadmap modular 6A-6E.
 
 Fase 10 queda como baseline UX historica cerrada: shell/topbar CAD-preprensa, canvas mas protagonista, panel derecho mas denso, `geometry-validation-panel` unico y agente SDK con UX Surface v2.
 
@@ -58,7 +60,14 @@ Modulos frontend activos:
 - `manual_tools.js`: operaciones manuales puras o casi puras sobre slots seleccionados, sin DOM ni listeners propios.
 - `slot_interactions.js`: seleccion simple/multiple, helpers de seleccion, box select y drag/move no-resize, sin registrar listeners globales.
 
-`static/js/editor_offset_visual.js` sigue siendo el entrypoint compatible y mantiene wrappers, wiring de botones, shortcuts, listeners globales y temporales, pointer capture/release, historia/estado global, callbacks de render/interaccion, `renderSheet`, `renderSlotForm`, `pushHistory`, spacing live, indicador de distancia y la rama legacy de resize latente. Fase 6 sigue pendiente.
+`static/js/editor_offset_visual.js` sigue siendo el entrypoint compatible y mantiene wrappers, wiring de botones, shortcuts, listeners globales y temporales, pointer capture/release, historia/estado global, callbacks de render/interaccion, `renderSheet`, `renderSlotForm`, `pushHistory`, spacing live, indicador de distancia y la rama legacy de resize latente. El roadmap modular continua desde Fase 6B/6C.
+
+Metricas observadas en Auditoria SAFE 6-0:
+
+- `static/js/editor_offset_visual.js`: alrededor de 2446 lineas y 117 funciones declaradas.
+- Modulos auxiliares frontend auditados: alrededor de 1924 lineas combinadas.
+- Modularizacion observable por lineas JS auditadas: aproximadamente 44% extraido y 56% aun en entrypoint.
+- La cifra es una referencia tecnica, no un contrato: el peso real sigue concentrado en estado, listeners y orquestacion del entrypoint.
 
 ### Backend Flask Y Servicios
 
@@ -273,7 +282,18 @@ Zonas todavia sensibles:
 - integracion entre render, seleccion, historial, spacing live e indicador de distancia
 - listeners acoplados a IDs y clases
 
-### Fase 6 Pendiente
+### Roadmap Modular Fase 6
+
+La antigua formulacion "Fase 6 = mover estructura fisica" queda reemplazada por una progresion SAFE. Mover estructura fisica sigue siendo un objetivo valido, pero no es el primer paso inmediato.
+
+Estado:
+
+- Fase 6-0 completada: auditoria SAFE del estado frontend post 5D-5.
+- Fase 6A documental completada: consolidacion de fuentes de verdad y roadmap corregido.
+- Fase 6B pendiente: cobertura Playwright de workflows productivos antes de mover estructura.
+- Fase 6C pendiente: reorganizacion fisica controlada hacia `editor_offset/`, solo con aliases/wrappers y orden de carga protegido.
+- Fase 6D pendiente: evaluar store/state architecture si el entrypoint deja de escalar de forma manejable.
+- Fase 6E pendiente: resize real, separado, con handles activos y caracterizacion previa.
 
 Mover estructura fisica hacia `editor_offset/` es alto riesgo. Solo debe hacerse cuando wrappers, aliases legacy, tests e imports esten estables.
 
@@ -314,7 +334,7 @@ Validacion general:
 python -m compileall routes.py montaje_offset_inteligente.py engines cuadernillos ai_agent services strategies
 ```
 
-Tests minimos del cierre Fases 1-5B:
+Tests minimos del estado modular post 5D-5:
 
 ```bash
 venv\Scripts\pytest.exe tests\test_step_repeat_pro_engine.py tests\test_editor_offset_output_contract.py tests\test_cuadernillos_simulator.py tests\test_editor_offset_characterization.py -q -p no:cacheprovider
@@ -343,6 +363,7 @@ Estado modular actual post Fase 5D-5:
 - Playwright drag/resize: OK, `4 passed`
 - `git diff --check`: OK
 - `node --check`: bloqueado por `Acceso denegado` a `node.exe`
+- Auditoria SAFE 6-0: sin cambios de archivos; confirma entrypoint de ~2446 lineas / 117 funciones y resize latente.
 
 ## Historial Breve
 
@@ -351,7 +372,8 @@ Estado modular actual post Fase 5D-5:
 - Fase 10: baseline UX Canvas Pro cerrada; shell/topbar CAD-preprensa, canvas mas protagonista, panel derecho denso y QA visual/regresion documentada.
 - Fases 1-5D-5 de separacion modular: caracterizacion, fachada HTTP, output service, IA repeat sin `routes.py`, modulos puros frontend, paneles/API frontend, renderer canvas inicial, Playwright manual, `manual_tools.js`, `slot_interactions.js`, box select y drag controller inicial.
 - Fase DOC-Encoding: correccion dirigida de mojibake en textos visibles sin tocar contratos ni comportamiento.
-- Fase 11: referencia futura de `Canvas Geometry Polish`; no es el roadmap activo inmediato frente a Fase 6.
+- Fase 6-0/6A: auditoria SAFE post 5D-5 y consolidacion documental del roadmap modular 6A-6E.
+- Fase 11: referencia futura de `Canvas Geometry Polish`; no es el roadmap activo inmediato frente a Fase 6B/6C.
 
 ## Referencias
 

@@ -1759,7 +1759,7 @@ Cambios documentales:
 
 Limites conservados:
 
-- Fase 6 sigue pendiente y no se declara iniciada.
+- En ese cierre, la reorganizacion modular Fase 6 aun no se declaraba iniciada.
 - Resize no se declara operativo: permanece latente porque el renderer activo no expone handles reales.
 - No se tocaron JS, templates, CSS, backend, services, engines, contracts JSON ni tests.
 
@@ -1767,3 +1767,49 @@ Validaciones:
 
 - `git diff --check`: OK, solo warnings LF/CRLF de Git sobre los documentos editados.
 - `git status --short`: solo muestra cambios en `DOCS/OFFSET/04_PLAN_OFFSET.md`, `DOCS/OFFSET/05_DIARIO_OFFSET.md` y `DOCS/OFFSET/14_MAPA_FUNCIONAL_EDITOR_VISUAL_IA.md`.
+
+---
+
+## 2026-06-07 - Fase 6-0 SAFE: auditoria frontend post 5D-5
+
+Se realizo una auditoria tecnica exclusivamente analitica del frontend del Editor Visual IA despues de la modularizacion 5A-5D-5.
+
+Hallazgos principales:
+
+- `static/js/editor_offset_visual.js` conserva alrededor de 2446 lineas y 117 funciones declaradas.
+- Los modulos frontend extraidos suman alrededor de 1924 lineas auditadas.
+- La modularizacion observable por lineas JS ronda 44% extraido y 56% aun en entrypoint.
+- `renderer_canvas.js`, `manual_tools.js` y `slot_interactions.js` existen y cumplen el alcance inicial SAFE.
+- `editor_offset_visual.js` sigue concentrando estado global, historial, listeners globales/temporales, wrappers, wiring de botones, `renderSheet`, `renderSlotForm`, `pushHistory`, spacing live e indicador de distancia.
+- Resize permanece latente: existen CSS y rama legacy de soporte, pero el renderer activo no crea handles `.slot .handle`.
+
+Conclusion arquitectonica:
+
+- No conviene iniciar Fase 6 como movimiento fisico directo.
+- La Fase 6 debe dividirse en 6A consolidacion documental, 6B cobertura de workflows productivos, 6C reorganizacion fisica, 6D store/state architecture y 6E resize real.
+
+Garantias:
+
+- No se modificaron archivos durante la auditoria 6-0.
+- No se tocaron JS, templates, CSS, backend, services, engines, contratos JSON ni tests.
+- No se activo resize.
+
+---
+
+## 2026-06-07 - Fase 6A SAFE: consolidacion arquitectonica documental
+
+Se aplico la consolidacion documental para alinear las fuentes de verdad con el estado real post 5D-5 y la auditoria 6-0.
+
+Cambios documentales:
+
+- `AGENTS.md` actualiza el estado de modulos frontend desde 5A/5B hacia 5A-5D-5.
+- `DOCS/OFFSET/14_MAPA_FUNCIONAL_EDITOR_VISUAL_IA.md` registra auditoria 6-0, metricas observadas, resize latente y roadmap modular 6A-6E.
+- `DOCS/OFFSET/04_PLAN_OFFSET.md` reemplaza el siguiente paso directo de movimiento fisico por Fase 6B/6C/6D/6E.
+- Este diario registra formalmente Fase 6-0 y Fase 6A.
+
+Limites conservados:
+
+- No se tocaron Python, JS, CSS, HTML, tests, services, engines ni endpoints.
+- No se declara Fase 6C iniciada.
+- No se declara resize operativo.
+- La reorganizacion fisica queda pendiente hasta tener cobertura 6B y plan SAFE especifico.

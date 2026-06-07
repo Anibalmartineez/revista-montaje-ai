@@ -6,16 +6,16 @@ Consolidar el Editor Visual IA como flujo operativo profesional del modulo Offse
 
 ## Etapa actual
 
-- Estado documentado: Fase 10 UX cerrada como baseline historica y cierre parcial de separacion modular SAFE Fases 1-5B completado
+- Estado documentado: Fase 10 UX cerrada como baseline historica y separacion modular SAFE completada hasta Fase 5D-5, con Fase 6-0/6A documental cerrada
 - Fase 8 queda como base cerrada de arquitectura SAFE y shell UX del Editor Visual IA
 - Sin refactor masivo
 - Sin limpieza agresiva
 - Sin eliminacion de archivos
 - Cambios acotados sobre el Editor Visual IA
-- Roadmap activo actual: separar el Editor Visual IA por fachadas y modulos compatibles antes de mover estructura fisica
+- Roadmap activo actual: consolidar arquitectura y cobertura antes de mover estructura fisica
 - Foco real acumulado:
   - Step & Repeat PRO Inteligente cerrado como Fase 5
-  - simulador de cuadernillos cerrado como Fase 6 visual/logica
+  - simulador de cuadernillos cerrado como Fase 6 historica visual/logica
   - separacion explicita entre simulacion de cuadernillos y salida PDF
   - validacion de salida protegida con tests y extraida a un modulo chico en Fase 7
   - jobs/defaults/uploads separados en servicios en Fase 8.1
@@ -46,6 +46,8 @@ Consolidar el Editor Visual IA como flujo operativo profesional del modulo Offse
   - Separacion modular Fase 5D-4 completada: box select extraido dentro de `slot_interactions.js`, manteniendo listeners en el entrypoint
   - Separacion modular Fase 5D-5 completada: drag/move no-resize extraido inicialmente en `slotInteractions.dragResize`
   - Fase DOC-Encoding completada: correccion dirigida de textos visibles con mojibake, sin tocar contratos ni logica
+  - Fase 6-0 completada: auditoria SAFE del frontend post 5D-5, sin modificar archivos
+  - Fase 6A documental completada: fuentes de verdad y roadmap modular 6A-6E consolidados
 
 ## Roadmap activo de separacion modular SAFE
 
@@ -65,17 +67,24 @@ Consolidar el Editor Visual IA como flujo operativo profesional del modulo Offse
 - Fase 5D-5-0: caracterizacion Playwright de drag/resize en `tests/playwright/test_editor_drag_resize_interactions.py`.
 - Fase 5D-5: extraccion inicial de drag/move no-resize en `slotInteractions.dragResize`.
 - Fase DOC-Encoding: correccion dirigida de mojibake en textos visibles, comentarios y mensajes seguros.
+- Fase 6-0: auditoria SAFE del frontend post 5D-5.
+- Fase 6A: consolidacion documental/arquitectonica SAFE.
 
 ### Fases pendientes de alto riesgo
 
 - Resize operativo: sigue latente; no hay handles activos en el renderer actual y no debe activarse sin fase propia.
 - Listeners globales y temporales: `document.keydown`, `document.click`, `window.resize`, `sheetEl.pointerdown`, `document.pointermove/pointerup/pointercancel` siguen en el entrypoint.
-- Fase 6: mover estructura fisica hacia `editor_offset/`. No ejecutar hasta tener wrappers, aliases legacy, tests e imports estabilizados.
+- Fase 6B: cobertura Playwright de workflows productivos antes de mover estructura.
+- Fase 6C: mover estructura fisica hacia `editor_offset/`. No ejecutar hasta tener wrappers, aliases legacy, tests, orden de carga e imports estabilizados.
+- Fase 6D: evaluar store/state architecture solo si el entrypoint deja de escalar de forma manejable.
+- Fase 6E: resize real, separado y con caracterizacion previa; no mezclar con reorganizacion fisica.
 
-### Validacion base del cierre 5B
+### Validacion base post 5D-5
 
 - `python -m compileall routes.py montaje_offset_inteligente.py engines cuadernillos ai_agent services strategies`: OK.
 - `venv\Scripts\pytest.exe tests\test_step_repeat_pro_engine.py tests\test_editor_offset_output_contract.py tests\test_cuadernillos_simulator.py tests\test_editor_offset_characterization.py -q -p no:cacheprovider`: OK, `53 passed`.
+- `venv\Scripts\pytest.exe tests/playwright/test_editor_manual_interactions.py -s`: OK, `3 passed` con Flask temporal local.
+- `venv\Scripts\pytest.exe tests/playwright/test_editor_drag_resize_interactions.py -s`: OK, `4 passed` con Flask temporal local.
 - `git diff --check`: OK.
 - `node --check`: bloqueado por `Acceso denegado` a `node.exe` en entorno Codex; no tocar configuracion del sistema.
 
@@ -226,7 +235,7 @@ Decisiones consolidadas:
 - `rotation_deg` sigue siendo orientacion del contenido
 - el modo actual es exacto respecto de `forms_per_plate`; no existe todavia modo `maximize`
 
-### Fase 6. Simulador de Cuadernillos
+### Fase 6 historica. Simulador de Cuadernillos
 
 Estado real:
 
@@ -461,17 +470,17 @@ Objetivo futuro:
 
 ## Priorizacion sugerida
 
-1. Mantener documentados los contratos despues de cada cambio de semantica
-2. Ampliar pruebas de regresion para Step & Repeat PRO inteligente
-3. Mantener Playwright manual y drag/resize como red de regresion antes de mas cambios UX grandes
-4. Endurecer guardrails y pruebas del flujo OpenAI tool calling sobre `ai_agent/`
-5. Mantener `ai_agent/editor_advisor` aislado, read-only y CLI-only hasta definir integracion, aunque genere prompts para Codex
-6. Mejorar feedback no bloqueante de errores/warnings
-7. Avanzar en schema/validaciones adicionales solo con tests dedicados
-8. Evaluar sistema de modos (`exact`, `maximize`, etc.) sin romper el contrato actual
-9. Evaluar compactacion o expansion horizontal solo si mantiene seguridad
-10. Mantener el simulador de cuadernillos aislado hasta definir una integracion PDF explicita
-11. Preparar Fase 6 solo con plan SAFE especifico, sin declarar resize operativo ni mezclar contratos, motores o integracion del agente SDK
+1. Mantener documentados los contratos despues de cada cambio de semantica.
+2. Ejecutar Fase 6B: cobertura Playwright de workflows productivos antes de reorganizacion fisica.
+3. Preparar Fase 6C solo despues de 6B, con aliases/wrappers, orden de carga e imports protegidos.
+4. Mantener Playwright manual y drag/resize como red de regresion antes de mas cambios UX grandes.
+5. Endurecer guardrails y pruebas del flujo OpenAI tool calling sobre `ai_agent/`.
+6. Mantener `ai_agent/editor_advisor` aislado, read-only y CLI-only hasta definir integracion, aunque genere prompts para Codex.
+7. Evaluar Fase 6D store/state architecture solo si la orquestacion del entrypoint deja de ser manejable.
+8. Evaluar Fase 6E resize real en fase separada, sin declarar resize operativo antes de handles activos y caracterizacion.
+9. Mejorar feedback no bloqueante de errores/warnings.
+10. Avanzar en schema/validaciones adicionales solo con tests dedicados.
+11. Mantener el simulador de cuadernillos aislado hasta definir una integracion PDF explicita.
 
 ## Cambios explicitamente postergados
 

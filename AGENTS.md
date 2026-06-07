@@ -42,15 +42,19 @@ El foco prioritario del proyecto es:
 - `templates/editor_offset_visual.html`
 - `static/js/editor_offset_visual.js`
 - `static/css/editor_offset_visual.css`
-- `static/js/editor_offset_visual/` contiene modulos auxiliares ya extraidos en Fase 5A/5B.
+- `static/js/editor_offset_visual/` contiene modulos auxiliares ya extraidos en Fases 5A-5D-5.
 - `static/js/editor_offset_visual.js` sigue siendo el entrypoint compatible del editor.
 
-### Modulos frontend extraidos Fase 5A/5B
+### Modulos frontend extraidos Fase 5A-5D-5
 
 - Fase 5A: `dom_refs.js`, `defaults.js`, `geometry.js`, `geometry_validation.js`.
 - Fase 5B: `api_client.js`, `output_panel.js`, `ai_panel.js`, `ctp_panel.js`, `booklet_panel.js`.
+- Fase 5C: `renderer_canvas.js` extrae render/canvas/sheet inicial.
+- Fase 5D-2: `manual_tools.js` extrae herramientas manuales puras o casi puras.
+- Fase 5D-3/5D-4/5D-5: `slot_interactions.js` extrae seleccion, box select y drag/move no-resize.
 - Estos modulos no deben registrar listeners nuevos ni cambiar IDs/DOM sin una fase separada.
-- `renderSheet`, drag/resize, seleccion, box select, nudge, align y distribute siguen siendo zonas de alto riesgo para Fase 5C/5D.
+- `static/js/editor_offset_visual.js` mantiene entrypoint, estado global, wrappers, wiring, listeners globales/temporales, `renderSheet`, `renderSlotForm`, `pushHistory`, spacing live e indicador de distancia.
+- Resize permanece latente: no existen handles activos en el renderer actual y no debe declararse operativo ni activarse sin fase propia.
 
 ## Backend Flask
 
@@ -97,8 +101,8 @@ El motor prioritario actual del Editor Visual IA es:
 - El agente usa `AGENTS.md` y `DOCS/OFFSET/14_MAPA_FUNCIONAL_EDITOR_VISUAL_IA.md` como memoria/contexto arquitectonico principal.
 - Fase 10 queda cerrada como Editor UX Canvas Pro: shell/topbar CAD-preprensa, canvas mas protagonista, panel derecho con density pass y QA visual/regresion documentado.
 - `summarize_editor_ux_surface()` permite detectar header/topbar/subtoolbar, workspace, canvas/sheet/zoom, tabs, paneles, ids criticos por zona, listeners sensibles, selectores shell/canvas/panel derecho y `geometry-validation-panel` sin modificar el repo.
-- `summarize_editor_modular_surface()` permite detectar modulos frontend 5A/5B cargados por HTML, modulos presentes en disco, exports `window.EditorOffsetVisual.*`, responsabilidades criticas que siguen en `static/js/editor_offset_visual.js` y riesgos pendientes Fase 5C/5D/6 sin modificar el repo.
-- El advisor SDK puede leer en modo allowlist/read-only los servicios extraidos `services/editor_offset_http_service.py` y `services/editor_offset_output_service.py`, los 9 modulos JS 5A/5B y la IA operativa `ai_agent/tools_repeat.py` / `ai_agent/openai_tool_bridge.py`.
+- `summarize_editor_modular_surface()` permite detectar modulos frontend cargados por HTML, modulos presentes en disco, exports `window.EditorOffsetVisual.*`, responsabilidades criticas que siguen en `static/js/editor_offset_visual.js` y riesgos pendientes Fase 6 sin modificar el repo.
+- El advisor SDK puede leer en modo allowlist/read-only los servicios extraidos `services/editor_offset_http_service.py` y `services/editor_offset_output_service.py`, los modulos JS frontend extraidos y la IA operativa `ai_agent/tools_repeat.py` / `ai_agent/openai_tool_bridge.py`.
 - Fase 9.4 agrega Codex Prompt Builder: el reporte incluye `prompt_para_codex`, un prompt SAFE listo para pegar en Codex.
 - El CLI permite `--codex-prompt-only` para imprimir solo `prompt_para_codex`, sin JSON.
 - `prompt_para_codex` debe pedir siempre plan SAFE antes de implementar y no autoriza escritura ni aplicacion automatica de cambios.
@@ -112,13 +116,19 @@ El motor prioritario actual del Editor Visual IA es:
 
 ## Cierre parcial separacion modular SAFE
 
-- Fases 1, 2, 3, 4, 5A y 5B de separacion modular del Editor Visual IA quedan completadas documentalmente.
+- Fases 1, 2, 3, 4, 5A, 5B, 5C y 5D-1 a 5D-5 de separacion modular del Editor Visual IA quedan completadas documentalmente.
 - Fase 1 agrego tests de caracterizacion antes de mover responsabilidades.
 - Fase 2 separo fachada HTTP en `services/editor_offset_http_service.py` manteniendo `routes.py` como wrapper compatible.
 - Fase 3 separo output del editor en `services/editor_offset_output_service.py` manteniendo compatibilidad en `montaje_offset_inteligente.py`.
 - Fase 4 normalizo IA repeat para no depender de `routes.py`.
 - Fase 5A/5B inicio modularizacion frontend por funciones puras, API y paneles independientes.
-- Fase 5C, Fase 5D y Fase 6 siguen pendientes y son de alto riesgo: renderer/canvas, interacciones complejas y movimiento fisico de estructura.
+- Fase 5C extrajo inicialmente renderer/canvas/sheet en `renderer_canvas.js`.
+- Fase 5D-1 agrego caracterizacion Playwright de herramientas manuales.
+- Fase 5D-2 extrajo herramientas manuales puras en `manual_tools.js`.
+- Fase 5D-3/5D-4/5D-5 extrajo seleccion, box select y drag/move no-resize en `slot_interactions.js`.
+- Auditoria SAFE 6-0 detecto que `editor_offset_visual.js` sigue concentrando estado global, listeners, wrappers y alrededor de 2446 lineas / 117 funciones; la modularizacion observable ronda 44% por lineas JS auditadas.
+- Fase 6 debe avanzar por consolidacion y cobertura antes de mover estructura fisica: 6A documentacion, 6B workflows productivos, 6C reorganizacion fisica, 6D store/state architecture y 6E resize real.
+- Fase 6C sigue siendo de alto riesgo: movimiento fisico de estructura. No debe ejecutarse hasta tener aliases legacy, tests, imports y orden de carga estabilizados.
 - `node --check` puede quedar bloqueado en entorno Codex por `Acceso denegado` a `node.exe`; documentar ese bloqueo sin tocar configuracion del sistema.
 
 ## Documentación
