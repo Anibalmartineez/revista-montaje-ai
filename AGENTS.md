@@ -334,10 +334,11 @@ git diff --check
 node --check static/js/editor_offset_visual.js
 ```
 
-Para Fase 5A/5B tambien validar, cuando Node este disponible:
+Para modulos frontend extraidos tambien validar, cuando Node este disponible:
 
 ```bash
 node --check static/js/editor_offset_visual/*.js
+node --check static/js/editor_offset_visual/core/*.js
 ```
 
 Si `node --check` falla por `Acceso denegado` a `node.exe` en entorno Codex, registrar el bloqueo y continuar con las demas validaciones sin tocar configuracion del sistema.
@@ -482,7 +483,7 @@ Contiene:
 
 - estado actual canónico del Editor Visual IA
 - arquitectura frontend/backend actual
-- módulos JS 5A/5B
+- módulos JS 5A-6C-1
 - flujo funcional actual
 - contratos y semánticas críticas
 - mapa de dependencias por subsistema

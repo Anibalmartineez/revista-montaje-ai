@@ -49,7 +49,7 @@ def summarize_editor_ux_surface() -> str:
 
 @function_tool
 def summarize_editor_modular_surface() -> str:
-    """Resume el mapa post 5A/5B: modulos JS, entrypoint y riesgos 5C/5D."""
+    """Resume el mapa post 6C-1: modulos JS, entrypoint y riesgos pendientes."""
     return advisor_tools.summarize_editor_modular_surface()
 
 

@@ -35,11 +35,14 @@ ALLOWED_READ_FILES = {
     "static/js/editor_offset_visual/api_client.js",
     "static/js/editor_offset_visual/booklet_panel.js",
     "static/js/editor_offset_visual/ctp_panel.js",
-    "static/js/editor_offset_visual/defaults.js",
+    "static/js/editor_offset_visual/core/defaults.js",
+    "static/js/editor_offset_visual/core/geometry.js",
+    "static/js/editor_offset_visual/core/geometry_validation.js",
     "static/js/editor_offset_visual/dom_refs.js",
-    "static/js/editor_offset_visual/geometry.js",
-    "static/js/editor_offset_visual/geometry_validation.js",
+    "static/js/editor_offset_visual/manual_tools.js",
     "static/js/editor_offset_visual/output_panel.js",
+    "static/js/editor_offset_visual/renderer_canvas.js",
+    "static/js/editor_offset_visual/slot_interactions.js",
     "static/css/editor_offset_visual.css",
     "ai_agent/tools_repeat.py",
     "ai_agent/openai_tool_bridge.py",
@@ -58,9 +61,9 @@ ALLOWED_READ_FILES = {
 
 FRONTEND_5A_MODULES = [
     "static/js/editor_offset_visual/dom_refs.js",
-    "static/js/editor_offset_visual/defaults.js",
-    "static/js/editor_offset_visual/geometry.js",
-    "static/js/editor_offset_visual/geometry_validation.js",
+    "static/js/editor_offset_visual/core/defaults.js",
+    "static/js/editor_offset_visual/core/geometry.js",
+    "static/js/editor_offset_visual/core/geometry_validation.js",
 ]
 
 FRONTEND_5B_MODULES = [
@@ -70,6 +73,17 @@ FRONTEND_5B_MODULES = [
     "static/js/editor_offset_visual/ctp_panel.js",
     "static/js/editor_offset_visual/booklet_panel.js",
 ]
+
+FRONTEND_5C_MODULES = [
+    "static/js/editor_offset_visual/renderer_canvas.js",
+]
+
+FRONTEND_5D_MODULES = [
+    "static/js/editor_offset_visual/manual_tools.js",
+    "static/js/editor_offset_visual/slot_interactions.js",
+]
+
+FRONTEND_MODULAR_MODULES = FRONTEND_5A_MODULES + FRONTEND_5B_MODULES + FRONTEND_5C_MODULES + FRONTEND_5D_MODULES
 
 ENTRYPOINT_RISK_PATTERNS = [
     ("renderSheet", r"\bfunction\s+renderSheet\b"),
@@ -238,12 +252,12 @@ def summarize_editor_architecture(repo_root: str | Path | None = None) -> str:
     files = list_editor_files(repo_root)
     service_files = [item for item in files if item.startswith("services/")]
     engine_files = [item for item in files if item.startswith("engines/")]
-    frontend_modules = [item for item in FRONTEND_5A_MODULES + FRONTEND_5B_MODULES if item in files]
+    frontend_modules = [item for item in FRONTEND_MODULAR_MODULES if item in files]
     return "\n".join(
         [
             "Editor Visual IA Offset - resumen base:",
             "- Frontend canonico: templates/editor_offset_visual.html, static/js/editor_offset_visual.js, static/css/editor_offset_visual.css.",
-            f"- Modulos frontend 5A/5B detectados: {', '.join(frontend_modules) or 'ninguno detectado'}.",
+            f"- Modulos frontend 5A-6C-1 detectados: {', '.join(frontend_modules) or 'ninguno detectado'}.",
             "- Fachada Flask: routes.py conserva URLs publicas y wrappers compatibles; no asumir que toda la logica vive alli.",
             "- Fachada HTTP del editor: services/editor_offset_http_service.py.",
             "- Motor principal de imposicion: engines/step_repeat_pro_engine.py.",
@@ -419,7 +433,7 @@ def summarize_editor_ux_surface(repo_root: str | Path | None = None) -> str:
 
 
 def summarize_editor_modular_surface(repo_root: str | Path | None = None) -> str:
-    """Return deterministic post-5A/5B modularization signals for the advisor."""
+    """Return deterministic post-6C-1 modularization signals for the advisor."""
     root = _repo_root(repo_root)
     html = _read_allowed_file_full("templates/editor_offset_visual.html", repo_root=repo_root)
     entrypoint = _read_allowed_file_full("static/js/editor_offset_visual.js", repo_root=repo_root)
@@ -429,22 +443,22 @@ def summarize_editor_modular_surface(repo_root: str | Path | None = None) -> str
     )
     disk_modules = [
         path
-        for path in FRONTEND_5A_MODULES + FRONTEND_5B_MODULES
+        for path in FRONTEND_MODULAR_MODULES
         if (root / path).exists()
     ]
     loaded_expected = [
         path
-        for path in FRONTEND_5A_MODULES + FRONTEND_5B_MODULES
-        if Path(path).name in script_modules
+        for path in FRONTEND_MODULAR_MODULES
+        if path.removeprefix("static/js/editor_offset_visual/") in script_modules
     ]
     missing_from_html = [
         path
-        for path in FRONTEND_5A_MODULES + FRONTEND_5B_MODULES
-        if Path(path).name not in script_modules
+        for path in FRONTEND_MODULAR_MODULES
+        if path.removeprefix("static/js/editor_offset_visual/") not in script_modules
     ]
     missing_on_disk = [
         path
-        for path in FRONTEND_5A_MODULES + FRONTEND_5B_MODULES
+        for path in FRONTEND_MODULAR_MODULES
         if not (root / path).exists()
     ]
     detected_entrypoint_risks = [
@@ -457,18 +471,25 @@ def summarize_editor_modular_surface(repo_root: str | Path | None = None) -> str
         module_exports.append(f"{module_path} -> {', '.join(exports) or 'sin export detectado'}")
 
     lines = [
-        "Mapa modular post Fases 5A/5B:",
+        "Mapa modular post Fase 6C-1:",
         f"- Modulos 5A esperados: {', '.join(FRONTEND_5A_MODULES)}.",
         f"- Modulos 5B esperados: {', '.join(FRONTEND_5B_MODULES)}.",
+        f"- Modulos 5C esperados: {', '.join(FRONTEND_5C_MODULES)}.",
+        f"- Modulos 5D esperados: {', '.join(FRONTEND_5D_MODULES)}.",
         f"- Modulos cargados por HTML: {', '.join(script_modules) or 'ninguno detectado'}.",
-        f"- Modulos esperados presentes en disco: {len(disk_modules)}/9.",
-        f"- Modulos esperados cargados en HTML: {len(loaded_expected)}/9.",
+        f"- Modulos esperados presentes en disco: {len(disk_modules)}/12.",
+        f"- Modulos esperados cargados en HTML: {len(loaded_expected)}/12.",
         f"- Exports detectados: {'; '.join(module_exports) or 'sin exports detectados'}.",
         f"- Entry point compatible: static/js/editor_offset_visual.js ({len(entrypoint.splitlines())} lineas).",
         f"- Responsabilidades criticas aun en entrypoint: {', '.join(detected_entrypoint_risks) or 'sin muestra'}.",
-        "- Fase 5C pendiente: renderer/canvas/sheet, renderSheet, zoom, CTP guide, geometry markers y estados visuales.",
-        "- Fase 5D pendiente: seleccion, drag, resize, box select, nudge, align, distribute, shortcuts y listeners.",
-        "- Fase 6 pendiente: movimiento fisico de estructura hacia editor_offset/ con aliases y tests previos.",
+        "- Fase 5C completada: renderer/canvas/sheet extraido inicialmente en renderer_canvas.js con wrappers compatibles.",
+        "- Fase 5D completada en alcance SAFE: manual_tools.js y slot_interactions.js extraen herramientas manuales, seleccion, box select y drag/move no-resize.",
+        "- Fase 6B completada: tests/playwright/test_editor_productive_workflows.py cubre workflows productivos clave.",
+        "- Fase 6C-0 completada: auditoria SAFE de reorganizacion fisica.",
+        "- Fase 6C-1 completada: defaults.js, geometry.js y geometry_validation.js viven en static/js/editor_offset_visual/core/.",
+        "- Pendientes reales: 6C-2 dom_refs/api_client, 6C-3 paneles, 6C-4 renderer/interacciones, 6C-5 advisor/tests/docs.",
+        "- Futuras: 6D store/state architecture y 6E resize real.",
+        "- Resize latente/no operativo: no hay handles activos .slot .handle en el renderer actual.",
         "- Regla SAFE: no mover renderer ni interacciones desde el advisor; solo auditar y generar planes/prompts SAFE.",
     ]
     if missing_from_html:
@@ -476,7 +497,7 @@ def summarize_editor_modular_surface(repo_root: str | Path | None = None) -> str
     if missing_on_disk:
         lines.append(f"- Modulos esperados no encontrados en disco: {', '.join(missing_on_disk)}.")
     if not missing_from_html and not missing_on_disk:
-        lines.append("- Los 9 modulos esperados 5A/5B estan presentes y cargados antes del entrypoint.")
+        lines.append("- Los 12 modulos esperados 5A-6C-1 estan presentes y cargados antes del entrypoint.")
     return "\n".join(lines)
 
 
@@ -489,9 +510,12 @@ def list_validation_commands() -> List[str]:
         "git diff --check",
         "node --check static/js/editor_offset_visual.js",
         "node --check static/js/editor_offset_visual/dom_refs.js",
-        "node --check static/js/editor_offset_visual/defaults.js",
-        "node --check static/js/editor_offset_visual/geometry.js",
-        "node --check static/js/editor_offset_visual/geometry_validation.js",
+        "node --check static/js/editor_offset_visual/core/defaults.js",
+        "node --check static/js/editor_offset_visual/core/geometry.js",
+        "node --check static/js/editor_offset_visual/core/geometry_validation.js",
+        "node --check static/js/editor_offset_visual/renderer_canvas.js",
+        "node --check static/js/editor_offset_visual/manual_tools.js",
+        "node --check static/js/editor_offset_visual/slot_interactions.js",
         "node --check static/js/editor_offset_visual/api_client.js",
         "node --check static/js/editor_offset_visual/output_panel.js",
         "node --check static/js/editor_offset_visual/ai_panel.js",

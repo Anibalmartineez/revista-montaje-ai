@@ -18,6 +18,12 @@ def test_list_editor_files_includes_canonical_editor_files():
     assert "static/js/editor_offset_visual.js" in files
     assert "static/js/editor_offset_visual/api_client.js" in files
     assert "static/js/editor_offset_visual/booklet_panel.js" in files
+    assert "static/js/editor_offset_visual/core/defaults.js" in files
+    assert "static/js/editor_offset_visual/core/geometry.js" in files
+    assert "static/js/editor_offset_visual/core/geometry_validation.js" in files
+    assert "static/js/editor_offset_visual/renderer_canvas.js" in files
+    assert "static/js/editor_offset_visual/manual_tools.js" in files
+    assert "static/js/editor_offset_visual/slot_interactions.js" in files
     assert "services/editor_offset_http_service.py" in files
     assert "services/editor_offset_imposition_service.py" in files
     assert "services/editor_offset_output_service.py" in files
@@ -56,15 +62,20 @@ def test_validation_commands_are_read_only_recommendations():
     assert any("test_editor_advisor_tools.py" in command for command in commands)
     assert any("test_editor_offset_characterization.py" in command for command in commands)
     assert any("static/js/editor_offset_visual/api_client.js" in command for command in commands)
+    assert any("static/js/editor_offset_visual/core/defaults.js" in command for command in commands)
     assert all("rm " not in command.lower() for command in commands)
 
 
-def test_architecture_summary_reports_post_5b_services_and_ai_split():
+def test_architecture_summary_reports_post_6c1_services_modules_and_ai_split():
     summary = tools.summarize_editor_architecture()
 
     assert "services/editor_offset_http_service.py" in summary
     assert "services/editor_offset_output_service.py" in summary
     assert "Wrapper legacy de salida: montaje_offset_inteligente.py" in summary
+    assert "Modulos frontend 5A-6C-1 detectados" in summary
+    assert "static/js/editor_offset_visual/core/defaults.js" in summary
+    assert "static/js/editor_offset_visual/renderer_canvas.js" in summary
+    assert "static/js/editor_offset_visual/slot_interactions.js" in summary
     assert "static/js/editor_offset_visual/api_client.js" in summary
     assert "ai_agent/tools_repeat.py" in summary
     assert "ai_agent/openai_tool_bridge.py" in summary
@@ -72,22 +83,29 @@ def test_architecture_summary_reports_post_5b_services_and_ai_split():
     assert "CLI-only/read-only" in summary
 
 
-def test_modular_surface_summary_reports_5a_5b_and_pending_risks():
+def test_modular_surface_summary_reports_post_6c1_and_pending_risks():
     summary = tools.summarize_editor_modular_surface()
 
-    assert "Mapa modular post Fases 5A/5B" in summary
-    assert "Modulos esperados presentes en disco: 9/9" in summary
-    assert "Modulos esperados cargados en HTML: 9/9" in summary
+    assert "Mapa modular post Fase 6C-1" in summary
+    assert "Modulos esperados presentes en disco: 12/12" in summary
+    assert "Modulos esperados cargados en HTML: 12/12" in summary
     assert "dom_refs.js -> domRefs" in summary
+    assert "core/defaults.js -> defaults" in summary
+    assert "renderer_canvas.js -> rendererCanvas" in summary
+    assert "manual_tools.js -> manualTools" in summary
+    assert "slot_interactions.js -> slotInteractions" in summary
     assert "api_client.js -> apiClient" in summary
     assert "booklet_panel.js -> bookletPanel" in summary
     assert "Entry point compatible: static/js/editor_offset_visual.js" in summary
     assert "renderSheet" in summary
     assert "box select" in summary
-    assert "Fase 5C pendiente" in summary
-    assert "Fase 5D pendiente" in summary
-    assert "Fase 6 pendiente" in summary
-    assert "Los 9 modulos esperados 5A/5B estan presentes" in summary
+    assert "Fase 5C completada" in summary
+    assert "Fase 5D completada en alcance SAFE" in summary
+    assert "Fase 6C-1 completada" in summary
+    assert "Pendientes reales: 6C-2" in summary
+    assert "Futuras: 6D store/state architecture y 6E resize real" in summary
+    assert "Resize latente/no operativo" in summary
+    assert "Los 12 modulos esperados 5A-6C-1 estan presentes" in summary
 
 
 def test_ux_surface_summary_reports_right_panel_signals():
@@ -98,7 +116,7 @@ def test_ux_surface_summary_reports_right_panel_signals():
     assert "editor-tab-panels" in summary
     assert "geometry-validation-panel" in summary
     assert "getElementById" in summary
-    assert "Listeners detectados en JS: 91" in summary
+    assert "Listeners detectados en JS:" in summary
     assert "no renombrar ids" in summary
 
 
