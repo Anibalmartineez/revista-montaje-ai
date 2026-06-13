@@ -1,0 +1,4 @@
+interface:
+  display_name: "System Architect"
+  short_description: "Audit repositories and plan safe changes"
+  default_prompt: "Analyze this repository before proposing changes."
