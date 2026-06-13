@@ -18,6 +18,76 @@ Use this skill to understand a codebase before making important changes. Work as
 - Treat public APIs, schemas, storage formats, command interfaces, generated artifacts, and user workflows as compatibility surfaces.
 - Preserve existing behavior unless the user explicitly asks to change it.
 
+## Operating Modes
+
+Choose the smallest mode that satisfies the request. State the selected mode before beginning.
+
+### Clean Code Audit
+
+Use when reconstructing architecture from scratch.
+
+- Treat executable code, imports, routes, schemas, persistence, runtime configuration, and tests as primary evidence.
+- Do not use historical documentation, roadmaps, previous architecture maps, or old audits as the source of truth.
+- Documentation may be reviewed only after reconstructing the implementation, when the user requests alignment analysis.
+
+### Impact Analysis
+
+Use when evaluating a proposed change.
+
+- Identify callers, callees, contracts, persistence surfaces, tests, and user-visible workflows affected by the change.
+- Estimate blast radius.
+- Propose the smallest reversible implementation plan.
+- Do not modify files until the plan is approved.
+
+### Documentation Alignment
+
+Use when comparing documentation against implementation.
+
+- Inspect executable code first.
+- Treat documentation as a secondary source.
+- Report aligned, outdated, ambiguous, and missing documentation separately.
+- Do not silently rewrite documentation.
+
+### Branch Review
+
+Use when reviewing work before merge.
+
+- Compare the active branch against the target branch.
+- Identify changed files, behavioral changes, contract changes, test coverage, regressions, and out-of-scope edits.
+- Recommend merge, correction, or additional validation.
+
+## Evidence Rules
+
+For every important conclusion, identify the strongest available evidence:
+
+- Confirmed by code inspection.
+- Confirmed by runtime execution.
+- Confirmed by automated test.
+- Confirmed by persisted data or generated output.
+- Probable inference.
+- Pending verification.
+
+Do not present an inference as a confirmed fact.
+Do not claim that a feature is operational only because related code exists.
+When evidence conflicts, report the conflict explicitly.
+
+## Subagent Guidance
+
+For broad audits, consider delegating independent read-only investigations to subagents.
+
+Useful partitions include:
+
+- frontend and user interactions;
+- backend routes and services;
+- persistence and contracts;
+- output generation and integrations;
+- tests and regression coverage.
+
+Keep subagent tasks independent.
+Require concrete evidence.
+Wait for all subagents before producing the consolidated SAFE plan.
+Do not delegate file modifications unless the user explicitly approves implementation.
+
 ## Architecture Audit Workflow
 
 1. Identify the system boundary:
