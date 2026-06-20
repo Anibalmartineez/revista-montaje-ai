@@ -1,6 +1,19 @@
 (function () {
   window.EditorOffsetVisual = window.EditorOffsetVisual || {};
 
+  function validationBoxForSlot(geometry, slot) {
+    const footprint = geometry.getCardinalRotatedSlotFootprint?.(slot);
+    if (!footprint || footprint.isCardinal === false) {
+      return geometry.getSimpleSlotBox(slot);
+    }
+    return {
+      x: footprint.x,
+      y: footprint.y,
+      w: footprint.effW,
+      h: footprint.effH,
+    };
+  }
+
   function validateGeometry(layout) {
     const geometry = window.EditorOffsetVisual.geometry;
     const result = {
@@ -50,7 +63,7 @@
     slots.forEach((slot) => {
       const slotId = slot.id || '(sin id)';
       const face = slot.face || 'front';
-      const { x, y, w, h } = geometry.getSimpleSlotBox(slot);
+      const { x, y, w, h } = validationBoxForSlot(geometry, slot);
       const right = x + w;
       const top = y + h;
 
@@ -74,7 +87,8 @@
         );
       }
 
-      if (gripperEnabled && y < gripper) {
+      const gripperBox = geometry.getSimpleSlotBox(slot);
+      if (gripperEnabled && gripperBox.y < gripper) {
         addIssue(
           'warning',
           'GRIPPER',
