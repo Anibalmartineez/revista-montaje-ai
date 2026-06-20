@@ -87,7 +87,7 @@
         );
       }
 
-      const gripperBox = geometry.getSimpleSlotBox(slot);
+      const gripperBox = validationBoxForSlot(geometry, slot);
       if (gripperEnabled && gripperBox.y < gripper) {
         addIssue(
           'warning',
