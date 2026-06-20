@@ -101,10 +101,24 @@ Uso conocido:
 
 - `id` identifica el slot para seleccion y validacion.
 - `x_mm`, `y_mm`, `w_mm`, `h_mm` definen caja en milimetros.
-- `rotation_deg` define rotacion del contenido.
+- `rotation_deg` define rotacion del contenido y sigue siendo el campo canonico de rotacion por slot.
 - `design_ref` debe resolver contra `designs[].ref`.
 - `face` separa frente/dorso.
 - `slot_box_final` protege semantica de Step & Repeat en salida.
+
+### Nota de rotacion frontend
+
+Hechos confirmados:
+
+- No se cambio el contrato JSON de `slots[]`.
+- `slots[].rotation_deg` sigue siendo numerico y canonicamente persistido por slot.
+- La UI puede editar `rotation_deg` de un slot individual mediante `#slot-rot`.
+- La UI puede editar `rotation_deg` de una seleccion mediante `#selection-rotation-deg`, `#btn-apply-selection-rotation`, `static/js/editor_offset_visual/manual_tools.js` / `rotateSelectedSlots()` y el wrapper homonimo en `static/js/editor_offset_visual.js`.
+- La validacion geometrica frontend usa huella rotada cardinal para `OUT_OF_SHEET`, `OUT_OF_USABLE_AREA`, `OVERLAP` y `GRIPPER` mediante `static/js/editor_offset_visual/core/geometry_validation.js` / `validationBoxForSlot()`.
+- La huella cardinal depende de `static/js/editor_offset_visual/core/geometry.js` / `getCardinalRotatedSlotFootprint()` y aplica solo a rotaciones 0/90/180/270; otros angulos caen a caja simple en validacion frontend.
+- Backend, output, PDF, motores, bleed y CTP productivo no cambiaron por estas fases.
+
+Inferencia operativa: la validacion visual/frontend puede no ser equivalente al PDF final mientras el backend/output no adopte la misma semantica de huella rotada.
 
 ## Contrato de faces
 
@@ -176,6 +190,18 @@ La validacion de salida revisa:
 - `slot.design_ref` debe resolver contra `designs[].ref`
 - `logical_work_id` no resuelto produce warning
 - `faces` contiene `back` sin slots `back` produce warning
+
+### Validacion geometrica frontend
+
+Hechos confirmados desde `static/js/editor_offset_visual/core/geometry_validation.js`:
+
+- `OUT_OF_SHEET` usa huella rotada cardinal cuando `rotation_deg` es 0/90/180/270.
+- `OUT_OF_USABLE_AREA` usa huella rotada cardinal cuando `rotation_deg` es 0/90/180/270.
+- `OVERLAP` usa huella rotada cardinal cuando `rotation_deg` es 0/90/180/270.
+- `GRIPPER` frontend usa huella rotada cardinal cuando `rotation_deg` es 0/90/180/270.
+- Si la rotacion no es cardinal, `validationBoxForSlot()` vuelve a `geometry.getSimpleSlotBox(slot)`.
+
+Limitacion confirmada: esta validacion es frontend. No implica cambio en `services/editor_offset_output_contract.py`, `services/editor_offset_output_service.py`, motores ni generacion PDF.
 
 ### Limitacion confirmada
 

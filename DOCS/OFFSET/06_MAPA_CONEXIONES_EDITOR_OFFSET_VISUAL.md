@@ -4,6 +4,21 @@ Documento de referencia SAFE para entender las conexiones internas del Editor Of
 
 Este documento fue construido por lectura de archivos del repositorio. No implica cambios de codigo, ejecucion de tests ni ejecucion de scripts productivos.
 
+## Changelog de rotacion
+
+Hechos confirmados contra el codigo actual:
+
+| Fase | Estado documentado | Archivos/simbolos |
+| --- | --- | --- |
+| Fase 1 | Rotacion grupal logica en frontend. Reutiliza `slots[].rotation_deg` y opera sobre seleccion editable. | `templates/editor_offset_visual.html` (`#selection-rotation-deg`, `#btn-apply-selection-rotation`), `static/js/editor_offset_visual/manual_tools.js` (`rotateSelectedSlots()`), `static/js/editor_offset_visual.js` (`rotateSelectedSlots()`, listener del boton). |
+| Fase 2 | Rotacion visual en canvas. El render setea `data-rotation` y la variable CSS `--slot-rotation-deg`; CSS aplica `transform: rotate(...)`. | `static/js/editor_offset_visual/renderer_canvas.js`, `static/css/editor_offset_visual.css` (`.slot[data-rotation]`). |
+| Fase 3.1 | Helper de huella rotada cardinal sin cambiar la semantica de `getEffectiveSlotBox()`, `slotFootprintRect()` ni `getSimpleSlotBox()`. | `static/js/editor_offset_visual/core/geometry.js` (`normalizeRotationDeg()`, `getCardinalRotatedSlotFootprint()`). |
+| Fase 3.2A | `OUT_OF_SHEET` y `OUT_OF_USABLE_AREA` usan huella rotada cardinal cuando la rotacion es 0/90/180/270. | `static/js/editor_offset_visual/core/geometry_validation.js` (`validationBoxForSlot()`). |
+| Fase 3.2B | `OVERLAP` usa la misma caja de validacion cardinal. | `static/js/editor_offset_visual/core/geometry_validation.js`. |
+| Fase 3.2C | `GRIPPER` frontend usa huella rotada cardinal mediante `validationBoxForSlot()`. | `static/js/editor_offset_visual/core/geometry_validation.js`. |
+
+Pendientes confirmados: `box select`, `drag`, `snap`, `align/distribute`, `distance indicator`, angulos libres, colision poligonal real y posibles diferencias entre validacion frontend y PDF/productivo.
+
 ---
 
 ## 1. Alcance real del mapa de conexiones
@@ -118,10 +133,10 @@ Los modulos exponen API bajo `window.EditorOffsetVisual.*`.
 | --- | --- | --- |
 | `static/js/editor_offset_visual/dom_refs.js` | `window.EditorOffsetVisual.domRefs` | Centraliza referencias a IDs como `sheet`, `sheet-canvas`, `works-list`, `designs-list`, `preview-image`, `pdf-output`, `slot-form`, `slot-none`, `upload-form`, `geometry-validation-summary`, `geometry-validation-list`. |
 | `static/js/editor_offset_visual/core/defaults.js` | defaults y normalizadores | Usado por el entrypoint para `imposition_engine`, CTP, export, faces y defaults de diseno. |
-| `static/js/editor_offset_visual/core/geometry.js` | conversion mm/px, cajas, bounds | Usado por renderer, validacion, seleccion, drag y herramientas manuales. |
-| `static/js/editor_offset_visual/core/geometry_validation.js` | validacion geometrica | Revisa limites de hoja, area util, pinza CTP y overlaps por cara. |
-| `static/js/editor_offset_visual/renderer_canvas.js` | `renderSheetSurface()` | Renderiza `.slot`, overlays, guias CTP, warnings/errores y estado visual. |
-| `static/js/editor_offset_visual/manual_tools.js` | duplicate/delete/group/align/distribute/center/nudge/spacing | Operaciones manuales sobre slots seleccionados. |
+| `static/js/editor_offset_visual/core/geometry.js` | conversion mm/px, cajas, bounds, huella cardinal | Usado por renderer, validacion, seleccion, drag y herramientas manuales. Expone `normalizeRotationDeg()` y `getCardinalRotatedSlotFootprint()`. |
+| `static/js/editor_offset_visual/core/geometry_validation.js` | validacion geometrica | Revisa limites de hoja, area util, pinza CTP y overlaps por cara. Para rotaciones cardinales usa `validationBoxForSlot()` en `OUT_OF_SHEET`, `OUT_OF_USABLE_AREA`, `OVERLAP` y `GRIPPER`. |
+| `static/js/editor_offset_visual/renderer_canvas.js` | `renderSheetSurface()` | Renderiza `.slot`, overlays, guias CTP, warnings/errores, estado visual y rotacion visual con `data-rotation`/`--slot-rotation-deg`. |
+| `static/js/editor_offset_visual/manual_tools.js` | duplicate/delete/group/align/distribute/center/nudge/spacing/rotation | Operaciones manuales sobre slots seleccionados, incluida `rotateSelectedSlots()`. |
 | `static/js/editor_offset_visual/slot_interactions.js` | seleccion, box select, drag, resize latente | Maneja interacciones directas sobre slots y hoja. |
 | `static/js/editor_offset_visual/api_client.js` | save/upload/imposition/preview/pdf/IA/cuadernillos | Encapsula llamadas HTTP del frontend. |
 | `static/js/editor_offset_visual/output_panel.js` | preview/PDF panel | Valida geometria, guarda y pide preview/PDF. |
@@ -136,7 +151,7 @@ Interacciones y archivo responsable:
 | --- | --- | --- |
 | Inicializacion | `static/js/editor_offset_visual.js` | `parseInitialLayout()`, `state.layout`, `window.INITIAL_LAYOUT_JSON`, `window.JOB_ID`. |
 | Referencias DOM | `static/js/editor_offset_visual/dom_refs.js` | `domRefs`, IDs `sheet`, `sheet-canvas`, `slot-form`. |
-| Render de hoja/slots | `static/js/editor_offset_visual/renderer_canvas.js` + wrapper en entrypoint | `renderSheetSurface()`, `.slot`, `.selected`, `.locked`, `.geometry-error`, `.geometry-warning`. |
+| Render de hoja/slots | `static/js/editor_offset_visual/renderer_canvas.js` + wrapper en entrypoint | `renderSheetSurface()`, `.slot`, `.selected`, `.locked`, `.geometry-error`, `.geometry-warning`, `data-rotation`, `--slot-rotation-deg`. |
 | Tabs | `templates/editor_offset_visual.html` + entrypoint | `data-editor-tab`, `data-editor-tab-panel`. |
 | Seleccion simple | `slot_interactions.js` + entrypoint | `selectSlot()`, `state.selectedSlot`, `state.selectedSlots`. |
 | Seleccion multiple | `slot_interactions.js` + entrypoint | `getSelectedSlotIds()`, `getSelectedSlots()`, `selectedSlots`. |
@@ -144,7 +159,7 @@ Interacciones y archivo responsable:
 | Drag | `slot_interactions.js` | movimiento en mm, snap/grid segun contexto. |
 | Resize | `slot_interactions.js`, CSS, entrypoint | Latente; el renderer activo no crea handles operativos. |
 | Edicion de slot | `static/js/editor_offset_visual.js` | `renderSlotForm()`, `applySlotForm()`, IDs `slot-x`, `slot-y`, `slot-w`, `slot-h`, `slot-rot`, `slot-bleed`, `slot-crop`, `slot-locked`, `slot-work`, `slot-design`. |
-| Herramientas manuales | `manual_tools.js` + wrappers entrypoint | duplicar, borrar, alinear, distribuir, centrar, nudges, spacing. |
+| Herramientas manuales | `manual_tools.js` + wrappers entrypoint | duplicar, borrar, alinear, distribuir, centrar, nudges, spacing, rotacion grupal. |
 | Output panel | `output_panel.js` + `api_client.js` | `requestPreview()`, `requestPdf()`, `saveLayout()`. |
 | Panel IA | `ai_panel.js` + `api_client.js` | `runAi()`, `setLayout()`, `refreshEditorAfterLayoutReplace()`. |
 | Panel CTP | `ctp_panel.js` | `layout.ctp`, overlays, alineacion frontal. |
@@ -281,6 +296,7 @@ Edicion manual:
 | Aplicar formulario | `static/js/editor_offset_visual.js` / `applySlotForm()` | Modifica solo `state.selectedSlot`; actualiza `x_mm`, `y_mm`, `w_mm`, `h_mm`, `rotation_deg`, `bleed_mm`, `crop_marks`, `locked`, `logical_work_id`, `design_ref`. |
 | Render posterior | `applySlotForm()` | Llama `renderSheet()` y `pushHistory()`. |
 | Aplicar diseno a seleccion | `applyDesignToSelected()` | Aplica `design_ref` a multiples slots seleccionados y llama `pushHistory()`. |
+| Aplicar rotacion a seleccion | `static/js/editor_offset_visual.js` + `manual_tools.rotateSelectedSlots()` | Lee `#selection-rotation-deg`, obtiene `getSelectedSlots({ editableOnly: true })`, escribe `slot.rotation_deg`, llama un solo `pushHistory()` y refresca seleccion/render. |
 | Duplicar | `manual_tools.js` + wrapper entrypoint | Duplica slots seleccionados. |
 | Borrar | `manual_tools.js` + wrapper entrypoint | Elimina slots seleccionados. |
 | Alinear | `manual_tools.js` + wrapper entrypoint | Alinea seleccion. |
@@ -304,21 +320,22 @@ IDs de formulario de slot:
 | `slot-work` | `logical_work_id` |
 | `slot-design` | `design_ref` |
 
-Candidatos futuros para rotacion individual/grupal:
+Estado actual de rotacion individual/grupal:
 
-| Necesidad | Candidato |
+| Necesidad | Estado |
 | --- | --- |
-| Control individual existente | `templates/editor_offset_visual.html` con `#slot-rot`. |
-| Logica individual existente | `static/js/editor_offset_visual.js` / `applySlotForm()`. |
-| Operacion grupal nueva | `static/js/editor_offset_visual/manual_tools.js`. |
-| Wiring grupal | `static/js/editor_offset_visual.js`. |
-| Seleccion multiple | `slot_interactions.js` y helpers `getSelectedSlots()`. |
-| Persistencia | `layoutToJson()` + `saveLayout()` + `/editor_offset/save`. |
-| Render | `renderSheet()` / `renderer_canvas.js`. |
+| Control individual | Implementado con `templates/editor_offset_visual.html` / `#slot-rot`. |
+| Logica individual | Implementada en `static/js/editor_offset_visual.js` / `applySlotForm()`. |
+| Control grupal | Implementado en `#manual-advanced-tools` con `#selection-rotation-deg` y `#btn-apply-selection-rotation`. |
+| Operacion grupal | Implementada en `static/js/editor_offset_visual/manual_tools.js` / `rotateSelectedSlots()`. |
+| Wiring grupal | Implementado en `static/js/editor_offset_visual.js` / `rotateSelectedSlots()` y listener de `#btn-apply-selection-rotation`. |
+| Seleccion multiple | Usa `getSelectedSlots({ editableOnly: true })` y respeta la cara activa igual que las herramientas manuales existentes. |
+| Persistencia | Sigue el flujo existente: `layoutToJson()` + `saveLayout()` + `/editor_offset/save`. |
+| Render | `renderSheet()` / `renderer_canvas.js` muestran la rotacion visual con CSS. |
 
 ### Inferencias
 
-El patron mas seguro para una futura rotacion grupal es seguir el estilo de herramientas manuales: modificar slots seleccionados, llamar una sola vez a `pushHistory()`, luego `renderSheet()` y `renderSlotForm()`, y persistir solo cuando el usuario guarde o cuando el flujo existente invoque `saveLayout()`.
+La rotacion grupal ya sigue el patron SAFE previsto para herramientas manuales: modifica slots seleccionados editables, usa un solo `pushHistory()`, refresca seleccion/render y persiste solo mediante el flujo existente de guardado.
 
 ---
 
@@ -333,9 +350,13 @@ Superficie actual de rotacion:
 | Contrato slot | `slots[].rotation_deg` | Campo confirmado y validado como numerico. |
 | UI individual | `templates/editor_offset_visual.html` / `#slot-rot` | Existe input para un slot seleccionado. |
 | Aplicacion individual | `static/js/editor_offset_visual.js` / `applySlotForm()` | Escribe `slot.rotation_deg`. |
+| UI grupal | `templates/editor_offset_visual.html` / `#selection-rotation-deg`, `#btn-apply-selection-rotation` | Existe control para aplicar rotacion a seleccion editable. |
+| Aplicacion grupal | `static/js/editor_offset_visual/manual_tools.js` / `rotateSelectedSlots()` + wrapper en `static/js/editor_offset_visual.js` | Escribe `slot.rotation_deg` en los slots seleccionados editables con un solo `pushHistory()`. |
 | Step & Repeat manual | `#sr-rotation`, `generateStepRepeatFromSelectedSlot()` | Puede asignar rotacion al master/clones generados. |
-| Renderer visual | `renderer_canvas.js` | Guarda `dataset.rotation`, pero aplica `transform = 'none'`. |
-| Geometria core | `core/geometry.js` / `getEffectiveSlotBox()` | Normaliza `rotation_deg`; `effW`/`effH` se mantienen como base W/H. |
+| Renderer visual | `renderer_canvas.js` + CSS | Setea `data-rotation` y `--slot-rotation-deg`; `.slot[data-rotation]` aplica `transform: rotate(...)`. |
+| Geometria core | `core/geometry.js` / `getEffectiveSlotBox()` | Normaliza `rotation_deg`; `effW`/`effH` se mantienen como base W/H. La semantica no fue migrada. |
+| Helper huella cardinal | `core/geometry.js` / `normalizeRotationDeg()`, `getCardinalRotatedSlotFootprint()` | Calcula huella visual para 0/90/180/270; en 90/270 intercambia W/H manteniendo centro. |
+| Validacion frontend | `core/geometry_validation.js` / `validationBoxForSlot()` | Usa huella cardinal para `OUT_OF_SHEET`, `OUT_OF_USABLE_AREA`, `OVERLAP` y `GRIPPER`; angulos no cardinales caen a caja simple. |
 | Contrato output | `services/editor_offset_output_contract.py` | Valida `rotation_deg`. |
 | Transformacion a salida | `services/editor_offset_output_service.py` / `_positions_for_face()` | Convierte `rotation_deg` a `rot_deg`. |
 | Preview/productivo | `montaje_offset_inteligente.py` | Usa `rot_deg` para rotar raster/canvas. |
@@ -351,28 +372,32 @@ Tests relacionados confirmados:
 
 ### Inferencias
 
-La rotacion actual es parcial:
+La rotacion actual combina partes implementadas y limites deliberados:
 
 | Tipo | Estado inferido |
 | --- | --- |
-| Por slot individual | Parcialmente soportada: se edita/persiste/sale a PDF, pero no se ve rotada en canvas activo. |
+| Por slot individual | Soportada como dato, UI individual, persistencia, render visual y salida productiva via `rot_deg`. |
+| Por seleccion grupal | Soportada como edicion de dato frontend usando `slots[].rotation_deg`; no toca backend ni contratos. |
 | Por motor | Soportada en `repeat` y `nesting` como dato de layout. |
-| Por render visual | Parcial/no activa: `renderer_canvas.js` no aplica transform visual. |
+| Por render visual | Soportada en canvas mediante CSS transform sobre `.slot[data-rotation]`. |
+| Por geometria core general | Parcial: existe helper cardinal, pero `getEffectiveSlotBox()`, `slotFootprintRect()` y `getSimpleSlotBox()` siguen con semantica no rotada. |
+| Por validacion frontend | Parcial: `OUT_OF_SHEET`, `OUT_OF_USABLE_AREA`, `OVERLAP` y `GRIPPER` usan huella cardinal; no hay colision poligonal ni soporte geometrico real para angulos libres. |
+| Por interacciones | Pendiente: `box select`, `drag`, `snap`, `align/distribute` y `distance indicator` siguen usando cajas no rotadas por los flujos actuales. |
 | Por salida PDF | Soportada via `rot_deg` en `montaje_offset_inteligente.py`. |
-| Por UI grupal | No confirmada como funcional; no hay control grupal dedicado. |
 
 ### Preguntas abiertas
 
-Antes de agregar rotacion grupal hay que confirmar:
+Antes de evolucionar la rotacion hay que confirmar:
 
 | Tema | Pregunta |
 | --- | --- |
-| Canvas | Si debe visualizarse la rotacion real en `.slot` o solo persistirse/salir a PDF. |
 | Caja efectiva | Si `w_mm`/`h_mm` representan caja final ya rotada o dimensiones del arte antes de rotar. |
-| Colisiones | Si la validacion de overlaps debe considerar huella rotada o caja sin rotar. |
-| Drag/snap | Si rotar debe cambiar bounds usados para drag y snap. |
+| Colisiones | Si una fase futura debe pasar de AABB cardinal a colision poligonal real. |
+| Drag/snap | Si rotar debe cambiar bounds usados para drag, snap y guias de distancia. |
 | Bleed | Como afecta rotacion a bleed, crop marks y `slot_box_final`. |
-| Multi-face | Si rotacion grupal debe operar solo sobre `active_face` o tambien sobre seleccion cruzada. |
+| Angulos libres | Si deben soportarse en geometria o mantenerse solo como dato/render/salida. |
+| Multi-face | Si futuras operaciones globales deben operar solo sobre `active_face` o tambien sobre seleccion cruzada. |
+| PDF/productivo | Si la huella validada en frontend debe alinearse contractualmente con preview/PDF final. |
 
 ---
 
@@ -482,21 +507,22 @@ Canvas, preview y PDF final no deben asumirse equivalentes. La rotacion, el blee
 | `tests/playwright/test_editor_manual_interactions.py` | E2E/UI | Interacciones manuales. |
 | `tests/playwright/test_editor_drag_resize_interactions.py` | E2E/UI | Drag y caracterizacion de resize latente. |
 
-Tests relevantes antes de implementar rotacion individual/grupal:
+Tests relevantes para consolidar y evolucionar rotacion individual/grupal:
 
 | Area | Tests a revisar/agregar |
 | --- | --- |
 | UI individual | Playwright para `#slot-rot`, `applySlotForm()` y persistencia. |
-| UI grupal | Playwright para seleccion multiple + nuevo control grupal. |
+| UI grupal | Playwright para seleccion multiple + `#selection-rotation-deg` + `#btn-apply-selection-rotation`. |
 | Persistencia | Unit/characterization sobre `layout_constructor.json` con `rotation_deg`. |
 | Contrato | `tests/test_editor_offset_output_contract.py` para valores validos/invalidos si cambia regla. |
 | Output | `tests/test_editor_offset_characterization.py` para `rot_deg` en posiciones manuales. |
 | Motores | `tests/test_step_repeat_pro_engine.py` si cambia semantica de caja/rotacion. |
-| Canvas | Playwright visual o DOM si se decide mostrar rotacion real en `.slot`. |
+| Canvas | Playwright visual o DOM para `data-rotation`, `--slot-rotation-deg` y `transform` en `.slot[data-rotation]`. |
+| Geometria frontend | Unit/DOM aislado para `getCardinalRotatedSlotFootprint()` y `validationBoxForSlot()` en `OUT_OF_SHEET`, `OUT_OF_USABLE_AREA`, `OVERLAP` y `GRIPPER`. |
 
 ### Inferencias
 
-La primera implementacion de rotacion grupal deberia evitar tocar motores y salida si solo escribe `slots[].rotation_deg`, porque ya existe contrato y salida para ese campo.
+Las fases ya implementadas evitaron tocar motores y salida al reutilizar `slots[].rotation_deg`. Antes de migrar interacciones o contratos conviene agregar cobertura focalizada para no mezclar geometria frontend con salida productiva.
 
 ---
 
@@ -569,13 +595,11 @@ No tocar sin fase especifica:
 
 ---
 
-## 11. Integracion futura: rotacion individual y grupal
-
-Esta seccion es un plan de integracion. No implementa la funcionalidad.
+## 11. Rotacion individual y grupal: estado implementado + pendientes
 
 ### Hechos confirmados
 
-Rotacion individual ya tiene piezas existentes:
+Rotacion individual:
 
 | Pieza | Archivo/simbolo |
 | --- | --- |
@@ -586,35 +610,33 @@ Rotacion individual ya tiene piezas existentes:
 | Salida | `services/editor_offset_output_service.py` / `rot_deg` |
 | Productivo | `montaje_offset_inteligente.py` / `rot_deg` |
 
-### Plan SAFE propuesto
+Rotacion grupal implementada:
 
-1. Mantener `rotation_deg` como campo canonico por slot.
-2. No cambiar motores, output, CTP, bleed ni contrato en la primera fase si solo se agrega edicion grupal.
-3. Agregar el control grupal en una zona de herramientas manuales o panel de edicion existente, evitando renombrar IDs actuales.
-4. Crear IDs nuevos con nombres especificos y no ambiguos, por ejemplo:
-   - `slot-selection-rot`
-   - `btn-apply-selection-rotation`
-5. Escuchar el evento en `static/js/editor_offset_visual.js`, junto al wiring actual de herramientas manuales.
-6. Implementar la operacion pura en `static/js/editor_offset_visual/manual_tools.js`, siguiendo el patron de align/distribute/nudge.
-7. La operacion debe recibir slots seleccionados editables, ignorar bloqueados o respetar el patron existente de `getSelectedSlots({ editableOnly: true })` si aplica.
-8. Modificar `slot.rotation_deg` en cada slot seleccionado.
-9. Llamar una sola vez a `pushHistory()` despues de aplicar cambios.
-10. Llamar `renderSheet()` y `renderSlotForm()` despues de actualizar estado.
-11. Persistir mediante el flujo existente: `layoutToJson()` y `saveLayout()`.
-12. Agregar o revisar tests antes de declarar completo.
+| Pieza | Archivo/simbolo | Estado |
+| --- | --- | --- |
+| Campo UI grupal | `templates/editor_offset_visual.html` / `#selection-rotation-deg` | Control numerico ubicado en `#manual-advanced-tools`. |
+| Accion UI grupal | `templates/editor_offset_visual.html` / `#btn-apply-selection-rotation` | Boton dedicado para aplicar la rotacion a la seleccion. |
+| Operacion pura | `static/js/editor_offset_visual/manual_tools.js` / `rotateSelectedSlots()` | Normaliza y escribe `slot.rotation_deg` en slots recibidos. |
+| Wrapper/listener | `static/js/editor_offset_visual.js` / `rotateSelectedSlots()` | Lee input, llama `getSelectedSlots({ editableOnly: true })`, ejecuta operacion, hace un solo `pushHistory()` y refresca seleccion. |
+| Render visual | `static/js/editor_offset_visual/renderer_canvas.js` + CSS | `data-rotation`, `--slot-rotation-deg` y `.slot[data-rotation]` aplican rotacion visual. |
+| Huella cardinal | `static/js/editor_offset_visual/core/geometry.js` | `getCardinalRotatedSlotFootprint()` calcula AABB cardinal sin alterar `getEffectiveSlotBox()`. |
+| Validacion frontend | `static/js/editor_offset_visual/core/geometry_validation.js` | `validationBoxForSlot()` alimenta `OUT_OF_SHEET`, `OUT_OF_USABLE_AREA`, `OVERLAP` y `GRIPPER`. |
 
-### Riesgos especificos
+### Pendientes confirmados
 
-| Riesgo | Mitigacion |
+| Pendiente | Estado actual |
 | --- | --- |
-| Canvas no muestra rotacion real | Decidir si la primera fase solo persiste/sale a PDF o si tambien rota visualmente `.slot`. |
-| Validacion de overlaps no considera huella rotada | No cambiar validacion hasta definir semantica de caja efectiva. |
-| Seleccion multiple con slots bloqueados | Respetar comportamiento actual de herramientas manuales. |
-| Confusion entre rotacion individual y grupal | Mantener `#slot-rot` para un slot y crear control grupal separado. |
-| Historial ruidoso | Un solo `pushHistory()` por operacion grupal. |
-| Cambios accidentales en output | No tocar `services/editor_offset_output_service.py` ni `montaje_offset_inteligente.py` en primera fase. |
+| `box select` | `slot_interactions.js` sigue intersectando contra `slotFootprintRect()`, que usa `getEffectiveSlotBox()` sin huella rotada. |
+| `drag` | Movimiento y limites/snap asociados siguen basados en cajas no rotadas. |
+| `snap` | `applySnap()` en el entrypoint usa `getEffectiveSlotBox()`; no considera huella cardinal. |
+| `align/distribute` | `manual_tools.js` usa `getEffectiveSlotBox()`; alinear/distribuir no considera huella rotada. |
+| `distance indicator` | El indicador de distancia usa `getSimpleSlotBox()` en el entrypoint. |
+| Angulos libres | La validacion geometrica solo usa huella rotada para cardinales 0/90/180/270; otros angulos caen a caja simple. |
+| Colision poligonal real | No implementada; `OVERLAP` usa AABB cardinal, no poligonos rotados. |
+| PDF/productivo | Backend/output/PDF no fueron modificados en estas fases; puede haber diferencias entre validacion visual frontend y salida productiva. |
+| Tests dedicados | No queda documentada cobertura automatizada especifica para todas las fases de rotacion frontend. |
 
-### Que no conviene tocar en esa fase
+### Que no conviene tocar sin fase nueva
 
 | No tocar | Motivo |
 | --- | --- |
@@ -625,14 +647,17 @@ Rotacion individual ya tiene piezas existentes:
 | Resize | Funcionalidad latente separada. |
 | Bleed/CTP | Superficies criticas no necesarias para rotacion grupal inicial. |
 | IDs existentes | Riesgo de romper listeners/tests. |
+| `getEffectiveSlotBox()` | Cambiarlo tendria impacto amplio sobre seleccion, drag, herramientas manuales y validaciones. |
+| `slotFootprintRect()` | Migrarlo afectaria box select e interacciones; requiere fase propia y pruebas. |
 
 ### Preguntas abiertas
 
 | Tema | Pregunta |
 | --- | --- |
 | UI | Si el control grupal debe mostrar valor comun, estado mixto o campo vacio cuando hay rotaciones distintas. |
-| Visual | Si el canvas debe aplicar transform visual real. |
-| Semantica | Si rotar 90/270 debe intercambiar huella efectiva o conservar `w_mm`/`h_mm` como caja final. |
+| Semantica global | Si una fase futura debe migrar `getEffectiveSlotBox()` o mantener un helper separado por caso de uso. |
+| Interacciones | Si `box select`, `drag`, `snap`, `align/distribute` y `distance indicator` deben usar AABB cardinal o geometria poligonal. |
+| Salida | Si backend/PDF debe validar contra la misma huella que el frontend o conservar comportamiento productivo actual. |
 | Bloqueados | Si slots `locked` deben ignorarse, bloquear operacion o permitir override explicito. |
 
 ---
@@ -641,18 +666,15 @@ Rotacion individual ya tiene piezas existentes:
 
 ### Recomendacion
 
-Antes de implementar rotacion individual/grupal:
+Despues de las fases de rotacion ya aplicadas:
 
-1. Confirmar semantica deseada de rotacion visual: persistencia solamente vs transform visual en canvas.
-2. Confirmar semantica de caja: `w_mm`/`h_mm` como caja final o arte antes de rotar.
-3. Escribir plan pequeno de implementacion limitado a HTML + `manual_tools.js` + wiring en `static/js/editor_offset_visual.js`.
-4. No tocar backend si el cambio solo escribe `slots[].rotation_deg`.
-5. Revisar IDs/listeners antes de agregar nuevos controles.
-6. Agregar tests focalizados despues de implementar:
-   - Playwright para seleccion multiple y control grupal.
-   - Persistencia de `rotation_deg`.
-   - Caracterizacion de salida si se modifica comportamiento visual/productivo.
-7. Tratar resize, bleed, CTP y visualizacion real de rotacion como fases separadas si requieren cambios de semantica.
+1. Mantener `slots[].rotation_deg` como campo canonico y no cambiar el contrato JSON sin fase explicita.
+2. Agregar cobertura focalizada para rotacion grupal, render visual y validacion cardinal antes de tocar mas geometria.
+3. Planificar `box select`, `drag`, `snap`, `align/distribute` y `distance indicator` como fases separadas, porque hoy siguen usando cajas no rotadas.
+4. No migrar `getEffectiveSlotBox()` ni `slotFootprintRect()` de forma global sin caracterizar impactos en seleccion, herramientas manuales, validacion y tests Playwright.
+5. Mantener backend, motores, bleed, CTP productivo y PDF fuera de las siguientes fases salvo justificacion explicita.
+6. Definir si los angulos libres deben quedar como dato/render/salida o si requieren colision poligonal real.
+7. Comparar canvas, validacion frontend y PDF final antes de declarar equivalencia productiva.
 
 ### Tabla funcionalidad -> archivo responsable
 
@@ -662,8 +684,12 @@ Antes de implementar rotacion individual/grupal:
 | Estado frontend | `static/js/editor_offset_visual.js` |
 | DOM refs | `static/js/editor_offset_visual/dom_refs.js` |
 | Render visual | `static/js/editor_offset_visual/renderer_canvas.js` |
+| Rotacion visual canvas | `static/js/editor_offset_visual/renderer_canvas.js`, `static/css/editor_offset_visual.css` |
 | Seleccion/drag/box select | `static/js/editor_offset_visual/slot_interactions.js` |
 | Herramientas manuales | `static/js/editor_offset_visual/manual_tools.js` |
+| Rotacion grupal | `templates/editor_offset_visual.html`, `static/js/editor_offset_visual/manual_tools.js`, `static/js/editor_offset_visual.js` |
+| Huella rotada cardinal | `static/js/editor_offset_visual/core/geometry.js` |
+| Validacion geometrica rotada cardinal | `static/js/editor_offset_visual/core/geometry_validation.js` |
 | API frontend | `static/js/editor_offset_visual/api_client.js` |
 | Guardado | `api_client.js`, `/editor_offset/save`, `services/editor_offset_jobs.py` |
 | Upload | `/editor_offset/upload/<job_id>`, `services/editor_offset_uploads.py` |
@@ -679,6 +705,9 @@ Antes de implementar rotacion individual/grupal:
 | --- | --- | --- |
 | Romper listeners por renombrar IDs | `templates/editor_offset_visual.html`, `static/js/editor_offset_visual.js` | Buscar referencias antes de cambiar; agregar IDs nuevos sin alterar existentes. |
 | Desalinear canvas y PDF | `renderer_canvas.js`, `services/editor_offset_output_service.py`, `montaje_offset_inteligente.py` | Caracterizar visual vs salida antes de cambiar semantica. |
+| Validacion frontend cardinal no equivalente al PDF | `geometry_validation.js`, output/PDF | Documentar que backend/PDF no cambiaron; agregar tests antes de acoplar contrato productivo. |
+| Interacciones usan caja no rotada | `slot_interactions.js`, `manual_tools.js`, `static/js/editor_offset_visual.js` | Migrar `box select`, `drag`, `snap`, `align/distribute` y `distance indicator` en fases separadas. |
+| Angulos libres sin geometria real | `geometry.js`, `geometry_validation.js` | Mantener fallback a caja simple hasta definir soporte poligonal. |
 | Doble conteo de bleed | Upload/output/legacy | No tocar bleed junto con rotacion; fase separada. |
 | Romper motor repeat | `engines/step_repeat_pro_engine.py` | No tocar para edicion UI inicial. |
 | Activar resize accidentalmente | CSS/JS de handles | Mantener resize como fase independiente. |
