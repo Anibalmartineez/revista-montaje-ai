@@ -101,7 +101,7 @@
 
     for (let i = 0; i < slots.length; i += 1) {
       const a = slots[i];
-      const boxA = geometry.getSimpleSlotBox(a);
+      const boxA = validationBoxForSlot(geometry, a);
       const aRight = boxA.x + boxA.w;
       const aTop = boxA.y + boxA.h;
       for (let j = i + 1; j < slots.length; j += 1) {
@@ -109,7 +109,7 @@
         const faceA = a.face || 'front';
         const faceB = b.face || 'front';
         if (faceA !== faceB) continue;
-        const boxB = geometry.getSimpleSlotBox(b);
+        const boxB = validationBoxForSlot(geometry, b);
         const bRight = boxB.x + boxB.w;
         const bTop = boxB.y + boxB.h;
         const overlaps = boxA.x < bRight && aRight > boxB.x && boxA.y < bTop && aTop > boxB.y;
