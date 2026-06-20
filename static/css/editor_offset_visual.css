@@ -576,6 +576,10 @@ body {
   user-select: none;
 }
 
+.slot[data-rotation] {
+  transform: rotate(var(--slot-rotation-deg, 0deg));
+}
+
 .slot.locked {
   border-style: dashed;
   border-color: #6b7280;

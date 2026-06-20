@@ -199,7 +199,7 @@
       slotEl.style.width = `${mmToPx(renderBox.w)}px`;
       slotEl.style.height = `${mmToPx(renderBox.h)}px`;
       slotEl.style.transformOrigin = 'center';
-      slotEl.style.transform = 'none';
+      slotEl.style.setProperty('--slot-rotation-deg', `${renderBox.rotation || 0}deg`);
       if (renderBox.rotation) {
         slotEl.dataset.rotation = String(renderBox.rotation);
       }
