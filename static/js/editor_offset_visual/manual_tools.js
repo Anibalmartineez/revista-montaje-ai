@@ -134,6 +134,35 @@
     return { changed: true };
   }
 
+  function normalizeRotationDeg(value) {
+    const parsed = Number(value);
+    if (!Number.isFinite(parsed)) return null;
+    const normalized = ((parsed % 360) + 360) % 360;
+    return Object.is(normalized, -0) ? 0 : normalized;
+  }
+
+  function rotateSelectedSlots(ctx) {
+    const { slots, rotationDeg } = ctx;
+    if (!slots || !slots.length) {
+      return { changed: false, message: 'Selecciona al menos un slot desbloqueado para rotar.' };
+    }
+
+    const normalizedRotation = normalizeRotationDeg(rotationDeg);
+    if (normalizedRotation === null) {
+      return { changed: false, message: 'Ingresa una rotacion valida.' };
+    }
+
+    let changed = false;
+    slots.forEach((slot) => {
+      if (slot.rotation_deg !== normalizedRotation) {
+        slot.rotation_deg = normalizedRotation;
+        changed = true;
+      }
+    });
+
+    return { changed, rotationDeg: normalizedRotation };
+  }
+
   function centerSelectedBlock(ctx) {
     const { slots, axis, getSelectionBounds, getUsableSheetBounds, roundMm } = ctx;
     if (!slots || !slots.length) return { changed: false };
@@ -297,6 +326,7 @@
     ungroupSelectedSlots,
     alignSelectedSlots,
     distributeSelectedSlots,
+    rotateSelectedSlots,
     centerSelectedBlock,
     nudgeSelectedSlots,
     applyGapToSlots,

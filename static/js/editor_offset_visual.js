@@ -1629,6 +1629,23 @@
     refreshSelectionAfterEdit();
   }
 
+  function rotateSelectedSlots() {
+    const rotationInput = document.getElementById('selection-rotation-deg');
+    const result = manualTools.rotateSelectedSlots({
+      slots: getSelectedSlots({ editableOnly: true }),
+      rotationDeg: rotationInput?.value,
+    });
+    if (!result.changed) {
+      if (result.message) alert(result.message);
+      return;
+    }
+    if (rotationInput && result.rotationDeg != null) {
+      rotationInput.value = result.rotationDeg;
+    }
+    pushHistory();
+    refreshSelectionAfterEdit();
+  }
+
   function centerSelectedBlock(axis = 'both') {
     const result = manualTools.centerSelectedBlock({
       slots: getSelectedSlots({ editableOnly: true }),
@@ -2568,6 +2585,7 @@
     document.getElementById('btn-align-top')?.addEventListener('click', () => alignSelectedSlots('top'));
     document.getElementById('btn-distribute-x')?.addEventListener('click', () => distributeSelectedSlots('x'));
     document.getElementById('btn-distribute-y')?.addEventListener('click', () => distributeSelectedSlots('y'));
+    document.getElementById('btn-apply-selection-rotation')?.addEventListener('click', rotateSelectedSlots);
     document.getElementById('btn-nudge-up')?.addEventListener('click', () => {
       const step = getNudgeStep();
       nudgeSelectedSlots(0, step);
