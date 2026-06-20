@@ -5,6 +5,40 @@
     return mm * scale;
   }
 
+  function normalizeRotationDeg(value) {
+    const parsed = Number(value || 0);
+    if (!Number.isFinite(parsed)) return 0;
+    return ((parsed % 360) + 360) % 360;
+  }
+
+  function getCardinalRotatedSlotFootprint(slot, override = {}) {
+    const baseW = Number(slot?.w_mm || 0);
+    const baseH = Number(slot?.h_mm || 0);
+    const x = Number(override.x ?? slot?.x_mm ?? 0);
+    const y = Number(override.y ?? slot?.y_mm ?? 0);
+    const rotation = normalizeRotationDeg(slot?.rotation_deg || 0);
+    const isCardinal = rotation === 0 || rotation === 90 || rotation === 180 || rotation === 270;
+    const swapsFootprint = isCardinal && (rotation === 90 || rotation === 270);
+    const effW = swapsFootprint ? baseH : baseW;
+    const effH = swapsFootprint ? baseW : baseH;
+    const cx = x + baseW / 2;
+    const cy = y + baseH / 2;
+
+    return {
+      rotation,
+      isCardinal,
+      swapsFootprint,
+      baseW,
+      baseH,
+      effW,
+      effH,
+      cx,
+      cy,
+      x: cx - effW / 2,
+      y: cy - effH / 2,
+    };
+  }
+
   function getEffectiveSlotBox(slot, override = {}) {
     const baseW = slot.w_mm || 0;
     const baseH = slot.h_mm || 0;
@@ -178,6 +212,8 @@
 
   window.EditorOffsetVisual.geometry = {
     mmToPx,
+    normalizeRotationDeg,
+    getCardinalRotatedSlotFootprint,
     getEffectiveSlotBox,
     slotCoordsFromBox,
     getSlotRenderBox,
