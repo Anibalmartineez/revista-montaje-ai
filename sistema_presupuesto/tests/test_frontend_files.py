@@ -39,3 +39,9 @@ def test_js_uses_api_and_does_not_reference_editor():
     assert "editor-offset" not in js
     assert "/editor_offset" not in js
 
+
+def test_dev_app_supports_configurable_data_dir():
+    source = read("dev_app.py")
+
+    assert "SISTEMA_PRESUPUESTO_DATA_DIR" in source
+    assert "os.environ.get" in source

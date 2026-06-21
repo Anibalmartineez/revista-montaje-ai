@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 from pathlib import Path
 
 from flask import Flask, Response, send_from_directory
@@ -16,7 +17,10 @@ STATIC_DIR = FRONTEND_DIR / "static"
 
 def create_dev_app() -> Flask:
     app = Flask(__name__)
-    app.config["SISTEMA_PRESUPUESTO_DATA_DIR"] = str(MODULE_ROOT / "data")
+    app.config["SISTEMA_PRESUPUESTO_DATA_DIR"] = os.environ.get(
+        "SISTEMA_PRESUPUESTO_DATA_DIR",
+        str(MODULE_ROOT / "data"),
+    )
     app.register_blueprint(presupuesto_api_bp)
 
     @app.get("/")

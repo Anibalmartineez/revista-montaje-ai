@@ -16,7 +16,7 @@ dev_app.py
 Ejecutar:
 
 ```bash
-python -m sistema_presupuesto.dev_app
+venv\Scripts\python.exe -m sistema_presupuesto.dev_app
 ```
 
 Abrir:
@@ -27,6 +27,27 @@ http://127.0.0.1:5057/sistema-presupuesto-ui
 
 La app de desarrollo registra el Blueprint interno solo en esa app temporal.
 No registra nada en la aplicacion principal.
+
+Por defecto usa:
+
+```text
+sistema_presupuesto/data/
+```
+
+Para pruebas manuales sin escribir en los datos del modulo, crear un directorio temporal con la carpeta `catalogo/` y ejecutar:
+
+```bash
+$env:SISTEMA_PRESUPUESTO_DATA_DIR="C:\tmp\sistema-presupuesto-data"
+venv\Scripts\python.exe -m sistema_presupuesto.dev_app
+```
+
+El directorio alternativo debe contener:
+
+```text
+catalogo/materiales_default.json
+catalogo/maquinas_default.json
+catalogo/procesos_default.json
+```
 
 ## Flujo
 
@@ -45,4 +66,3 @@ No registra nada en la aplicacion principal.
 - No toca `routes.py`.
 - No modifica templates, JS o CSS existentes del sistema principal.
 - Los catalogos siguen siendo ficticios de diseno.
-
