@@ -2,7 +2,13 @@
 
 Este documento registra reglas iniciales para el futuro motor de presupuesto offset.
 
-No hay motor implementado en Fase 2. Los JSON creados son fixtures y contratos de diseno.
+Fase 4 implementa un motor determinista inicial en:
+
+- `backend/production_math.py`
+- `backend/pricing_engine.py`
+- `backend/calculation_engine.py`
+
+El motor usa los JSON creados como fixtures y contratos de diseno.
 
 ## Precision monetaria
 
@@ -218,7 +224,7 @@ margen_unitario = precio_unitario - costo_unitario
 
 ## Orden futuro de calculo
 
-Orden recomendado para el motor:
+Orden aplicado por el motor inicial:
 
 1. Validar contrato y catalogos.
 2. Normalizar medidas y unidades.
@@ -234,6 +240,15 @@ Orden recomendado para el motor:
 12. Aplicar impuestos configurados.
 13. Calcular precio final y precio unitario.
 14. Emitir `warnings` y desglose auditable.
+
+## Supuestos implementados en Fase 4
+
+- `unidades_por_pliego` usa grilla no rotada.
+- Revista usa aproximacion `paginas / 4` como factor de produccion.
+- Diptico y triptico usan formato abierto para impresion.
+- CTP usa costo ficticio de ejemplo en `backend/defaults.py`.
+- Los catalogos siguen siendo valores ficticios de diseno.
+- El motor emite advertencias cuando aplica aproximaciones.
 
 ## Advertencias obligatorias futuras
 

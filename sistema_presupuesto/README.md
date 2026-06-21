@@ -36,7 +36,7 @@ Construir un modulo determinista y auditable para presupuestos offset:
 
 ## Estado actual
 
-Fase actual: **Fase 3 - modelos internos y validadores base**.
+Fase actual: **Fase 4 - motor determinista de calculo**.
 
 Incluye:
 
@@ -51,6 +51,10 @@ Incluye:
 - serializadores base para convertir JSON validado en modelos;
 - errores de dominio;
 - tests minimos de contratos y serializacion.
+- matematica tecnica de produccion;
+- motor monetario con `Decimal`;
+- orquestador de calculo puro;
+- desglose auditable con advertencias.
 
 No incluye todavia:
 
@@ -62,7 +66,6 @@ No incluye todavia:
 - integracion con Editor Offset Visual;
 - lectura de `layout_constructor.json`;
 - escritura de presupuestos reales;
-- calculo ejecutable de los fixtures.
 - rutas Flask;
 - UI;
 - integracion con el Editor Offset Visual.

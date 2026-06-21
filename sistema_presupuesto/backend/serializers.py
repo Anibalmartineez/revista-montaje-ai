@@ -15,6 +15,7 @@ from .models import (
     ProductoSpec,
     ProduccionSpec,
     QuoteRequest,
+    QuoteResult,
     SizeMM,
     ValidationReport,
 )
@@ -158,3 +159,49 @@ def quote_request_from_dict(payload: dict[str, Any]) -> QuoteRequest:
 def validation_report_to_dict(report: ValidationReport) -> dict[str, Any]:
     return report.to_dict()
 
+
+def quote_result_to_dict(result: QuoteResult) -> dict[str, Any]:
+    """Convierte un resultado calculado a JSON serializable."""
+
+    production = result.produccion
+    pricing = result.costos
+    return {
+        "schema": result.schema,
+        "schema_version": result.schema_version,
+        "ok": result.ok,
+        "request_fixture_id": result.request_fixture_id,
+        "produccion": {
+            "pieza_con_sangrado_mm": {
+                "ancho": str(production.pieza_con_sangrado_mm.ancho),
+                "alto": str(production.pieza_con_sangrado_mm.alto),
+            },
+            "unidades_por_pliego": str(production.unidades_por_pliego),
+            "factor_paginas": str(production.factor_paginas),
+            "pliegos_buenos": str(production.pliegos_buenos),
+            "merma_pliegos": str(production.merma_pliegos),
+            "pliegos_brutos": str(production.pliegos_brutos),
+            "chapas": str(production.chapas),
+            "pasadas": str(production.pasadas),
+            "impresiones": str(production.impresiones),
+            "horas_tirada": str(production.horas_tirada),
+            "horas_maquina_total": str(production.horas_maquina_total),
+            "area_pliego_util_m2": str(production.area_pliego_util_m2),
+        },
+        "costos": {
+            "moneda": pricing.moneda,
+            "items": [item.to_dict() for item in pricing.items],
+            "costo_tecnico": str(pricing.costo_tecnico),
+            "margen": {
+                "tipo": pricing.margen_tipo,
+                "pct": str(pricing.margen_pct) if pricing.margen_pct is not None else None,
+                "monto": str(pricing.margen_monto),
+            },
+            "markup_pct": str(pricing.markup_pct) if pricing.markup_pct is not None else None,
+            "descuento": str(pricing.descuento),
+            "impuestos": [tax.to_dict() for tax in pricing.impuestos],
+            "precio_antes_impuestos": str(pricing.precio_antes_impuestos),
+            "precio_final": str(pricing.precio_final),
+            "precio_unitario": str(pricing.precio_unitario),
+        },
+        "warnings": [issue.to_dict() for issue in result.warnings],
+    }

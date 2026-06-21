@@ -4,6 +4,8 @@ Este documento define la estrategia inicial de validacion para `sistema_presupue
 
 Fase 3 agrega tests minimos para validar contratos y serializadores sobre los fixtures de Fase 2.
 
+Fase 4 agrega tests del motor tecnico, monetario y orquestador de calculo.
+
 ## Principios
 
 - Probar primero funciones puras.
@@ -86,6 +88,9 @@ Tests implementados:
 
 - `tests/test_validators.py`
 - `tests/test_serializers.py`
+- `tests/test_production_math.py`
+- `tests/test_pricing_engine.py`
+- `tests/test_calculation_engine.py`
 
 Nombres sugeridos para fases futuras:
 

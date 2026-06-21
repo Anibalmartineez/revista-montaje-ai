@@ -100,6 +100,24 @@ Validacion:
 - reconciliacion de subtotales;
 - pruebas de margen vs markup.
 
+Entregables:
+
+- `backend/defaults.py`
+- `backend/production_math.py`
+- `backend/pricing_engine.py`
+- `backend/calculation_engine.py`
+- `tests/test_production_math.py`
+- `tests/test_pricing_engine.py`
+- `tests/test_calculation_engine.py`
+
+Supuestos controlados:
+
+- imposicion por grilla no rotada;
+- revista aproximada por factor `paginas / 4`;
+- costos de catalogo ficticios;
+- CTP con costo de ejemplo;
+- sin persistencia, rutas, UI ni integracion con Editor.
+
 ## Fase 5 - Persistencia JSON interna
 
 Objetivo:

@@ -149,3 +149,102 @@ class CatalogRefs:
     maquinas: frozenset[str] = frozenset()
     procesos: frozenset[str] = frozenset()
 
+
+@dataclass(frozen=True)
+class ProductionEstimate:
+    """Resultado tecnico de produccion, sin costos monetarios."""
+
+    pieza_con_sangrado_mm: SizeMM
+    unidades_por_pliego: Decimal
+    factor_paginas: Decimal
+    pliegos_buenos: Decimal
+    merma_pliegos: Decimal
+    pliegos_brutos: Decimal
+    chapas: Decimal
+    pasadas: Decimal
+    impresiones: Decimal
+    horas_tirada: Decimal
+    horas_maquina_total: Decimal
+    area_pliego_util_m2: Decimal
+    warnings: tuple[ValidationIssue, ...] = ()
+
+
+@dataclass(frozen=True)
+class CostLineItem:
+    """Linea auditable de costo."""
+
+    codigo: str
+    descripcion: str
+    cantidad: Decimal
+    unidad: str
+    costo_unitario: Decimal
+    subtotal: Decimal
+    es_valor_ejemplo: bool = True
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "codigo": self.codigo,
+            "descripcion": self.descripcion,
+            "cantidad": str(self.cantidad),
+            "unidad": self.unidad,
+            "costo_unitario": str(self.costo_unitario),
+            "subtotal": str(self.subtotal),
+            "es_valor_ejemplo": self.es_valor_ejemplo,
+        }
+
+
+@dataclass(frozen=True)
+class TaxLineItem:
+    """Linea auditable de impuesto aplicado."""
+
+    id: str
+    nombre: str
+    tasa_pct: Decimal
+    base: Decimal
+    monto: Decimal
+    incluido: bool
+    es_valor_ejemplo: bool = False
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "id": self.id,
+            "nombre": self.nombre,
+            "tasa_pct": str(self.tasa_pct),
+            "base": str(self.base),
+            "monto": str(self.monto),
+            "incluido": self.incluido,
+            "es_valor_ejemplo": self.es_valor_ejemplo,
+        }
+
+
+@dataclass(frozen=True)
+class PricingResult:
+    """Resultado monetario calculado a partir de una estimacion tecnica."""
+
+    moneda: str
+    items: tuple[CostLineItem, ...]
+    costo_tecnico: Decimal
+    margen_tipo: str | None
+    margen_pct: Decimal | None
+    margen_monto: Decimal
+    markup_pct: Decimal | None
+    descuento: Decimal
+    impuestos: tuple[TaxLineItem, ...]
+    precio_antes_impuestos: Decimal
+    precio_final: Decimal
+    precio_unitario: Decimal
+    warnings: tuple[ValidationIssue, ...] = ()
+
+
+@dataclass(frozen=True)
+class QuoteResult:
+    """Resultado final de calculo determinista."""
+
+    schema: str
+    schema_version: int
+    ok: bool
+    request_fixture_id: str | None
+    produccion: ProductionEstimate
+    costos: PricingResult
+    warnings: tuple[ValidationIssue, ...] = ()
+
