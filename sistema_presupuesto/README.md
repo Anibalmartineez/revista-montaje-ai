@@ -36,7 +36,7 @@ Construir un modulo determinista y auditable para presupuestos offset:
 
 ## Estado actual
 
-Fase actual: **Fase 5 - persistencia JSON interna y repositorios**.
+Fase actual: **Fase 6 - CLI interno de prueba**.
 
 Incluye:
 
@@ -58,6 +58,7 @@ Incluye:
 - persistencia JSON local;
 - repositorio de catalogos;
 - repositorio de presupuestos calculados.
+- CLI interno para calcular, guardar, listar y ver presupuestos.
 
 No incluye todavia:
 
@@ -73,6 +74,7 @@ No incluye todavia:
 - UI;
 - integracion con el Editor Offset Visual.
 - base de datos.
+- API publica.
 
 ## Fases previstas
 
@@ -100,3 +102,4 @@ El resultado debe explicar cada componente del presupuesto. Si un dato tecnico n
 - `docs/03_TESTS_VALIDACION.md`: estrategia de pruebas.
 - `docs/04_PLAN_SAFE.md`: plan por fases.
 - `docs/05_INTEGRACION_FUTURA_EDITOR_OFFSET.md`: integracion futura con el Editor Offset Visual.
+- `docs/06_USO_CLI.md`: uso del CLI interno de prueba.

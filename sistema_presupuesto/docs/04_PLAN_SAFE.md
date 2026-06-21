@@ -148,7 +148,29 @@ Fuera de alcance:
 - UI;
 - integracion con Editor Offset Visual.
 
-## Fase 6 - UI aislada
+## Fase 6 - CLI interno de prueba
+
+Objetivo:
+
+- calcular presupuestos desde fixtures JSON;
+- calcular y guardar presupuestos;
+- listar presupuestos guardados;
+- ver presupuesto por ID;
+- exponer salida JSON legible para pruebas internas.
+
+Entregables:
+
+- `cli.py`
+- `tests/test_cli.py`
+- `docs/06_USO_CLI.md`
+
+Fuera de alcance:
+
+- rutas Flask;
+- UI;
+- integracion con Editor Offset Visual.
+
+## Fase 7 - UI aislada
 
 Objetivo:
 
@@ -162,7 +184,7 @@ Regla:
 - usar `frontend/` dentro del modulo;
 - no tocar templates, CSS ni JS del Editor Offset Visual.
 
-## Fase 7 - API o Blueprint propio
+## Fase 8 - API o Blueprint propio
 
 Objetivo:
 
@@ -171,7 +193,7 @@ Objetivo:
 
 No crear rutas `/editor_offset*`.
 
-## Fase 8 - Integracion futura por adaptador
+## Fase 9 - Integracion futura por adaptador
 
 Objetivo:
 

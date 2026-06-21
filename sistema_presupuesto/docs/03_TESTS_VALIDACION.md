@@ -8,6 +8,8 @@ Fase 4 agrega tests del motor tecnico, monetario y orquestador de calculo.
 
 Fase 5 agrega tests para persistencia JSON local y repositorios.
 
+Fase 6 agrega tests del CLI interno.
+
 ## Principios
 
 - Probar primero funciones puras.
@@ -96,6 +98,7 @@ Tests implementados:
 - `tests/test_storage.py`
 - `tests/test_catalog_repository.py`
 - `tests/test_repositories.py`
+- `tests/test_cli.py`
 
 Nombres sugeridos para fases futuras:
 
