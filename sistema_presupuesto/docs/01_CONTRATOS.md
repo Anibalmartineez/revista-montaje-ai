@@ -2,7 +2,7 @@
 
 Este documento describe contratos JSON futuros para `sistema_presupuesto/`.
 
-No hay API ni motor implementados en Fase 2. Los contratos y fixtures son una base de diseno para fases posteriores.
+No hay API ni motor implementados en Fase 3. Los contratos y fixtures ya pueden validarse con `backend/validators.py`.
 
 ## Principios
 
@@ -202,3 +202,31 @@ Cada tarifa debe declarar vigencia, fuente y moneda.
 ## Reglas de compatibilidad
 
 Los contratos de Fase 2 no son API publica todavia. Pueden ajustarse antes de implementar modelos, pero cualquier cambio debe actualizar fixtures y documentacion al mismo tiempo.
+
+## Validadores de Fase 3
+
+Archivos agregados:
+
+- `backend/models.py`
+- `backend/validators.py`
+- `backend/errors.py`
+- `backend/serializers.py`
+
+Reglas bloqueantes actuales:
+
+- `schema` debe ser `sistema_presupuesto.quote_request`.
+- `schema_version` debe ser `1`.
+- `moneda` debe ser `PYG`.
+- cantidades y medidas deben ser mayores que cero.
+- sangrado, merma y porcentajes no deben ser negativos.
+- `margen_pct` y `markup_pct` no pueden venir activos al mismo tiempo.
+- `revista` requiere `paginas` positivas, multiplo de 4, y `encuadernacion.tipo`.
+- `folleto_diptico` requiere `paneles=2`.
+- `folleto_triptico` requiere `paneles=3`.
+- `material_id`, `maquina_id` y `procesos_ids[]` deben existir en catalogos activos cuando se validan con catalogo.
+
+Reglas de advertencia actuales:
+
+- si falta `producto.colores.texto`, se agrega advertencia no bloqueante.
+
+Los validadores no calculan precios ni aceptan totales enviados por frontend como fuente de verdad.

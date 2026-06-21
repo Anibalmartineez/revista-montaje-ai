@@ -36,7 +36,7 @@ Construir un modulo determinista y auditable para presupuestos offset:
 
 ## Estado actual
 
-Fase actual: **Fase 2 - contratos JSON y fixtures iniciales**.
+Fase actual: **Fase 3 - modelos internos y validadores base**.
 
 Incluye:
 
@@ -46,6 +46,11 @@ Incluye:
 - catalogos JSON de ejemplo;
 - fixtures JSON de solicitudes de presupuesto;
 - ejemplo de respuesta futura.
+- modelos internos con `dataclasses`;
+- validadores puros de contratos;
+- serializadores base para convertir JSON validado en modelos;
+- errores de dominio;
+- tests minimos de contratos y serializacion.
 
 No incluye todavia:
 
@@ -58,6 +63,9 @@ No incluye todavia:
 - lectura de `layout_constructor.json`;
 - escritura de presupuestos reales;
 - calculo ejecutable de los fixtures.
+- rutas Flask;
+- UI;
+- integracion con el Editor Offset Visual.
 
 ## Fases previstas
 

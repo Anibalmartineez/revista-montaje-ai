@@ -2,7 +2,7 @@
 
 Este documento define la estrategia inicial de validacion para `sistema_presupuesto/`.
 
-No hay tests implementados en Fase 2. Los archivos en `data/fixtures/` son insumos para tests futuros.
+Fase 3 agrega tests minimos para validar contratos y serializadores sobre los fixtures de Fase 2.
 
 ## Principios
 
@@ -82,7 +82,12 @@ No hay tests implementados en Fase 2. Los archivos en `data/fixtures/` son insum
 
 ## Tests automaticos futuros
 
-Nombres sugeridos:
+Tests implementados:
+
+- `tests/test_validators.py`
+- `tests/test_serializers.py`
+
+Nombres sugeridos para fases futuras:
 
 - `test_bleed_expands_final_size`
 - `test_forms_per_sheet_uses_useful_area`

@@ -66,12 +66,25 @@ Objetivo:
 
 - implementar modelos puros;
 - validar cantidades, medidas, moneda, colores, materiales, maquinas, procesos y estados.
+- diferenciar errores bloqueantes de advertencias;
+- serializar JSON validado a modelos internos;
+- preparar campos numericos para `Decimal`.
 
 Regla:
 
 - sin Flask;
 - sin Editor Offset Visual;
 - sin persistencia compleja.
+
+Entregables:
+
+- `backend/__init__.py`
+- `backend/models.py`
+- `backend/validators.py`
+- `backend/errors.py`
+- `backend/serializers.py`
+- `tests/test_validators.py`
+- `tests/test_serializers.py`
 
 ## Fase 4 - Motor determinista
 
