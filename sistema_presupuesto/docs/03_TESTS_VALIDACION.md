@@ -12,6 +12,8 @@ Fase 6 agrega tests del CLI interno.
 
 Fase 7 agrega tests de API usando una app Flask temporal.
 
+Fase 8 agrega tests de existencia y aislamiento de archivos frontend.
+
 ## Principios
 
 - Probar primero funciones puras.
@@ -102,6 +104,7 @@ Tests implementados:
 - `tests/test_repositories.py`
 - `tests/test_cli.py`
 - `tests/test_api.py`
+- `tests/test_frontend_files.py`
 
 Nombres sugeridos para fases futuras:
 

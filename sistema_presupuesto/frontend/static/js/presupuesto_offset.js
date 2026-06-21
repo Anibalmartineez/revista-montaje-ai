@@ -1,0 +1,361 @@
+(function () {
+  "use strict";
+
+  const API_BASE = "/api/sistema-presupuesto";
+  const state = {
+    catalogs: {
+      materiales: [],
+      maquinas: [],
+      procesos: [],
+    },
+    lastResult: null,
+  };
+
+  const $ = (selector) => document.querySelector(selector);
+
+  document.addEventListener("DOMContentLoaded", init);
+
+  async function init() {
+    bindEvents();
+    await checkHealth();
+    await loadCatalogs();
+    await refreshBudgets();
+  }
+
+  function bindEvents() {
+    $("#sp-quote-form").addEventListener("submit", async (event) => {
+      event.preventDefault();
+      await calculate(false);
+    });
+    $("#sp-save-button").addEventListener("click", async () => {
+      await calculate(true);
+    });
+    $("#sp-refresh-budgets").addEventListener("click", refreshBudgets);
+    $("#sp-tipo").addEventListener("change", syncTypeDefaults);
+    $("#sp-modo-comercial").addEventListener("change", syncCommercialLimit);
+  }
+
+  async function checkHealth() {
+    const status = $("#sp-api-status");
+    try {
+      const payload = await requestJson(`${API_BASE}/health`);
+      status.textContent = payload.ok ? "API conectada" : "API con error";
+      status.classList.toggle("sp-online", Boolean(payload.ok));
+    } catch (error) {
+      status.textContent = "API no disponible";
+      status.classList.remove("sp-online");
+    }
+  }
+
+  async function loadCatalogs() {
+    const [materiales, maquinas, procesos] = await Promise.all([
+      requestJson(`${API_BASE}/catalogos/materiales`),
+      requestJson(`${API_BASE}/catalogos/maquinas`),
+      requestJson(`${API_BASE}/catalogos/procesos`),
+    ]);
+    state.catalogs.materiales = materiales.catalogo.materiales || [];
+    state.catalogs.maquinas = maquinas.catalogo.maquinas || [];
+    state.catalogs.procesos = procesos.catalogo.procesos || [];
+    fillSelect($("#sp-material"), state.catalogs.materiales);
+    fillSelect($("#sp-maquina"), state.catalogs.maquinas);
+    fillProcesses();
+  }
+
+  function fillSelect(select, items) {
+    select.innerHTML = "";
+    items.forEach((item) => {
+      const option = document.createElement("option");
+      option.value = item.id;
+      option.textContent = item.nombre;
+      select.appendChild(option);
+    });
+  }
+
+  function fillProcesses() {
+    const container = $("#sp-procesos");
+    container.innerHTML = "";
+    state.catalogs.procesos.forEach((process) => {
+      const label = document.createElement("label");
+      label.className = "sp-check";
+      label.innerHTML = `
+        <input type="checkbox" value="${escapeHtml(process.id)}">
+        <span>${escapeHtml(process.nombre)}</span>
+      `;
+      container.appendChild(label);
+    });
+  }
+
+  async function calculate(shouldSave) {
+    const endpoint = shouldSave ? "cotizar-y-guardar" : "cotizar";
+    try {
+      const payload = buildQuoteRequest();
+      const response = await requestJson(`${API_BASE}/${endpoint}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      const result = shouldSave ? response.record.result : response.result;
+      state.lastResult = result;
+      renderResult(result);
+      if (shouldSave) {
+        await refreshBudgets();
+      }
+    } catch (error) {
+      renderError(error);
+    }
+  }
+
+  function buildQuoteRequest() {
+    const tipo = $("#sp-tipo").value;
+    const frente = readInteger("#sp-colores-frente");
+    const dorso = readInteger("#sp-colores-dorso");
+    const modo = $("#sp-modo-comercial").value;
+    const pct = readDecimal("#sp-comercial-pct");
+    const impuestoPct = readDecimal("#sp-impuesto-pct");
+    const producto = {
+      titulo: labelForType(tipo),
+      tipo,
+      cantidad: readDecimal("#sp-cantidad"),
+      unidad_cantidad: tipo === "revista" ? "ejemplar" : "unidad",
+      ancho_mm: readDecimal("#sp-ancho-mm"),
+      alto_mm: readDecimal("#sp-alto-mm"),
+      sangrado_mm: readDecimal("#sp-sangrado-mm"),
+      paginas: tipo === "revista" ? readInteger("#sp-paginas") : null,
+      caras: dorso > 0 ? 2 : 1,
+      colores: {
+        frente,
+        dorso,
+        texto: `${frente}/${dorso}`,
+      },
+    };
+
+    if (tipo === "revista") {
+      producto.encuadernacion = {
+        tipo: "caballete",
+        proceso_id: "engrampado_caballete",
+      };
+    }
+
+    if (tipo === "folleto_diptico" || tipo === "folleto_triptico") {
+      producto.formato_abierto_mm = {
+        ancho: producto.ancho_mm,
+        alto: producto.alto_mm,
+      };
+      producto.formato_cerrado_mm = {
+        ancho: String(Number(producto.ancho_mm) / (tipo === "folleto_diptico" ? 2 : 3)),
+        alto: producto.alto_mm,
+      };
+      producto.paneles = tipo === "folleto_diptico" ? 2 : 3;
+      producto.pliegues = tipo === "folleto_diptico" ? 1 : 2;
+    }
+
+    return {
+      schema: "sistema_presupuesto.quote_request",
+      schema_version: 1,
+      cliente: {
+        nombre: "Cliente UI aislada",
+        referencia: "UI-AISLADA",
+      },
+      producto,
+      produccion: {
+        pliego_base_mm: {
+          ancho: readDecimal("#sp-pliego-base-ancho"),
+          alto: readDecimal("#sp-pliego-base-alto"),
+        },
+        pliego_util_mm: {
+          ancho: readDecimal("#sp-pliego-util-ancho"),
+          alto: readDecimal("#sp-pliego-util-alto"),
+        },
+        formas_por_pliego_manual: readOptionalDecimal("#sp-formas-manual"),
+        merma_arranque_pliegos: readDecimal("#sp-merma-arranque"),
+        merma_pct: readDecimal("#sp-merma-pct"),
+        imposicion_origen: "ui_aislada",
+      },
+      costos: {
+        moneda: "PYG",
+        material_id: $("#sp-material").value,
+        maquina_id: $("#sp-maquina").value,
+        procesos_ids: selectedProcesses(),
+        margen_pct: modo === "margen" ? pct : null,
+        markup_pct: modo === "markup" ? pct : null,
+        impuestos: impuestoPct === "0" ? [] : [{
+          id: "iva_ui",
+          nombre: "IVA UI",
+          tasa_pct: impuestoPct,
+          base: "precio_antes_impuestos",
+          incluido: false,
+          es_valor_ejemplo: true,
+        }],
+      },
+    };
+  }
+
+  function renderResult(result) {
+    $("#sp-precio-final").textContent = money(result.costos.precio_final, result.costos.moneda);
+    $("#sp-precio-unitario").textContent = money(result.costos.precio_unitario, result.costos.moneda);
+    $("#sp-subtotal").textContent = money(result.costos.costo_tecnico, result.costos.moneda);
+    $("#sp-pliegos").textContent = result.produccion.pliegos_brutos;
+    $("#sp-chapas").textContent = result.produccion.chapas;
+    $("#sp-pasadas").textContent = result.produccion.pasadas;
+    renderLines(result.costos.items || []);
+    renderWarnings(result.warnings || []);
+    $("#sp-json-output").textContent = JSON.stringify(result, null, 2);
+  }
+
+  function renderLines(items) {
+    const container = $("#sp-cost-lines");
+    container.innerHTML = "";
+    items.forEach((item) => {
+      const row = document.createElement("div");
+      row.className = "sp-line";
+      row.innerHTML = `
+        <div>
+          <strong>${escapeHtml(item.descripcion)}</strong>
+          <small>${escapeHtml(item.cantidad)} ${escapeHtml(item.unidad)} x ${escapeHtml(item.costo_unitario)}</small>
+        </div>
+        <strong>${money(item.subtotal, "PYG")}</strong>
+      `;
+      container.appendChild(row);
+    });
+  }
+
+  function renderWarnings(warnings) {
+    const list = $("#sp-warnings");
+    list.innerHTML = "";
+    if (!warnings.length) {
+      const item = document.createElement("li");
+      item.textContent = "Sin advertencias.";
+      list.appendChild(item);
+      return;
+    }
+    warnings.forEach((warning) => {
+      const item = document.createElement("li");
+      item.textContent = `${warning.code}: ${warning.message}`;
+      list.appendChild(item);
+    });
+  }
+
+  async function refreshBudgets() {
+    try {
+      const payload = await requestJson(`${API_BASE}/presupuestos`);
+      renderBudgetList(payload.presupuestos || []);
+    } catch (error) {
+      $("#sp-budget-list").innerHTML = `<div class="sp-alert sp-error">${escapeHtml(error.message)}</div>`;
+    }
+  }
+
+  function renderBudgetList(items) {
+    const container = $("#sp-budget-list");
+    container.innerHTML = "";
+    if (!items.length) {
+      container.innerHTML = "<div class=\"sp-alert\">No hay presupuestos guardados.</div>";
+      return;
+    }
+    items.forEach((item) => {
+      const button = document.createElement("button");
+      button.type = "button";
+      button.className = "sp-budget-row";
+      button.innerHTML = `
+        <strong>${escapeHtml(item.presupuesto_id)}</strong>
+        <span>${escapeHtml(item.estado)} · ${money(item.precio_final || "0", item.moneda || "PYG")}</span>
+      `;
+      button.addEventListener("click", () => openBudget(item.presupuesto_id));
+      container.appendChild(button);
+    });
+  }
+
+  async function openBudget(id) {
+    try {
+      const payload = await requestJson(`${API_BASE}/presupuestos/${encodeURIComponent(id)}`);
+      $("#sp-budget-detail").textContent = JSON.stringify(payload.record, null, 2);
+    } catch (error) {
+      $("#sp-budget-detail").textContent = error.message;
+    }
+  }
+
+  function syncTypeDefaults() {
+    const tipo = $("#sp-tipo").value;
+    if (tipo === "tarjeta") {
+      $("#sp-ancho-mm").value = "90";
+      $("#sp-alto-mm").value = "50";
+      $("#sp-colores-dorso").value = "4";
+    } else if (tipo === "revista") {
+      $("#sp-ancho-mm").value = "210";
+      $("#sp-alto-mm").value = "297";
+      $("#sp-paginas").value = "32";
+      $("#sp-colores-dorso").value = "4";
+    } else if (tipo === "folleto_diptico" || tipo === "folleto_triptico") {
+      $("#sp-ancho-mm").value = "297";
+      $("#sp-alto-mm").value = "210";
+      $("#sp-colores-dorso").value = "4";
+    } else {
+      $("#sp-ancho-mm").value = "148";
+      $("#sp-alto-mm").value = "210";
+      $("#sp-colores-dorso").value = "0";
+    }
+  }
+
+  function syncCommercialLimit() {
+    $("#sp-comercial-pct").max = $("#sp-modo-comercial").value === "margen" ? "99" : "999";
+  }
+
+  async function requestJson(url, options) {
+    const response = await fetch(url, options);
+    const payload = await response.json().catch(() => ({}));
+    if (!response.ok || payload.ok === false) {
+      const message = payload.error ? `${payload.error.code || payload.error.type}: ${payload.error.message}` : "Error de API";
+      throw new Error(message);
+    }
+    return payload;
+  }
+
+  function renderError(error) {
+    $("#sp-precio-final").textContent = "-";
+    $("#sp-precio-unitario").textContent = "-";
+    $("#sp-cost-lines").innerHTML = "";
+    renderWarnings([{ code: "ERROR", message: error.message }]);
+    $("#sp-json-output").textContent = JSON.stringify({ ok: false, error: error.message }, null, 2);
+  }
+
+  function selectedProcesses() {
+    return Array.from(document.querySelectorAll("#sp-procesos input:checked")).map((input) => input.value);
+  }
+
+  function readDecimal(selector) {
+    return String($(selector).value || "0");
+  }
+
+  function readOptionalDecimal(selector) {
+    const value = $(selector).value;
+    return value === "" ? null : String(value);
+  }
+
+  function readInteger(selector) {
+    return Number.parseInt($(selector).value || "0", 10);
+  }
+
+  function labelForType(tipo) {
+    return {
+      volante: "Volante",
+      tarjeta: "Tarjeta",
+      revista: "Revista",
+      folleto_diptico: "Folleto diptico",
+      folleto_triptico: "Folleto triptico",
+    }[tipo] || "Trabajo offset";
+  }
+
+  function money(value, currency) {
+    const number = Number(value || 0);
+    return `${currency || "PYG"} ${number.toLocaleString("es-PY", { maximumFractionDigits: 2 })}`;
+  }
+
+  function escapeHtml(value) {
+    return String(value).replace(/[&<>"']/g, (char) => ({
+      "&": "&amp;",
+      "<": "&lt;",
+      ">": "&gt;",
+      "\"": "&quot;",
+      "'": "&#039;",
+    }[char]));
+  }
+})();

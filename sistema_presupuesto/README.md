@@ -36,7 +36,7 @@ Construir un modulo determinista y auditable para presupuestos offset:
 
 ## Estado actual
 
-Fase actual: **Fase 7 - API Flask aislada / Blueprint no registrado**.
+Fase actual: **Fase 8 - UI frontend aislada**.
 
 Incluye:
 
@@ -60,6 +60,7 @@ Incluye:
 - repositorio de presupuestos calculados.
 - CLI interno para calcular, guardar, listar y ver presupuestos.
 - Blueprint Flask aislado e importable para pruebas internas.
+- UI frontend aislada para cargar datos, calcular, guardar, listar y ver presupuestos.
 
 No incluye todavia:
 
@@ -75,8 +76,8 @@ No incluye todavia:
 - UI;
 - integracion con el Editor Offset Visual.
 - base de datos.
-- registro en app Flask principal.
 - API publica productiva.
+- integracion con Editor Offset Visual.
 
 ## Fases previstas
 
@@ -106,3 +107,4 @@ El resultado debe explicar cada componente del presupuesto. Si un dato tecnico n
 - `docs/05_INTEGRACION_FUTURA_EDITOR_OFFSET.md`: integracion futura con el Editor Offset Visual.
 - `docs/06_USO_CLI.md`: uso del CLI interno de prueba.
 - `docs/07_API_INTERNA.md`: Blueprint Flask aislado.
+- `docs/08_UI_AISLADA.md`: UI frontend aislada.

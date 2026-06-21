@@ -1,0 +1,199 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Sistema Presupuesto Offset</title>
+    <link rel="stylesheet" href="/sistema-presupuesto-ui/static/css/presupuesto_offset.css">
+  </head>
+  <body>
+    <main class="sp-shell">
+      <header class="sp-header">
+        <div>
+          <h1>Sistema Presupuesto Offset</h1>
+          <p>Calculo interno con catalogos de ejemplo. El backend recalcula y emite el desglose auditable.</p>
+        </div>
+        <div class="sp-status" id="sp-api-status">API sin verificar</div>
+      </header>
+
+      <section class="sp-alert" role="note">
+        Los valores de catalogo son ficticios de diseno. No usar como tarifas productivas.
+      </section>
+
+      <div class="sp-layout">
+        <form class="sp-panel sp-form" id="sp-quote-form">
+          <section class="sp-section">
+            <h2>Producto</h2>
+            <div class="sp-grid">
+              <label>
+                <span>Tipo de trabajo</span>
+                <select name="tipo" id="sp-tipo">
+                  <option value="volante">Volante</option>
+                  <option value="tarjeta">Tarjeta</option>
+                  <option value="revista">Revista</option>
+                  <option value="folleto_diptico">Folleto diptico</option>
+                  <option value="folleto_triptico">Folleto triptico</option>
+                </select>
+              </label>
+              <label>
+                <span>Cantidad</span>
+                <input name="cantidad" id="sp-cantidad" type="number" min="1" step="1" value="1000">
+              </label>
+              <label>
+                <span>Ancho final (mm)</span>
+                <input name="ancho_mm" id="sp-ancho-mm" type="number" min="1" step="0.1" value="148">
+              </label>
+              <label>
+                <span>Alto final (mm)</span>
+                <input name="alto_mm" id="sp-alto-mm" type="number" min="1" step="0.1" value="210">
+              </label>
+              <label>
+                <span>Sangrado (mm)</span>
+                <input name="sangrado_mm" id="sp-sangrado-mm" type="number" min="0" step="0.1" value="3">
+              </label>
+              <label>
+                <span>Paginas</span>
+                <input name="paginas" id="sp-paginas" type="number" min="1" step="1" placeholder="Solo revista">
+              </label>
+              <label>
+                <span>Colores frente</span>
+                <input name="colores_frente" id="sp-colores-frente" type="number" min="0" max="8" step="1" value="4">
+              </label>
+              <label>
+                <span>Colores dorso</span>
+                <input name="colores_dorso" id="sp-colores-dorso" type="number" min="0" max="8" step="1" value="0">
+              </label>
+            </div>
+          </section>
+
+          <section class="sp-section">
+            <h2>Produccion</h2>
+            <div class="sp-grid">
+              <label>
+                <span>Pliego base ancho (mm)</span>
+                <input id="sp-pliego-base-ancho" type="number" min="1" step="0.1" value="700">
+              </label>
+              <label>
+                <span>Pliego base alto (mm)</span>
+                <input id="sp-pliego-base-alto" type="number" min="1" step="0.1" value="1000">
+              </label>
+              <label>
+                <span>Pliego util ancho (mm)</span>
+                <input id="sp-pliego-util-ancho" type="number" min="1" step="0.1" value="680">
+              </label>
+              <label>
+                <span>Pliego util alto (mm)</span>
+                <input id="sp-pliego-util-alto" type="number" min="1" step="0.1" value="980">
+              </label>
+              <label>
+                <span>Merma arranque (pliegos)</span>
+                <input id="sp-merma-arranque" type="number" min="0" step="1" value="30">
+              </label>
+              <label>
+                <span>Merma (%)</span>
+                <input id="sp-merma-pct" type="number" min="0" step="0.1" value="3">
+              </label>
+              <label>
+                <span>Formas por pliego manual</span>
+                <input id="sp-formas-manual" type="number" min="1" step="1" placeholder="Opcional">
+              </label>
+              <label>
+                <span>Moneda</span>
+                <input id="sp-moneda" type="text" value="PYG" readonly>
+              </label>
+            </div>
+          </section>
+
+          <section class="sp-section">
+            <h2>Costos</h2>
+            <div class="sp-grid">
+              <label>
+                <span>Material</span>
+                <select id="sp-material"></select>
+              </label>
+              <label>
+                <span>Maquina</span>
+                <select id="sp-maquina"></select>
+              </label>
+              <label>
+                <span>Modo comercial</span>
+                <select id="sp-modo-comercial">
+                  <option value="margen">Margen sobre venta</option>
+                  <option value="markup">Markup sobre costo</option>
+                </select>
+              </label>
+              <label>
+                <span>Porcentaje</span>
+                <input id="sp-comercial-pct" type="number" min="0" max="99" step="0.1" value="30">
+              </label>
+              <label>
+                <span>Impuesto (%)</span>
+                <input id="sp-impuesto-pct" type="number" min="0" max="100" step="0.1" value="10">
+              </label>
+            </div>
+            <fieldset class="sp-process-list">
+              <legend>Procesos / terminaciones</legend>
+              <div id="sp-procesos"></div>
+            </fieldset>
+          </section>
+
+          <div class="sp-actions">
+            <button class="sp-button sp-button-primary" type="submit">Calcular presupuesto</button>
+            <button class="sp-button" type="button" id="sp-save-button">Calcular y guardar</button>
+          </div>
+        </form>
+
+        <aside class="sp-panel sp-results" aria-live="polite">
+          <section>
+            <h2>Resultado</h2>
+            <div class="sp-total">
+              <span>Precio final</span>
+              <strong id="sp-precio-final">-</strong>
+            </div>
+            <div class="sp-unit">
+              <span>Precio unitario</span>
+              <strong id="sp-precio-unitario">-</strong>
+            </div>
+            <div class="sp-kpis">
+              <div><span>Subtotal tecnico</span><strong id="sp-subtotal">-</strong></div>
+              <div><span>Pliegos brutos</span><strong id="sp-pliegos">-</strong></div>
+              <div><span>Chapas</span><strong id="sp-chapas">-</strong></div>
+              <div><span>Pasadas</span><strong id="sp-pasadas">-</strong></div>
+            </div>
+          </section>
+
+          <section>
+            <h3>Desglose</h3>
+            <div class="sp-lines" id="sp-cost-lines"></div>
+          </section>
+
+          <section>
+            <h3>Warnings</h3>
+            <ul class="sp-warnings" id="sp-warnings"></ul>
+          </section>
+
+          <details class="sp-json">
+            <summary>JSON tecnico</summary>
+            <pre id="sp-json-output">{}</pre>
+          </details>
+        </aside>
+      </div>
+
+      <section class="sp-panel sp-saved">
+        <div class="sp-saved-header">
+          <h2>Presupuestos guardados</h2>
+          <button class="sp-button" id="sp-refresh-budgets" type="button">Actualizar lista</button>
+        </div>
+        <div class="sp-saved-layout">
+          <div class="sp-budget-list" id="sp-budget-list"></div>
+          <article class="sp-budget-detail">
+            <h3>Presupuesto abierto</h3>
+            <pre id="sp-budget-detail">Selecciona un presupuesto guardado.</pre>
+          </article>
+        </div>
+      </section>
+    </main>
+
+    <script src="/sistema-presupuesto-ui/static/js/presupuesto_offset.js" defer></script>
+  </body>
+</html>

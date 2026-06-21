@@ -192,7 +192,7 @@ Fuera de alcance:
 - UI;
 - integracion con Editor Offset Visual.
 
-## Fase 8 - UI aislada
+## Fase 8 - UI frontend aislada
 
 Objetivo:
 
@@ -200,11 +200,22 @@ Objetivo:
 - crear pantalla de presupuesto;
 - mostrar desglose;
 - preparar vista imprimible.
+- listar y abrir presupuestos guardados;
+- usar endpoints del Blueprint interno.
 
 Regla:
 
 - usar `frontend/` dentro del modulo;
 - no tocar templates, CSS ni JS del Editor Offset Visual.
+
+Entregables:
+
+- `frontend/templates/presupuesto_offset_app.html`
+- `frontend/static/css/presupuesto_offset.css`
+- `frontend/static/js/presupuesto_offset.js`
+- `dev_app.py`
+- `docs/08_UI_AISLADA.md`
+- `tests/test_frontend_files.py`
 
 ## Fase 9 - Registro API en app principal, si se aprueba
 
