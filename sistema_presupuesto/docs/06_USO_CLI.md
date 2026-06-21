@@ -57,4 +57,3 @@ El directorio alternativo debe contener `catalogo/materiales_default.json`, `cat
 - No integra con Editor Offset Visual.
 - Usa catalogos ficticios de diseno.
 - Mantiene warnings de valores no productivos.
-

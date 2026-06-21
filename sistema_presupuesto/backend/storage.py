@@ -76,4 +76,3 @@ class JsonStorage:
         if common != str(self.base_dir):
             raise StoragePathError("Ruta fuera del directorio base.")
         return resolved
-

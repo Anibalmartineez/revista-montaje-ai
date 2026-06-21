@@ -28,3 +28,7 @@ static/ia_jobs/
 *.pdf
 
 # Archivos internos de pruebas
+
+# Presupuestos generados por el modulo aislado Sistema Presupuesto
+sistema_presupuesto/data/presupuestos/*.json
+!sistema_presupuesto/data/presupuestos/.gitkeep

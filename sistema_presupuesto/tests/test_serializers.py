@@ -30,4 +30,3 @@ def test_quote_request_serializer_preserves_catalog_ids():
     assert model.costos.material_id == "cartulina_300"
     assert model.costos.maquina_id == "offset_4_colores"
     assert model.costos.procesos_ids == ("corte_guillotina", "redondeado_esquinas")
-

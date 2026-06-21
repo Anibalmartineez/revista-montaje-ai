@@ -66,4 +66,3 @@ def test_storage_rejects_non_object_json(tmp_path):
 
     with pytest.raises(JsonDecodeStorageError):
         storage.read_json("catalogo/array.json")
-

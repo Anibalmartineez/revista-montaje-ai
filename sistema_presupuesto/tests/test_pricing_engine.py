@@ -61,4 +61,3 @@ def test_taxes_are_applied_after_base_price():
     tax_total = sum((tax.monto for tax in pricing.impuestos if not tax.incluido), Decimal("0"))
     assert pricing.precio_final == pricing.precio_antes_impuestos + tax_total
     assert tax_total > Decimal("0")
-

@@ -84,4 +84,3 @@ def test_invalid_input_still_fails_before_calculation(catalogs):
         calculate_quote_from_dict(payload, **catalogs)
 
     assert any(error.code == "NON_POSITIVE_NUMBER" for error in exc_info.value.report.errors)
-

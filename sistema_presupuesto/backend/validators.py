@@ -296,4 +296,3 @@ def _require_int_range(
         return
     if value < minimum or value > maximum:
         report.add_error("INTEGER_OUT_OF_RANGE", f"Debe estar entre {minimum} y {maximum}.", path)
-

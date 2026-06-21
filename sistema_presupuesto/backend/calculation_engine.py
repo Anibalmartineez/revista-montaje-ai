@@ -79,4 +79,3 @@ def _find_catalog_item(catalog: dict[str, Any], collection_key: str, item_id: st
         if item.get("id") == item_id:
             return item
     raise CatalogValidationError(f"ID de catalogo no encontrado: {item_id}")
-

@@ -175,4 +175,3 @@ def _tax_lines(request: QuoteRequest, precio_antes_impuestos: Decimal) -> list[T
             )
         )
     return taxes
-

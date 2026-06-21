@@ -139,4 +139,3 @@ def test_missing_catalog_returns_controlled_error(tmp_path):
     payload = response.get_json()
     assert payload["ok"] is False
     assert payload["error"]["code"] == "JSON_NOT_FOUND"
-

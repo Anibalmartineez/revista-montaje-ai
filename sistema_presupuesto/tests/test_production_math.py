@@ -57,4 +57,3 @@ def test_revista_uses_page_factor_and_reasonable_plates():
     assert estimate.chapas == Decimal("64")
     assert estimate.pasadas == Decimal("2")
     assert any(warning.code == "MAGAZINE_SIGNATURE_APPROXIMATION" for warning in estimate.warnings)
-

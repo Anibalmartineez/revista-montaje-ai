@@ -139,4 +139,3 @@ def estimate_production(request: QuoteRequest, machine_catalog: dict) -> Product
         area_pliego_util_m2=area_pliego_util_m2,
         warnings=tuple(warnings),
     )
-

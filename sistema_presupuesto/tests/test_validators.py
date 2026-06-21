@@ -132,4 +132,3 @@ def test_float_money_or_measure_is_rejected(catalog_refs):
 
     assert not report.ok
     assert any(error.code == "FLOAT_NOT_ALLOWED" for error in report.errors)
-

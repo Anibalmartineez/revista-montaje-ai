@@ -247,4 +247,3 @@ class QuoteResult:
     produccion: ProductionEstimate
     costos: PricingResult
     warnings: tuple[ValidationIssue, ...] = ()
-

@@ -53,4 +53,3 @@ def test_catalog_repository_invalid_structure_raises_repository_error(tmp_path):
 
     with pytest.raises(RepositoryError):
         repo.load_materiales_default()
-

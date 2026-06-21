@@ -83,4 +83,3 @@ def test_budget_repository_generates_valid_unique_ids():
     assert first.startswith("psp_")
     assert second.startswith("psp_")
     assert first != second
-

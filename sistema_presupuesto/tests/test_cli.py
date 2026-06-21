@@ -104,4 +104,3 @@ def test_cli_reports_missing_catalog(tmp_path):
     payload = json.loads(stderr)
     assert payload["ok"] is False
     assert payload["error"]["type"] == "JsonFileNotFoundError"
-

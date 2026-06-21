@@ -41,4 +41,3 @@ class CatalogRepository:
         if not isinstance(payload.get(collection_key), list):
             raise RepositoryError(f"Catalogo sin coleccion requerida `{collection_key}`: {relative_path}")
         return payload
-

@@ -69,4 +69,3 @@ Si hay errores de validacion, se agrega `validation`.
 - No integra con Editor Offset Visual.
 - No crea UI.
 - Usa catalogos ficticios de diseno.
-
