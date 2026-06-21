@@ -6,6 +6,8 @@ Fase 3 agrega tests minimos para validar contratos y serializadores sobre los fi
 
 Fase 4 agrega tests del motor tecnico, monetario y orquestador de calculo.
 
+Fase 5 agrega tests para persistencia JSON local y repositorios.
+
 ## Principios
 
 - Probar primero funciones puras.
@@ -91,6 +93,9 @@ Tests implementados:
 - `tests/test_production_math.py`
 - `tests/test_pricing_engine.py`
 - `tests/test_calculation_engine.py`
+- `tests/test_storage.py`
+- `tests/test_catalog_repository.py`
+- `tests/test_repositories.py`
 
 Nombres sugeridos para fases futuras:
 

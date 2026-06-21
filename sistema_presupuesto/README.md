@@ -36,7 +36,7 @@ Construir un modulo determinista y auditable para presupuestos offset:
 
 ## Estado actual
 
-Fase actual: **Fase 4 - motor determinista de calculo**.
+Fase actual: **Fase 5 - persistencia JSON interna y repositorios**.
 
 Incluye:
 
@@ -55,6 +55,9 @@ Incluye:
 - motor monetario con `Decimal`;
 - orquestador de calculo puro;
 - desglose auditable con advertencias.
+- persistencia JSON local;
+- repositorio de catalogos;
+- repositorio de presupuestos calculados.
 
 No incluye todavia:
 
@@ -69,6 +72,7 @@ No incluye todavia:
 - rutas Flask;
 - UI;
 - integracion con el Editor Offset Visual.
+- base de datos.
 
 ## Fases previstas
 

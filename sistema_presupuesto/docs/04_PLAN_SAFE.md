@@ -125,8 +125,28 @@ Objetivo:
 - guardar catalogos y presupuestos dentro de `sistema_presupuesto/data/`;
 - versionar presupuestos;
 - evitar sobrescribir presupuestos aceptados.
+- cargar catalogos default;
+- leer presupuesto guardado por ID;
+- listar presupuestos guardados;
+- bloquear path traversal.
 
 No usar `static/constructor_offset_jobs/`.
+
+Entregables:
+
+- `backend/storage.py`
+- `backend/catalog_repository.py`
+- `backend/repositories.py`
+- `tests/test_storage.py`
+- `tests/test_catalog_repository.py`
+- `tests/test_repositories.py`
+
+Fuera de alcance:
+
+- base de datos;
+- rutas Flask;
+- UI;
+- integracion con Editor Offset Visual.
 
 ## Fase 6 - UI aislada
 

@@ -22,3 +22,26 @@ class CatalogValidationError(ContractValidationError):
 class SerializationError(PresupuestoError):
     """Error al convertir datos entre JSON y modelos internos."""
 
+
+class StorageError(PresupuestoError):
+    """Error base de persistencia JSON local."""
+
+
+class StoragePathError(StorageError):
+    """Ruta invalida o intento de salir del directorio permitido."""
+
+
+class JsonFileNotFoundError(StorageError):
+    """Archivo JSON esperado no existe."""
+
+
+class JsonDecodeStorageError(StorageError):
+    """Archivo JSON mal formado."""
+
+
+class JsonFileExistsError(StorageError):
+    """Se intento sobrescribir un archivo existente sin autorizacion."""
+
+
+class RepositoryError(PresupuestoError):
+    """Error base de repositorios."""

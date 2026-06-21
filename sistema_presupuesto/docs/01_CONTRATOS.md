@@ -166,6 +166,21 @@ Registro persistido de presupuesto.
 }
 ```
 
+En Fase 5 los presupuestos guardados se escriben como JSON local bajo:
+
+```text
+data/presupuestos/<presupuesto_id>.json
+```
+
+Reglas:
+
+- `presupuesto_id` debe cumplir `psp_YYYYMMDD_<12 hex>`.
+- `schema` debe ser `sistema_presupuesto.budget_record`.
+- `schema_version` debe ser `1`.
+- `estado` inicial es `calculado`.
+- `result` contiene el desglose auditable serializado.
+- no se sobrescribe un presupuesto existente por defecto.
+
 ## Estados futuros
 
 - `borrador`
