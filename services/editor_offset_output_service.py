@@ -70,6 +70,79 @@ def _resolve_slot_crop_marks(
     return bool(crop_val)
 
 
+def _coerce_bool(value) -> bool:
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, str):
+        return value.strip().lower() in {"1", "true", "yes", "y", "on"}
+    return bool(value)
+
+
+def _numeric_or_none(value):
+    try:
+        parsed = float(value)
+    except (TypeError, ValueError):
+        return None
+    return parsed if parsed > 0 else None
+
+
+def _normalize_rotation(value) -> int:
+    try:
+        return int(float(value or 0)) % 360
+    except (TypeError, ValueError):
+        return 0
+
+
+def _close_mm(a: float, b: float, tolerance: float = 0.05) -> bool:
+    return abs(float(a) - float(b)) <= tolerance
+
+
+def _design_trim_size(design: dict | None) -> tuple[float, float] | None:
+    if not isinstance(design, dict):
+        return None
+    width = _numeric_or_none(design.get("width_mm"))
+    height = _numeric_or_none(design.get("height_mm"))
+    if width is None or height is None:
+        return None
+    return width, height
+
+
+def _matches_box(w_mm: float, h_mm: float, expected_w: float, expected_h: float) -> bool:
+    return _close_mm(w_mm, expected_w) and _close_mm(h_mm, expected_h)
+
+
+def _resolve_slot_box_final(
+    slot: dict,
+    design: dict | None,
+    bleed_mm: float,
+    engine_name: str,
+) -> bool:
+    if "slot_box_final" in slot:
+        return _coerce_bool(slot.get("slot_box_final"))
+    if engine_name != "repeat":
+        return False
+
+    rot = _normalize_rotation(slot.get("rotation_deg", slot.get("rot_deg", 0)))
+    if rot not in (90, 270):
+        return True
+
+    design_size = _design_trim_size(design)
+    if design_size is None:
+        return True
+
+    design_w, design_h = design_size
+    final_w = design_w + 2 * float(bleed_mm)
+    final_h = design_h + 2 * float(bleed_mm)
+    slot_w = float(slot.get("w_mm", 0) or 0)
+    slot_h = float(slot.get("h_mm", 0) or 0)
+
+    if _matches_box(slot_w, slot_h, final_h, final_w):
+        return True
+    if _matches_box(slot_w, slot_h, final_w, final_h):
+        return False
+    return True
+
+
 def _resolve_legacy_dependencies(diseno_cls, config_cls, render_fn):
     if diseno_cls is not None and config_cls is not None and render_fn is not None:
         return diseno_cls, config_cls, render_fn
@@ -128,6 +201,11 @@ def _positions_for_face(
 ) -> tuple[list[dict], bool]:
     posiciones: List[dict] = []
     face_crop = False
+    designs_by_ref = {
+        str(design.get("ref")): design
+        for design in (layout_data.get("designs", []) or [])
+        if isinstance(design, dict) and design.get("ref") is not None
+    }
     for slot in layout_data.get("slots", []) or []:
         slot_face = (slot.get("face") or "front").lower()
         if slot_face != target_face:
@@ -162,21 +240,49 @@ def _positions_for_face(
             trim_w = max(1.0, w_mm)
         if trim_h <= 0:
             trim_h = max(1.0, h_mm)
+        rot_deg = _normalize_rotation(slot.get("rotation_deg", slot.get("rot_deg", 0)))
+        design = designs_by_ref.get(str(ref))
+        slot_box_final = _resolve_slot_box_final(slot, design, bleed_val, engine_name)
+        source_size = _design_trim_size(design)
+        source_w_mm = None
+        source_h_mm = None
+        x_mm = float(slot.get("x_mm", slot.get("x", 0)))
+        y_mm = float(slot.get("y_mm", slot.get("y", 0)))
+        if source_size is not None:
+            source_w_mm, source_h_mm = source_size
+            source_draw_w = source_w_mm + 2 * bleed_val
+            source_draw_h = source_h_mm + 2 * bleed_val
+            if (
+                engine_name == "repeat"
+                and not slot_box_final
+                and rot_deg in (90, 270)
+                and _matches_box(w_mm, h_mm, source_draw_w, source_draw_h)
+            ):
+                eff_draw_w = source_draw_h
+                eff_draw_h = source_draw_w
+                center_x = x_mm + w_mm / 2.0
+                center_y = y_mm + h_mm / 2.0
+                x_mm = center_x - eff_draw_w / 2.0
+                y_mm = center_y - eff_draw_h / 2.0
+                trim_w = max(0.1, eff_draw_w - 2 * bleed_val)
+                trim_h = max(0.1, eff_draw_h - 2 * bleed_val)
         crop_flag = _resolve_slot_crop_marks(slot, ref, design_export, export_settings)
         face_crop = face_crop or crop_flag
-        posiciones.append(
-            {
-                "file_idx": ref_to_idx[ref],
-                "x_mm": float(slot.get("x_mm", slot.get("x", 0))),
-                "y_mm": float(slot.get("y_mm", slot.get("y", 0))),
-                "w_mm": trim_w,
-                "h_mm": trim_h,
-                "rot_deg": int(slot.get("rotation_deg", slot.get("rot_deg", 0)) or 0),
-                "bleed_mm": bleed_val,
-                "crop_marks": crop_flag,
-                "slot_box_final": engine_name == "repeat",
-            }
-        )
+        position = {
+            "file_idx": ref_to_idx[ref],
+            "x_mm": x_mm,
+            "y_mm": y_mm,
+            "w_mm": trim_w,
+            "h_mm": trim_h,
+            "rot_deg": rot_deg,
+            "bleed_mm": bleed_val,
+            "crop_marks": crop_flag,
+            "slot_box_final": slot_box_final,
+        }
+        if source_w_mm is not None and source_h_mm is not None:
+            position["source_w_mm"] = source_w_mm
+            position["source_h_mm"] = source_h_mm
+        posiciones.append(position)
     return posiciones, face_crop
 
 

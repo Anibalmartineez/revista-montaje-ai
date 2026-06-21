@@ -1099,7 +1099,17 @@ def montar_pliego_offset_inteligente(
                 )
             source_w_mm = final_w_mm
             source_h_mm = final_h_mm
-            if slot_box_final:
+            try:
+                source_w_override = float(p.get("source_w_mm"))
+                source_h_override = float(p.get("source_h_mm"))
+            except (TypeError, ValueError):
+                source_w_override = None
+                source_h_override = None
+
+            if source_w_override and source_h_override and source_w_override > 0 and source_h_override > 0:
+                source_w_mm = source_w_override
+                source_h_mm = source_h_override
+            elif slot_box_final:
                 source_w_mm = max(0.1, (final_h_mm if swapped else final_w_mm) - 2 * bleed_effective)
                 source_h_mm = max(0.1, (final_w_mm if swapped else final_h_mm) - 2 * bleed_effective)
 

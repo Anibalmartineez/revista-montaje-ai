@@ -21,6 +21,7 @@ from routes import (
     _load_constructor_layout,
     _save_constructor_layout,
 )
+from services.editor_offset_output_service import montar_offset_desde_layout as montar_constructor_layout
 
 
 @pytest.fixture()
@@ -337,3 +338,206 @@ def test_montar_offset_desde_layout_splits_front_back_and_applies_ctp_pinza(
     assert all(config.ctp_config == layout["ctp"] for config in captured)
     assert captured[0].posiciones_manual[0]["rot_deg"] == 0
     assert captured[1].posiciones_manual[0]["rot_deg"] == 180
+
+
+def test_repeat_manual_rotation_preserves_source_aspect_in_output_positions(work_dir):
+    job_dir = work_dir / "job_manual_rotation"
+    job_dir.mkdir()
+    pdf_path = job_dir / "pieza.pdf"
+    pdf_path.write_bytes(_pdf_bytes(width_mm=210.058, height_mm=297.18).getvalue())
+    captured = []
+
+    def fake_render(_disenos, config):
+        captured.append(config)
+        out = Path(config.output_path)
+        out.parent.mkdir(parents=True, exist_ok=True)
+        out.write_bytes(b"%PDF-1.4\n%%EOF\n")
+        return str(out)
+
+    layout = {
+        "sheet_mm": [640, 880],
+        "margins_mm": [10, 10, 10, 10],
+        "bleed_default_mm": 3,
+        "gap_default_mm": 5,
+        "designs": [
+            {
+                "ref": "file0",
+                "filename": "pieza.pdf",
+                "width_mm": 210.058,
+                "height_mm": 297.18,
+                "bleed_mm": 3,
+                "forms_per_plate": 1,
+            }
+        ],
+        "works": [],
+        "faces": ["front"],
+        "active_face": "front",
+        "imposition_engine": "repeat",
+        "export_settings": {"bleed_mm": 3, "crop_marks": True, "output_mode": "raster"},
+        "design_export": {},
+        "slots": [
+            {
+                "id": "sr_1",
+                "design_ref": "file0",
+                "x_mm": 315,
+                "y_mm": 125,
+                "w_mm": 216.058,
+                "h_mm": 303.18,
+                "bleed_mm": 3,
+                "rotation_deg": 90,
+                "face": "front",
+                "crop_marks": True,
+            }
+        ],
+    }
+
+    montar_constructor_layout(
+        layout,
+        str(job_dir),
+        preview=False,
+        diseno_cls=montaje_offset_inteligente.Diseno,
+        config_cls=montaje_offset_inteligente.MontajeConfig,
+        render_fn=fake_render,
+    )
+
+    pos = captured[0].posiciones_manual[0]
+    assert pos["slot_box_final"] is False
+    assert pos["rot_deg"] == 90
+    assert pos["source_w_mm"] == pytest.approx(210.058)
+    assert pos["source_h_mm"] == pytest.approx(297.18)
+    assert pos["w_mm"] == pytest.approx(297.18)
+    assert pos["h_mm"] == pytest.approx(210.058)
+    assert pos["x_mm"] == pytest.approx(315 + 216.058 / 2 - 303.18 / 2)
+    assert pos["y_mm"] == pytest.approx(125 + 303.18 / 2 - 216.058 / 2)
+
+
+def test_repeat_auto_rotated_slot_keeps_final_footprint_semantics(work_dir):
+    job_dir = work_dir / "job_auto_rotation"
+    job_dir.mkdir()
+    pdf_path = job_dir / "pieza.pdf"
+    pdf_path.write_bytes(_pdf_bytes(width_mm=70, height_mm=20).getvalue())
+    captured = []
+
+    def fake_render(_disenos, config):
+        captured.append(config)
+        out = Path(config.output_path)
+        out.parent.mkdir(parents=True, exist_ok=True)
+        out.write_bytes(b"%PDF-1.4\n%%EOF\n")
+        return str(out)
+
+    layout = {
+        "sheet_mm": [120, 95],
+        "margins_mm": [10, 10, 10, 10],
+        "bleed_default_mm": 0,
+        "gap_default_mm": 2,
+        "designs": [
+            {
+                "ref": "file0",
+                "filename": "pieza.pdf",
+                "width_mm": 70,
+                "height_mm": 20,
+                "bleed_mm": 0,
+                "forms_per_plate": 1,
+            }
+        ],
+        "works": [],
+        "faces": ["front"],
+        "active_face": "front",
+        "imposition_engine": "repeat",
+        "export_settings": {"bleed_mm": 0, "crop_marks": True, "output_mode": "raster"},
+        "design_export": {},
+        "slots": [
+            {
+                "id": "sr_0",
+                "design_ref": "file0",
+                "x_mm": 10,
+                "y_mm": 10,
+                "w_mm": 20,
+                "h_mm": 70,
+                "bleed_mm": 0,
+                "rotation_deg": 90,
+                "face": "front",
+                "crop_marks": True,
+            }
+        ],
+    }
+
+    montar_constructor_layout(
+        layout,
+        str(job_dir),
+        preview=False,
+        diseno_cls=montaje_offset_inteligente.Diseno,
+        config_cls=montaje_offset_inteligente.MontajeConfig,
+        render_fn=fake_render,
+    )
+
+    pos = captured[0].posiciones_manual[0]
+    assert pos["slot_box_final"] is True
+    assert pos["w_mm"] == pytest.approx(20)
+    assert pos["h_mm"] == pytest.approx(70)
+    assert pos["source_w_mm"] == pytest.approx(70)
+    assert pos["source_h_mm"] == pytest.approx(20)
+
+
+def test_explicit_slot_box_final_is_respected_for_repeat_slots(work_dir):
+    job_dir = work_dir / "job_explicit_slot_box"
+    job_dir.mkdir()
+    pdf_path = job_dir / "pieza.pdf"
+    pdf_path.write_bytes(_pdf_bytes(width_mm=210.058, height_mm=297.18).getvalue())
+    captured = []
+
+    def fake_render(_disenos, config):
+        captured.append(config)
+        out = Path(config.output_path)
+        out.parent.mkdir(parents=True, exist_ok=True)
+        out.write_bytes(b"%PDF-1.4\n%%EOF\n")
+        return str(out)
+
+    layout = {
+        "sheet_mm": [640, 880],
+        "margins_mm": [10, 10, 10, 10],
+        "bleed_default_mm": 3,
+        "gap_default_mm": 5,
+        "designs": [
+            {
+                "ref": "file0",
+                "filename": "pieza.pdf",
+                "width_mm": 210.058,
+                "height_mm": 297.18,
+                "bleed_mm": 3,
+                "forms_per_plate": 1,
+            }
+        ],
+        "works": [],
+        "faces": ["front"],
+        "active_face": "front",
+        "imposition_engine": "repeat",
+        "export_settings": {"bleed_mm": 3, "crop_marks": True, "output_mode": "raster"},
+        "design_export": {},
+        "slots": [
+            {
+                "id": "sr_1",
+                "design_ref": "file0",
+                "x_mm": 315,
+                "y_mm": 125,
+                "w_mm": 216.058,
+                "h_mm": 303.18,
+                "bleed_mm": 3,
+                "rotation_deg": 90,
+                "slot_box_final": True,
+                "face": "front",
+                "crop_marks": True,
+            }
+        ],
+    }
+
+    montar_constructor_layout(
+        layout,
+        str(job_dir),
+        preview=False,
+        diseno_cls=montaje_offset_inteligente.Diseno,
+        config_cls=montaje_offset_inteligente.MontajeConfig,
+        render_fn=fake_render,
+    )
+
+    assert captured[0].posiciones_manual[0]["slot_box_final"] is True
