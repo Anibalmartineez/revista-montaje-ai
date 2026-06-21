@@ -116,9 +116,25 @@ Hechos confirmados:
 - La UI puede editar `rotation_deg` de una seleccion mediante `#selection-rotation-deg`, `#btn-apply-selection-rotation`, `static/js/editor_offset_visual/manual_tools.js` / `rotateSelectedSlots()` y el wrapper homonimo en `static/js/editor_offset_visual.js`.
 - La validacion geometrica frontend usa huella rotada cardinal para `OUT_OF_SHEET`, `OUT_OF_USABLE_AREA`, `OVERLAP` y `GRIPPER` mediante `static/js/editor_offset_visual/core/geometry_validation.js` / `validationBoxForSlot()`.
 - La huella cardinal depende de `static/js/editor_offset_visual/core/geometry.js` / `getCardinalRotatedSlotFootprint()` y aplica solo a rotaciones 0/90/180/270; otros angulos caen a caja simple en validacion frontend.
-- Backend, output, PDF, motores, bleed y CTP productivo no cambiaron por estas fases.
+- Backend, output, PDF, motores, bleed y CTP productivo no cambiaron durante las fases frontend/geometria. La salida PDF recibio despues una correccion especifica para slots rotados manualmente, sin cambiar el contrato JSON.
 
-Inferencia operativa: la validacion visual/frontend puede no ser equivalente al PDF final mientras el backend/output no adopte la misma semantica de huella rotada.
+Inferencia operativa: la validacion visual/frontend puede no ser equivalente al PDF final. La salida PDF tiene una correccion acotada para preservar aspect ratio en slots rotados manualmente, pero no adopta toda la geometria frontend.
+
+### Nota de salida PDF para rotacion
+
+Hechos confirmados:
+
+- No se cambio el contrato JSON de `slots[]`.
+- `slots[].rotation_deg` sigue siendo el campo canonico de rotacion persistido por slot.
+- `slot_box_final` explicito en el slot tiene prioridad para la salida.
+- Si `slot_box_final` no viene explicito, `services/editor_offset_output_service.py` puede inferir la semantica segun el caso:
+  - repeat automatico rotado con `w_mm`/`h_mm` ya intercambiados conserva semantica de footprint final;
+  - rotacion manual UI con `w_mm`/`h_mm` base se trata como rotacion manual para evitar deformar la fuente.
+- `source_w_mm` y `source_h_mm` pueden viajar internamente en `posiciones_manual` hacia `montaje_offset_inteligente.py` para preservar el aspect ratio del PDF fuente.
+- `source_w_mm` y `source_h_mm` no son nuevos campos requeridos de `layout_constructor.json`.
+- Un slot rotado manualmente, por ejemplo con `rotation_deg=90`, debe rotar en PDF sin invertir ni estirar la proporcion del PDF fuente.
+
+Inferencia operativa: si un layout historico no trae `slot_box_final`, la salida usa dimensiones de `designs[]` y bleed efectivo para distinguir entre repeat automatico y rotacion manual UI.
 
 ## Contrato de faces
 
@@ -201,7 +217,7 @@ Hechos confirmados desde `static/js/editor_offset_visual/core/geometry_validatio
 - `GRIPPER` frontend usa huella rotada cardinal cuando `rotation_deg` es 0/90/180/270.
 - Si la rotacion no es cardinal, `validationBoxForSlot()` vuelve a `geometry.getSimpleSlotBox(slot)`.
 
-Limitacion confirmada: esta validacion es frontend. No implica cambio en `services/editor_offset_output_contract.py`, `services/editor_offset_output_service.py`, motores ni generacion PDF.
+Limitacion confirmada: esta validacion es frontend. No define por si sola el contrato de `services/editor_offset_output_contract.py`, motores ni generacion PDF.
 
 ### Limitacion confirmada
 

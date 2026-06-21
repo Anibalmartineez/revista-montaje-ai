@@ -16,8 +16,9 @@ Hechos confirmados contra el codigo actual:
 | Fase 3.2A | `OUT_OF_SHEET` y `OUT_OF_USABLE_AREA` usan huella rotada cardinal cuando la rotacion es 0/90/180/270. | `static/js/editor_offset_visual/core/geometry_validation.js` (`validationBoxForSlot()`). |
 | Fase 3.2B | `OVERLAP` usa la misma caja de validacion cardinal. | `static/js/editor_offset_visual/core/geometry_validation.js`. |
 | Fase 3.2C | `GRIPPER` frontend usa huella rotada cardinal mediante `validationBoxForSlot()`. | `static/js/editor_offset_visual/core/geometry_validation.js`. |
+| Fix salida PDF | La salida PDF distingue rotacion manual UI vs repeat automatico rotado para evitar deformar el PDF fuente. Respeta `slot_box_final` explicito y puede pasar `source_w_mm`/`source_h_mm` internos hacia montaje. | `services/editor_offset_output_service.py` (`_resolve_slot_box_final()`, `_positions_for_face()`), `montaje_offset_inteligente.py` (`source_w_mm`, `source_h_mm`). |
 
-Pendientes confirmados: `box select`, `drag`, `snap`, `align/distribute`, `distance indicator`, angulos libres, colision poligonal real y posibles diferencias entre validacion frontend y PDF/productivo.
+Pendientes confirmados: `box select`, `drag`, `snap`, `align/distribute`, `distance indicator`, angulos libres y colision poligonal real. Canvas, validacion frontend y PDF siguen siendo superficies distintas.
 
 ---
 
@@ -466,6 +467,16 @@ Transformacion importante:
 | `slot.slot_box_final` | interpretacion de caja final |
 | `slot.face` | filtro por `front`/`back` |
 
+Semantica actual de salida PDF para rotacion:
+
+| Tema | Comportamiento confirmado |
+| --- | --- |
+| `slot_box_final` explicito | `services/editor_offset_output_service.py` lo respeta antes de inferir cualquier semantica. |
+| Repeat automatico rotado | Si el slot repeat no trae `slot_box_final` y su `w_mm`/`h_mm` ya coinciden con la huella rotada del diseno, la salida mantiene `slot_box_final=True`. |
+| Rotacion manual UI | Si el slot repeat no trae `slot_box_final`, tiene `rotation_deg` 90/270 y conserva `w_mm`/`h_mm` base del diseno, la salida lo trata como `slot_box_final=False` y recalcula la huella rotada centrada. |
+| Aspect ratio | `source_w_mm`/`source_h_mm` pueden viajar como datos internos de `posiciones_manual` hacia `montaje_offset_inteligente.py` para dibujar el PDF fuente sin invertir proporcion antes de rotar. |
+| `rotation_deg=90` | Debe rotar sin deformar el PDF fuente; la fuente mantiene sus dimensiones de origen y la huella rotada se calcula aparte. |
+
 CTP:
 
 | Capa | Archivo | Responsabilidad |
@@ -487,7 +498,7 @@ Bleed:
 
 ### Inferencias
 
-Canvas, preview y PDF final no deben asumirse equivalentes. La rotacion, el bleed, CTP, doble cara y `slot_box_final` pueden verse o interpretarse distinto entre capas.
+Canvas, preview y PDF final no deben asumirse equivalentes. La rotacion, el bleed, CTP, doble cara y `slot_box_final` pueden verse o interpretarse distinto entre capas. La salida PDF tiene una correccion especifica para no deformar slots rotados manualmente, pero eso no convierte automaticamente la validacion frontend, el canvas y el PDF en una unica geometria compartida.
 
 ---
 
@@ -633,7 +644,7 @@ Rotacion grupal implementada:
 | `distance indicator` | El indicador de distancia usa `getSimpleSlotBox()` en el entrypoint. |
 | Angulos libres | La validacion geometrica solo usa huella rotada para cardinales 0/90/180/270; otros angulos caen a caja simple. |
 | Colision poligonal real | No implementada; `OVERLAP` usa AABB cardinal, no poligonos rotados. |
-| PDF/productivo | Backend/output/PDF no fueron modificados en estas fases; puede haber diferencias entre validacion visual frontend y salida productiva. |
+| PDF/productivo | Tiene correccion especifica para no deformar rotacion manual UI, pero sigue siendo una superficie distinta de canvas y validacion frontend. |
 | Tests dedicados | No queda documentada cobertura automatizada especifica para todas las fases de rotacion frontend. |
 
 ### Que no conviene tocar sin fase nueva
@@ -642,7 +653,7 @@ Rotacion grupal implementada:
 | --- | --- |
 | `engines/step_repeat_pro_engine.py` | El motor ya produce `rotation_deg`; no es necesario para UI grupal. |
 | `engines/nesting_pro_engine.py` | Riesgo independiente. |
-| `services/editor_offset_output_service.py` | Ya traduce `rotation_deg` a `rot_deg`. |
+| `services/editor_offset_output_service.py` | Traduce `rotation_deg` a `rot_deg` y contiene la inferencia de `slot_box_final`; no tocar sin caracterizacion de salida. |
 | `montaje_offset_inteligente.py` | Ya consume `rot_deg`; alto riesgo productivo. |
 | Resize | Funcionalidad latente separada. |
 | Bleed/CTP | Superficies criticas no necesarias para rotacion grupal inicial. |
@@ -657,7 +668,7 @@ Rotacion grupal implementada:
 | UI | Si el control grupal debe mostrar valor comun, estado mixto o campo vacio cuando hay rotaciones distintas. |
 | Semantica global | Si una fase futura debe migrar `getEffectiveSlotBox()` o mantener un helper separado por caso de uso. |
 | Interacciones | Si `box select`, `drag`, `snap`, `align/distribute` y `distance indicator` deben usar AABB cardinal o geometria poligonal. |
-| Salida | Si backend/PDF debe validar contra la misma huella que el frontend o conservar comportamiento productivo actual. |
+| Salida | Si futuras validaciones backend/PDF deben alinearse mas con la huella frontend o conservar la correccion acotada actual. |
 | Bloqueados | Si slots `locked` deben ignorarse, bloquear operacion o permitir override explicito. |
 
 ---
@@ -672,7 +683,7 @@ Despues de las fases de rotacion ya aplicadas:
 2. Agregar cobertura focalizada para rotacion grupal, render visual y validacion cardinal antes de tocar mas geometria.
 3. Planificar `box select`, `drag`, `snap`, `align/distribute` y `distance indicator` como fases separadas, porque hoy siguen usando cajas no rotadas.
 4. No migrar `getEffectiveSlotBox()` ni `slotFootprintRect()` de forma global sin caracterizar impactos en seleccion, herramientas manuales, validacion y tests Playwright.
-5. Mantener backend, motores, bleed, CTP productivo y PDF fuera de las siguientes fases salvo justificacion explicita.
+5. Mantener motores, bleed y CTP productivo fuera de las siguientes fases; tocar PDF/output solo con caracterizacion y regresiones.
 6. Definir si los angulos libres deben quedar como dato/render/salida o si requieren colision poligonal real.
 7. Comparar canvas, validacion frontend y PDF final antes de declarar equivalencia productiva.
 
@@ -705,7 +716,7 @@ Despues de las fases de rotacion ya aplicadas:
 | --- | --- | --- |
 | Romper listeners por renombrar IDs | `templates/editor_offset_visual.html`, `static/js/editor_offset_visual.js` | Buscar referencias antes de cambiar; agregar IDs nuevos sin alterar existentes. |
 | Desalinear canvas y PDF | `renderer_canvas.js`, `services/editor_offset_output_service.py`, `montaje_offset_inteligente.py` | Caracterizar visual vs salida antes de cambiar semantica. |
-| Validacion frontend cardinal no equivalente al PDF | `geometry_validation.js`, output/PDF | Documentar que backend/PDF no cambiaron; agregar tests antes de acoplar contrato productivo. |
+| Validacion frontend cardinal no equivalente al PDF | `geometry_validation.js`, output/PDF | Mantener documentada la diferencia entre canvas, validacion frontend y salida; agregar tests antes de acoplar mas contrato productivo. |
 | Interacciones usan caja no rotada | `slot_interactions.js`, `manual_tools.js`, `static/js/editor_offset_visual.js` | Migrar `box select`, `drag`, `snap`, `align/distribute` y `distance indicator` en fases separadas. |
 | Angulos libres sin geometria real | `geometry.js`, `geometry_validation.js` | Mantener fallback a caja simple hasta definir soporte poligonal. |
 | Doble conteo de bleed | Upload/output/legacy | No tocar bleed junto con rotacion; fase separada. |
