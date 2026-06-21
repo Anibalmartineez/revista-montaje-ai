@@ -1,0 +1,68 @@
+{
+  "schema": "sistema_presupuesto.quote_request",
+  "schema_version": 1,
+  "fixture_id": "quote_request_diptico",
+  "descripcion": "Folleto diptico para validar formato abierto y plegado por unidad.",
+  "cliente": {
+    "nombre": "Cliente fixture",
+    "referencia": "CLI-FIXTURE"
+  },
+  "producto": {
+    "titulo": "Folleto diptico A4 abierto",
+    "tipo": "folleto_diptico",
+    "cantidad": "1000",
+    "unidad_cantidad": "unidad",
+    "formato_abierto_mm": {
+      "ancho": "297",
+      "alto": "210"
+    },
+    "formato_cerrado_mm": {
+      "ancho": "148.5",
+      "alto": "210"
+    },
+    "ancho_mm": "297",
+    "alto_mm": "210",
+    "sangrado_mm": "3",
+    "paneles": 2,
+    "pliegues": 1,
+    "paginas": null,
+    "caras": 2,
+    "colores": {
+      "frente": 4,
+      "dorso": 4,
+      "texto": "4/4"
+    }
+  },
+  "produccion": {
+    "pliego_base_mm": {
+      "ancho": "700",
+      "alto": "1000"
+    },
+    "pliego_util_mm": {
+      "ancho": "680",
+      "alto": "980"
+    },
+    "formas_por_pliego_manual": null,
+    "merma_arranque_pliegos": "30",
+    "merma_pct": "3",
+    "imposicion_origen": "fixture_formula_simple"
+  },
+  "costos": {
+    "moneda": "PYG",
+    "material_id": "couche_150",
+    "maquina_id": "offset_4_colores",
+    "procesos_ids": [
+      "corte_guillotina",
+      "plegado_diptico"
+    ],
+    "margen_pct": "30",
+    "markup_pct": null,
+    "impuestos": []
+  },
+  "expected_assertions": {
+    "usar_formato_abierto_para_impresion": true,
+    "plegado_base": "unidad_final",
+    "paneles_no_multiplican_tirada": true,
+    "notas": "Valores esperados para tests futuros; no son calculados en Fase 2."
+  }
+}

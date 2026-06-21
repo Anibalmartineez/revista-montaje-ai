@@ -1,0 +1,99 @@
+{
+  "schema": "sistema_presupuesto.quote_result",
+  "schema_version": 1,
+  "fixture_id": "quote_response_example",
+  "descripcion": "Ejemplo de salida futura para volante A5. Los importes son ficticios y no deben tratarse como tarifa productiva.",
+  "ok": true,
+  "source_fixture": "quote_request_volante",
+  "calculation": {
+    "engine_version": "pendiente",
+    "rules_version": "fase_2_contrato",
+    "uses_decimal_strings": true,
+    "implemented": false
+  },
+  "produccion": {
+    "unidades": {
+      "distancia": "mm",
+      "area": "m2",
+      "tiempo": "horas",
+      "dinero": "PYG"
+    },
+    "pieza_con_sangrado_mm": {
+      "ancho": "154",
+      "alto": "216"
+    },
+    "formas_por_pliego": "16",
+    "pliegos_netos": "63",
+    "merma_arranque_pliegos": "30",
+    "merma_pct": "3",
+    "pliegos_brutos": "95",
+    "chapas": "4",
+    "pasadas": "1",
+    "impresiones": "95",
+    "horas_maquina": "0.52"
+  },
+  "costos": {
+    "moneda": "PYG",
+    "items": [
+      {
+        "codigo": "papel",
+        "descripcion": "Papel couche 150 g/m2",
+        "cantidad": "95",
+        "unidad": "pliego",
+        "costo_unitario": "3500",
+        "subtotal": "332500",
+        "es_valor_ejemplo": true
+      },
+      {
+        "codigo": "chapas",
+        "descripcion": "Chapas CTP",
+        "cantidad": "4",
+        "unidad": "chapa",
+        "costo_unitario": "45000",
+        "subtotal": "180000",
+        "es_valor_ejemplo": true
+      },
+      {
+        "codigo": "maquina",
+        "descripcion": "Offset 4 colores",
+        "cantidad": "0.52",
+        "unidad": "hora",
+        "costo_unitario": "180000",
+        "subtotal": "93600",
+        "es_valor_ejemplo": true
+      }
+    ],
+    "costo_tecnico": "606100",
+    "margen": {
+      "tipo": "margen_sobre_venta",
+      "pct": "30",
+      "monto": "259757.14"
+    },
+    "markup": null,
+    "descuento": "0",
+    "impuestos": [
+      {
+        "id": "iva_ejemplo",
+        "nombre": "IVA ejemplo",
+        "tasa_pct": "10",
+        "base": "865857.14",
+        "monto": "86585.71",
+        "incluido": false,
+        "es_valor_ejemplo": true
+      }
+    ],
+    "precio_antes_impuestos": "865857.14",
+    "precio_final": "952442.85",
+    "precio_unitario": "952.44"
+  },
+  "warnings": [
+    {
+      "code": "EXAMPLE_VALUES",
+      "message": "Los importes de este fixture son valores ficticios de diseno."
+    },
+    {
+      "code": "NO_ENGINE_IMPLEMENTED",
+      "message": "La Fase 2 define contratos y fixtures, no ejecuta calculos."
+    }
+  ]
+}

@@ -1,0 +1,76 @@
+{
+  "schema": "sistema_presupuesto.catalogo.materiales",
+  "schema_version": 1,
+  "metadata": {
+    "descripcion": "Catalogo inicial de materiales para fixtures y pruebas futuras.",
+    "moneda": "PYG",
+    "valores_son_ejemplo": true,
+    "fuente": "Valores ficticios de diseno, no tarifas productivas.",
+    "unidad_medida_principal": "pliego"
+  },
+  "materiales": [
+    {
+      "id": "couche_150",
+      "nombre": "Papel couche 150 g/m2",
+      "tipo": "papel_ilustracion",
+      "gramaje_g_m2": "150",
+      "formato_pliego_mm": {
+        "ancho": "700",
+        "alto": "1000"
+      },
+      "costo": {
+        "modo": "por_pliego",
+        "moneda": "PYG",
+        "valor": "3500",
+        "unidad": "pliego",
+        "vigencia": null,
+        "es_valor_ejemplo": true
+      },
+      "merma_recomendada_pct": "3",
+      "activo": true,
+      "notas": "Material fixture para volante, revista y folletos."
+    },
+    {
+      "id": "cartulina_300",
+      "nombre": "Cartulina ilustracion 300 g/m2",
+      "tipo": "cartulina",
+      "gramaje_g_m2": "300",
+      "formato_pliego_mm": {
+        "ancho": "700",
+        "alto": "1000"
+      },
+      "costo": {
+        "modo": "por_pliego",
+        "moneda": "PYG",
+        "valor": "6500",
+        "unidad": "pliego",
+        "vigencia": null,
+        "es_valor_ejemplo": true
+      },
+      "merma_recomendada_pct": "4",
+      "activo": true,
+      "notas": "Material fixture para tarjetas y trabajos con terminacion."
+    },
+    {
+      "id": "obra_90",
+      "nombre": "Papel obra 90 g/m2",
+      "tipo": "papel_obra",
+      "gramaje_g_m2": "90",
+      "formato_pliego_mm": {
+        "ancho": "700",
+        "alto": "1000"
+      },
+      "costo": {
+        "modo": "por_pliego",
+        "moneda": "PYG",
+        "valor": "2100",
+        "unidad": "pliego",
+        "vigencia": null,
+        "es_valor_ejemplo": true
+      },
+      "merma_recomendada_pct": "3",
+      "activo": true,
+      "notas": "Material alternativo para interiores economicos."
+    }
+  ]
+}

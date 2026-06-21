@@ -1,0 +1,102 @@
+{
+  "schema": "sistema_presupuesto.catalogo.procesos",
+  "schema_version": 1,
+  "metadata": {
+    "descripcion": "Catalogo inicial de procesos y terminaciones para fixtures y pruebas futuras.",
+    "moneda": "PYG",
+    "valores_son_ejemplo": true,
+    "fuente": "Valores ficticios de diseno, no tarifas productivas."
+  },
+  "procesos": [
+    {
+      "id": "corte_guillotina",
+      "nombre": "Corte en guillotina",
+      "categoria": "terminacion",
+      "modo_cobro": "fijo",
+      "base_calculo": "trabajo",
+      "tarifa": {
+        "moneda": "PYG",
+        "valor": "50000",
+        "unidad": "trabajo",
+        "es_valor_ejemplo": true
+      },
+      "merma_extra_pct": "0",
+      "activo": true
+    },
+    {
+      "id": "plegado_diptico",
+      "nombre": "Plegado diptico",
+      "categoria": "terminacion",
+      "modo_cobro": "por_unidad",
+      "base_calculo": "unidad_final",
+      "tarifa": {
+        "moneda": "PYG",
+        "valor": "120",
+        "unidad": "unidad",
+        "es_valor_ejemplo": true
+      },
+      "merma_extra_pct": "1",
+      "activo": true
+    },
+    {
+      "id": "plegado_triptico",
+      "nombre": "Plegado triptico",
+      "categoria": "terminacion",
+      "modo_cobro": "por_unidad",
+      "base_calculo": "unidad_final",
+      "tarifa": {
+        "moneda": "PYG",
+        "valor": "180",
+        "unidad": "unidad",
+        "es_valor_ejemplo": true
+      },
+      "merma_extra_pct": "1.5",
+      "activo": true
+    },
+    {
+      "id": "laminado_mate",
+      "nombre": "Laminado mate",
+      "categoria": "terminacion",
+      "modo_cobro": "por_m2",
+      "base_calculo": "area_laminada_m2",
+      "tarifa": {
+        "moneda": "PYG",
+        "valor": "8500",
+        "unidad": "m2",
+        "es_valor_ejemplo": true
+      },
+      "merma_extra_pct": "2",
+      "activo": true
+    },
+    {
+      "id": "redondeado_esquinas",
+      "nombre": "Redondeado de esquinas",
+      "categoria": "terminacion",
+      "modo_cobro": "por_unidad",
+      "base_calculo": "unidad_final",
+      "tarifa": {
+        "moneda": "PYG",
+        "valor": "90",
+        "unidad": "unidad",
+        "es_valor_ejemplo": true
+      },
+      "merma_extra_pct": "0.5",
+      "activo": true
+    },
+    {
+      "id": "engrampado_caballete",
+      "nombre": "Engrampado a caballete",
+      "categoria": "encuadernacion",
+      "modo_cobro": "por_unidad",
+      "base_calculo": "unidad_final",
+      "tarifa": {
+        "moneda": "PYG",
+        "valor": "350",
+        "unidad": "unidad",
+        "es_valor_ejemplo": true
+      },
+      "merma_extra_pct": "1",
+      "activo": true
+    }
+  ]
+}

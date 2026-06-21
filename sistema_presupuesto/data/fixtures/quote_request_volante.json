@@ -1,0 +1,69 @@
+{
+  "schema": "sistema_presupuesto.quote_request",
+  "schema_version": 1,
+  "fixture_id": "quote_request_volante",
+  "descripcion": "Volante A5 simple 4/0 para validar papel, chapas, pliegos y merma.",
+  "cliente": {
+    "nombre": "Cliente fixture",
+    "referencia": "CLI-FIXTURE"
+  },
+  "producto": {
+    "titulo": "Volante A5 4/0",
+    "tipo": "volante",
+    "cantidad": "1000",
+    "unidad_cantidad": "unidad",
+    "ancho_mm": "148",
+    "alto_mm": "210",
+    "sangrado_mm": "3",
+    "paginas": null,
+    "caras": 1,
+    "colores": {
+      "frente": 4,
+      "dorso": 0,
+      "texto": "4/0"
+    }
+  },
+  "produccion": {
+    "pliego_base_mm": {
+      "ancho": "700",
+      "alto": "1000"
+    },
+    "pliego_util_mm": {
+      "ancho": "680",
+      "alto": "980"
+    },
+    "formas_por_pliego_manual": null,
+    "merma_arranque_pliegos": "30",
+    "merma_pct": "3",
+    "imposicion_origen": "fixture_formula_simple"
+  },
+  "costos": {
+    "moneda": "PYG",
+    "material_id": "couche_150",
+    "maquina_id": "offset_4_colores",
+    "procesos_ids": [],
+    "margen_pct": "30",
+    "markup_pct": null,
+    "impuestos": [
+      {
+        "id": "iva_ejemplo",
+        "nombre": "IVA ejemplo",
+        "tasa_pct": "10",
+        "base": "precio_antes_impuestos",
+        "incluido": false,
+        "es_valor_ejemplo": true
+      }
+    ]
+  },
+  "expected_assertions": {
+    "pieza_con_sangrado_mm": {
+      "ancho": "154",
+      "alto": "216"
+    },
+    "formas_por_pliego_teoricas": "16",
+    "pliegos_netos": "63",
+    "chapas": "4",
+    "pasadas": "1",
+    "notas": "Valores esperados para tests futuros; no son calculados en Fase 2."
+  }
+}

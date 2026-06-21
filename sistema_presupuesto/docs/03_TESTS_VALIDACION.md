@@ -2,7 +2,7 @@
 
 Este documento define la estrategia inicial de validacion para `sistema_presupuesto/`.
 
-No hay tests implementados en Fase 1.
+No hay tests implementados en Fase 2. Los archivos en `data/fixtures/` son insumos para tests futuros.
 
 ## Principios
 
@@ -16,38 +16,47 @@ No hay tests implementados en Fase 1.
 
 ### Volante simple
 
+- Fixture: `data/fixtures/quote_request_volante.json`.
 - Cantidad: 1000.
 - Formato final: 148 x 210 mm.
 - Sangrado: 3 mm.
 - Colores: `4/0`.
 - Validar formas por pliego, pliegos netos, merma, chapas y costo de papel.
+- Expectativas iniciales: pieza con sangrado 154 x 216 mm, 16 formas teoricas, 63 pliegos netos, 4 chapas, 1 pasada.
 
 ### Tarjeta
 
+- Fixture: `data/fixtures/quote_request_tarjeta.json`.
 - Cantidad: 500.
 - Formato final: 90 x 50 mm.
 - Sangrado: 3 mm.
 - Colores: `4/4`.
 - Validar que el dorso no duplique papel, pero si afecte chapas y pasadas.
+- Expectativas iniciales: pieza con sangrado 96 x 56 mm, 119 formas teoricas, 5 pliegos netos, 8 chapas, 2 pasadas.
 
 ### Revista
 
+- Fixture: `data/fixtures/quote_request_revista.json`.
 - Cantidad: 1000.
 - Formato cerrado: 210 x 297 mm.
 - Paginas: 32.
 - Encuadernacion: caballete.
 - Validar que paginas y encuadernacion sean obligatorias y que las paginas sean multiplo de 4.
+- Validar que una revista no se trate como una pieza simple.
 
 ### Folleto diptico
 
+- Fixture: `data/fixtures/quote_request_diptico.json`.
 - Formato abierto: 297 x 210 mm.
 - Formato cerrado: 148.5 x 210 mm.
 - Paneles: 2.
 - Pliegues: 1.
 - Validar que la impresion use formato abierto.
+- Validar que el plegado se cobre por unidad final.
 
 ### Folleto triptico
 
+- Fixture: `data/fixtures/quote_request_triptico.json`.
 - Formato abierto: 297 x 210 mm.
 - Paneles: 3.
 - Pliegues: 2.
@@ -60,6 +69,7 @@ No hay tests implementados en Fase 1.
 
 ### Trabajo con terminacion
 
+- Fixtures relacionados: `quote_request_tarjeta.json`, `quote_request_diptico.json`, `quote_request_triptico.json`.
 - Laminado por metro cuadrado.
 - Guillotina fija.
 - Redondeado por unidad.
@@ -122,3 +132,23 @@ git diff --check
 ```
 
 No usar tests del Editor Offset Visual como validacion principal del Sistema Presupuesto.
+
+## Validacion de fixtures JSON
+
+Antes de implementar motor, cada fixture debe ser validado manualmente:
+
+- JSON valido;
+- `schema` y `schema_version` presentes;
+- moneda `PYG`;
+- importes como strings;
+- `margen_pct` y `markup_pct` no activos al mismo tiempo;
+- unidades explicitas para mm, pliegos, horas, porcentajes y dinero;
+- valores marcados como ejemplo cuando no sean tarifas reales.
+
+## Oraculos futuros
+
+Usar tres capas:
+
+- oraculo matematico: formulas simples con resultados esperados;
+- invariantes: costos no negativos, totales reconciliados, mas paginas no cuesta igual;
+- revision humana: operador o responsable de imprenta valida supuestos.

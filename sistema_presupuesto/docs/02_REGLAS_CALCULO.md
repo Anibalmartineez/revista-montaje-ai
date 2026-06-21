@@ -2,7 +2,7 @@
 
 Este documento registra reglas iniciales para el futuro motor de presupuesto offset.
 
-No hay motor implementado en Fase 1.
+No hay motor implementado en Fase 2. Los JSON creados son fixtures y contratos de diseno.
 
 ## Precision monetaria
 
@@ -16,6 +16,8 @@ Motivos:
 - reproducir resultados entre ejecuciones.
 
 El redondeo debe aplicarse solo en fronteras documentadas, por ejemplo al total final o al precio unitario mostrado.
+
+En los contratos JSON, los importes y cantidades decimales se expresan como strings para conservar precision hasta que el futuro backend los convierta a `Decimal`.
 
 ## Margen vs markup
 
@@ -34,6 +36,8 @@ precio = costo / (1 - margen_pct)
 ```
 
 Si ambos campos vienen informados, el contrato futuro debe rechazar el payload o exigir una precedencia explicita.
+
+En Fase 2 los fixtures usan `margen_pct` y dejan `markup_pct` en `null`.
 
 ## Papel
 
@@ -82,6 +86,12 @@ La merma puede depender de:
 
 No usar una constante unica para todos los trabajos sin documentar el supuesto.
 
+Los fixtures iniciales usan:
+
+- `merma_arranque_pliegos`: merma fija de arranque;
+- `merma_pct`: merma porcentual de ejemplo;
+- `merma_extra_pct` en procesos que pueden agregar desperdicio.
+
 ## Chapas
 
 Formula inicial:
@@ -119,6 +129,12 @@ costo_maquina = costo_arranque + (impresiones / 1000) * costo_por_millar
 
 El contrato futuro debe distinguir colores, caras, pasadas y cuerpos de maquina.
 
+Regla inicial para maquinas de varios cuerpos:
+
+- una maquina de 4 cuerpos puede imprimir `4/0` en una pasada de frente;
+- `4/4` requiere frente y dorso, por lo tanto no debe duplicar papel, pero si debe afectar chapas, pasadas y tiempo;
+- una maquina de 1 cuerpo puede requerir multiples pasadas para el mismo esquema de color.
+
 ## Tinta
 
 Modelo tecnico inicial:
@@ -139,6 +155,8 @@ costo_tinta = costo_base_tinta * colores * pliegos_brutos / 1000
 ```
 
 El sistema debe registrar que modelo se uso.
+
+En Fase 2 no se define tarifa final de tinta. Los catalogos dejan preparada la estructura de costos, pero el consumo real queda para una fase de motor.
 
 ## Terminaciones
 
@@ -197,6 +215,25 @@ Tambien conviene conservar:
 costo_unitario = costo_tecnico / cantidad
 margen_unitario = precio_unitario - costo_unitario
 ```
+
+## Orden futuro de calculo
+
+Orden recomendado para el motor:
+
+1. Validar contrato y catalogos.
+2. Normalizar medidas y unidades.
+3. Calcular tamano con sangrado.
+4. Calcular o aceptar formas por pliego.
+5. Calcular pliegos netos.
+6. Calcular merma y pliegos brutos.
+7. Calcular chapas, pasadas e impresiones.
+8. Calcular papel, maquina, tinta y terminaciones.
+9. Sumar costo tecnico.
+10. Aplicar margen o markup.
+11. Aplicar descuentos si existen.
+12. Aplicar impuestos configurados.
+13. Calcular precio final y precio unitario.
+14. Emitir `warnings` y desglose auditable.
 
 ## Advertencias obligatorias futuras
 

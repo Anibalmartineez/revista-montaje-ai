@@ -36,13 +36,16 @@ Construir un modulo determinista y auditable para presupuestos offset:
 
 ## Estado actual
 
-Fase actual: **Fase 1 - base documental y estructura aislada**.
+Fase actual: **Fase 2 - contratos JSON y fixtures iniciales**.
 
 Incluye:
 
 - `AGENTS.md`;
 - documentacion inicial;
 - carpetas base para backend, frontend, datos y tests.
+- catalogos JSON de ejemplo;
+- fixtures JSON de solicitudes de presupuesto;
+- ejemplo de respuesta futura.
 
 No incluye todavia:
 
@@ -53,7 +56,8 @@ No incluye todavia:
 - archivos Python funcionales;
 - integracion con Editor Offset Visual;
 - lectura de `layout_constructor.json`;
-- escritura de presupuestos reales.
+- escritura de presupuestos reales;
+- calculo ejecutable de los fixtures.
 
 ## Fases previstas
 

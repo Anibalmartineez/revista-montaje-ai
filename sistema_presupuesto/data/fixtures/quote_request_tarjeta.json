@@ -1,0 +1,64 @@
+{
+  "schema": "sistema_presupuesto.quote_request",
+  "schema_version": 1,
+  "fixture_id": "quote_request_tarjeta",
+  "descripcion": "Tarjeta frente y dorso 4/4 para validar doble cara sin duplicar papel.",
+  "cliente": {
+    "nombre": "Cliente fixture",
+    "referencia": "CLI-FIXTURE"
+  },
+  "producto": {
+    "titulo": "Tarjeta personal 4/4",
+    "tipo": "tarjeta",
+    "cantidad": "500",
+    "unidad_cantidad": "unidad",
+    "ancho_mm": "90",
+    "alto_mm": "50",
+    "sangrado_mm": "3",
+    "paginas": null,
+    "caras": 2,
+    "colores": {
+      "frente": 4,
+      "dorso": 4,
+      "texto": "4/4"
+    }
+  },
+  "produccion": {
+    "pliego_base_mm": {
+      "ancho": "700",
+      "alto": "1000"
+    },
+    "pliego_util_mm": {
+      "ancho": "680",
+      "alto": "980"
+    },
+    "formas_por_pliego_manual": null,
+    "merma_arranque_pliegos": "30",
+    "merma_pct": "4",
+    "imposicion_origen": "fixture_formula_simple"
+  },
+  "costos": {
+    "moneda": "PYG",
+    "material_id": "cartulina_300",
+    "maquina_id": "offset_4_colores",
+    "procesos_ids": [
+      "corte_guillotina",
+      "redondeado_esquinas"
+    ],
+    "margen_pct": "35",
+    "markup_pct": null,
+    "impuestos": []
+  },
+  "expected_assertions": {
+    "pieza_con_sangrado_mm": {
+      "ancho": "96",
+      "alto": "56"
+    },
+    "formas_por_pliego_teoricas": "119",
+    "pliegos_netos": "5",
+    "chapas": "8",
+    "pasadas": "2",
+    "papel_no_se_duplica_por_dorso": true,
+    "notas": "Valores esperados para tests futuros; no son calculados en Fase 2."
+  }
+}

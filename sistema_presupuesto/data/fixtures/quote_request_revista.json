@@ -1,0 +1,63 @@
+{
+  "schema": "sistema_presupuesto.quote_request",
+  "schema_version": 1,
+  "fixture_id": "quote_request_revista",
+  "descripcion": "Revista A4 32 paginas para validar contratos multipagina y encuadernacion.",
+  "cliente": {
+    "nombre": "Cliente fixture",
+    "referencia": "CLI-FIXTURE"
+  },
+  "producto": {
+    "titulo": "Revista A4 32 paginas",
+    "tipo": "revista",
+    "cantidad": "1000",
+    "unidad_cantidad": "ejemplar",
+    "ancho_mm": "210",
+    "alto_mm": "297",
+    "sangrado_mm": "3",
+    "paginas": 32,
+    "caras": 2,
+    "colores": {
+      "frente": 4,
+      "dorso": 4,
+      "texto": "4/4"
+    },
+    "encuadernacion": {
+      "tipo": "caballete",
+      "proceso_id": "engrampado_caballete"
+    }
+  },
+  "produccion": {
+    "pliego_base_mm": {
+      "ancho": "700",
+      "alto": "1000"
+    },
+    "pliego_util_mm": {
+      "ancho": "680",
+      "alto": "980"
+    },
+    "formas_por_pliego_manual": null,
+    "merma_arranque_pliegos": "50",
+    "merma_pct": "5",
+    "imposicion_origen": "pendiente_cuadernillos"
+  },
+  "costos": {
+    "moneda": "PYG",
+    "material_id": "couche_150",
+    "maquina_id": "offset_4_colores",
+    "procesos_ids": [
+      "corte_guillotina",
+      "engrampado_caballete"
+    ],
+    "margen_pct": "30",
+    "markup_pct": null,
+    "impuestos": []
+  },
+  "expected_assertions": {
+    "paginas_obligatorias": true,
+    "encuadernacion_obligatoria": true,
+    "paginas_multiplo_de_4": true,
+    "no_tratar_como_pieza_simple": true,
+    "notas": "El calculo de cuadernillos se define en fase posterior; este fixture solo fija contrato."
+  }
+}

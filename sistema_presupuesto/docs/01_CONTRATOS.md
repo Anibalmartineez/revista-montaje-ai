@@ -2,7 +2,7 @@
 
 Este documento describe contratos JSON futuros para `sistema_presupuesto/`.
 
-No hay API implementada en Fase 1. Los contratos son una base de diseno para fases posteriores.
+No hay API ni motor implementados en Fase 2. Los contratos y fixtures son una base de diseno para fases posteriores.
 
 ## Principios
 
@@ -12,15 +12,39 @@ No hay API implementada en Fase 1. Los contratos son una base de diseno para fas
 - Los presupuestos aceptados no deben sobrescribirse; deben versionarse o duplicarse.
 - Los datos monetarios deben incluir moneda.
 - Las unidades fisicas deben declarar unidad de medida.
+- Los importes deben viajar como strings para que la futura implementacion los convierta a `Decimal`.
+- Los fixtures pueden incluir `expected_assertions`, pero esos valores no son calculados en Fase 2.
+
+## Archivos definidos en Fase 2
+
+Catalogos:
+
+- `data/catalogo/materiales_default.json`
+- `data/catalogo/maquinas_default.json`
+- `data/catalogo/procesos_default.json`
+
+Fixtures de entrada:
+
+- `data/fixtures/quote_request_volante.json`
+- `data/fixtures/quote_request_tarjeta.json`
+- `data/fixtures/quote_request_revista.json`
+- `data/fixtures/quote_request_diptico.json`
+- `data/fixtures/quote_request_triptico.json`
+
+Fixture de salida:
+
+- `data/fixtures/quote_response_example.json`
 
 ## QuoteRequest futuro
 
-Entrada conceptual para cotizar un trabajo.
+Entrada conceptual para cotizar un trabajo. La estructura real de Fase 2 vive en los fixtures `quote_request_*.json`.
 
 ```json
 {
   "schema": "sistema_presupuesto.quote_request",
   "schema_version": 1,
+  "fixture_id": "quote_request_volante",
+  "descripcion": "Volante A5 simple 4/0 para validar papel, chapas, pliegos y merma.",
   "cliente": {
     "nombre": "Cliente ejemplo",
     "referencia": null
@@ -28,31 +52,39 @@ Entrada conceptual para cotizar un trabajo.
   "producto": {
     "titulo": "Volante A5",
     "tipo": "volante",
-    "cantidad": 1000,
-    "ancho_mm": 148,
-    "alto_mm": 210,
-    "sangrado_mm": 3,
+    "cantidad": "1000",
+    "unidad_cantidad": "unidad",
+    "ancho_mm": "148",
+    "alto_mm": "210",
+    "sangrado_mm": "3",
     "paginas": null,
     "caras": 2,
     "colores": {
       "frente": 4,
-      "dorso": 4,
-      "texto": "4/4"
+      "dorso": 0,
+      "texto": "4/0"
     }
   },
   "produccion": {
-    "pliego_base_mm": [700, 1000],
-    "pliego_util_mm": [680, 980],
+    "pliego_base_mm": {
+      "ancho": "700",
+      "alto": "1000"
+    },
+    "pliego_util_mm": {
+      "ancho": "680",
+      "alto": "980"
+    },
     "formas_por_pliego_manual": null,
-    "merma_arranque_pliegos": 30,
-    "merma_pct": 3
+    "merma_arranque_pliegos": "30",
+    "merma_pct": "3",
+    "imposicion_origen": "fixture_formula_simple"
   },
   "costos": {
     "material_id": "couche_150",
     "maquina_id": "offset_4_colores",
     "procesos_ids": ["corte"],
     "moneda": "PYG",
-    "margen_pct": 30,
+    "margen_pct": "30",
     "markup_pct": null,
     "impuestos": []
   }
@@ -61,19 +93,26 @@ Entrada conceptual para cotizar un trabajo.
 
 ## QuoteResult futuro
 
-Salida conceptual de calculo.
+Salida conceptual de calculo. En Fase 2 solo existe como fixture de ejemplo, no como resultado de motor.
 
 ```json
 {
   "schema": "sistema_presupuesto.quote_result",
   "schema_version": 1,
+  "fixture_id": "quote_response_example",
   "ok": true,
+  "calculation": {
+    "engine_version": "pendiente",
+    "rules_version": "fase_2_contrato",
+    "uses_decimal_strings": true,
+    "implemented": false
+  },
   "produccion": {
-    "formas_por_pliego": 16,
-    "pliegos_netos": 63,
-    "pliegos_brutos": 95,
-    "chapas": 8,
-    "pasadas": 2,
+    "formas_por_pliego": "16",
+    "pliegos_netos": "63",
+    "pliegos_brutos": "95",
+    "chapas": "4",
+    "pasadas": "1",
     "horas_maquina": "1.40"
   },
   "costos": {
@@ -88,14 +127,24 @@ Salida conceptual de calculo.
         "subtotal": "332500"
       }
     ],
-    "costo_tecnico": "0",
-    "margen": "0",
+    "costo_tecnico": "606100",
+    "margen": {
+      "tipo": "margen_sobre_venta",
+      "pct": "30",
+      "monto": "259757.14"
+    },
+    "markup": null,
     "descuento": "0",
-    "impuestos": "0",
-    "precio_final": "0",
-    "precio_unitario": "0"
+    "impuestos": [],
+    "precio_final": "865857.14",
+    "precio_unitario": "865.86"
   },
-  "warnings": []
+  "warnings": [
+    {
+      "code": "EXAMPLE_VALUES",
+      "message": "Los importes de este fixture son valores ficticios de diseno."
+    }
+  ]
 }
 ```
 
@@ -139,3 +188,17 @@ Catalogos previstos:
 - formatos de pliego.
 
 Cada tarifa debe declarar vigencia, fuente y moneda.
+
+## Convenciones de unidades
+
+- medidas lineales: `mm`;
+- area: `m2`;
+- cantidades impresas: `unidad`, `ejemplar`, `pliego`, `hoja`;
+- tiempo: `horas`;
+- moneda: `PYG`;
+- porcentajes: strings numericos en campos con sufijo `_pct`;
+- dinero: strings numericos para uso futuro con `Decimal`.
+
+## Reglas de compatibilidad
+
+Los contratos de Fase 2 no son API publica todavia. Pueden ajustarse antes de implementar modelos, pero cualquier cambio debe actualizar fixtures y documentacion al mismo tiempo.

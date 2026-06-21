@@ -33,10 +33,32 @@ Objetivo:
 - definir catalogos iniciales;
 - crear fixtures numericos para volante, tarjeta, revista, diptico, triptico, frente/dorso, terminaciones y merma.
 
+Entregables:
+
+- `data/catalogo/materiales_default.json`
+- `data/catalogo/maquinas_default.json`
+- `data/catalogo/procesos_default.json`
+- `data/fixtures/quote_request_volante.json`
+- `data/fixtures/quote_request_tarjeta.json`
+- `data/fixtures/quote_request_revista.json`
+- `data/fixtures/quote_request_diptico.json`
+- `data/fixtures/quote_request_triptico.json`
+- `data/fixtures/quote_response_example.json`
+
 Validacion:
 
 - revision manual de contratos;
+- `git diff --check`;
+- validacion de JSON en una fase posterior o con herramienta puntual si se autoriza;
 - aprobacion del usuario antes de motor.
+
+Fuera de alcance:
+
+- motor funcional;
+- rutas Flask;
+- UI;
+- integracion con Editor Offset Visual;
+- persistencia real de presupuestos.
 
 ## Fase 3 - Modelos y validadores
 

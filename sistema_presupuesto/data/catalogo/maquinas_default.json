@@ -1,0 +1,80 @@
+{
+  "schema": "sistema_presupuesto.catalogo.maquinas",
+  "schema_version": 1,
+  "metadata": {
+    "descripcion": "Catalogo inicial de maquinas para fixtures y pruebas futuras.",
+    "moneda": "PYG",
+    "valores_son_ejemplo": true,
+    "fuente": "Valores ficticios de diseno, no tarifas productivas."
+  },
+  "maquinas": [
+    {
+      "id": "offset_4_colores",
+      "nombre": "Offset 4 colores",
+      "tipo": "offset_plana",
+      "cuerpos_color": 4,
+      "formato_minimo_mm": {
+        "ancho": "280",
+        "alto": "400"
+      },
+      "formato_maximo_mm": {
+        "ancho": "720",
+        "alto": "1020"
+      },
+      "costos": {
+        "moneda": "PYG",
+        "costo_hora": "180000",
+        "costo_arranque": "120000",
+        "costo_lavado_por_color": "25000",
+        "es_valor_ejemplo": true
+      },
+      "rendimiento": {
+        "velocidad_pliegos_hora": "5000",
+        "setup_horas": "0.50",
+        "unidad": "pliegos_hora"
+      },
+      "margenes_tecnicos_mm": {
+        "pinza": "10",
+        "cola": "10",
+        "lateral_izquierdo": "10",
+        "lateral_derecho": "10"
+      },
+      "activo": true,
+      "notas": "Maquina fixture principal para validar 4/0, 4/1 y 4/4."
+    },
+    {
+      "id": "offset_1_color",
+      "nombre": "Offset 1 color",
+      "tipo": "offset_plana",
+      "cuerpos_color": 1,
+      "formato_minimo_mm": {
+        "ancho": "250",
+        "alto": "350"
+      },
+      "formato_maximo_mm": {
+        "ancho": "520",
+        "alto": "720"
+      },
+      "costos": {
+        "moneda": "PYG",
+        "costo_hora": "95000",
+        "costo_arranque": "80000",
+        "costo_lavado_por_color": "20000",
+        "es_valor_ejemplo": true
+      },
+      "rendimiento": {
+        "velocidad_pliegos_hora": "3500",
+        "setup_horas": "0.75",
+        "unidad": "pliegos_hora"
+      },
+      "margenes_tecnicos_mm": {
+        "pinza": "10",
+        "cola": "10",
+        "lateral_izquierdo": "10",
+        "lateral_derecho": "10"
+      },
+      "activo": true,
+      "notas": "Maquina fixture para casos donde colores y pasadas no son equivalentes."
+    }
+  ]
+}
