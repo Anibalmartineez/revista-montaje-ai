@@ -10,6 +10,8 @@ Fase 5 agrega tests para persistencia JSON local y repositorios.
 
 Fase 6 agrega tests del CLI interno.
 
+Fase 7 agrega tests de API usando una app Flask temporal.
+
 ## Principios
 
 - Probar primero funciones puras.
@@ -99,6 +101,7 @@ Tests implementados:
 - `tests/test_catalog_repository.py`
 - `tests/test_repositories.py`
 - `tests/test_cli.py`
+- `tests/test_api.py`
 
 Nombres sugeridos para fases futuras:
 

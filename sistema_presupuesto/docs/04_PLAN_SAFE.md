@@ -170,7 +170,29 @@ Fuera de alcance:
 - UI;
 - integracion con Editor Offset Visual.
 
-## Fase 7 - UI aislada
+## Fase 7 - API Flask aislada / Blueprint no registrado
+
+Objetivo:
+
+- crear Blueprint Flask importable;
+- no registrar el Blueprint en la app principal;
+- exponer endpoints internos para catalogos, cotizacion y presupuestos;
+- probar con una app Flask temporal.
+
+Entregables:
+
+- `api.py`
+- `tests/test_api.py`
+- `docs/07_API_INTERNA.md`
+
+Fuera de alcance:
+
+- tocar `routes.py`;
+- registrar Blueprint;
+- UI;
+- integracion con Editor Offset Visual.
+
+## Fase 8 - UI aislada
 
 Objetivo:
 
@@ -184,7 +206,7 @@ Regla:
 - usar `frontend/` dentro del modulo;
 - no tocar templates, CSS ni JS del Editor Offset Visual.
 
-## Fase 8 - API o Blueprint propio
+## Fase 9 - Registro API en app principal, si se aprueba
 
 Objetivo:
 
@@ -193,7 +215,7 @@ Objetivo:
 
 No crear rutas `/editor_offset*`.
 
-## Fase 9 - Integracion futura por adaptador
+## Fase 10 - Integracion futura por adaptador
 
 Objetivo:
 
