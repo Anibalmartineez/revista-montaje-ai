@@ -39,11 +39,26 @@ GET  /api/sistema-presupuesto/health
 GET  /api/sistema-presupuesto/catalogos/materiales
 GET  /api/sistema-presupuesto/catalogos/maquinas
 GET  /api/sistema-presupuesto/catalogos/procesos
+GET  /api/sistema-presupuesto/catalogos/<tipo>
+GET  /api/sistema-presupuesto/catalogos/<tipo>/custom
+POST /api/sistema-presupuesto/catalogos/<tipo>/custom
+PUT  /api/sistema-presupuesto/catalogos/<tipo>/custom/<item_id>
+DELETE /api/sistema-presupuesto/catalogos/<tipo>/custom/<item_id>
 POST /api/sistema-presupuesto/cotizar
 POST /api/sistema-presupuesto/cotizar-y-guardar
 GET  /api/sistema-presupuesto/presupuestos
 GET  /api/sistema-presupuesto/presupuestos/<presupuesto_id>
 ```
+
+Tipos de catalogo permitidos:
+
+- `materiales`
+- `maquinas`
+- `procesos`
+
+Los endpoints historicos de catalogos siguen existiendo y devuelven el catalogo combinado default + custom.
+Los endpoints `/custom` leen y escriben solo los archivos custom.
+Si un `id` custom coincide con uno default, custom sobrescribe default en la respuesta combinada.
 
 ## Errores
 

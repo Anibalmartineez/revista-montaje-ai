@@ -1,0 +1,11 @@
+{
+  "schema": "sistema_presupuesto.catalogo.procesos",
+  "schema_version": 1,
+  "metadata": {
+    "descripcion": "Catalogo custom editable de procesos.",
+    "moneda": "PYG",
+    "valores_son_ejemplo": true,
+    "fuente": "Valores configurables por el usuario; pueden ser ficticios."
+  },
+  "procesos": []
+}

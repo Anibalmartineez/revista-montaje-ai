@@ -77,7 +77,7 @@ def _dispatch(args: argparse.Namespace) -> dict[str, Any]:
 
     if args.command == "calcular":
         payload = _read_input_json(args.quote_request_json)
-        result = calculate_quote_from_dict(payload, **catalog_repo.load_all_defaults())
+        result = calculate_quote_from_dict(payload, **catalog_repo.load_all_combined())
         return {
             "ok": True,
             "action": "calcular",
@@ -86,7 +86,7 @@ def _dispatch(args: argparse.Namespace) -> dict[str, Any]:
 
     if args.command == "calcular-y-guardar":
         payload = _read_input_json(args.quote_request_json)
-        result = calculate_quote_from_dict(payload, **catalog_repo.load_all_defaults())
+        result = calculate_quote_from_dict(payload, **catalog_repo.load_all_combined())
         record = budget_repo.save_calculated_budget(result, request_payload=payload)
         return {
             "ok": True,

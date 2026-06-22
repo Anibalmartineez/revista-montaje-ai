@@ -192,6 +192,39 @@
           </article>
         </div>
       </section>
+
+      <section class="sp-panel sp-catalogs" id="sp-catalogs-section">
+        <div class="sp-saved-header">
+          <h2>Catalogos</h2>
+          <div class="sp-catalog-toolbar">
+            <label>
+              <span>Tipo</span>
+              <select id="sp-catalog-type">
+                <option value="materiales">Materiales</option>
+                <option value="maquinas">Maquinas</option>
+                <option value="procesos">Procesos</option>
+              </select>
+            </label>
+            <button class="sp-button" id="sp-refresh-catalog" type="button">Actualizar catalogo</button>
+            <button class="sp-button" id="sp-new-catalog-item" type="button">Nuevo custom</button>
+          </div>
+        </div>
+        <div class="sp-catalog-message" id="sp-catalog-message" role="status"></div>
+        <div class="sp-catalog-layout">
+          <div class="sp-catalog-list" id="sp-catalog-list"></div>
+          <form class="sp-catalog-editor" id="sp-catalog-form">
+            <label>
+              <span>Item JSON</span>
+              <textarea id="sp-catalog-json" rows="18" spellcheck="false"></textarea>
+            </label>
+            <div class="sp-actions">
+              <button class="sp-button sp-button-primary" id="sp-save-catalog-item" type="submit">Guardar custom</button>
+              <button class="sp-button sp-button-danger" id="sp-delete-catalog-item" type="button" disabled>Eliminar custom</button>
+              <button class="sp-button" id="sp-clear-catalog-item" type="button">Limpiar</button>
+            </div>
+          </form>
+        </div>
+      </section>
     </main>
 
     <script src="/sistema-presupuesto-ui/static/js/presupuesto_offset.js" defer></script>

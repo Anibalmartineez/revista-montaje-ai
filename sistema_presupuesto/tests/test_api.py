@@ -20,6 +20,27 @@ def copy_catalogs(tmp_path):
         (catalog_dir / source.name).write_text(source.read_text(encoding="utf-8"), encoding="utf-8")
 
 
+def valid_material(**overrides):
+    item = {
+        "id": "material_api_test",
+        "nombre": "Material API test",
+        "tipo": "papel_test",
+        "gramaje_g_m2": "1",
+        "formato_pliego_mm": {"ancho": "1", "alto": "1"},
+        "costo": {
+            "modo": "por_pliego",
+            "moneda": "PYG",
+            "valor": "0",
+            "unidad": "pliego",
+            "es_valor_ejemplo": True,
+        },
+        "merma_recomendada_pct": "0",
+        "activo": True,
+    }
+    item.update(overrides)
+    return item
+
+
 @pytest.fixture()
 def app(tmp_path):
     copy_catalogs(tmp_path)
@@ -57,6 +78,64 @@ def test_catalog_endpoints_return_json(client, endpoint, collection_key):
     payload = response.get_json()
     assert payload["ok"] is True
     assert payload["catalogo"][collection_key]
+
+
+def test_custom_catalog_api_crud(client):
+    create_response = client.post(
+        "/api/sistema-presupuesto/catalogos/materiales/custom",
+        json=valid_material(),
+    )
+    assert create_response.status_code == 201
+    assert create_response.get_json()["item"]["id"] == "material_api_test"
+
+    custom_response = client.get("/api/sistema-presupuesto/catalogos/materiales/custom")
+    assert custom_response.status_code == 200
+    assert custom_response.get_json()["catalogo"]["materiales"][0]["id"] == "material_api_test"
+
+    combined_response = client.get("/api/sistema-presupuesto/catalogos/materiales")
+    assert combined_response.status_code == 200
+    combined_items = combined_response.get_json()["catalogo"]["materiales"]
+    assert any(item["id"] == "material_api_test" and item["origen_catalogo"] == "custom" for item in combined_items)
+
+    update_response = client.put(
+        "/api/sistema-presupuesto/catalogos/materiales/custom/material_api_test",
+        json={"nombre": "Material API actualizado"},
+    )
+    assert update_response.status_code == 200
+    assert update_response.get_json()["item"]["nombre"] == "Material API actualizado"
+
+    delete_response = client.delete("/api/sistema-presupuesto/catalogos/materiales/custom/material_api_test")
+    assert delete_response.status_code == 200
+    assert delete_response.get_json()["deleted"] is True
+
+
+def test_custom_catalog_api_rejects_invalid_item(client):
+    response = client.post(
+        "/api/sistema-presupuesto/catalogos/materiales/custom",
+        json={"id": "material_invalido"},
+    )
+
+    assert response.status_code == 400
+    payload = response.get_json()
+    assert payload["ok"] is False
+    assert payload["error"]["code"] == "REPOSITORY_ERROR"
+
+
+def test_custom_catalog_api_override_is_used_by_legacy_endpoint(client):
+    response = client.post(
+        "/api/sistema-presupuesto/catalogos/materiales/custom",
+        json=valid_material(id="couche_150", nombre="Papel override API"),
+    )
+    assert response.status_code == 201
+
+    legacy_response = client.get("/api/sistema-presupuesto/catalogos/materiales")
+    items = legacy_response.get_json()["catalogo"]["materiales"]
+    matches = [item for item in items if item["id"] == "couche_150"]
+
+    assert legacy_response.status_code == 200
+    assert len(matches) == 1
+    assert matches[0]["nombre"] == "Papel override API"
+    assert matches[0]["origen_catalogo"] == "custom"
 
 
 def test_cotizar_calculates_valid_fixture(client):

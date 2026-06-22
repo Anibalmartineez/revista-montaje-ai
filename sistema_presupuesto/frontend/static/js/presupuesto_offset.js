@@ -8,6 +8,11 @@
       maquinas: [],
       procesos: [],
     },
+    catalogAdmin: {
+      items: [],
+      selectedId: null,
+      selectedSource: null,
+    },
     lastResult: null,
   };
 
@@ -19,6 +24,7 @@
     bindEvents();
     await checkHealth();
     await loadCatalogs();
+    await loadCatalogAdmin();
     await refreshBudgets();
   }
 
@@ -33,6 +39,12 @@
     $("#sp-refresh-budgets").addEventListener("click", refreshBudgets);
     $("#sp-tipo").addEventListener("change", syncTypeDefaults);
     $("#sp-modo-comercial").addEventListener("change", syncCommercialLimit);
+    $("#sp-catalog-type").addEventListener("change", loadCatalogAdmin);
+    $("#sp-refresh-catalog").addEventListener("click", loadCatalogAdmin);
+    $("#sp-new-catalog-item").addEventListener("click", newCatalogItem);
+    $("#sp-catalog-form").addEventListener("submit", saveCatalogItem);
+    $("#sp-delete-catalog-item").addEventListener("click", deleteCatalogItem);
+    $("#sp-clear-catalog-item").addEventListener("click", clearCatalogEditor);
   }
 
   async function checkHealth() {
@@ -242,6 +254,203 @@
     } catch (error) {
       $("#sp-budget-list").innerHTML = `<div class="sp-alert sp-error">${escapeHtml(error.message)}</div>`;
     }
+  }
+
+  async function loadCatalogAdmin() {
+    const type = $("#sp-catalog-type").value;
+    const collectionKey = catalogCollectionKey(type);
+    try {
+      const payload = await requestJson(`${API_BASE}/catalogos/${encodeURIComponent(type)}`);
+      state.catalogAdmin.items = payload.catalogo[collectionKey] || [];
+      renderCatalogList();
+      showCatalogMessage("");
+    } catch (error) {
+      state.catalogAdmin.items = [];
+      renderCatalogList();
+      showCatalogMessage(error.message, true);
+    }
+  }
+
+  function renderCatalogList() {
+    const container = $("#sp-catalog-list");
+    container.innerHTML = "";
+    if (!state.catalogAdmin.items.length) {
+      container.innerHTML = "<div class=\"sp-alert\">No hay items en este catalogo.</div>";
+      return;
+    }
+    state.catalogAdmin.items.forEach((item) => {
+      const source = item.origen_catalogo || "custom";
+      const button = document.createElement("button");
+      button.type = "button";
+      button.className = "sp-catalog-row";
+      button.innerHTML = `
+        <strong>${escapeHtml(item.nombre || item.id)}</strong>
+        <span>${escapeHtml(item.id)} · ${escapeHtml(source)}</span>
+      `;
+      button.addEventListener("click", () => selectCatalogItem(item));
+      container.appendChild(button);
+    });
+  }
+
+  function selectCatalogItem(item) {
+    state.catalogAdmin.selectedId = item.id;
+    state.catalogAdmin.selectedSource = item.origen_catalogo || "custom";
+    $("#sp-catalog-json").value = JSON.stringify(stripCatalogUiFields(item), null, 2);
+    $("#sp-delete-catalog-item").disabled = state.catalogAdmin.selectedSource !== "custom";
+    showCatalogMessage(
+      state.catalogAdmin.selectedSource === "default"
+        ? "Item default seleccionado. Guardar crea un custom con el mismo ID y sobrescribe en la vista combinada."
+        : ""
+    );
+  }
+
+  function newCatalogItem() {
+    state.catalogAdmin.selectedId = null;
+    state.catalogAdmin.selectedSource = null;
+    $("#sp-catalog-json").value = JSON.stringify(catalogTemplate($("#sp-catalog-type").value), null, 2);
+    $("#sp-delete-catalog-item").disabled = true;
+    showCatalogMessage("");
+  }
+
+  async function saveCatalogItem(event) {
+    event.preventDefault();
+    const type = $("#sp-catalog-type").value;
+    let item;
+    try {
+      item = JSON.parse($("#sp-catalog-json").value || "{}");
+    } catch (error) {
+      showCatalogMessage("JSON invalido en el editor.", true);
+      return;
+    }
+
+    const existing = state.catalogAdmin.items.find(
+      (candidate) => candidate.id === item.id && candidate.origen_catalogo === "custom"
+    );
+    const isUpdate = Boolean(existing);
+    const url = isUpdate
+      ? `${API_BASE}/catalogos/${encodeURIComponent(type)}/custom/${encodeURIComponent(item.id)}`
+      : `${API_BASE}/catalogos/${encodeURIComponent(type)}/custom`;
+
+    try {
+      const payload = await requestJson(url, {
+        method: isUpdate ? "PUT" : "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(item),
+      });
+      showCatalogMessage(isUpdate ? "Item custom actualizado." : "Item custom creado.");
+      state.catalogAdmin.selectedId = payload.item.id;
+      state.catalogAdmin.selectedSource = "custom";
+      await loadCatalogs();
+      await loadCatalogAdmin();
+    } catch (error) {
+      showCatalogMessage(error.message, true);
+    }
+  }
+
+  async function deleteCatalogItem() {
+    const type = $("#sp-catalog-type").value;
+    const itemId = state.catalogAdmin.selectedId;
+    if (!itemId || state.catalogAdmin.selectedSource !== "custom") {
+      showCatalogMessage("Solo se pueden eliminar items custom.", true);
+      return;
+    }
+    try {
+      await requestJson(`${API_BASE}/catalogos/${encodeURIComponent(type)}/custom/${encodeURIComponent(itemId)}`, {
+        method: "DELETE",
+      });
+      showCatalogMessage("Item custom eliminado.");
+      clearCatalogEditor();
+      await loadCatalogs();
+      await loadCatalogAdmin();
+    } catch (error) {
+      showCatalogMessage(error.message, true);
+    }
+  }
+
+  function clearCatalogEditor() {
+    state.catalogAdmin.selectedId = null;
+    state.catalogAdmin.selectedSource = null;
+    $("#sp-catalog-json").value = "";
+    $("#sp-delete-catalog-item").disabled = true;
+  }
+
+  function showCatalogMessage(message, isError) {
+    const box = $("#sp-catalog-message");
+    box.textContent = message;
+    box.classList.toggle("sp-error", Boolean(isError));
+  }
+
+  function stripCatalogUiFields(item) {
+    const copied = { ...item };
+    delete copied.origen_catalogo;
+    return copied;
+  }
+
+  function catalogCollectionKey(type) {
+    return {
+      materiales: "materiales",
+      maquinas: "maquinas",
+      procesos: "procesos",
+    }[type] || "materiales";
+  }
+
+  function catalogTemplate(type) {
+    if (type === "maquinas") {
+      return {
+        id: "maquina_custom",
+        nombre: "Maquina custom",
+        tipo: "offset_plana",
+        cuerpos_color: 1,
+        formato_minimo_mm: { ancho: "1", alto: "1" },
+        formato_maximo_mm: { ancho: "1", alto: "1" },
+        costos: {
+          moneda: "PYG",
+          costo_hora: "0",
+          costo_arranque: "0",
+          costo_lavado_por_color: "0",
+          es_valor_ejemplo: true,
+        },
+        rendimiento: {
+          velocidad_pliegos_hora: "1",
+          setup_horas: "0",
+          unidad: "pliegos_hora",
+        },
+        activo: true,
+      };
+    }
+    if (type === "procesos") {
+      return {
+        id: "proceso_custom",
+        nombre: "Proceso custom",
+        categoria: "terminacion",
+        modo_cobro: "fijo",
+        base_calculo: "trabajo",
+        tarifa: {
+          moneda: "PYG",
+          valor: "0",
+          unidad: "trabajo",
+          es_valor_ejemplo: true,
+        },
+        merma_extra_pct: "0",
+        activo: true,
+      };
+    }
+    return {
+      id: "material_custom",
+      nombre: "Material custom",
+      tipo: "papel",
+      gramaje_g_m2: "1",
+      formato_pliego_mm: { ancho: "1", alto: "1" },
+      costo: {
+        modo: "por_pliego",
+        moneda: "PYG",
+        valor: "0",
+        unidad: "pliego",
+        es_valor_ejemplo: true,
+      },
+      merma_recomendada_pct: "0",
+      activo: true,
+    };
   }
 
   function renderBudgetList(items) {

@@ -36,16 +36,17 @@ Construir un modulo determinista y auditable para presupuestos offset:
 
 ## Estado actual
 
-Fase actual: **Fase 8 - UI frontend aislada completada**.
+Fase actual: **Fase 9.1 - Catalogos editables completada**.
 
-Proxima fase propuesta: **Fase 9 - Gestion comercial aislada**.
+Proxima fase propuesta: **Fase 9.2 - Clientes aislados**.
 
 Implementado:
 
 - `AGENTS.md`;
-- documentacion `00` a `08`;
+- documentacion `00` a `09`;
 - contratos JSON;
 - catalogos default;
+- catalogos custom editables;
 - fixtures;
 - modelos internos con `dataclasses`;
 - validadores;
@@ -61,6 +62,7 @@ Implementado:
 - Blueprint Flask aislado;
 - API interna aislada;
 - UI frontend aislada;
+- administracion aislada de catalogos desde UI/API;
 - `dev_app.py`;
 - tests automatizados.
 
@@ -74,7 +76,6 @@ No incluye todavia:
 - base de datos;
 - autenticacion/usuarios;
 - API publica productiva;
-- catalogos editables desde UI/API;
 - clientes;
 - PDF comercial;
 - historial avanzado;
@@ -91,7 +92,7 @@ No incluye todavia:
 7. API Flask aislada / Blueprint no registrado.
 8. UI frontend aislada.
 9. Gestion comercial aislada:
-   - catalogos editables;
+   - catalogos editables completados en Fase 9.1;
    - clientes;
    - numeracion comercial;
    - duplicacion de presupuestos;
@@ -117,10 +118,10 @@ El resultado debe explicar cada componente del presupuesto. Si un dato tecnico n
 - `docs/06_USO_CLI.md`: uso del CLI interno de prueba.
 - `docs/07_API_INTERNA.md`: Blueprint Flask aislado.
 - `docs/08_UI_AISLADA.md`: UI frontend aislada.
+- `docs/09_ADMIN_CATALOGOS.md`: administracion aislada de catalogos editables.
 
 Documentos planificados para Fase 9:
 
-- `docs/09_ADMIN_CATALOGOS.md`: administracion aislada de catalogos editables.
 - `docs/10_CLIENTES.md`: modelo y flujo de clientes.
 - `docs/11_PDF_PRESUPUESTO.md`: generacion de PDF comercial.
 - `docs/12_HISTORIAL_Y_DUPLICACION.md`: historial avanzado y duplicacion de presupuestos.

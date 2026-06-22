@@ -39,30 +39,60 @@ def create_presupuesto_api_blueprint() -> Blueprint:
     @bp.get("/catalogos/materiales")
     def catalogos_materiales():
         catalog_repo, _ = _repositories()
-        return jsonify({"ok": True, "catalogo": catalog_repo.load_materiales_default()})
+        return jsonify({"ok": True, "catalogo": catalog_repo.list_combined("materiales")})
 
     @bp.get("/catalogos/maquinas")
     def catalogos_maquinas():
         catalog_repo, _ = _repositories()
-        return jsonify({"ok": True, "catalogo": catalog_repo.load_maquinas_default()})
+        return jsonify({"ok": True, "catalogo": catalog_repo.list_combined("maquinas")})
 
     @bp.get("/catalogos/procesos")
     def catalogos_procesos():
         catalog_repo, _ = _repositories()
-        return jsonify({"ok": True, "catalogo": catalog_repo.load_procesos_default()})
+        return jsonify({"ok": True, "catalogo": catalog_repo.list_combined("procesos")})
+
+    @bp.get("/catalogos/<tipo>")
+    def catalogos_por_tipo(tipo: str):
+        catalog_repo, _ = _repositories()
+        return jsonify({"ok": True, "catalogo": catalog_repo.list_combined(tipo)})
+
+    @bp.get("/catalogos/<tipo>/custom")
+    def catalogos_custom(tipo: str):
+        catalog_repo, _ = _repositories()
+        return jsonify({"ok": True, "catalogo": catalog_repo.list_custom(tipo)})
+
+    @bp.post("/catalogos/<tipo>/custom")
+    def crear_catalogo_custom(tipo: str):
+        payload = _request_json()
+        catalog_repo, _ = _repositories()
+        item = catalog_repo.create_custom(tipo, payload)
+        return jsonify({"ok": True, "item": item}), 201
+
+    @bp.put("/catalogos/<tipo>/custom/<item_id>")
+    def actualizar_catalogo_custom(tipo: str, item_id: str):
+        payload = _request_json()
+        catalog_repo, _ = _repositories()
+        item = catalog_repo.update_custom(tipo, item_id, payload)
+        return jsonify({"ok": True, "item": item})
+
+    @bp.delete("/catalogos/<tipo>/custom/<item_id>")
+    def eliminar_catalogo_custom(tipo: str, item_id: str):
+        catalog_repo, _ = _repositories()
+        result = catalog_repo.delete_custom(tipo, item_id)
+        return jsonify({"ok": True, **result})
 
     @bp.post("/cotizar")
     def cotizar():
         payload = _request_json()
         catalog_repo, _ = _repositories()
-        result = calculate_quote_from_dict(payload, **catalog_repo.load_all_defaults())
+        result = calculate_quote_from_dict(payload, **catalog_repo.load_all_combined())
         return jsonify({"ok": True, "result": quote_result_to_dict(result)})
 
     @bp.post("/cotizar-y-guardar")
     def cotizar_y_guardar():
         payload = _request_json()
         catalog_repo, budget_repo = _repositories()
-        result = calculate_quote_from_dict(payload, **catalog_repo.load_all_defaults())
+        result = calculate_quote_from_dict(payload, **catalog_repo.load_all_combined())
         record = budget_repo.save_calculated_budget(result, request_payload=payload)
         return jsonify({"ok": True, "presupuesto_id": record["presupuesto_id"], "record": record}), 201
 

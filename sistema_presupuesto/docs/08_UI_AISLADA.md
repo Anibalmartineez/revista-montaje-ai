@@ -57,6 +57,25 @@ catalogo/procesos_default.json
 4. El backend calcula y devuelve desglose.
 5. La UI puede enviar a `/api/sistema-presupuesto/cotizar-y-guardar`.
 6. La UI lista y abre presupuestos guardados.
+7. La seccion `Catalogos` permite administrar items custom de materiales, maquinas y procesos.
+
+## Catalogos
+
+La seccion `Catalogos` consume exclusivamente endpoints internos bajo `/api/sistema-presupuesto`.
+
+Permite:
+
+- elegir tipo de catalogo;
+- ver catalogo combinado default + custom;
+- distinguir `origen_catalogo` entre `default` y `custom`;
+- crear items custom;
+- editar items custom;
+- crear un override custom desde un item default;
+- eliminar solo items custom;
+- mostrar errores de validacion devueltos por backend.
+
+La UI no modifica catalogos default.
+La UI no calcula costos ni valida reglas de negocio; el backend valida y recalcula siempre.
 
 ## Reglas
 
@@ -66,3 +85,4 @@ catalogo/procesos_default.json
 - No toca `routes.py`.
 - No modifica templates, JS o CSS existentes del sistema principal.
 - Los catalogos siguen siendo ficticios de diseno.
+- Los valores custom deben ser configurables o ficticios.
