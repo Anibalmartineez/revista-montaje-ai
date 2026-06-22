@@ -49,21 +49,28 @@ Antes de cambiar comportamiento revisar:
 - `docs/03_TESTS_VALIDACION.md`
 - `docs/04_PLAN_SAFE.md`
 - `docs/05_INTEGRACION_FUTURA_EDITOR_OFFSET.md`
+- `docs/06_USO_CLI.md`
+- `docs/07_API_INTERNA.md`
+- `docs/08_UI_AISLADA.md`
+
+Si existen documentos posteriores dentro de `sistema_presupuesto/docs/`, deben revisarse antes de modificar funcionalidad relacionada.
 
 ## Arquitectura
 
-Separar dominio, calculo, persistencia y presentacion.
+Separar dominio, calculo, persistencia, presentacion y API.
 
-- `backend/models.py`: contratos internos futuros.
-- `backend/validators.py`: validaciones de entrada futuras.
-- `backend/production_math.py`: matematica tecnica offset futura.
-- `backend/pricing_engine.py`: calculo monetario futuro.
-- `backend/calculation_engine.py`: orquestador puro futuro.
-- `backend/storage.py` y `backend/repositories.py`: persistencia futura.
-- `frontend/`: UI aislada futura.
+- `backend/models.py`: contratos internos.
+- `backend/validators.py`: validaciones de entrada.
+- `backend/production_math.py`: matematica tecnica offset.
+- `backend/pricing_engine.py`: calculo monetario.
+- `backend/calculation_engine.py`: orquestador puro.
+- `backend/storage.py` y `backend/repositories.py`: persistencia.
+- `frontend/`: UI aislada.
 - `data/`: catalogos, fixtures y presupuestos del modulo.
 
-No crear archivos Python funcionales hasta que exista una fase aprobada para modelos, motor o API.
+Todo nuevo componente funcional debe respetar la separacion entre dominio, calculo, persistencia, presentacion y API.
+No implementar logica de negocio en templates, JavaScript ni endpoints Flask.
+El backend debe recalcular siempre y los endpoints deben actuar como capa de entrada/salida.
 
 ## Convenciones de nombres
 

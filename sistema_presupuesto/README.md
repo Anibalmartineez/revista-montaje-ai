@@ -36,60 +36,69 @@ Construir un modulo determinista y auditable para presupuestos offset:
 
 ## Estado actual
 
-Fase actual: **Fase 8 - UI frontend aislada**.
+Fase actual: **Fase 8 - UI frontend aislada completada**.
 
-Incluye:
+Proxima fase propuesta: **Fase 9 - Gestion comercial aislada**.
+
+Implementado:
 
 - `AGENTS.md`;
-- documentacion inicial;
-- carpetas base para backend, frontend, datos y tests.
-- catalogos JSON de ejemplo;
-- fixtures JSON de solicitudes de presupuesto;
-- ejemplo de respuesta futura.
+- documentacion `00` a `08`;
+- contratos JSON;
+- catalogos default;
+- fixtures;
 - modelos internos con `dataclasses`;
-- validadores puros de contratos;
-- serializadores base para convertir JSON validado en modelos;
+- validadores;
+- serializadores;
 - errores de dominio;
-- tests minimos de contratos y serializacion.
 - matematica tecnica de produccion;
 - motor monetario con `Decimal`;
-- orquestador de calculo puro;
-- desglose auditable con advertencias.
+- orquestador de calculo;
 - persistencia JSON local;
 - repositorio de catalogos;
-- repositorio de presupuestos calculados.
-- CLI interno para calcular, guardar, listar y ver presupuestos.
-- Blueprint Flask aislado e importable para pruebas internas.
-- UI frontend aislada para cargar datos, calcular, guardar, listar y ver presupuestos.
+- repositorio de presupuestos;
+- CLI interno;
+- Blueprint Flask aislado;
+- API interna aislada;
+- UI frontend aislada;
+- `dev_app.py`;
+- tests automatizados.
 
 No incluye todavia:
 
-- rutas Flask;
-- API;
-- frontend funcional;
-- motor de calculo;
-- archivos Python funcionales;
+- integracion con app principal Flask;
+- registro del Blueprint en la app principal;
 - integracion con Editor Offset Visual;
 - lectura de `layout_constructor.json`;
-- escritura de presupuestos reales;
-- rutas Flask;
-- UI;
-- integracion con el Editor Offset Visual.
-- base de datos.
-- API publica productiva.
-- integracion con Editor Offset Visual.
+- escritura en jobs del Editor Offset Visual;
+- base de datos;
+- autenticacion/usuarios;
+- API publica productiva;
+- catalogos editables desde UI/API;
+- clientes;
+- PDF comercial;
+- historial avanzado;
+- duplicacion de presupuestos.
 
 ## Fases previstas
 
-1. Crear estructura y documentacion base.
-2. Definir contratos JSON y fixtures de calculo.
-3. Implementar modelos puros y validadores.
-4. Implementar motor determinista con `Decimal`.
-5. Agregar tests unitarios de casos reales.
-6. Agregar almacenamiento JSON interno.
-7. Crear UI aislada.
-8. Evaluar API o Blueprint propio.
-9. Evaluar adaptador read-only con Editor Offset Visual.
+1. Estructura y documentacion base.
+2. Contratos JSON y fixtures.
+3. Modelos, validadores y serializadores.
+4. Motor determinista con `Decimal`.
+5. Persistencia JSON y repositorios.
+6. CLI interno.
+7. API Flask aislada / Blueprint no registrado.
+8. UI frontend aislada.
+9. Gestion comercial aislada:
+   - catalogos editables;
+   - clientes;
+   - numeracion comercial;
+   - duplicacion de presupuestos;
+   - PDF comercial;
+   - historial.
+10. Activacion dentro de app principal Flask.
+11. Integracion read-only futura con Editor Offset Visual.
 
 ## Principio de diseno
 
@@ -108,3 +117,10 @@ El resultado debe explicar cada componente del presupuesto. Si un dato tecnico n
 - `docs/06_USO_CLI.md`: uso del CLI interno de prueba.
 - `docs/07_API_INTERNA.md`: Blueprint Flask aislado.
 - `docs/08_UI_AISLADA.md`: UI frontend aislada.
+
+Documentos planificados para Fase 9:
+
+- `docs/09_ADMIN_CATALOGOS.md`: administracion aislada de catalogos editables.
+- `docs/10_CLIENTES.md`: modelo y flujo de clientes.
+- `docs/11_PDF_PRESUPUESTO.md`: generacion de PDF comercial.
+- `docs/12_HISTORIAL_Y_DUPLICACION.md`: historial avanzado y duplicacion de presupuestos.
