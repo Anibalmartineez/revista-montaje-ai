@@ -60,6 +60,7 @@ catalogo/procesos_default.json
 7. La seccion `Catalogos` permite administrar items custom de materiales, maquinas y procesos.
 8. La seccion `Clientes` permite administrar clientes aislados.
 9. Al guardar un presupuesto, la UI muestra el `numero_comercial` generado por backend.
+10. Desde un presupuesto guardado, la UI permite generar y abrir documento comercial.
 
 ## Catalogos
 
@@ -92,7 +93,7 @@ Permite:
 - mostrar errores de validacion devueltos por backend.
 
 La UI no asocia clientes con presupuestos todavia.
-La UI no genera PDF.
+La UI no genera PDF por si misma; solicita el documento al backend aislado.
 
 ## Numeracion comercial
 
@@ -105,6 +106,16 @@ La UI muestra `numero_comercial` cuando existe:
 El frontend no genera numeros comerciales.
 El backend es la unica fuente del formato `PRES-YYYY-000001`.
 
+## Documento comercial
+
+La UI muestra un boton `Generar documento` al abrir un presupuesto guardado.
+
+Permite:
+
+- generar PDF comercial si el backend tiene soporte disponible;
+- mostrar fallback HTML si el backend no puede generar PDF;
+- abrir el documento generado mediante endpoint seguro.
+
 ## Reglas
 
 - El frontend no calcula precios.
@@ -116,3 +127,4 @@ El backend es la unica fuente del formato `PRES-YYYY-000001`.
 - Los valores custom deben ser configurables o ficticios.
 - Los clientes se administran aislados y aun no forman parte del `QuoteRequest`.
 - Los presupuestos antiguos pueden no tener `numero_comercial`.
+- Los documentos generados viven bajo `data/pdfs/`.

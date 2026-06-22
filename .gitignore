@@ -32,3 +32,6 @@ static/ia_jobs/
 # Presupuestos generados por el modulo aislado Sistema Presupuesto
 sistema_presupuesto/data/presupuestos/*.json
 !sistema_presupuesto/data/presupuestos/.gitkeep
+sistema_presupuesto/data/pdfs/*.pdf
+sistema_presupuesto/data/pdfs/*.html
+!sistema_presupuesto/data/pdfs/.gitkeep

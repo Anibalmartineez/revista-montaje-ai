@@ -54,6 +54,8 @@ POST /api/sistema-presupuesto/cotizar
 POST /api/sistema-presupuesto/cotizar-y-guardar
 GET  /api/sistema-presupuesto/presupuestos
 GET  /api/sistema-presupuesto/presupuestos/<presupuesto_id>
+POST /api/sistema-presupuesto/presupuestos/<presupuesto_id>/documento
+GET  /api/sistema-presupuesto/documentos/<archivo>
 ```
 
 Tipos de catalogo permitidos:
@@ -72,6 +74,9 @@ Clientes todavia no se asocian a presupuestos.
 
 El endpoint `GET /numeracion` muestra el estado actual del contador comercial sin incrementarlo.
 `POST /cotizar-y-guardar` genera y devuelve `numero_comercial` con formato `PRES-YYYY-000001`.
+
+`POST /presupuestos/<presupuesto_id>/documento` genera un documento comercial desde el presupuesto guardado.
+`GET /documentos/<archivo>` sirve solo archivos generados bajo `data/pdfs/`.
 
 ## Errores
 
@@ -96,5 +101,4 @@ Si hay errores de validacion, se agrega `validation`.
 - No se registra en Flask principal.
 - No integra con Editor Offset Visual.
 - Usa catalogos ficticios de diseno.
-- No genera PDF comercial.
 - No asocia clientes a presupuestos todavia.

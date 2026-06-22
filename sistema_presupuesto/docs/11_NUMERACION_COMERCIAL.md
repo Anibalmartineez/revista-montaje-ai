@@ -101,7 +101,7 @@ La UI muestra `numero_comercial`:
 
 ## Limitaciones
 
-- No hay PDF comercial todavia.
+- El PDF comercial usa `numero_comercial` cuando existe.
 - No hay duplicacion de presupuestos todavia.
 - No hay historial avanzado todavia.
 - No se asocian clientes a presupuestos todavia.

@@ -465,6 +465,18 @@ pre {
   opacity: 0.55;
 }
 
+.sp-document-link {
+  align-self: center;
+  color: var(--sp-accent-2);
+  font-size: 14px;
+  font-weight: 700;
+  text-decoration: none;
+}
+
+.sp-document-link:hover {
+  text-decoration: underline;
+}
+
 .sp-error {
   border-color: rgba(180, 35, 24, 0.35);
   background: #fff0ee;

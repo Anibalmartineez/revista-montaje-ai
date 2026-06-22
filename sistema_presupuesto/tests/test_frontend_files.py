@@ -26,6 +26,8 @@ def test_html_has_main_containers():
     assert 'id="sp-catalog-type"' in html
     assert 'id="sp-clients-section"' in html
     assert 'id="sp-client-list"' in html
+    assert 'id="sp-generate-document"' in html
+    assert "Generar documento" in html
 
 
 def test_css_uses_isolated_prefix():
@@ -47,6 +49,8 @@ def test_js_uses_api_and_does_not_reference_editor():
     assert "sp-client-list" in js
     assert "numero_comercial" in js
     assert "sp-numero-comercial" in js
+    assert "/documento" in js
+    assert "/documentos/" in js
     assert "editor_offset" not in js
     assert "editor-offset" not in js
     assert "/editor_offset" not in js

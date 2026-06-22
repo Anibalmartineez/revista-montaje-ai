@@ -112,7 +112,7 @@ Permite:
 - No hay busqueda avanzada.
 - No hay historial de cambios de clientes.
 - Clientes no se asocian a la numeracion comercial todavia.
-- No hay PDF comercial.
+- Clientes no se asocian al PDF comercial todavia.
 - No se asocian clientes a presupuestos todavia.
 - No se integra con Editor Offset Visual.
 

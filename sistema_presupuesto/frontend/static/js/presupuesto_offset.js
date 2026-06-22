@@ -17,6 +17,7 @@
       items: [],
       selectedId: null,
     },
+    selectedBudgetId: null,
     lastResult: null,
   };
 
@@ -42,6 +43,7 @@
       await calculate(true);
     });
     $("#sp-refresh-budgets").addEventListener("click", refreshBudgets);
+    $("#sp-generate-document").addEventListener("click", generateDocument);
     $("#sp-tipo").addEventListener("change", syncTypeDefaults);
     $("#sp-modo-comercial").addEventListener("change", syncCommercialLimit);
     $("#sp-catalog-type").addEventListener("change", loadCatalogAdmin);
@@ -600,11 +602,47 @@
   async function openBudget(id) {
     try {
       const payload = await requestJson(`${API_BASE}/presupuestos/${encodeURIComponent(id)}`);
+      state.selectedBudgetId = id;
+      $("#sp-generate-document").disabled = false;
+      resetDocumentLink();
       renderCommercialNumber(payload.record.numero_comercial || null);
       $("#sp-budget-detail").textContent = JSON.stringify(payload.record, null, 2);
     } catch (error) {
       $("#sp-budget-detail").textContent = error.message;
     }
+  }
+
+  async function generateDocument() {
+    if (!state.selectedBudgetId) {
+      showDocumentMessage("Selecciona un presupuesto guardado.", true);
+      return;
+    }
+    try {
+      const payload = await requestJson(
+        `${API_BASE}/presupuestos/${encodeURIComponent(state.selectedBudgetId)}/documento`,
+        { method: "POST" }
+      );
+      showDocumentMessage(`${payload.tipo_documento.toUpperCase()} generado: ${payload.archivo}`);
+      const link = $("#sp-document-link");
+      link.href = `${API_BASE}/documentos/${encodeURIComponent(payload.archivo)}`;
+      link.hidden = false;
+      link.textContent = "Abrir documento";
+    } catch (error) {
+      showDocumentMessage(error.message, true);
+    }
+  }
+
+  function resetDocumentLink() {
+    const link = $("#sp-document-link");
+    link.hidden = true;
+    link.href = "#";
+    showDocumentMessage("");
+  }
+
+  function showDocumentMessage(message, isError) {
+    const box = $("#sp-document-message");
+    box.textContent = message;
+    box.classList.toggle("sp-error", Boolean(isError));
   }
 
   function syncTypeDefaults() {

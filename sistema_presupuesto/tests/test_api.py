@@ -268,6 +268,35 @@ def test_cotizar_y_guardar_then_list_and_get(client):
     assert viewed["record"]["numero_comercial"] == numero_comercial
 
 
+def test_generate_budget_document_endpoint_and_download(client):
+    quote_request = load_json("data/fixtures/quote_request_volante.json")
+    save_response = client.post("/api/sistema-presupuesto/cotizar-y-guardar", json=quote_request)
+    presupuesto_id = save_response.get_json()["presupuesto_id"]
+
+    document_response = client.post(f"/api/sistema-presupuesto/presupuestos/{presupuesto_id}/documento")
+
+    assert document_response.status_code == 200
+    payload = document_response.get_json()
+    assert payload["ok"] is True
+    assert payload["presupuesto_id"] == presupuesto_id
+    assert payload["numero_comercial"].startswith("PRES-")
+    assert payload["tipo_documento"] in {"pdf", "html"}
+    assert payload["ruta_relativa"].startswith("pdfs/")
+
+    download_response = client.get(f"/api/sistema-presupuesto/documentos/{payload['archivo']}")
+    assert download_response.status_code == 200
+    assert download_response.data
+
+
+def test_document_download_rejects_path_traversal_like_filename(client):
+    response = client.get("/api/sistema-presupuesto/documentos/..secret.pdf")
+
+    assert response.status_code == 400
+    payload = response.get_json()
+    assert payload["ok"] is False
+    assert payload["error"]["code"] == "REPOSITORY_ERROR"
+
+
 def test_numbering_status_endpoint_does_not_increment(client):
     first_response = client.get("/api/sistema-presupuesto/numeracion")
     second_response = client.get("/api/sistema-presupuesto/numeracion")

@@ -7,7 +7,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from flask import Blueprint, current_app, jsonify, request
+from flask import Blueprint, current_app, jsonify, request, send_file
 from werkzeug.exceptions import BadRequest
 
 from .backend.calculation_engine import calculate_quote_from_dict
@@ -21,6 +21,7 @@ from .backend.errors import (
     RepositoryError,
     StoragePathError,
 )
+from .backend.pdf_generator import CommercialDocumentGenerator
 from .backend.quote_numbering import QuoteNumbering
 from .backend.repositories import BudgetRepository
 from .backend.serializers import quote_result_to_dict
@@ -152,6 +153,23 @@ def create_presupuesto_api_blueprint() -> Blueprint:
         _, budget_repo = _repositories()
         return jsonify({"ok": True, "record": budget_repo.get_budget(presupuesto_id)})
 
+    @bp.post("/presupuestos/<presupuesto_id>/documento")
+    def generar_documento_presupuesto(presupuesto_id: str):
+        _, budget_repo = _repositories()
+        record = budget_repo.get_budget(presupuesto_id)
+        document = _document_generator().generate(record)
+        return jsonify({"ok": True, **document.to_dict()})
+
+    @bp.get("/documentos/<archivo>")
+    def descargar_documento(archivo: str):
+        generator = _document_generator()
+        generator.validate_document_filename(archivo)
+        storage = JsonStorage(current_app.config.get("SISTEMA_PRESUPUESTO_DATA_DIR"))
+        path = storage.resolve_path(f"pdfs/{archivo}")
+        if not path.exists():
+            raise JsonFileNotFoundError(f"Documento no encontrado: pdfs/{archivo}")
+        return send_file(path, as_attachment=False)
+
     @bp.errorhandler(BadRequest)
     def handle_bad_request(exc: BadRequest):
         return _error_response(exc, "INVALID_JSON", 400)
@@ -206,6 +224,11 @@ def _client_repository() -> ClientRepository:
 def _quote_numbering() -> QuoteNumbering:
     storage = JsonStorage(current_app.config.get("SISTEMA_PRESUPUESTO_DATA_DIR"))
     return QuoteNumbering(storage)
+
+
+def _document_generator() -> CommercialDocumentGenerator:
+    storage = JsonStorage(current_app.config.get("SISTEMA_PRESUPUESTO_DATA_DIR"))
+    return CommercialDocumentGenerator(storage)
 
 
 def _request_json() -> dict[str, Any]:

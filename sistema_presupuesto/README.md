@@ -36,14 +36,14 @@ Construir un modulo determinista y auditable para presupuestos offset:
 
 ## Estado actual
 
-Fase actual: **Fase 9.3 - Numeracion comercial aislada completada**.
+Fase actual: **Fase 9.4 - PDF comercial aislado completado**.
 
-Proxima fase propuesta: **Fase 9.4 - Duplicacion e historial avanzado aislado**.
+Proxima fase propuesta: **Fase 9.5 - Duplicacion e historial avanzado aislado**.
 
 Implementado:
 
 - `AGENTS.md`;
-- documentacion `00` a `11`;
+- documentacion `00` a `12`;
 - contratos JSON;
 - catalogos default;
 - catalogos custom editables;
@@ -67,6 +67,8 @@ Implementado:
 - repositorio JSON local de clientes;
 - numeracion comercial `PRES-YYYY-000001`;
 - contador persistente de numeracion;
+- PDF comercial aislado;
+- descarga segura de documentos generados;
 - `dev_app.py`;
 - tests automatizados.
 
@@ -81,7 +83,6 @@ No incluye todavia:
 - autenticacion/usuarios;
 - API publica productiva;
 - asociacion de clientes con presupuestos;
-- PDF comercial;
 - historial avanzado;
 - duplicacion de presupuestos.
 
@@ -99,8 +100,8 @@ No incluye todavia:
    - catalogos editables completados en Fase 9.1;
    - clientes completados en Fase 9.2;
    - numeracion comercial completada en Fase 9.3;
+   - PDF comercial completado en Fase 9.4;
    - duplicacion de presupuestos;
-   - PDF comercial;
    - historial.
 10. Activacion dentro de app principal Flask.
 11. Integracion read-only futura con Editor Offset Visual.
@@ -125,8 +126,8 @@ El resultado debe explicar cada componente del presupuesto. Si un dato tecnico n
 - `docs/09_ADMIN_CATALOGOS.md`: administracion aislada de catalogos editables.
 - `docs/10_CLIENTES.md`: modelo y flujo aislado de clientes.
 - `docs/11_NUMERACION_COMERCIAL.md`: numeracion comercial aislada de presupuestos.
+- `docs/12_PDF_PRESUPUESTO.md`: generacion de PDF comercial aislado.
 
 Documentos planificados para Fase 9:
 
-- `docs/12_PDF_PRESUPUESTO.md`: generacion de PDF comercial.
 - `docs/13_HISTORIAL_Y_DUPLICACION.md`: historial avanzado y duplicacion de presupuestos.
