@@ -251,16 +251,34 @@ def test_cotizar_y_guardar_then_list_and_get(client):
     assert save_response.status_code == 201
     saved = save_response.get_json()
     presupuesto_id = saved["presupuesto_id"]
+    numero_comercial = saved["numero_comercial"]
+    assert numero_comercial.startswith("PRES-")
+    assert saved["record"]["numero_comercial"] == numero_comercial
 
     list_response = client.get("/api/sistema-presupuesto/presupuestos")
     assert list_response.status_code == 200
     listed = list_response.get_json()
     assert listed["presupuestos"][0]["presupuesto_id"] == presupuesto_id
+    assert listed["presupuestos"][0]["numero_comercial"] == numero_comercial
 
     get_response = client.get(f"/api/sistema-presupuesto/presupuestos/{presupuesto_id}")
     assert get_response.status_code == 200
     viewed = get_response.get_json()
     assert viewed["record"]["presupuesto_id"] == presupuesto_id
+    assert viewed["record"]["numero_comercial"] == numero_comercial
+
+
+def test_numbering_status_endpoint_does_not_increment(client):
+    first_response = client.get("/api/sistema-presupuesto/numeracion")
+    second_response = client.get("/api/sistema-presupuesto/numeracion")
+
+    assert first_response.status_code == 200
+    assert second_response.status_code == 200
+    first = first_response.get_json()["numeracion"]
+    second = second_response.get_json()["numeracion"]
+    assert first["last_number"] == 0
+    assert first["next_number_preview"].endswith("000001")
+    assert second["last_number"] == 0
 
 
 def test_missing_budget_returns_controlled_error(client):

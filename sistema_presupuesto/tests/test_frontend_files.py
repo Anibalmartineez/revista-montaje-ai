@@ -19,6 +19,7 @@ def test_html_has_main_containers():
     assert 'id="sp-quote-form"' in html
     assert "Calcular presupuesto" in html
     assert 'id="sp-precio-final"' in html
+    assert 'id="sp-numero-comercial"' in html
     assert 'id="sp-budget-list"' in html
     assert 'id="sp-json-output"' in html
     assert 'id="sp-catalogs-section"' in html
@@ -44,6 +45,8 @@ def test_js_uses_api_and_does_not_reference_editor():
     assert "sp-catalog-list" in js
     assert "/clientes" in js
     assert "sp-client-list" in js
+    assert "numero_comercial" in js
+    assert "sp-numero-comercial" in js
     assert "editor_offset" not in js
     assert "editor-offset" not in js
     assert "/editor_offset" not in js

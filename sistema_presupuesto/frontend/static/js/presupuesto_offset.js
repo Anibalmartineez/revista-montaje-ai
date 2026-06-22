@@ -119,6 +119,7 @@
       const result = shouldSave ? response.record.result : response.result;
       state.lastResult = result;
       renderResult(result);
+      renderCommercialNumber(shouldSave ? response.numero_comercial : null);
       if (shouldSave) {
         await refreshBudgets();
       }
@@ -222,6 +223,10 @@
     renderLines(result.costos.items || []);
     renderWarnings(result.warnings || []);
     $("#sp-json-output").textContent = JSON.stringify(result, null, 2);
+  }
+
+  function renderCommercialNumber(value) {
+    $("#sp-numero-comercial").textContent = value || "-";
   }
 
   function renderLines(items) {
@@ -584,7 +589,7 @@
       button.type = "button";
       button.className = "sp-budget-row";
       button.innerHTML = `
-        <strong>${escapeHtml(item.presupuesto_id)}</strong>
+        <strong>${escapeHtml(item.numero_comercial || item.presupuesto_id)}</strong>
         <span>${escapeHtml(item.estado)} · ${money(item.precio_final || "0", item.moneda || "PYG")}</span>
       `;
       button.addEventListener("click", () => openBudget(item.presupuesto_id));
@@ -595,6 +600,7 @@
   async function openBudget(id) {
     try {
       const payload = await requestJson(`${API_BASE}/presupuestos/${encodeURIComponent(id)}`);
+      renderCommercialNumber(payload.record.numero_comercial || null);
       $("#sp-budget-detail").textContent = JSON.stringify(payload.record, null, 2);
     } catch (error) {
       $("#sp-budget-detail").textContent = error.message;
@@ -640,6 +646,7 @@
   function renderError(error) {
     $("#sp-precio-final").textContent = "-";
     $("#sp-precio-unitario").textContent = "-";
+    renderCommercialNumber(null);
     $("#sp-cost-lines").innerHTML = "";
     renderWarnings([{ code: "ERROR", message: error.message }]);
     $("#sp-json-output").textContent = JSON.stringify({ ok: false, error: error.message }, null, 2);

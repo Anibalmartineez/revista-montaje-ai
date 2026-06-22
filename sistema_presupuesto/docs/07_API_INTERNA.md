@@ -49,6 +49,7 @@ POST /api/sistema-presupuesto/clientes
 GET  /api/sistema-presupuesto/clientes/<cliente_id>
 PUT  /api/sistema-presupuesto/clientes/<cliente_id>
 DELETE /api/sistema-presupuesto/clientes/<cliente_id>
+GET  /api/sistema-presupuesto/numeracion
 POST /api/sistema-presupuesto/cotizar
 POST /api/sistema-presupuesto/cotizar-y-guardar
 GET  /api/sistema-presupuesto/presupuestos
@@ -68,6 +69,9 @@ Si un `id` custom coincide con uno default, custom sobrescribe default en la res
 Los endpoints de clientes leen y escriben JSON local en `data/clientes/`.
 El backend genera `cliente_id`, `created_at` y `updated_at`.
 Clientes todavia no se asocian a presupuestos.
+
+El endpoint `GET /numeracion` muestra el estado actual del contador comercial sin incrementarlo.
+`POST /cotizar-y-guardar` genera y devuelve `numero_comercial` con formato `PRES-YYYY-000001`.
 
 ## Errores
 
@@ -93,4 +97,4 @@ Si hay errores de validacion, se agrega `validation`.
 - No integra con Editor Offset Visual.
 - Usa catalogos ficticios de diseno.
 - No genera PDF comercial.
-- No implementa numeracion comercial.
+- No asocia clientes a presupuestos todavia.

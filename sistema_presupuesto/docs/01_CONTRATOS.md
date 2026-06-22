@@ -157,6 +157,7 @@ Registro persistido de presupuesto.
   "schema": "sistema_presupuesto.budget_record",
   "schema_version": 1,
   "presupuesto_id": "psp_20260621_abcd12",
+  "numero_comercial": "PRES-2026-000001",
   "version": 1,
   "estado": "borrador",
   "request": {},
@@ -175,11 +176,13 @@ data/presupuestos/<presupuesto_id>.json
 Reglas:
 
 - `presupuesto_id` debe cumplir `psp_YYYYMMDD_<12 hex>`.
+- `numero_comercial` usa formato `PRES-YYYY-000001` para presupuestos creados desde Fase 9.3.
 - `schema` debe ser `sistema_presupuesto.budget_record`.
 - `schema_version` debe ser `1`.
 - `estado` inicial es `calculado`.
 - `result` contiene el desglose auditable serializado.
 - no se sobrescribe un presupuesto existente por defecto.
+- presupuestos antiguos sin `numero_comercial` siguen siendo compatibles y no se renumeran automaticamente.
 
 ## Estados futuros
 

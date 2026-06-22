@@ -10,6 +10,7 @@ from uuid import uuid4
 from .defaults import BUDGET_RECORD_SCHEMA, BUDGET_RECORD_SCHEMA_VERSION
 from .errors import RepositoryError, StoragePathError
 from .models import QuoteResult
+from .quote_numbering import QuoteNumbering
 from .serializers import quote_result_to_dict
 from .storage import JsonStorage
 
@@ -19,8 +20,9 @@ _BUDGET_ID_PATTERN = re.compile(r"^psp_[0-9]{8}_[a-f0-9]{12}$")
 class BudgetRepository:
     """Guarda, lee y lista presupuestos en `data/presupuestos/`."""
 
-    def __init__(self, storage: JsonStorage | None = None):
+    def __init__(self, storage: JsonStorage | None = None, numbering: QuoteNumbering | None = None):
         self.storage = storage or JsonStorage()
+        self.numbering = numbering or QuoteNumbering(self.storage)
 
     def save_calculated_budget(
         self,
@@ -37,6 +39,7 @@ class BudgetRepository:
             "schema": BUDGET_RECORD_SCHEMA,
             "schema_version": BUDGET_RECORD_SCHEMA_VERSION,
             "presupuesto_id": budget_id,
+            "numero_comercial": self.numbering.next_number(),
             "version": 1,
             "estado": "calculado",
             "created_at": now,
@@ -61,17 +64,24 @@ class BudgetRepository:
             result = payload.get("result") or {}
             costs = result.get("costos") or {}
             summaries.append(
-                {
-                    "presupuesto_id": payload["presupuesto_id"],
-                    "version": payload["version"],
-                    "estado": payload["estado"],
-                    "created_at": payload["created_at"],
-                    "updated_at": payload["updated_at"],
-                    "precio_final": costs.get("precio_final"),
-                    "moneda": costs.get("moneda"),
-                }
+                self._budget_summary(payload, costs)
             )
         return sorted(summaries, key=lambda item: item["created_at"])
+
+    @staticmethod
+    def _budget_summary(payload: dict[str, Any], costs: dict[str, Any]) -> dict[str, Any]:
+        summary = {
+            "presupuesto_id": payload["presupuesto_id"],
+            "version": payload["version"],
+            "estado": payload["estado"],
+            "created_at": payload["created_at"],
+            "updated_at": payload["updated_at"],
+            "precio_final": costs.get("precio_final"),
+            "moneda": costs.get("moneda"),
+        }
+        if "numero_comercial" in payload:
+            summary["numero_comercial"] = payload["numero_comercial"]
+        return summary
 
     @staticmethod
     def generate_budget_id() -> str:

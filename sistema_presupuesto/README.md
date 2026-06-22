@@ -36,14 +36,14 @@ Construir un modulo determinista y auditable para presupuestos offset:
 
 ## Estado actual
 
-Fase actual: **Fase 9.2 - Clientes aislados completada**.
+Fase actual: **Fase 9.3 - Numeracion comercial aislada completada**.
 
-Proxima fase propuesta: **Fase 9.3 - Numeracion comercial aislada**.
+Proxima fase propuesta: **Fase 9.4 - Duplicacion e historial avanzado aislado**.
 
 Implementado:
 
 - `AGENTS.md`;
-- documentacion `00` a `10`;
+- documentacion `00` a `11`;
 - contratos JSON;
 - catalogos default;
 - catalogos custom editables;
@@ -65,6 +65,8 @@ Implementado:
 - administracion aislada de catalogos desde UI/API;
 - clientes aislados desde UI/API;
 - repositorio JSON local de clientes;
+- numeracion comercial `PRES-YYYY-000001`;
+- contador persistente de numeracion;
 - `dev_app.py`;
 - tests automatizados.
 
@@ -79,7 +81,6 @@ No incluye todavia:
 - autenticacion/usuarios;
 - API publica productiva;
 - asociacion de clientes con presupuestos;
-- numeracion comercial;
 - PDF comercial;
 - historial avanzado;
 - duplicacion de presupuestos.
@@ -97,7 +98,7 @@ No incluye todavia:
 9. Gestion comercial aislada:
    - catalogos editables completados en Fase 9.1;
    - clientes completados en Fase 9.2;
-   - numeracion comercial;
+   - numeracion comercial completada en Fase 9.3;
    - duplicacion de presupuestos;
    - PDF comercial;
    - historial.
@@ -123,8 +124,9 @@ El resultado debe explicar cada componente del presupuesto. Si un dato tecnico n
 - `docs/08_UI_AISLADA.md`: UI frontend aislada.
 - `docs/09_ADMIN_CATALOGOS.md`: administracion aislada de catalogos editables.
 - `docs/10_CLIENTES.md`: modelo y flujo aislado de clientes.
+- `docs/11_NUMERACION_COMERCIAL.md`: numeracion comercial aislada de presupuestos.
 
 Documentos planificados para Fase 9:
 
-- `docs/11_PDF_PRESUPUESTO.md`: generacion de PDF comercial.
-- `docs/12_HISTORIAL_Y_DUPLICACION.md`: historial avanzado y duplicacion de presupuestos.
+- `docs/12_PDF_PRESUPUESTO.md`: generacion de PDF comercial.
+- `docs/13_HISTORIAL_Y_DUPLICACION.md`: historial avanzado y duplicacion de presupuestos.

@@ -111,7 +111,7 @@ Permite:
 - No hay deduplicacion avanzada.
 - No hay busqueda avanzada.
 - No hay historial de cambios de clientes.
-- No hay numeracion comercial.
+- Clientes no se asocian a la numeracion comercial todavia.
 - No hay PDF comercial.
 - No se asocian clientes a presupuestos todavia.
 - No se integra con Editor Offset Visual.

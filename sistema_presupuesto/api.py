@@ -21,6 +21,7 @@ from .backend.errors import (
     RepositoryError,
     StoragePathError,
 )
+from .backend.quote_numbering import QuoteNumbering
 from .backend.repositories import BudgetRepository
 from .backend.serializers import quote_result_to_dict
 from .backend.storage import JsonStorage
@@ -95,7 +96,22 @@ def create_presupuesto_api_blueprint() -> Blueprint:
         catalog_repo, budget_repo = _repositories()
         result = calculate_quote_from_dict(payload, **catalog_repo.load_all_combined())
         record = budget_repo.save_calculated_budget(result, request_payload=payload)
-        return jsonify({"ok": True, "presupuesto_id": record["presupuesto_id"], "record": record}), 201
+        return (
+            jsonify(
+                {
+                    "ok": True,
+                    "presupuesto_id": record["presupuesto_id"],
+                    "numero_comercial": record["numero_comercial"],
+                    "record": record,
+                }
+            ),
+            201,
+        )
+
+    @bp.get("/numeracion")
+    def numeracion():
+        numbering = _quote_numbering()
+        return jsonify({"ok": True, "numeracion": numbering.status()})
 
     @bp.get("/clientes")
     def clientes():
@@ -185,6 +201,11 @@ def _repositories() -> tuple[CatalogRepository, BudgetRepository]:
 def _client_repository() -> ClientRepository:
     storage = JsonStorage(current_app.config.get("SISTEMA_PRESUPUESTO_DATA_DIR"))
     return ClientRepository(storage)
+
+
+def _quote_numbering() -> QuoteNumbering:
+    storage = JsonStorage(current_app.config.get("SISTEMA_PRESUPUESTO_DATA_DIR"))
+    return QuoteNumbering(storage)
 
 
 def _request_json() -> dict[str, Any]:
