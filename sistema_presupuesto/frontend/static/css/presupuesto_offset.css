@@ -342,6 +342,11 @@ pre {
   padding: 18px;
 }
 
+.sp-clients {
+  margin-top: 18px;
+  padding: 18px;
+}
+
 .sp-saved-header {
   display: flex;
   align-items: center;
@@ -367,14 +372,22 @@ pre {
   gap: 16px;
 }
 
+.sp-client-layout {
+  display: grid;
+  grid-template-columns: minmax(280px, 0.7fr) minmax(0, 1.3fr);
+  gap: 16px;
+}
+
 .sp-budget-list,
-.sp-catalog-list {
+.sp-catalog-list,
+.sp-client-list {
   display: grid;
   gap: 8px;
 }
 
 .sp-budget-row,
-.sp-catalog-row {
+.sp-catalog-row,
+.sp-client-row {
   width: 100%;
   text-align: left;
   border: 1px solid var(--sp-border);
@@ -386,18 +399,21 @@ pre {
 }
 
 .sp-budget-row:hover,
-.sp-catalog-row:hover {
+.sp-catalog-row:hover,
+.sp-client-row:hover {
   border-color: var(--sp-accent);
 }
 
 .sp-budget-row strong,
-.sp-catalog-row strong {
+.sp-catalog-row strong,
+.sp-client-row strong {
   display: block;
   font-size: 14px;
 }
 
 .sp-budget-row span,
-.sp-catalog-row span {
+.sp-catalog-row span,
+.sp-client-row span {
   color: var(--sp-muted);
   font-size: 12px;
 }
@@ -422,6 +438,24 @@ pre {
   font: 13px/1.5 ui-monospace, SFMono-Regular, Consolas, "Liberation Mono", monospace;
 }
 
+.sp-client-form {
+  display: grid;
+  gap: 14px;
+}
+
+.sp-client-notes textarea {
+  width: 100%;
+  min-height: 120px;
+  resize: vertical;
+  border: 1px solid var(--sp-border);
+  border-radius: 6px;
+  padding: 10px;
+  background: #fff;
+  color: var(--sp-text);
+  font: inherit;
+  font-size: 14px;
+}
+
 .sp-button-danger {
   color: var(--sp-danger);
 }
@@ -440,7 +474,8 @@ pre {
 @media (max-width: 1100px) {
   .sp-layout,
   .sp-saved-layout,
-  .sp-catalog-layout {
+  .sp-catalog-layout,
+  .sp-client-layout {
     grid-template-columns: 1fr;
   }
 

@@ -12,6 +12,7 @@ from werkzeug.exceptions import BadRequest
 
 from .backend.calculation_engine import calculate_quote_from_dict
 from .backend.catalog_repository import CatalogRepository
+from .backend.client_repository import ClientRepository
 from .backend.errors import (
     ContractValidationError,
     JsonDecodeStorageError,
@@ -96,6 +97,35 @@ def create_presupuesto_api_blueprint() -> Blueprint:
         record = budget_repo.save_calculated_budget(result, request_payload=payload)
         return jsonify({"ok": True, "presupuesto_id": record["presupuesto_id"], "record": record}), 201
 
+    @bp.get("/clientes")
+    def clientes():
+        client_repo = _client_repository()
+        return jsonify({"ok": True, "clientes": client_repo.list_clients()})
+
+    @bp.post("/clientes")
+    def crear_cliente():
+        payload = _request_json()
+        client_repo = _client_repository()
+        client = client_repo.create_client(payload)
+        return jsonify({"ok": True, "cliente": client}), 201
+
+    @bp.get("/clientes/<cliente_id>")
+    def cliente_por_id(cliente_id: str):
+        client_repo = _client_repository()
+        return jsonify({"ok": True, "cliente": client_repo.get_client(cliente_id)})
+
+    @bp.put("/clientes/<cliente_id>")
+    def actualizar_cliente(cliente_id: str):
+        payload = _request_json()
+        client_repo = _client_repository()
+        return jsonify({"ok": True, "cliente": client_repo.update_client(cliente_id, payload)})
+
+    @bp.delete("/clientes/<cliente_id>")
+    def eliminar_cliente(cliente_id: str):
+        client_repo = _client_repository()
+        result = client_repo.delete_client(cliente_id)
+        return jsonify({"ok": True, **result})
+
     @bp.get("/presupuestos")
     def presupuestos():
         _, budget_repo = _repositories()
@@ -150,6 +180,11 @@ presupuesto_api_bp = create_presupuesto_api_blueprint()
 def _repositories() -> tuple[CatalogRepository, BudgetRepository]:
     storage = JsonStorage(current_app.config.get("SISTEMA_PRESUPUESTO_DATA_DIR"))
     return CatalogRepository(storage), BudgetRepository(storage)
+
+
+def _client_repository() -> ClientRepository:
+    storage = JsonStorage(current_app.config.get("SISTEMA_PRESUPUESTO_DATA_DIR"))
+    return ClientRepository(storage)
 
 
 def _request_json() -> dict[str, Any]:

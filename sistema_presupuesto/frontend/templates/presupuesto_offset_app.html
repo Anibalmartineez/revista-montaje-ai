@@ -193,6 +193,53 @@
         </div>
       </section>
 
+      <section class="sp-panel sp-clients" id="sp-clients-section">
+        <div class="sp-saved-header">
+          <h2>Clientes</h2>
+          <div class="sp-catalog-toolbar">
+            <button class="sp-button" id="sp-refresh-clients" type="button">Actualizar clientes</button>
+            <button class="sp-button" id="sp-new-client" type="button">Nuevo cliente</button>
+          </div>
+        </div>
+        <div class="sp-catalog-message" id="sp-client-message" role="status"></div>
+        <div class="sp-client-layout">
+          <div class="sp-client-list" id="sp-client-list"></div>
+          <form class="sp-client-form" id="sp-client-form">
+            <div class="sp-grid">
+              <label>
+                <span>Nombre</span>
+                <input id="sp-client-nombre" type="text" autocomplete="name">
+              </label>
+              <label>
+                <span>Empresa</span>
+                <input id="sp-client-empresa" type="text" autocomplete="organization">
+              </label>
+              <label>
+                <span>Telefono</span>
+                <input id="sp-client-telefono" type="text" autocomplete="tel">
+              </label>
+              <label>
+                <span>Email</span>
+                <input id="sp-client-email" type="email" autocomplete="email">
+              </label>
+              <label>
+                <span>RUC</span>
+                <input id="sp-client-ruc" type="text">
+              </label>
+            </div>
+            <label class="sp-client-notes">
+              <span>Notas</span>
+              <textarea id="sp-client-notas" rows="5"></textarea>
+            </label>
+            <div class="sp-actions">
+              <button class="sp-button sp-button-primary" id="sp-save-client" type="submit">Guardar cliente</button>
+              <button class="sp-button sp-button-danger" id="sp-delete-client" type="button" disabled>Eliminar cliente</button>
+              <button class="sp-button" id="sp-clear-client" type="button">Limpiar</button>
+            </div>
+          </form>
+        </div>
+      </section>
+
       <section class="sp-panel sp-catalogs" id="sp-catalogs-section">
         <div class="sp-saved-header">
           <h2>Catalogos</h2>

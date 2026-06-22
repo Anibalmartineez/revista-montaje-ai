@@ -53,6 +53,7 @@ Antes de cambiar comportamiento revisar:
 - `docs/07_API_INTERNA.md`
 - `docs/08_UI_AISLADA.md`
 - `docs/09_ADMIN_CATALOGOS.md`
+- `docs/10_CLIENTES.md`
 
 Si existen documentos posteriores dentro de `sistema_presupuesto/docs/`, deben revisarse antes de modificar funcionalidad relacionada.
 

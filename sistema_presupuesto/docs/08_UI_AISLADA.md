@@ -58,6 +58,7 @@ catalogo/procesos_default.json
 5. La UI puede enviar a `/api/sistema-presupuesto/cotizar-y-guardar`.
 6. La UI lista y abre presupuestos guardados.
 7. La seccion `Catalogos` permite administrar items custom de materiales, maquinas y procesos.
+8. La seccion `Clientes` permite administrar clientes aislados.
 
 ## Catalogos
 
@@ -77,6 +78,21 @@ Permite:
 La UI no modifica catalogos default.
 La UI no calcula costos ni valida reglas de negocio; el backend valida y recalcula siempre.
 
+## Clientes
+
+La seccion `Clientes` consume endpoints internos bajo `/api/sistema-presupuesto/clientes`.
+
+Permite:
+
+- listar clientes;
+- crear cliente;
+- editar cliente;
+- eliminar cliente;
+- mostrar errores de validacion devueltos por backend.
+
+La UI no asocia clientes con presupuestos todavia.
+La UI no genera numeracion comercial ni PDF.
+
 ## Reglas
 
 - El frontend no calcula precios.
@@ -86,3 +102,4 @@ La UI no calcula costos ni valida reglas de negocio; el backend valida y recalcu
 - No modifica templates, JS o CSS existentes del sistema principal.
 - Los catalogos siguen siendo ficticios de diseno.
 - Los valores custom deben ser configurables o ficticios.
+- Los clientes se administran aislados y aun no forman parte del `QuoteRequest`.

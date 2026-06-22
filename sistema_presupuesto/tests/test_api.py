@@ -41,6 +41,19 @@ def valid_material(**overrides):
     return item
 
 
+def valid_client(**overrides):
+    payload = {
+        "nombre": "Cliente API",
+        "empresa": "Empresa API",
+        "telefono": "0981000000",
+        "email": "cliente.api@example.com",
+        "ruc": "1234567-8",
+        "notas": "Cliente creado por test API.",
+    }
+    payload.update(overrides)
+    return payload
+
+
 @pytest.fixture()
 def app(tmp_path):
     copy_catalogs(tmp_path)
@@ -136,6 +149,60 @@ def test_custom_catalog_api_override_is_used_by_legacy_endpoint(client):
     assert len(matches) == 1
     assert matches[0]["nombre"] == "Papel override API"
     assert matches[0]["origen_catalogo"] == "custom"
+
+
+def test_client_api_crud(client):
+    create_response = client.post("/api/sistema-presupuesto/clientes", json=valid_client())
+    assert create_response.status_code == 201
+    created = create_response.get_json()["cliente"]
+    cliente_id = created["cliente_id"]
+    assert created["nombre"] == "Cliente API"
+
+    list_response = client.get("/api/sistema-presupuesto/clientes")
+    assert list_response.status_code == 200
+    assert list_response.get_json()["clientes"][0]["cliente_id"] == cliente_id
+
+    get_response = client.get(f"/api/sistema-presupuesto/clientes/{cliente_id}")
+    assert get_response.status_code == 200
+    assert get_response.get_json()["cliente"]["cliente_id"] == cliente_id
+
+    update_response = client.put(
+        f"/api/sistema-presupuesto/clientes/{cliente_id}",
+        json={"nombre": "Cliente API Actualizado", "email": ""},
+    )
+    assert update_response.status_code == 200
+    assert update_response.get_json()["cliente"]["nombre"] == "Cliente API Actualizado"
+
+    delete_response = client.delete(f"/api/sistema-presupuesto/clientes/{cliente_id}")
+    assert delete_response.status_code == 200
+    assert delete_response.get_json()["deleted"] is True
+
+
+def test_client_api_rejects_missing_name(client):
+    response = client.post("/api/sistema-presupuesto/clientes", json=valid_client(nombre=""))
+
+    assert response.status_code == 400
+    payload = response.get_json()
+    assert payload["ok"] is False
+    assert payload["error"]["code"] == "REPOSITORY_ERROR"
+
+
+def test_client_api_rejects_invalid_email(client):
+    response = client.post("/api/sistema-presupuesto/clientes", json=valid_client(email="email-invalido"))
+
+    assert response.status_code == 400
+    payload = response.get_json()
+    assert payload["ok"] is False
+    assert payload["error"]["code"] == "REPOSITORY_ERROR"
+
+
+def test_missing_client_returns_controlled_error(client):
+    response = client.get("/api/sistema-presupuesto/clientes/cli_20260622_abcdef123456")
+
+    assert response.status_code == 404
+    payload = response.get_json()
+    assert payload["ok"] is False
+    assert payload["error"]["code"] == "JSON_NOT_FOUND"
 
 
 def test_cotizar_calculates_valid_fixture(client):

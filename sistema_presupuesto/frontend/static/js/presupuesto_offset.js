@@ -13,6 +13,10 @@
       selectedId: null,
       selectedSource: null,
     },
+    clients: {
+      items: [],
+      selectedId: null,
+    },
     lastResult: null,
   };
 
@@ -26,6 +30,7 @@
     await loadCatalogs();
     await loadCatalogAdmin();
     await refreshBudgets();
+    await loadClients();
   }
 
   function bindEvents() {
@@ -45,6 +50,11 @@
     $("#sp-catalog-form").addEventListener("submit", saveCatalogItem);
     $("#sp-delete-catalog-item").addEventListener("click", deleteCatalogItem);
     $("#sp-clear-catalog-item").addEventListener("click", clearCatalogEditor);
+    $("#sp-refresh-clients").addEventListener("click", loadClients);
+    $("#sp-new-client").addEventListener("click", clearClientForm);
+    $("#sp-client-form").addEventListener("submit", saveClient);
+    $("#sp-delete-client").addEventListener("click", deleteClient);
+    $("#sp-clear-client").addEventListener("click", clearClientForm);
   }
 
   async function checkHealth() {
@@ -254,6 +264,115 @@
     } catch (error) {
       $("#sp-budget-list").innerHTML = `<div class="sp-alert sp-error">${escapeHtml(error.message)}</div>`;
     }
+  }
+
+  async function loadClients() {
+    try {
+      const payload = await requestJson(`${API_BASE}/clientes`);
+      state.clients.items = payload.clientes || [];
+      renderClientList();
+      showClientMessage("");
+    } catch (error) {
+      state.clients.items = [];
+      renderClientList();
+      showClientMessage(error.message, true);
+    }
+  }
+
+  function renderClientList() {
+    const container = $("#sp-client-list");
+    container.innerHTML = "";
+    if (!state.clients.items.length) {
+      container.innerHTML = "<div class=\"sp-alert\">No hay clientes guardados.</div>";
+      return;
+    }
+    state.clients.items.forEach((client) => {
+      const button = document.createElement("button");
+      button.type = "button";
+      button.className = "sp-client-row";
+      button.innerHTML = `
+        <strong>${escapeHtml(client.nombre)}</strong>
+        <span>${escapeHtml(client.empresa || client.email || client.telefono || client.cliente_id)}</span>
+      `;
+      button.addEventListener("click", () => selectClient(client));
+      container.appendChild(button);
+    });
+  }
+
+  function selectClient(client) {
+    state.clients.selectedId = client.cliente_id;
+    $("#sp-client-nombre").value = client.nombre || "";
+    $("#sp-client-empresa").value = client.empresa || "";
+    $("#sp-client-telefono").value = client.telefono || "";
+    $("#sp-client-email").value = client.email || "";
+    $("#sp-client-ruc").value = client.ruc || "";
+    $("#sp-client-notas").value = client.notas || "";
+    $("#sp-delete-client").disabled = false;
+    showClientMessage("");
+  }
+
+  async function saveClient(event) {
+    event.preventDefault();
+    const payload = buildClientPayload();
+    const isUpdate = Boolean(state.clients.selectedId);
+    const url = isUpdate
+      ? `${API_BASE}/clientes/${encodeURIComponent(state.clients.selectedId)}`
+      : `${API_BASE}/clientes`;
+    try {
+      const response = await requestJson(url, {
+        method: isUpdate ? "PUT" : "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      state.clients.selectedId = response.cliente.cliente_id;
+      selectClient(response.cliente);
+      await loadClients();
+      showClientMessage(isUpdate ? "Cliente actualizado." : "Cliente creado.");
+    } catch (error) {
+      showClientMessage(error.message, true);
+    }
+  }
+
+  async function deleteClient() {
+    const clientId = state.clients.selectedId;
+    if (!clientId) {
+      showClientMessage("Selecciona un cliente para eliminar.", true);
+      return;
+    }
+    try {
+      await requestJson(`${API_BASE}/clientes/${encodeURIComponent(clientId)}`, {
+        method: "DELETE",
+      });
+      clearClientForm();
+      await loadClients();
+      showClientMessage("Cliente eliminado.");
+    } catch (error) {
+      showClientMessage(error.message, true);
+    }
+  }
+
+  function clearClientForm() {
+    state.clients.selectedId = null;
+    $("#sp-client-form").reset();
+    $("#sp-delete-client").disabled = true;
+    showClientMessage("");
+  }
+
+  function buildClientPayload() {
+    return {
+      nombre: $("#sp-client-nombre").value,
+      empresa: $("#sp-client-empresa").value,
+      telefono: $("#sp-client-telefono").value,
+      email: $("#sp-client-email").value,
+      ruc: $("#sp-client-ruc").value,
+      notas: $("#sp-client-notas").value,
+    };
+  }
+
+  function showClientMessage(message, isError) {
+    const box = $("#sp-client-message");
+    box.textContent = message;
+    box.classList.toggle("sp-error", Boolean(isError));
   }
 
   async function loadCatalogAdmin() {
