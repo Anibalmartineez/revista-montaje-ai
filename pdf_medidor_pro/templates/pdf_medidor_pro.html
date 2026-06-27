@@ -1,0 +1,101 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>PDF Medidor Pro</title>
+    <link rel="stylesheet" href="{{ url_for('pdf_medidor_pro.static_file', filename='css/pdf_medidor_pro.css') }}">
+  </head>
+  <body>
+    <main class="pmp-shell">
+      <header class="pmp-header">
+        <div>
+          <h1>PDF Medidor Pro</h1>
+          <p>Lectura tecnica de cajas PDF, medicion manual y export JSON.</p>
+        </div>
+        <div class="pmp-status" id="pmp-status">Listo</div>
+      </header>
+
+      <section class="pmp-workspace">
+        <aside class="pmp-panel pmp-side">
+          <form class="pmp-upload" id="pmp-upload-form">
+            <label class="pmp-file">
+              <span>Archivo PDF</span>
+              <input id="pmp-file-input" name="pdf" type="file" accept="application/pdf,.pdf">
+            </label>
+            <button class="pmp-button pmp-primary" type="submit">Subir y analizar</button>
+          </form>
+
+          <section class="pmp-section">
+            <h2>Medidas automaticas</h2>
+            <div class="pmp-auto-table" id="pmp-auto-table">
+              <p class="pmp-muted">Sin PDF cargado.</p>
+            </div>
+          </section>
+
+          <section class="pmp-section">
+            <h2>Herramientas</h2>
+            <div class="pmp-tools" role="group" aria-label="Herramientas de medicion">
+              <button class="pmp-tool is-active" type="button" data-pmp-tool="line">Linea</button>
+              <button class="pmp-tool" type="button" data-pmp-tool="rectangle">Rectangulo</button>
+            </div>
+            <button class="pmp-button" id="pmp-clear-button" type="button">Borrar mediciones</button>
+          </section>
+
+          <section class="pmp-section">
+            <h2>Calibracion</h2>
+            <label class="pmp-field">
+              <span>Medida real (mm)</span>
+              <input id="pmp-calibration-real" type="number" min="0.01" step="0.01" placeholder="100">
+            </label>
+            <button class="pmp-button" id="pmp-calibrate-button" type="button">Aplicar escala</button>
+            <div class="pmp-calibration-state" id="pmp-calibration-state">Escala sin calibrar</div>
+          </section>
+
+          <section class="pmp-section">
+            <h2>Export</h2>
+            <button class="pmp-button pmp-primary" id="pmp-export-button" type="button" disabled>Exportar JSON</button>
+            <a class="pmp-download" id="pmp-export-link" href="#" target="_blank" rel="noopener" hidden>Abrir JSON</a>
+          </section>
+        </aside>
+
+        <section class="pmp-viewer-panel">
+          <div class="pmp-viewer-toolbar">
+            <div>
+              <strong id="pmp-current-file">Ningun archivo</strong>
+              <span id="pmp-page-info">Pagina 1</span>
+            </div>
+            <span id="pmp-tool-hint">Linea: selecciona dos puntos.</span>
+          </div>
+          <div class="pmp-viewer" id="pmp-viewer">
+            <div class="pmp-empty" id="pmp-empty-state">Carga un PDF para comenzar.</div>
+            <img id="pmp-preview-image" alt="Preview PDF" hidden>
+            <canvas id="pmp-measure-canvas"></canvas>
+          </div>
+        </section>
+
+        <aside class="pmp-panel pmp-results">
+          <section class="pmp-section">
+            <h2>Mediciones</h2>
+            <div class="pmp-measurements" id="pmp-measurements"></div>
+          </section>
+          <section class="pmp-section">
+            <h2>Medida manual final</h2>
+            <div class="pmp-final-box" id="pmp-final-box">Sin rectangulo final.</div>
+          </section>
+          <section class="pmp-section">
+            <h2>JSON tecnico</h2>
+            <pre class="pmp-json" id="pmp-json-output">{}</pre>
+          </section>
+        </aside>
+      </section>
+    </main>
+
+    <script src="{{ url_for('pdf_medidor_pro.static_file', filename='js/viewer.js') }}" defer></script>
+    <script src="{{ url_for('pdf_medidor_pro.static_file', filename='js/measurement.js') }}" defer></script>
+    <script src="{{ url_for('pdf_medidor_pro.static_file', filename='js/rectangle.js') }}" defer></script>
+    <script src="{{ url_for('pdf_medidor_pro.static_file', filename='js/calibration.js') }}" defer></script>
+    <script src="{{ url_for('pdf_medidor_pro.static_file', filename='js/export.js') }}" defer></script>
+    <script src="{{ url_for('pdf_medidor_pro.static_file', filename='js/pdf_medidor_pro.js') }}" defer></script>
+  </body>
+</html>

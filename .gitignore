@@ -38,3 +38,11 @@ sistema_presupuesto/data/presupuestos/*.json
 sistema_presupuesto/data/pdfs/*.pdf
 sistema_presupuesto/data/pdfs/*.html
 !sistema_presupuesto/data/pdfs/.gitkeep
+
+# Archivos generados por PDF Medidor Pro
+pdf_medidor_pro/uploads/*
+!pdf_medidor_pro/uploads/.gitkeep
+pdf_medidor_pro/previews/*
+!pdf_medidor_pro/previews/.gitkeep
+pdf_medidor_pro/exports/*
+!pdf_medidor_pro/exports/.gitkeep

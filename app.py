@@ -7,6 +7,7 @@ from flask import Flask, jsonify, render_template_string, send_from_directory
 from werkzeug.exceptions import RequestEntityTooLarge
 
 from routes import routes_bp
+from pdf_medidor_pro.api import pdf_medidor_pro_bp
 from sistema_presupuesto.api import presupuesto_api_bp
 
 app = Flask(__name__)
@@ -48,6 +49,8 @@ def presupuesto_static(filename):
 
 
 app.register_blueprint(routes_bp)
+if pdf_medidor_pro_bp.name not in app.blueprints:
+    app.register_blueprint(pdf_medidor_pro_bp)
 if presupuesto_api_bp.name not in app.blueprints:
     app.register_blueprint(presupuesto_api_bp)
 app.add_url_rule('/revision', endpoint='revision', view_func=app.view_functions['routes.revision'])
