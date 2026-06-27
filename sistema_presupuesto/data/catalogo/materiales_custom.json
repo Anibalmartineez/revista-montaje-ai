@@ -7,5 +7,46 @@
     "valores_son_ejemplo": true,
     "fuente": "Valores configurables por el usuario; pueden ser ficticios."
   },
-  "materiales": []
+  "materiales": [
+    {
+      "activo": true,
+      "costo": {
+        "es_valor_ejemplo": true,
+        "modo": "por_pliego",
+        "moneda": "PYG",
+        "unidad": "pliego",
+        "valor": "3500",
+        "vigencia": null
+      },
+      "formato_pliego_mm": {
+        "alto": "960",
+        "ancho": "660"
+      },
+      "gramaje_g_m2": "150",
+      "id": "couche_150",
+      "merma_recomendada_pct": "3",
+      "nombre": "Papel couche 150 g/m2",
+      "notas": "Material fixture para volante, revista y folletos.",
+      "tipo": "papel_ilustracion"
+    },
+    {
+      "id": "material_custom",
+      "nombre": "carton 250g",
+      "tipo": "papel",
+      "gramaje_g_m2": "250",
+      "formato_pliego_mm": {
+        "alto": "960",
+        "ancho": "660"
+      },
+      "costo": {
+        "es_valor_ejemplo": false,
+        "modo": "por_pliego",
+        "moneda": "PYG",
+        "unidad": "pliego",
+        "valor": "4000"
+      },
+      "merma_recomendada_pct": "0",
+      "activo": true
+    }
+  ]
 }
