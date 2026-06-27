@@ -133,3 +133,12 @@ El resultado debe explicar cada componente del presupuesto. Si un dato tecnico n
 - `docs/11_NUMERACION_COMERCIAL.md`: numeracion comercial aislada de presupuestos.
 - `docs/12_PDF_PRESUPUESTO.md`: generacion de PDF comercial aislado.
 - `docs/13_HISTORIAL_Y_DUPLICACION.md`: historial avanzado y duplicacion de presupuestos.
+
+## Auditoria tecnica actual
+
+La auditoria tecnica completa del estado actual del modulo queda documentada en:
+
+- `docs/14_AUDITORIA_SISTEMA_ACTUAL.md`: mapa operativo, flujos, endpoints, riesgos y conclusiones.
+- `docs/15_MAPA_CONEXIONES_SISTEMA_PRESUPUESTO.md`: conexiones backend, frontend, API, datos y tests.
+- `docs/16_PROPUESTAS_MEJORA_PRESUPUESTO.md`: mejoras por plazo, prioridades, riesgos y fases sugeridas.
+- `docs/17_PLAN_MOTOR_PRODUCCION.md`: plan SAFE para un futuro Motor de Produccion sin integracion todavia con Editor Offset Visual.
