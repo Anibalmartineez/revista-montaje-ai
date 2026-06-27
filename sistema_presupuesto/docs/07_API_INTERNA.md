@@ -54,6 +54,8 @@ POST /api/sistema-presupuesto/cotizar
 POST /api/sistema-presupuesto/cotizar-y-guardar
 GET  /api/sistema-presupuesto/presupuestos
 GET  /api/sistema-presupuesto/presupuestos/<presupuesto_id>
+PATCH /api/sistema-presupuesto/presupuestos/<presupuesto_id>/estado
+POST /api/sistema-presupuesto/presupuestos/<presupuesto_id>/duplicar
 POST /api/sistema-presupuesto/presupuestos/<presupuesto_id>/documento
 GET  /api/sistema-presupuesto/documentos/<archivo>
 ```
@@ -77,6 +79,20 @@ El endpoint `GET /numeracion` muestra el estado actual del contador comercial si
 
 `POST /presupuestos/<presupuesto_id>/documento` genera un documento comercial desde el presupuesto guardado.
 `GET /documentos/<archivo>` sirve solo archivos generados bajo `data/pdfs/`.
+
+`GET /presupuestos` devuelve historial resumido y acepta filtros query string:
+
+- `q`: busca por `numero_comercial`, producto, observaciones o `presupuesto_id`.
+- `estado`: filtra por `borrador`, `enviado`, `aceptado`, `rechazado` o `vencido`.
+
+El historial se ordena por `created_at` descendente y mantiene compatibilidad con registros antiguos sin `numero_comercial` o `estado`.
+
+`PATCH /presupuestos/<presupuesto_id>/estado` cambia solo el campo `estado` y `updated_at`.
+No reemplaza el presupuesto completo.
+
+`POST /presupuestos/<presupuesto_id>/duplicar` crea un presupuesto nuevo con nuevo `presupuesto_id`, nuevo `numero_comercial`, `estado: "borrador"` y `duplicado_de` apuntando al original.
+Puede recibir `observaciones` como patch simple.
+No recalcula cantidades ni reusa documentos generados.
 
 ## Errores
 

@@ -28,6 +28,12 @@ def test_html_has_main_containers():
     assert 'id="sp-client-list"' in html
     assert 'id="sp-generate-document"' in html
     assert "Generar documento" in html
+    assert 'id="sp-budget-search"' in html
+    assert 'id="sp-budget-status-filter"' in html
+    assert 'id="sp-budget-state"' in html
+    assert 'id="sp-update-budget-state"' in html
+    assert 'id="sp-duplicate-budget"' in html
+    assert "Duplicar" in html
 
 
 def test_css_uses_isolated_prefix():
@@ -51,6 +57,10 @@ def test_js_uses_api_and_does_not_reference_editor():
     assert "sp-numero-comercial" in js
     assert "/documento" in js
     assert "/documentos/" in js
+    assert "/duplicar" in js
+    assert "/estado" in js
+    assert "sp-budget-search" in js
+    assert "sp-budget-status-filter" in js
     assert "editor_offset" not in js
     assert "editor-offset" not in js
     assert "/editor_offset" not in js

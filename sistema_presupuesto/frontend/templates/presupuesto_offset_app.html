@@ -186,16 +186,46 @@
       <section class="sp-panel sp-saved">
         <div class="sp-saved-header">
           <h2>Presupuestos guardados</h2>
-          <button class="sp-button" id="sp-refresh-budgets" type="button">Actualizar lista</button>
+          <div class="sp-history-controls">
+            <label>
+              <span>Buscar</span>
+              <input id="sp-budget-search" type="search" placeholder="Numero o producto">
+            </label>
+            <label>
+              <span>Estado</span>
+              <select id="sp-budget-status-filter">
+                <option value="">Todos</option>
+                <option value="borrador">Borrador</option>
+                <option value="enviado">Enviado</option>
+                <option value="aceptado">Aceptado</option>
+                <option value="rechazado">Rechazado</option>
+                <option value="vencido">Vencido</option>
+              </select>
+            </label>
+            <button class="sp-button" id="sp-refresh-budgets" type="button">Actualizar lista</button>
+          </div>
         </div>
         <div class="sp-saved-layout">
           <div class="sp-budget-list" id="sp-budget-list"></div>
           <article class="sp-budget-detail">
             <h3>Presupuesto abierto</h3>
             <div class="sp-actions">
+              <select id="sp-budget-state" disabled>
+                <option value="borrador">Borrador</option>
+                <option value="enviado">Enviado</option>
+                <option value="aceptado">Aceptado</option>
+                <option value="rechazado">Rechazado</option>
+                <option value="vencido">Vencido</option>
+              </select>
+              <button class="sp-button" id="sp-update-budget-state" type="button" disabled>Cambiar estado</button>
+              <button class="sp-button" id="sp-duplicate-budget" type="button" disabled>Duplicar</button>
               <button class="sp-button" id="sp-generate-document" type="button" disabled>Generar documento</button>
               <a class="sp-document-link" id="sp-document-link" href="#" target="_blank" rel="noopener" hidden>Abrir documento</a>
             </div>
+            <label class="sp-duplicate-notes">
+              <span>Observaciones del duplicado</span>
+              <input id="sp-duplicate-observaciones" type="text" placeholder="Opcional">
+            </label>
             <div class="sp-catalog-message" id="sp-document-message" role="status"></div>
             <pre id="sp-budget-detail">Selecciona un presupuesto guardado.</pre>
           </article>

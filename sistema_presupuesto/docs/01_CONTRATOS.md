@@ -160,6 +160,8 @@ Registro persistido de presupuesto.
   "numero_comercial": "PRES-2026-000001",
   "version": 1,
   "estado": "borrador",
+  "duplicado_de": null,
+  "observaciones": null,
   "request": {},
   "result": {},
   "created_at": "2026-06-21T00:00:00Z",
@@ -179,19 +181,21 @@ Reglas:
 - `numero_comercial` usa formato `PRES-YYYY-000001` para presupuestos creados desde Fase 9.3.
 - `schema` debe ser `sistema_presupuesto.budget_record`.
 - `schema_version` debe ser `1`.
-- `estado` inicial es `calculado`.
+- `estado` inicial es `borrador`.
 - `result` contiene el desglose auditable serializado.
 - no se sobrescribe un presupuesto existente por defecto.
 - presupuestos antiguos sin `numero_comercial` siguen siendo compatibles y no se renumeran automaticamente.
+- presupuestos antiguos sin `estado` o con estado legacy `calculado` se tratan como `borrador` en historial.
+- `duplicado_de` se informa solo en presupuestos creados por duplicacion.
+- `observaciones` es opcional y no altera el calculo.
 
-## Estados futuros
+## Estados permitidos
 
 - `borrador`
-- `calculado`
 - `enviado`
 - `aceptado`
 - `rechazado`
-- `anulado`
+- `vencido`
 
 ## Catalogos futuros
 

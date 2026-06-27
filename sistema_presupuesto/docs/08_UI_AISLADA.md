@@ -61,6 +61,7 @@ catalogo/procesos_default.json
 8. La seccion `Clientes` permite administrar clientes aislados.
 9. Al guardar un presupuesto, la UI muestra el `numero_comercial` generado por backend.
 10. Desde un presupuesto guardado, la UI permite generar y abrir documento comercial.
+11. La seccion de presupuestos guardados permite buscar, filtrar por estado, cambiar estado y duplicar presupuestos.
 
 ## Catalogos
 
@@ -116,6 +117,29 @@ Permite:
 - mostrar fallback HTML si el backend no puede generar PDF;
 - abrir el documento generado mediante endpoint seguro.
 
+## Historial y duplicacion
+
+La UI de presupuestos guardados muestra:
+
+- `numero_comercial` si existe;
+- estado;
+- producto;
+- cantidad;
+- precio final;
+- precio unitario.
+
+Permite:
+
+- buscar por texto contra el historial;
+- filtrar por estado;
+- abrir un presupuesto guardado;
+- cambiar estado mediante endpoint dedicado;
+- duplicar un presupuesto con nuevo numero comercial;
+- generar documento desde el presupuesto abierto.
+
+La duplicacion no recalcula cantidades desde la UI.
+Si se informa observacion, se guarda como dato comercial del duplicado.
+
 ## Reglas
 
 - El frontend no calcula precios.
@@ -127,4 +151,5 @@ Permite:
 - Los valores custom deben ser configurables o ficticios.
 - Los clientes se administran aislados y aun no forman parte del `QuoteRequest`.
 - Los presupuestos antiguos pueden no tener `numero_comercial`.
+- Los presupuestos antiguos sin `estado` se muestran como `borrador`.
 - Los documentos generados viven bajo `data/pdfs/`.

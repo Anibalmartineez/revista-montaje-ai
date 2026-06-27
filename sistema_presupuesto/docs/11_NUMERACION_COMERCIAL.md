@@ -70,6 +70,9 @@ Al crear un presupuesto guardado, `BudgetRepository` agrega:
 Los presupuestos antiguos sin `numero_comercial` siguen siendo validos.
 El sistema no los recalcula ni renumera automaticamente.
 
+Al duplicar un presupuesto, el backend genera un nuevo `numero_comercial`.
+No se reutiliza el numero del presupuesto original.
+
 ## API aislada
 
 `POST /api/sistema-presupuesto/cotizar-y-guardar` devuelve:
@@ -102,8 +105,8 @@ La UI muestra `numero_comercial`:
 ## Limitaciones
 
 - El PDF comercial usa `numero_comercial` cuando existe.
-- No hay duplicacion de presupuestos todavia.
-- No hay historial avanzado todavia.
+- La duplicacion de presupuestos crea nuevo numero comercial.
+- El historial avanzado muestra `numero_comercial` cuando existe y conserva compatibilidad legacy.
 - No se asocian clientes a presupuestos todavia.
 - No hay configuracion UI del prefijo `PRES`.
 - No hay multiples sucursales o series.

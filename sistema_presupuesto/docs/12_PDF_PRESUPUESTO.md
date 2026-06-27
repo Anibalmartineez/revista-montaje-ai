@@ -73,6 +73,7 @@ El documento incluye:
 - No se confia en totales enviados por frontend.
 - No se recalcula el presupuesto para emitir el documento.
 - Presupuestos antiguos sin `numero_comercial` usan `presupuesto_id` como referencia visible.
+- Presupuestos duplicados no reutilizan documentos ya generados para el presupuesto original.
 - Los nombres de archivo se sanitizan.
 - La descarga solo permite archivos dentro de `data/pdfs/`.
 
@@ -112,6 +113,7 @@ La UI permite:
 - generar documento comercial;
 - ver tipo generado y nombre de archivo;
 - abrir el documento generado desde el enlace seguro.
+- conservar el boton de documento dentro del historial avanzado.
 
 ## Limitaciones
 

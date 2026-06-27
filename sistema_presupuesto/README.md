@@ -36,14 +36,14 @@ Construir un modulo determinista y auditable para presupuestos offset:
 
 ## Estado actual
 
-Fase actual: **Fase 9.4 - PDF comercial aislado completado**.
+Fase actual: **Fase 9.5 - Historial avanzado y duplicacion aislada completada**.
 
-Proxima fase propuesta: **Fase 9.5 - Duplicacion e historial avanzado aislado**.
+Proxima fase propuesta: **Fase 10 - Activacion dentro de app principal Flask**.
 
 Implementado:
 
 - `AGENTS.md`;
-- documentacion `00` a `12`;
+- documentacion `00` a `13`;
 - contratos JSON;
 - catalogos default;
 - catalogos custom editables;
@@ -69,6 +69,10 @@ Implementado:
 - contador persistente de numeracion;
 - PDF comercial aislado;
 - descarga segura de documentos generados;
+- historial avanzado de presupuestos guardados;
+- filtros por texto y estado;
+- estados comerciales de presupuesto;
+- duplicacion de presupuestos con nuevo numero comercial;
 - `dev_app.py`;
 - tests automatizados.
 
@@ -82,9 +86,7 @@ No incluye todavia:
 - base de datos;
 - autenticacion/usuarios;
 - API publica productiva;
-- asociacion de clientes con presupuestos;
-- historial avanzado;
-- duplicacion de presupuestos.
+- asociacion de clientes con presupuestos.
 
 ## Fases previstas
 
@@ -101,8 +103,7 @@ No incluye todavia:
    - clientes completados en Fase 9.2;
    - numeracion comercial completada en Fase 9.3;
    - PDF comercial completado en Fase 9.4;
-   - duplicacion de presupuestos;
-   - historial.
+   - historial avanzado y duplicacion completados en Fase 9.5.
 10. Activacion dentro de app principal Flask.
 11. Integracion read-only futura con Editor Offset Visual.
 
@@ -127,7 +128,4 @@ El resultado debe explicar cada componente del presupuesto. Si un dato tecnico n
 - `docs/10_CLIENTES.md`: modelo y flujo aislado de clientes.
 - `docs/11_NUMERACION_COMERCIAL.md`: numeracion comercial aislada de presupuestos.
 - `docs/12_PDF_PRESUPUESTO.md`: generacion de PDF comercial aislado.
-
-Documentos planificados para Fase 9:
-
 - `docs/13_HISTORIAL_Y_DUPLICACION.md`: historial avanzado y duplicacion de presupuestos.

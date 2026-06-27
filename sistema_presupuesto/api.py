@@ -146,12 +146,43 @@ def create_presupuesto_api_blueprint() -> Blueprint:
     @bp.get("/presupuestos")
     def presupuestos():
         _, budget_repo = _repositories()
-        return jsonify({"ok": True, "presupuestos": budget_repo.list_budgets()})
+        return jsonify(
+            {
+                "ok": True,
+                "presupuestos": budget_repo.list_budgets(
+                    q=request.args.get("q") or None,
+                    estado=request.args.get("estado") or None,
+                ),
+            }
+        )
 
     @bp.get("/presupuestos/<presupuesto_id>")
     def presupuesto_por_id(presupuesto_id: str):
         _, budget_repo = _repositories()
         return jsonify({"ok": True, "record": budget_repo.get_budget(presupuesto_id)})
+
+    @bp.patch("/presupuestos/<presupuesto_id>/estado")
+    def actualizar_estado_presupuesto(presupuesto_id: str):
+        payload = _request_json()
+        _, budget_repo = _repositories()
+        record = budget_repo.update_budget_state(presupuesto_id, payload.get("estado"))
+        return jsonify({"ok": True, "record": record})
+
+    @bp.post("/presupuestos/<presupuesto_id>/duplicar")
+    def duplicar_presupuesto(presupuesto_id: str):
+        payload = request.get_json(silent=True) or {}
+        if not isinstance(payload, dict):
+            raise BadRequest("El cuerpo debe ser un objeto JSON.")
+        _, budget_repo = _repositories()
+        record = budget_repo.duplicate_budget(presupuesto_id, patch=payload)
+        response: dict[str, Any] = {
+            "ok": True,
+            "presupuesto_id": record["presupuesto_id"],
+            "record": record,
+        }
+        if "numero_comercial" in record:
+            response["numero_comercial"] = record["numero_comercial"]
+        return jsonify(response), 201
 
     @bp.post("/presupuestos/<presupuesto_id>/documento")
     def generar_documento_presupuesto(presupuesto_id: str):

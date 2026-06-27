@@ -260,12 +260,74 @@ def test_cotizar_y_guardar_then_list_and_get(client):
     listed = list_response.get_json()
     assert listed["presupuestos"][0]["presupuesto_id"] == presupuesto_id
     assert listed["presupuestos"][0]["numero_comercial"] == numero_comercial
+    assert listed["presupuestos"][0]["estado"] == "borrador"
+    assert listed["presupuestos"][0]["producto"] == quote_request["producto"]["titulo"]
 
     get_response = client.get(f"/api/sistema-presupuesto/presupuestos/{presupuesto_id}")
     assert get_response.status_code == 200
     viewed = get_response.get_json()
     assert viewed["record"]["presupuesto_id"] == presupuesto_id
     assert viewed["record"]["numero_comercial"] == numero_comercial
+
+
+def test_presupuestos_api_supports_filters_and_state_patch(client):
+    quote_request = load_json("data/fixtures/quote_request_volante.json")
+    first_response = client.post("/api/sistema-presupuesto/cotizar-y-guardar", json=quote_request)
+    first_id = first_response.get_json()["presupuesto_id"]
+    first_number = first_response.get_json()["numero_comercial"]
+
+    second_request = json.loads(json.dumps(quote_request))
+    second_request["producto"]["titulo"] = "Tarjeta invierno"
+    client.post("/api/sistema-presupuesto/cotizar-y-guardar", json=second_request)
+
+    patch_response = client.patch(
+        f"/api/sistema-presupuesto/presupuestos/{first_id}/estado",
+        json={"estado": "enviado"},
+    )
+    assert patch_response.status_code == 200
+    assert patch_response.get_json()["record"]["estado"] == "enviado"
+
+    q_response = client.get(f"/api/sistema-presupuesto/presupuestos?q={first_number}")
+    assert q_response.status_code == 200
+    assert [item["presupuesto_id"] for item in q_response.get_json()["presupuestos"]] == [first_id]
+
+    status_response = client.get("/api/sistema-presupuesto/presupuestos?estado=enviado")
+    assert status_response.status_code == 200
+    assert [item["presupuesto_id"] for item in status_response.get_json()["presupuestos"]] == [first_id]
+
+
+def test_presupuesto_state_api_rejects_invalid_state(client):
+    quote_request = load_json("data/fixtures/quote_request_volante.json")
+    save_response = client.post("/api/sistema-presupuesto/cotizar-y-guardar", json=quote_request)
+    presupuesto_id = save_response.get_json()["presupuesto_id"]
+
+    response = client.patch(
+        f"/api/sistema-presupuesto/presupuestos/{presupuesto_id}/estado",
+        json={"estado": "anulado"},
+    )
+
+    assert response.status_code == 400
+    assert response.get_json()["error"]["code"] == "REPOSITORY_ERROR"
+
+
+def test_presupuesto_duplicate_api_creates_new_budget(client):
+    quote_request = load_json("data/fixtures/quote_request_volante.json")
+    save_response = client.post("/api/sistema-presupuesto/cotizar-y-guardar", json=quote_request)
+    original = save_response.get_json()["record"]
+
+    response = client.post(
+        f"/api/sistema-presupuesto/presupuestos/{original['presupuesto_id']}/duplicar",
+        json={"observaciones": "Nueva version comercial"},
+    )
+
+    assert response.status_code == 201
+    duplicated = response.get_json()["record"]
+    assert duplicated["presupuesto_id"] != original["presupuesto_id"]
+    assert duplicated["numero_comercial"] != original["numero_comercial"]
+    assert duplicated["duplicado_de"] == original["presupuesto_id"]
+    assert duplicated["estado"] == "borrador"
+    assert duplicated["observaciones"] == "Nueva version comercial"
+    assert duplicated["request"] == original["request"]
 
 
 def test_generate_budget_document_endpoint_and_download(client):

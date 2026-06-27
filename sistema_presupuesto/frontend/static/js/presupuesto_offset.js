@@ -18,6 +18,7 @@
       selectedId: null,
     },
     selectedBudgetId: null,
+    selectedBudgetRecord: null,
     lastResult: null,
   };
 
@@ -43,6 +44,10 @@
       await calculate(true);
     });
     $("#sp-refresh-budgets").addEventListener("click", refreshBudgets);
+    $("#sp-budget-search").addEventListener("input", refreshBudgets);
+    $("#sp-budget-status-filter").addEventListener("change", refreshBudgets);
+    $("#sp-update-budget-state").addEventListener("click", updateBudgetState);
+    $("#sp-duplicate-budget").addEventListener("click", duplicateBudget);
     $("#sp-generate-document").addEventListener("click", generateDocument);
     $("#sp-tipo").addEventListener("change", syncTypeDefaults);
     $("#sp-modo-comercial").addEventListener("change", syncCommercialLimit);
@@ -266,11 +271,25 @@
 
   async function refreshBudgets() {
     try {
-      const payload = await requestJson(`${API_BASE}/presupuestos`);
+      const payload = await requestJson(`${API_BASE}/presupuestos${budgetQueryString()}`);
       renderBudgetList(payload.presupuestos || []);
     } catch (error) {
       $("#sp-budget-list").innerHTML = `<div class="sp-alert sp-error">${escapeHtml(error.message)}</div>`;
     }
+  }
+
+  function budgetQueryString() {
+    const params = new URLSearchParams();
+    const search = $("#sp-budget-search").value.trim();
+    const status = $("#sp-budget-status-filter").value;
+    if (search) {
+      params.set("q", search);
+    }
+    if (status) {
+      params.set("estado", status);
+    }
+    const query = params.toString();
+    return query ? `?${query}` : "";
   }
 
   async function loadClients() {
@@ -592,7 +611,8 @@
       button.className = "sp-budget-row";
       button.innerHTML = `
         <strong>${escapeHtml(item.numero_comercial || item.presupuesto_id)}</strong>
-        <span>${escapeHtml(item.estado)} · ${money(item.precio_final || "0", item.moneda || "PYG")}</span>
+        <span>${escapeHtml(normalizeBudgetState(item.estado))} - ${money(item.precio_final || "0", item.moneda || "PYG")}</span>
+        <small>${escapeHtml(item.producto || "Producto sin titulo")} - ${escapeHtml(item.cantidad || "-")} unidades - Unitario ${money(item.precio_unitario || "0", item.moneda || "PYG")}</small>
       `;
       button.addEventListener("click", () => openBudget(item.presupuesto_id));
       container.appendChild(button);
@@ -603,7 +623,12 @@
     try {
       const payload = await requestJson(`${API_BASE}/presupuestos/${encodeURIComponent(id)}`);
       state.selectedBudgetId = id;
+      state.selectedBudgetRecord = payload.record;
       $("#sp-generate-document").disabled = false;
+      $("#sp-duplicate-budget").disabled = false;
+      $("#sp-update-budget-state").disabled = false;
+      $("#sp-budget-state").disabled = false;
+      $("#sp-budget-state").value = normalizeBudgetState(payload.record.estado);
       resetDocumentLink();
       renderCommercialNumber(payload.record.numero_comercial || null);
       $("#sp-budget-detail").textContent = JSON.stringify(payload.record, null, 2);
@@ -627,6 +652,54 @@
       link.href = `${API_BASE}/documentos/${encodeURIComponent(payload.archivo)}`;
       link.hidden = false;
       link.textContent = "Abrir documento";
+    } catch (error) {
+      showDocumentMessage(error.message, true);
+    }
+  }
+
+  async function updateBudgetState() {
+    if (!state.selectedBudgetId) {
+      showDocumentMessage("Selecciona un presupuesto guardado.", true);
+      return;
+    }
+    try {
+      const payload = await requestJson(
+        `${API_BASE}/presupuestos/${encodeURIComponent(state.selectedBudgetId)}/estado`,
+        {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ estado: $("#sp-budget-state").value }),
+        }
+      );
+      state.selectedBudgetRecord = payload.record;
+      $("#sp-budget-detail").textContent = JSON.stringify(payload.record, null, 2);
+      await refreshBudgets();
+      showDocumentMessage("Estado actualizado.");
+    } catch (error) {
+      showDocumentMessage(error.message, true);
+    }
+  }
+
+  async function duplicateBudget() {
+    if (!state.selectedBudgetId) {
+      showDocumentMessage("Selecciona un presupuesto guardado.", true);
+      return;
+    }
+    const observations = $("#sp-duplicate-observaciones").value.trim();
+    const body = observations ? { observaciones: observations } : {};
+    try {
+      const payload = await requestJson(
+        `${API_BASE}/presupuestos/${encodeURIComponent(state.selectedBudgetId)}/duplicar`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(body),
+        }
+      );
+      $("#sp-duplicate-observaciones").value = "";
+      await refreshBudgets();
+      await openBudget(payload.presupuesto_id);
+      showDocumentMessage(`Presupuesto duplicado: ${payload.numero_comercial || payload.presupuesto_id}`);
     } catch (error) {
       showDocumentMessage(error.message, true);
     }
@@ -720,6 +793,10 @@
   function money(value, currency) {
     const number = Number(value || 0);
     return `${currency || "PYG"} ${number.toLocaleString("es-PY", { maximumFractionDigits: 2 })}`;
+  }
+
+  function normalizeBudgetState(value) {
+    return value && value !== "calculado" ? value : "borrador";
   }
 
   function escapeHtml(value) {

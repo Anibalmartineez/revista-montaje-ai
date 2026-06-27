@@ -56,6 +56,7 @@ Antes de cambiar comportamiento revisar:
 - `docs/10_CLIENTES.md`
 - `docs/11_NUMERACION_COMERCIAL.md`
 - `docs/12_PDF_PRESUPUESTO.md`
+- `docs/13_HISTORIAL_Y_DUPLICACION.md`
 
 Si existen documentos posteriores dentro de `sistema_presupuesto/docs/`, deben revisarse antes de modificar funcionalidad relacionada.
 
