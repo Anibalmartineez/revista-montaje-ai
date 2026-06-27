@@ -1,12 +1,23 @@
-# 04 - Fase 2 Zoom, Lupa, Snap e IA Local
+# 04 - Fase 2 Zoom, Lupa y Snap
 
 ## Resumen
 
-Fase 2 agrega precision visual y medicion asistida sin salir del modulo `pdf_medidor_pro`.
+Fase 2 concentra el modulo en medicion tecnica precisa para preprensa:
+
+- zoom profesional;
+- pan;
+- lupa de precision;
+- snap;
+- medicion por linea;
+- rectangulo final;
+- calibracion;
+- export JSON compatible.
+
+No hay medicion inteligente ni comandos automatizados en esta fase.
 
 ## Coordenadas canonicas
 
-Las mediciones deben vivir en milimetros de pagina:
+Las mediciones viven en milimetros de pagina:
 
 - Linea: `a.x_mm`, `a.y_mm`, `b.x_mm`, `b.y_mm`.
 - Rectangulo: `x_mm`, `y_mm`, `ancho_mm`, `alto_mm`.
@@ -41,12 +52,6 @@ El snap es opcional. Ajusta puntos a:
 
 Mantener `Ctrl` usa umbral estricto.
 
-## IA local
+## Export
 
-La IA de Fase 2 no usa API externa. Detecta heuristicas sobre el PNG del preview:
-
-- objeto no blanco cercano al clic;
-- area impresa global;
-- conteo aproximado de componentes.
-
-La confianza es estimada y debe tratarse como ayuda operativa, no como contrato de produccion.
+El contrato base se mantiene. La clave `mediciones` puede conservar historial de lineas y rectangulos manuales, sin depender de automatizaciones externas.

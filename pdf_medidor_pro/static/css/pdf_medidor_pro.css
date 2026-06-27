@@ -382,8 +382,7 @@ select {
 .pmp-auto-row,
 .pmp-measurement,
 .pmp-final-box,
-.pmp-calibration-state,
-.pmp-ai-panel {
+.pmp-calibration-state {
   border: 1px solid var(--pmp-line);
   border-radius: 7px;
   padding: 10px;
@@ -439,8 +438,7 @@ select {
 }
 
 .pmp-measurement small,
-.pmp-final-box small,
-.pmp-ai-panel small {
+.pmp-final-box small {
   display: block;
   color: var(--pmp-muted);
   line-height: 1.45;
@@ -467,15 +465,6 @@ select {
 .pmp-mini-button:hover {
   color: var(--pmp-ink);
   border-color: #9fb0ba;
-}
-
-.pmp-command {
-  margin: 10px 0;
-}
-
-.pmp-ai-panel {
-  margin-top: 10px;
-  color: var(--pmp-muted);
 }
 
 .pmp-calibration-state {

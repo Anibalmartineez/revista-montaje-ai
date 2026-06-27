@@ -72,10 +72,10 @@ def test_build_export_payload_accepts_compatible_measurements():
         calibracion={},
         mediciones=[
             {
-                "id": "ai_1",
+                "id": "rect_1",
                 "tipo": "rectangulo",
-                "origen": "ia",
-                "nombre": "Etiqueta (IA)",
+                "origen": "manual",
+                "nombre": "Rectangulo manual",
                 "ancho_mm": 20,
                 "alto_mm": 10,
                 "x_mm": 5,
@@ -85,10 +85,10 @@ def test_build_export_payload_accepts_compatible_measurements():
                 "confianza": 0.96,
             }
         ],
-        origen_medida_final="ia",
-        confianza="media",
+        origen_medida_final="manual",
+        confianza="alta",
     )
 
-    assert payload["origen_medida_final"] == "ia"
-    assert payload["mediciones"][0]["origen"] == "ia"
+    assert payload["origen_medida_final"] == "manual"
+    assert payload["mediciones"][0]["origen"] == "manual"
     assert payload["mediciones"][0]["confianza"] == 0.96

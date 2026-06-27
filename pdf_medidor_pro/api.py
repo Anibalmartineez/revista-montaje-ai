@@ -19,7 +19,6 @@ from .config import (
     ensure_runtime_dirs,
 )
 from .services.export_json import build_export_payload
-from .services.ai_measure_engine import count_label_candidates, detect_measurement_near, detect_printed_measurement
 from .services.pdf_analyzer import analyze_pdf_boxes
 from .services.pdf_renderer import render_first_page
 
@@ -90,45 +89,6 @@ def create_pdf_medidor_pro_blueprint() -> Blueprint:
             }
         )
 
-    @bp.post("/api/pdf-medidor-pro/ai/detect")
-    def ai_detect():
-        payload = request.get_json(silent=True) or {}
-        preview_path = _preview_path_from_payload(payload)
-        if preview_path is None:
-            return _error("PREVIEW_REQUIRED", "Preview no encontrado.", 400)
-        try:
-            measurement = detect_measurement_near(
-                preview_path,
-                x_mm=float(payload.get("x_mm") or 0),
-                y_mm=float(payload.get("y_mm") or 0),
-                render_mm=_render_mm(payload),
-                name=str(payload.get("nombre") or "Objeto detectado (IA)"),
-            )
-        except Exception as exc:
-            return _error("AI_DETECT_FAILED", str(exc), 400)
-        if measurement is None:
-            return _error("AI_OBJECT_NOT_FOUND", "No se detecto un objeto cerca del clic.", 404)
-        return jsonify({"ok": True, "measurement": measurement})
-
-    @bp.post("/api/pdf-medidor-pro/ai/printed-area")
-    def ai_printed_area():
-        payload = request.get_json(silent=True) or {}
-        preview_path = _preview_path_from_payload(payload)
-        if preview_path is None:
-            return _error("PREVIEW_REQUIRED", "Preview no encontrado.", 400)
-        measurement = detect_printed_measurement(preview_path, render_mm=_render_mm(payload))
-        if measurement is None:
-            return _error("AI_OBJECT_NOT_FOUND", "No se detecto area impresa.", 404)
-        return jsonify({"ok": True, "measurement": measurement})
-
-    @bp.post("/api/pdf-medidor-pro/ai/count")
-    def ai_count():
-        payload = request.get_json(silent=True) or {}
-        preview_path = _preview_path_from_payload(payload)
-        if preview_path is None:
-            return _error("PREVIEW_REQUIRED", "Preview no encontrado.", 400)
-        return jsonify({"ok": True, **count_label_candidates(preview_path)})
-
     @bp.post("/api/pdf-medidor-pro/export")
     def export_json():
         ensure_runtime_dirs()
@@ -172,23 +132,6 @@ def create_pdf_medidor_pro_blueprint() -> Blueprint:
 
 def _error(code: str, message: str, status: int):
     return jsonify({"ok": False, "error": {"code": code, "message": message}}), status
-
-
-def _preview_path_from_payload(payload: dict) -> Path | None:
-    raw = str(payload.get("preview_filename") or payload.get("preview") or "")
-    filename = secure_filename(Path(raw).name)
-    if not filename:
-        return None
-    path = PREVIEW_DIR / filename
-    return path if path.exists() else None
-
-
-def _render_mm(payload: dict) -> dict[str, float]:
-    render_mm = payload.get("render_mm") if isinstance(payload.get("render_mm"), dict) else {}
-    return {
-        "ancho": float(render_mm.get("ancho") or payload.get("ancho_mm") or 0),
-        "alto": float(render_mm.get("alto") or payload.get("alto_mm") or 0),
-    }
 
 
 pdf_medidor_pro_bp = create_pdf_medidor_pro_blueprint()

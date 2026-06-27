@@ -33,7 +33,7 @@ def build_export_payload(
         "medidas_auto": _normalize_auto_boxes(medidas_auto),
         "medidas_manual": normalize_manual_measurements(medidas_manual),
         "calibracion": normalize_calibration(calibracion),
-        "origen_medida_final": origen_medida_final or "manual",
+        "origen_medida_final": _origin(origen_medida_final),
         "confianza": confianza or "alta",
         "mediciones": _normalize_measurements(mediciones),
     }
@@ -71,7 +71,7 @@ def _normalize_measurement(item: dict[str, Any]) -> dict[str, Any]:
     measurement = {
         "id": str(item.get("id") or ""),
         "tipo": str(item.get("tipo") or "rectangulo"),
-        "origen": str(item.get("origen") or "manual"),
+        "origen": _origin(str(item.get("origen") or "manual")),
         "nombre": str(item.get("nombre") or "Medicion"),
         "visible": bool(item.get("visible", True)),
     }
@@ -98,3 +98,8 @@ def _confidence(value: Any) -> float:
     except (TypeError, ValueError):
         return 0.0
     return round(max(0.0, min(1.0, numeric)), 3)
+
+
+def _origin(value: Any) -> str:
+    normalized = str(value or "manual").strip().lower()
+    return normalized if normalized in {"manual", "auto"} else "manual"

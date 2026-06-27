@@ -14,7 +14,6 @@
     previousMode: "line",
     spacePan: false,
     pendingPoint: null,
-    pendingAi: null,
     hoverSnap: null,
     measurements: [],
     selectedMeasurementId: null,
@@ -77,16 +76,11 @@
     refs.exportButton = document.getElementById("pmp-export-button");
     refs.exportLink = document.getElementById("pmp-export-link");
     refs.jsonOutput = document.getElementById("pmp-json-output");
-    refs.aiPanel = document.getElementById("pmp-ai-panel");
-    refs.aiButton = document.getElementById("pmp-ai-button");
-    refs.aiCommand = document.getElementById("pmp-ai-command");
-    refs.aiCommandButton = document.getElementById("pmp-ai-command-button");
   }
 
   function bindEvents() {
     refs.uploadForm.addEventListener("submit", onUpload);
     refs.canvas.addEventListener("click", onCanvasClick);
-    refs.canvas.addEventListener("dblclick", onCanvasDoubleClick);
     refs.canvas.addEventListener("mousemove", onCanvasMove);
     refs.canvas.addEventListener("mousedown", onPanStart);
     window.addEventListener("mousemove", onPanMove);
@@ -105,11 +99,6 @@
       refs.magnifierToggle.classList.toggle("is-active", magnifier.enabled);
     });
     refs.magnifierFactor.addEventListener("change", () => magnifier.setFactor(refs.magnifierFactor.value));
-    refs.aiButton.addEventListener("click", () => setMode(state.mode === "ai" ? "line" : "ai"));
-    refs.aiCommandButton.addEventListener("click", runAiCommand);
-    refs.aiCommand.addEventListener("keydown", (event) => {
-      if (event.key === "Enter") runAiCommand();
-    });
     document.querySelectorAll("[data-pmp-tool]").forEach((button) => {
       button.addEventListener("click", () => setMode(button.dataset.pmpTool));
     });
@@ -148,7 +137,6 @@
       state.renderMm = payload.preview.render_mm || payload.render_mm || { ancho: 0, alto: 0 };
       state.medidasAuto = payload.medidas_auto || ns.emptyAuto();
       state.pendingPoint = null;
-      state.pendingAi = null;
       state.hoverSnap = null;
       state.measurements = [];
       state.selectedMeasurementId = null;
@@ -173,11 +161,6 @@
     }
     if (state.mode === "hand" || state.spacePan) return;
     const point = snappedPoint(event);
-    if (state.mode === "ai") {
-      await detectAiAt(point, state.pendingAi && state.pendingAi.name ? state.pendingAi.name : "Objeto detectado (IA)");
-      state.pendingAi = null;
-      return;
-    }
     if (!state.pendingPoint) {
       state.pendingPoint = point;
       renderCanvas();
@@ -206,11 +189,6 @@
     }
     state.pendingPoint = null;
     renderAll();
-  }
-
-  async function onCanvasDoubleClick(event) {
-    if (!hasPdf() || state.mode !== "ai") return;
-    await detectAiAt(snappedPoint(event), "Etiqueta (IA)");
   }
 
   function onCanvasMove(event) {
@@ -281,12 +259,11 @@
 
   function setMode(mode) {
     state.previousMode = state.mode;
-    state.mode = ["line", "rectangle", "hand", "ai"].includes(mode) ? mode : "line";
+    state.mode = ["line", "rectangle", "hand"].includes(mode) ? mode : "line";
     state.pendingPoint = null;
     document.querySelectorAll("[data-pmp-tool]").forEach((button) => {
       button.classList.toggle("is-active", button.dataset.pmpTool === state.mode);
     });
-    refs.aiButton.classList.toggle("is-active", state.mode === "ai");
     refs.toolHint.textContent = toolHint();
     refs.viewer.classList.toggle("is-hand-tool", state.mode === "hand");
     renderCanvas();
@@ -295,13 +272,11 @@
   function toolHint() {
     if (state.mode === "line") return "Linea: selecciona dos puntos.";
     if (state.mode === "rectangle") return "Rectangulo: selecciona dos esquinas.";
-    if (state.mode === "hand") return "Mano: arrastra para desplazar.";
-    return state.pendingAi ? state.pendingAi.message : "IA: haz clic o doble clic sobre un objeto.";
+    return "Mano: arrastra para desplazar.";
   }
 
   function clearMeasurements() {
     state.pendingPoint = null;
-    state.pendingAi = null;
     state.measurements = [];
     state.selectedMeasurementId = null;
     state.finalMeasurementId = null;
@@ -327,70 +302,6 @@
     } catch (error) {
       setStatus(error.message, true);
     }
-  }
-
-  async function runAiCommand() {
-    const parsed = ns.parseAiCommand(refs.aiCommand.value);
-    if (parsed.action === "empty") {
-      setStatus(parsed.message, true);
-      return;
-    }
-    setStatus(parsed.message);
-    if (parsed.needsClick) {
-      state.pendingAi = parsed;
-      setMode("ai");
-      refs.toolHint.textContent = parsed.message;
-      return;
-    }
-    try {
-      if (parsed.action === "count") {
-        const result = await ns.aiMeasure.countObjects(apiBase, state);
-        refs.aiPanel.innerHTML = `<strong>Conteo IA</strong><small>${result.message}</small>`;
-        setStatus(result.message);
-      } else if (parsed.action === "printed_area") {
-        const measurement = await ns.aiMeasure.detectPrintedArea(apiBase, state);
-        addAiMeasurement(measurement);
-      } else if (parsed.action === "bleed_hint") {
-        refs.aiPanel.innerHTML = `<strong>Buscar sangrado</strong><small>${parsed.message}</small>`;
-      } else {
-        setStatus(parsed.message, true);
-      }
-    } catch (error) {
-      setStatus(error.message, true);
-    }
-  }
-
-  async function detectAiAt(point, name) {
-    try {
-      setStatus("Midiendo con IA local...");
-      const measurement = await ns.aiMeasure.detectObject(apiBase, state, point, name);
-      addAiMeasurement(measurement);
-    } catch (error) {
-      setStatus(error.message, true);
-    }
-  }
-
-  function addAiMeasurement(measurement) {
-    const rect = ns.makeRectangle(
-      { x_mm: measurement.x_mm, y_mm: measurement.y_mm },
-      { x_mm: measurement.x_mm + measurement.ancho_mm, y_mm: measurement.y_mm + measurement.alto_mm },
-      {
-        id: `ai_${Date.now()}`,
-        origen: "ia",
-        nombre: measurement.nombre || "Objeto detectado (IA)",
-        confianza: measurement.confianza || 0.5,
-      }
-    );
-    state.measurements.push(rect);
-    state.selectedMeasurementId = rect.id;
-    refs.aiPanel.innerHTML = [
-      `<strong>${rect.nombre}</strong>`,
-      `<small>${fmt(rect.ancho_mm)} x ${fmt(rect.alto_mm)} mm</small>`,
-      `<small>X ${fmt(rect.x_mm)} mm | Y ${fmt(rect.y_mm)} mm</small>`,
-      `<small>Area ${fmt(rect.ancho_mm * rect.alto_mm)} mm2 | Confianza ${fmt((rect.confianza || 0) * 100)}%</small>`,
-    ].join("");
-    setStatus("Medicion IA agregada al historial.");
-    renderAll();
   }
 
   async function exportJson() {
@@ -468,7 +379,7 @@
         actions.appendChild(actionButton("Usar final", () => {
           state.finalMeasurementId = item.id;
           state.finalOrigin = item.origen || "manual";
-          state.finalConfidence = item.origen === "ia" ? "media" : "alta";
+          state.finalConfidence = "alta";
           renderAll();
         }));
       }

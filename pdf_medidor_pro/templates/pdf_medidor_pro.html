@@ -39,7 +39,6 @@
               <button class="pmp-tool is-active" type="button" data-pmp-tool="line">Linea</button>
               <button class="pmp-tool" type="button" data-pmp-tool="rectangle">Rectangulo</button>
               <button class="pmp-tool" type="button" data-pmp-tool="hand">Mano</button>
-              <button class="pmp-tool" type="button" data-pmp-tool="ai">IA</button>
             </div>
             <label class="pmp-toggle">
               <input id="pmp-snap-toggle" type="checkbox">
@@ -114,16 +113,6 @@
 
         <aside class="pmp-panel pmp-results">
           <section class="pmp-section">
-            <h2>IA local</h2>
-            <button class="pmp-button pmp-primary" id="pmp-ai-button" type="button">Medir con IA</button>
-            <label class="pmp-field pmp-command">
-              <span>Comando</span>
-              <input id="pmp-ai-command" type="text" placeholder="Escribe un comando, por ejemplo: Medi esta etiqueta">
-            </label>
-            <button class="pmp-button" id="pmp-ai-command-button" type="button">Ejecutar comando</button>
-            <div class="pmp-ai-panel" id="pmp-ai-panel">Sin medicion IA activa.</div>
-          </section>
-          <section class="pmp-section">
             <h2>Mediciones</h2>
             <div class="pmp-measurements" id="pmp-measurements"></div>
           </section>
@@ -146,8 +135,6 @@
     <script src="{{ url_for('pdf_medidor_pro.static_file', filename='js/export.js') }}" defer></script>
     <script src="{{ url_for('pdf_medidor_pro.static_file', filename='js/snap.js') }}" defer></script>
     <script src="{{ url_for('pdf_medidor_pro.static_file', filename='js/magnifier.js') }}" defer></script>
-    <script src="{{ url_for('pdf_medidor_pro.static_file', filename='js/ai_measure.js') }}" defer></script>
-    <script src="{{ url_for('pdf_medidor_pro.static_file', filename='js/commands_ai.js') }}" defer></script>
     <script src="{{ url_for('pdf_medidor_pro.static_file', filename='js/pdf_medidor_pro.js') }}" defer></script>
   </body>
 </html>

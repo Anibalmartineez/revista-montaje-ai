@@ -154,7 +154,7 @@
       const b = this.mmToViewport(line.b);
       this.ctx.save();
       this.ctx.lineWidth = selected ? 3 : 2;
-      this.ctx.strokeStyle = selected ? "#0f766e" : line.origen === "ia" ? "#7c3aed" : "#d97706";
+      this.ctx.strokeStyle = selected ? "#0f766e" : "#d97706";
       this.ctx.fillStyle = this.ctx.strokeStyle;
       this.ctx.beginPath();
       this.ctx.moveTo(a.x, a.y);
@@ -174,8 +174,8 @@
       });
       this.ctx.save();
       this.ctx.lineWidth = selected ? 3 : 2;
-      this.ctx.strokeStyle = selected ? "#0f766e" : rect.origen === "ia" ? "#7c3aed" : "#2563eb";
-      this.ctx.setLineDash(rect.origen === "ia" ? [8, 5] : []);
+      this.ctx.strokeStyle = selected ? "#0f766e" : "#2563eb";
+      this.ctx.setLineDash([]);
       this.ctx.strokeRect(origin.x, origin.y, far.x - origin.x, far.y - origin.y);
       this.ctx.restore();
     }
