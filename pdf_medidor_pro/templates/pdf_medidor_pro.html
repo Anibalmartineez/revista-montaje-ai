@@ -38,8 +38,27 @@
             <div class="pmp-tools" role="group" aria-label="Herramientas de medicion">
               <button class="pmp-tool is-active" type="button" data-pmp-tool="line">Linea</button>
               <button class="pmp-tool" type="button" data-pmp-tool="rectangle">Rectangulo</button>
+              <button class="pmp-tool" type="button" data-pmp-tool="hand">Mano</button>
+              <button class="pmp-tool" type="button" data-pmp-tool="ai">IA</button>
             </div>
+            <label class="pmp-toggle">
+              <input id="pmp-snap-toggle" type="checkbox">
+              <span>Snap</span>
+            </label>
             <button class="pmp-button" id="pmp-clear-button" type="button">Borrar mediciones</button>
+          </section>
+
+          <section class="pmp-section">
+            <h2>Lupa</h2>
+            <div class="pmp-inline">
+              <button class="pmp-button" id="pmp-magnifier-toggle" type="button">Lupa</button>
+              <select id="pmp-magnifier-factor" class="pmp-select">
+                <option value="5">5x</option>
+                <option value="10" selected>10x</option>
+                <option value="20">20x</option>
+              </select>
+            </div>
+            <p class="pmp-help">Mantener Alt activa la lupa temporal.</p>
           </section>
 
           <section class="pmp-section">
@@ -65,16 +84,45 @@
               <strong id="pmp-current-file">Ningun archivo</strong>
               <span id="pmp-page-info">Pagina 1</span>
             </div>
+            <div class="pmp-zoom-bar" aria-label="Controles de zoom">
+              <button type="button" data-pmp-zoom="0.25">25%</button>
+              <button type="button" data-pmp-zoom="0.5">50%</button>
+              <button type="button" data-pmp-zoom="1">100%</button>
+              <button type="button" data-pmp-zoom="2">200%</button>
+              <button type="button" data-pmp-zoom="4">400%</button>
+              <button type="button" data-pmp-zoom="8">800%</button>
+              <button type="button" data-pmp-zoom="16">1600%</button>
+              <button type="button" data-pmp-zoom="32">3200%</button>
+              <button id="pmp-zoom-out" type="button">-</button>
+              <button id="pmp-zoom-in" type="button">+</button>
+              <button id="pmp-fit-width" type="button">Ajustar ancho</button>
+              <button id="pmp-fit-page" type="button">Ajustar pagina</button>
+              <button id="pmp-one-to-one" type="button">1:1</button>
+              <strong id="pmp-zoom-current">100%</strong>
+            </div>
             <span id="pmp-tool-hint">Linea: selecciona dos puntos.</span>
           </div>
           <div class="pmp-viewer" id="pmp-viewer">
             <div class="pmp-empty" id="pmp-empty-state">Carga un PDF para comenzar.</div>
-            <img id="pmp-preview-image" alt="Preview PDF" hidden>
+            <div class="pmp-stage" id="pmp-stage">
+              <img id="pmp-preview-image" alt="Preview PDF" hidden>
+            </div>
             <canvas id="pmp-measure-canvas"></canvas>
+            <div class="pmp-magnifier" id="pmp-magnifier" hidden></div>
           </div>
         </section>
 
         <aside class="pmp-panel pmp-results">
+          <section class="pmp-section">
+            <h2>IA local</h2>
+            <button class="pmp-button pmp-primary" id="pmp-ai-button" type="button">Medir con IA</button>
+            <label class="pmp-field pmp-command">
+              <span>Comando</span>
+              <input id="pmp-ai-command" type="text" placeholder="Escribe un comando, por ejemplo: Medi esta etiqueta">
+            </label>
+            <button class="pmp-button" id="pmp-ai-command-button" type="button">Ejecutar comando</button>
+            <div class="pmp-ai-panel" id="pmp-ai-panel">Sin medicion IA activa.</div>
+          </section>
           <section class="pmp-section">
             <h2>Mediciones</h2>
             <div class="pmp-measurements" id="pmp-measurements"></div>
@@ -96,6 +144,10 @@
     <script src="{{ url_for('pdf_medidor_pro.static_file', filename='js/rectangle.js') }}" defer></script>
     <script src="{{ url_for('pdf_medidor_pro.static_file', filename='js/calibration.js') }}" defer></script>
     <script src="{{ url_for('pdf_medidor_pro.static_file', filename='js/export.js') }}" defer></script>
+    <script src="{{ url_for('pdf_medidor_pro.static_file', filename='js/snap.js') }}" defer></script>
+    <script src="{{ url_for('pdf_medidor_pro.static_file', filename='js/magnifier.js') }}" defer></script>
+    <script src="{{ url_for('pdf_medidor_pro.static_file', filename='js/ai_measure.js') }}" defer></script>
+    <script src="{{ url_for('pdf_medidor_pro.static_file', filename='js/commands_ai.js') }}" defer></script>
     <script src="{{ url_for('pdf_medidor_pro.static_file', filename='js/pdf_medidor_pro.js') }}" defer></script>
   </body>
 </html>

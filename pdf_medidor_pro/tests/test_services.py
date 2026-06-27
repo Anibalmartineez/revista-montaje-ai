@@ -60,3 +60,35 @@ def test_build_export_payload_normalizes_contract():
     assert payload["medidas_auto"]["cropbox_mm"] == {"ancho": 0.0, "alto": 0.0}
     assert payload["medidas_manual"]["ancho_final_mm"] == 90.123
     assert payload["calibracion"] == {"activa": True, "factor_escala": 1.25}
+    assert payload["mediciones"] == []
+
+
+def test_build_export_payload_accepts_compatible_measurements():
+    payload = build_export_payload(
+        archivo="trabajo.pdf",
+        pagina=1,
+        medidas_auto={},
+        medidas_manual={},
+        calibracion={},
+        mediciones=[
+            {
+                "id": "ai_1",
+                "tipo": "rectangulo",
+                "origen": "ia",
+                "nombre": "Etiqueta (IA)",
+                "ancho_mm": 20,
+                "alto_mm": 10,
+                "x_mm": 5,
+                "y_mm": 7,
+                "area_mm2": 200,
+                "perimetro_mm": 60,
+                "confianza": 0.96,
+            }
+        ],
+        origen_medida_final="ia",
+        confianza="media",
+    )
+
+    assert payload["origen_medida_final"] == "ia"
+    assert payload["mediciones"][0]["origen"] == "ia"
+    assert payload["mediciones"][0]["confianza"] == 0.96

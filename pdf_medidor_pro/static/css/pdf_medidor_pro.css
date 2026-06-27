@@ -24,7 +24,8 @@ body {
 }
 
 button,
-input {
+input,
+select {
   font: inherit;
 }
 
@@ -116,7 +117,8 @@ input {
 }
 
 .pmp-field input,
-.pmp-file input {
+.pmp-file input,
+.pmp-select {
   width: 100%;
   min-height: 38px;
   border: 1px solid var(--pmp-line);
@@ -171,15 +173,37 @@ input {
   box-shadow: inset 0 0 0 1px var(--pmp-accent);
 }
 
+.pmp-toggle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 34px;
+  margin: 2px 0 10px;
+  color: var(--pmp-muted);
+  font-size: 13px;
+}
+
+.pmp-inline {
+  display: grid;
+  grid-template-columns: 1fr 92px;
+  gap: 8px;
+}
+
+.pmp-help {
+  margin: 8px 0 0;
+  color: var(--pmp-muted);
+  font-size: 12px;
+}
+
 .pmp-viewer-panel {
   min-height: calc(100vh - 118px);
   overflow: hidden;
 }
 
 .pmp-viewer-toolbar {
-  display: flex;
+  display: grid;
+  grid-template-columns: 1fr;
   align-items: center;
-  justify-content: space-between;
   gap: 12px;
   min-height: 56px;
   padding: 12px 14px;
@@ -191,23 +215,58 @@ input {
   font-size: 13px;
 }
 
+.pmp-zoom-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+
+.pmp-zoom-bar button {
+  min-height: 30px;
+  border: 1px solid var(--pmp-line);
+  border-radius: 6px;
+  padding: 4px 8px;
+  background: #fff;
+  cursor: pointer;
+  font-size: 12px;
+}
+
+.pmp-zoom-bar button:hover {
+  border-color: #9fb0ba;
+}
+
+.pmp-zoom-bar strong {
+  min-width: 58px;
+  color: var(--pmp-accent-dark);
+  font-size: 13px;
+}
+
 .pmp-viewer {
   position: relative;
-  display: grid;
-  place-items: center;
+  display: block;
   min-height: calc(100vh - 175px);
   overflow: auto;
-  padding: 18px;
   background: #e8edf0;
 }
 
 .pmp-empty {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
   color: var(--pmp-muted);
+}
+
+.pmp-stage {
+  position: relative;
+  min-width: 1px;
+  min-height: 1px;
+  margin: 18px auto;
 }
 
 #pmp-preview-image {
   display: block;
-  max-width: 100%;
   height: auto;
   border: 1px solid #b9c5cb;
   background: #fff;
@@ -216,8 +275,103 @@ input {
 
 #pmp-measure-canvas {
   position: absolute;
+  left: 0;
+  top: 0;
+  z-index: 5;
   cursor: crosshair;
   touch-action: none;
+}
+
+.pmp-viewer.is-hand-tool #pmp-measure-canvas,
+.pmp-viewer.is-hand-temp #pmp-measure-canvas,
+.pmp-viewer.is-panning #pmp-measure-canvas {
+  cursor: grab;
+}
+
+.pmp-viewer.is-panning #pmp-measure-canvas {
+  cursor: grabbing;
+}
+
+.pmp-magnifier {
+  position: absolute;
+  z-index: 9;
+  border: 2px solid var(--pmp-accent);
+  border-radius: 50%;
+  overflow: hidden;
+  pointer-events: none;
+  background-repeat: no-repeat;
+  box-shadow: 0 14px 36px rgba(23, 32, 38, 0.28);
+}
+
+.pmp-magnifier::before,
+.pmp-magnifier::after {
+  content: "";
+  position: absolute;
+  background: rgba(180, 35, 24, 0.9);
+}
+
+.pmp-magnifier::before {
+  left: 50%;
+  top: 0;
+  width: 1px;
+  height: 100%;
+}
+
+.pmp-magnifier::after {
+  left: 0;
+  top: 50%;
+  width: 100%;
+  height: 1px;
+}
+
+.pmp-magnifier::selection {
+  background: transparent;
+}
+
+.pmp-magnifier::marker {
+  content: "";
+}
+
+.pmp-magnifier::before {
+  transform: translateX(-50%);
+}
+
+.pmp-magnifier::after {
+  transform: translateY(-50%);
+}
+
+.pmp-magnifier[hidden] {
+  display: none;
+}
+
+.pmp-magnifier::after {
+  box-shadow: 0 88px 0 0 rgba(16, 24, 32, 0.88);
+}
+
+.pmp-magnifier::before {
+  box-shadow: 88px 0 0 0 rgba(16, 24, 32, 0);
+}
+
+.pmp-magnifier::backdrop {
+  display: none;
+}
+
+.pmp-magnifier::after {
+  content: attr(data-coords);
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  left: 0;
+  top: auto;
+  bottom: 0;
+  width: 100%;
+  height: 24px;
+  transform: none;
+  background: rgba(16, 24, 32, 0.86);
+  color: #fff;
+  font-size: 10px;
+  line-height: 1;
+  padding-bottom: 6px;
 }
 
 .pmp-auto-table {
@@ -228,7 +382,8 @@ input {
 .pmp-auto-row,
 .pmp-measurement,
 .pmp-final-box,
-.pmp-calibration-state {
+.pmp-calibration-state,
+.pmp-ai-panel {
   border: 1px solid var(--pmp-line);
   border-radius: 7px;
   padding: 10px;
@@ -261,6 +416,17 @@ input {
   text-align: left;
 }
 
+.pmp-measurement-main {
+  display: block;
+  width: 100%;
+  border: 0;
+  padding: 0;
+  background: transparent;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
 .pmp-measurement.is-selected {
   border-color: var(--pmp-accent);
   box-shadow: inset 0 0 0 1px var(--pmp-accent);
@@ -273,10 +439,43 @@ input {
 }
 
 .pmp-measurement small,
-.pmp-final-box small {
+.pmp-final-box small,
+.pmp-ai-panel small {
   display: block;
   color: var(--pmp-muted);
   line-height: 1.45;
+}
+
+.pmp-measurement-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 8px;
+}
+
+.pmp-mini-button {
+  min-height: 28px;
+  border: 1px solid var(--pmp-line);
+  border-radius: 6px;
+  padding: 3px 8px;
+  background: #fff;
+  color: var(--pmp-muted);
+  cursor: pointer;
+  font-size: 12px;
+}
+
+.pmp-mini-button:hover {
+  color: var(--pmp-ink);
+  border-color: #9fb0ba;
+}
+
+.pmp-command {
+  margin: 10px 0;
+}
+
+.pmp-ai-panel {
+  margin-top: 10px;
+  color: var(--pmp-muted);
 }
 
 .pmp-calibration-state {

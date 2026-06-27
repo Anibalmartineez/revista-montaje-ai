@@ -1,8 +1,10 @@
 import io
 
 import fitz
+from PIL import Image, ImageDraw
 
 from app import app as main_app
+from pdf_medidor_pro.config import PREVIEW_DIR
 from pdf_medidor_pro.services.geometry import mm_to_pt
 
 
@@ -85,6 +87,21 @@ def test_export_normalizes_json_contract():
                 "calibracion": {"activa": True, "factor_escala": 1.1},
                 "origen_medida_final": "manual",
                 "confianza": "alta",
+                "mediciones": [
+                    {
+                        "id": "ai_1",
+                        "tipo": "rectangulo",
+                        "origen": "ia",
+                        "nombre": "Etiqueta (IA)",
+                        "ancho_mm": 20,
+                        "alto_mm": 10,
+                        "x_mm": 5,
+                        "y_mm": 5,
+                        "area_mm2": 200,
+                        "perimetro_mm": 60,
+                        "confianza": 0.9,
+                    }
+                ],
             },
         )
 
@@ -92,7 +109,38 @@ def test_export_normalizes_json_contract():
     assert response.status_code == 200
     assert payload["ok"] is True
     assert payload["export"]["archivo"] == "sample.pdf"
+    assert payload["export"]["mediciones"][0]["origen"] == "ia"
     assert payload["url"].startswith("/api/pdf-medidor-pro/exports/")
+
+
+def test_ai_detect_endpoint_uses_preview_image():
+    main_app.config["TESTING"] = True
+    PREVIEW_DIR.mkdir(parents=True, exist_ok=True)
+    preview_path = PREVIEW_DIR / "test_ai_preview.png"
+    image = Image.new("RGB", (200, 120), "white")
+    draw = ImageDraw.Draw(image)
+    draw.rectangle((40, 30, 89, 69), fill="black")
+    image.save(preview_path)
+
+    try:
+        with main_app.test_client() as client:
+            response = client.post(
+                "/api/pdf-medidor-pro/ai/detect",
+                json={
+                    "preview_filename": preview_path.name,
+                    "render_mm": {"ancho": 100, "alto": 60},
+                    "x_mm": 25,
+                    "y_mm": 25,
+                    "nombre": "Etiqueta (IA)",
+                },
+            )
+    finally:
+        preview_path.unlink(missing_ok=True)
+
+    payload = response.get_json()
+    assert response.status_code == 200
+    assert payload["ok"] is True
+    assert payload["measurement"]["origen"] == "ia"
 
 
 def test_existing_main_routes_still_respond():
