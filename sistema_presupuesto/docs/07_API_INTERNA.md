@@ -1,8 +1,8 @@
 # API Interna
 
-Blueprint Flask aislado para probar el Sistema Presupuesto.
+Blueprint Flask aislado del Sistema Presupuesto.
 
-El Blueprint es importable, pero no se registra automaticamente en la app principal.
+Desde Fase 10, la app principal Flask registra este Blueprint para exponer la API bajo `/api/sistema-presupuesto/...`.
 
 ## Blueprint
 
@@ -10,13 +10,13 @@ El Blueprint es importable, pero no se registra automaticamente en la app princi
 from sistema_presupuesto.api import presupuesto_api_bp
 ```
 
-Para pruebas:
+Registro en la app principal:
 
 ```python
 app.register_blueprint(presupuesto_api_bp)
 ```
 
-No registrar en la aplicacion principal sin una fase aprobada.
+El registro debe mantenerse como el unico Blueprint agregado para esta fase del modulo presupuesto.
 
 ## Configuracion
 
@@ -113,8 +113,8 @@ Si hay errores de validacion, se agrega `validation`.
 
 ## Limites
 
-- No toca `routes.py`.
-- No se registra en Flask principal.
 - No integra con Editor Offset Visual.
+- No lee ni escribe `layout_constructor.json`.
+- No usa jobs, slots, pliegos, CTP ni montajes del Editor Offset Visual.
 - Usa catalogos ficticios de diseno.
 - No asocia clientes a presupuestos todavia.

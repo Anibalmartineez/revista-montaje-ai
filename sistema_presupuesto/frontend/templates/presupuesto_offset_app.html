@@ -4,7 +4,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>Sistema Presupuesto Offset</title>
-    <link rel="stylesheet" href="/sistema-presupuesto-ui/static/css/presupuesto_offset.css">
+    <link rel="stylesheet" href="{{ url_for('presupuesto_static', filename='css/presupuesto_offset.css') }}">
   </head>
   <body>
     <main class="sp-shell">
@@ -313,6 +313,6 @@
       </section>
     </main>
 
-    <script src="/sistema-presupuesto-ui/static/js/presupuesto_offset.js" defer></script>
+    <script src="{{ url_for('presupuesto_static', filename='js/presupuesto_offset.js') }}" defer></script>
   </body>
 </html>

@@ -1,6 +1,6 @@
 # UI Aislada
 
-Interfaz frontend separada para probar presupuestos offset sin tocar la app principal ni el Editor Offset Visual.
+Interfaz frontend separada para presupuestos offset sin integracion con el Editor Offset Visual.
 
 ## Archivos
 
@@ -10,6 +10,29 @@ frontend/static/css/presupuesto_offset.css
 frontend/static/js/presupuesto_offset.js
 dev_app.py
 ```
+
+## Uso en app principal
+
+Desde Fase 10, la app principal Flask expone la UI aislada en:
+
+```text
+/sistema-presupuesto
+```
+
+La UI usa assets propios bajo:
+
+```text
+/sistema-presupuesto/static/css/presupuesto_offset.css
+/sistema-presupuesto/static/js/presupuesto_offset.js
+```
+
+La API activa sigue bajo:
+
+```text
+/api/sistema-presupuesto/...
+```
+
+Esta activacion no conecta datos del Editor Offset Visual, no lee `layout_constructor.json` y no usa jobs, slots, pliegos, CTP ni montajes.
 
 ## Uso de desarrollo
 
@@ -25,8 +48,7 @@ Abrir:
 http://127.0.0.1:5057/sistema-presupuesto-ui
 ```
 
-La app de desarrollo registra el Blueprint interno solo en esa app temporal.
-No registra nada en la aplicacion principal.
+La app de desarrollo registra el Blueprint interno solo en esa app temporal y conserva la ruta `/sistema-presupuesto-ui`.
 
 Por defecto usa:
 
@@ -145,8 +167,8 @@ Si se informa observacion, se guarda como dato comercial del duplicado.
 - El frontend no calcula precios.
 - El backend/API es la fuente de verdad.
 - No usa endpoints del Editor Offset Visual.
-- No toca `routes.py`.
-- No modifica templates, JS o CSS existentes del sistema principal.
+- No modifica templates, JS o CSS del Editor Offset Visual.
+- En la app principal, solo agrega acceso visible a `/sistema-presupuesto`.
 - Los catalogos siguen siendo ficticios de diseno.
 - Los valores custom deben ser configurables o ficticios.
 - Los clientes se administran aislados y aun no forman parte del `QuoteRequest`.

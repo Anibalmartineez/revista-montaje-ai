@@ -5,7 +5,7 @@ from __future__ import annotations
 import os
 from pathlib import Path
 
-from flask import Flask, Response, send_from_directory
+from flask import Flask, render_template, send_from_directory
 
 from .api import presupuesto_api_bp
 
@@ -16,7 +16,7 @@ STATIC_DIR = FRONTEND_DIR / "static"
 
 
 def create_dev_app() -> Flask:
-    app = Flask(__name__)
+    app = Flask(__name__, template_folder=str(TEMPLATE_DIR))
     app.config["SISTEMA_PRESUPUESTO_DATA_DIR"] = os.environ.get(
         "SISTEMA_PRESUPUESTO_DATA_DIR",
         str(MODULE_ROOT / "data"),
@@ -26,8 +26,7 @@ def create_dev_app() -> Flask:
     @app.get("/")
     @app.get("/sistema-presupuesto-ui")
     def presupuesto_ui():
-        html = (TEMPLATE_DIR / "presupuesto_offset_app.html").read_text(encoding="utf-8")
-        return Response(html, mimetype="text/html")
+        return render_template("presupuesto_offset_app.html")
 
     @app.get("/sistema-presupuesto-ui/static/<path:filename>")
     def presupuesto_static(filename: str):

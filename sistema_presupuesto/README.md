@@ -36,9 +36,9 @@ Construir un modulo determinista y auditable para presupuestos offset:
 
 ## Estado actual
 
-Fase actual: **Fase 9.5 - Historial avanzado y duplicacion aislada completada**.
+Fase actual: **Fase 10 - Activacion dentro de app principal Flask completada**.
 
-Proxima fase propuesta: **Fase 10 - Activacion dentro de app principal Flask**.
+Proxima fase propuesta: **Fase 11 - Integracion read-only futura con Editor Offset Visual**.
 
 Implementado:
 
@@ -73,13 +73,14 @@ Implementado:
 - filtros por texto y estado;
 - estados comerciales de presupuesto;
 - duplicacion de presupuestos con nuevo numero comercial;
+- registro del Blueprint API en la app principal;
+- ruta visual `/sistema-presupuesto` en la app principal;
+- assets aislados servidos bajo `/sistema-presupuesto/static/`;
 - `dev_app.py`;
 - tests automatizados.
 
 No incluye todavia:
 
-- integracion con app principal Flask;
-- registro del Blueprint en la app principal;
 - integracion con Editor Offset Visual;
 - lectura de `layout_constructor.json`;
 - escritura en jobs del Editor Offset Visual;
@@ -104,7 +105,10 @@ No incluye todavia:
    - numeracion comercial completada en Fase 9.3;
    - PDF comercial completado en Fase 9.4;
    - historial avanzado y duplicacion completados en Fase 9.5.
-10. Activacion dentro de app principal Flask.
+10. Activacion dentro de app principal Flask completada:
+   - UI visible en `/sistema-presupuesto`;
+   - API activa bajo `/api/sistema-presupuesto/...`;
+   - sin integracion con Editor Offset Visual.
 11. Integracion read-only futura con Editor Offset Visual.
 
 ## Principio de diseno
