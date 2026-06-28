@@ -17,6 +17,7 @@
       this.previewFilename = "";
       this.natural = { w: 0, h: 0 };
       this.zoom = 1;
+      this.pan = { x: 0, y: 0 };
       this.lastPointerMm = null;
       this.onChange = options.onChange || function () {};
       this.image.addEventListener("load", () => this.onImageLoad());
@@ -25,7 +26,6 @@
         this.onChange();
       });
       window.addEventListener("resize", () => {
-        this.updateStageScrollMargins();
         this.syncCanvas();
         this.onChange();
       });
@@ -54,15 +54,18 @@
       this.image.style.height = `${height}px`;
       this.stage.style.width = `${width}px`;
       this.stage.style.height = `${height}px`;
-      this.updateStageScrollMargins();
       if (previousPoint && options && options.anchor) {
         const px = this.mmToImagePx(previousPoint);
-        this.container.scrollLeft = Math.max(0, px.x - options.anchor.x);
-        this.container.scrollTop = Math.max(0, px.y - options.anchor.y);
+        this.pan = this.constrainPan({
+          x: options.anchor.x - px.x - this.stage.offsetLeft + this.container.scrollLeft,
+          y: options.anchor.y - px.y - this.stage.offsetTop + this.container.scrollTop,
+        });
       } else if (options && options.center === false) {
         this.container.scrollLeft = 0;
         this.container.scrollTop = 0;
+        this.resetPan();
       }
+      this.applyViewTransform();
       this.syncCanvas();
       this.onChange();
     }
@@ -102,10 +105,38 @@
       this.ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     }
 
-    updateStageScrollMargins() {
-      const right = Math.max(54, this.container.clientWidth || 0);
-      const bottom = Math.max(54, this.container.clientHeight || 0);
-      this.stage.style.margin = `54px ${right}px ${bottom}px 54px`;
+    getPan() {
+      return { x: this.pan.x, y: this.pan.y };
+    }
+
+    setPan(x, y) {
+      this.pan = this.constrainPan({
+        x: round(x),
+        y: round(y),
+      });
+      this.applyViewTransform();
+      this.syncCanvas();
+      this.onChange();
+    }
+
+    panBy(dx, dy) {
+      this.setPan(this.pan.x + Number(dx || 0), this.pan.y + Number(dy || 0));
+    }
+
+    resetPan() {
+      this.pan = { x: 0, y: 0 };
+      this.applyViewTransform();
+    }
+
+    applyViewTransform() {
+      this.stage.style.transform = `translate(${this.pan.x}px, ${this.pan.y}px)`;
+    }
+
+    constrainPan(pan) {
+      return {
+        x: clampPanAxis(Number(pan.x || 0), this.stage.offsetLeft, this.imageCssWidth(), this.container.clientWidth, this.container.scrollLeft),
+        y: clampPanAxis(Number(pan.y || 0), this.stage.offsetTop, this.imageCssHeight(), this.container.clientHeight, this.container.scrollTop),
+      };
     }
 
     clear() {
@@ -127,8 +158,8 @@
     }
 
     viewportToMm(point) {
-      const imageX = point.x + this.container.scrollLeft - this.stage.offsetLeft;
-      const imageY = point.y + this.container.scrollTop - this.stage.offsetTop;
+      const imageX = point.x + this.container.scrollLeft - this.stage.offsetLeft - this.pan.x;
+      const imageY = point.y + this.container.scrollTop - this.stage.offsetTop - this.pan.y;
       return {
         x_mm: round((imageX / this.imageCssWidth()) * Number(this.renderMm.ancho || 0)),
         y_mm: round((imageY / this.imageCssHeight()) * Number(this.renderMm.alto || 0)),
@@ -138,8 +169,8 @@
     mmToViewport(point) {
       const imagePx = this.mmToImagePx(point);
       return {
-        x: imagePx.x + this.stage.offsetLeft - this.container.scrollLeft,
-        y: imagePx.y + this.stage.offsetTop - this.container.scrollTop,
+        x: imagePx.x + this.stage.offsetLeft + this.pan.x - this.container.scrollLeft,
+        y: imagePx.y + this.stage.offsetTop + this.pan.y - this.container.scrollTop,
       };
     }
 
@@ -494,6 +525,14 @@
 
   function clamp(value, min, max) {
     return Math.min(max, Math.max(min, value));
+  }
+
+  function clampPanAxis(value, stageOffset, contentSize, viewportSize, scrollOffset) {
+    const visibleMargin = Math.max(24, Math.min(96, viewportSize / 2, contentSize / 2));
+    const min = scrollOffset + visibleMargin - stageOffset - contentSize;
+    const max = scrollOffset + viewportSize - visibleMargin - stageOffset;
+    if (min > max) return (min + max) / 2;
+    return clamp(value, min, max);
   }
 
   function round(value) {

@@ -301,8 +301,7 @@
     if (Math.abs(deltaX) > 2 || Math.abs(deltaY) > 2) {
       panning.moved = true;
     }
-    refs.viewer.scrollLeft = panning.left - deltaX;
-    refs.viewer.scrollTop = panning.top - deltaY;
+    viewer.setPan(panning.startPan.x + deltaX, panning.startPan.y + deltaY);
     renderCanvas();
   }
 
@@ -351,8 +350,7 @@
     panning = {
       x: event.clientX,
       y: event.clientY,
-      left: refs.viewer.scrollLeft,
-      top: refs.viewer.scrollTop,
+      startPan: viewer.getPan(),
       moved: false,
     };
     refs.viewer.classList.add("is-panning");

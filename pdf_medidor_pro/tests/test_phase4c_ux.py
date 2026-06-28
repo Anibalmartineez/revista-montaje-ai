@@ -53,14 +53,18 @@ def test_space_pan_uses_delta_x_and_delta_y():
 
     assert "const deltaX = event.clientX - panning.x;" in controller
     assert "const deltaY = event.clientY - panning.y;" in controller
-    assert "refs.viewer.scrollLeft = panning.left - deltaX;" in controller
-    assert "refs.viewer.scrollTop = panning.top - deltaY;" in controller
+    assert "viewer.setPan(panning.startPan.x + deltaX, panning.startPan.y + deltaY);" in controller
+    assert "refs.viewer.scrollTop = panning.top - deltaY;" not in controller
     assert "event.preventDefault();" in controller
 
 
-def test_viewer_keeps_vertical_scroll_space_for_space_pan():
+def test_viewer_uses_virtual_pan_without_dynamic_stage_margins():
     viewer = read_viewer()
 
-    assert "updateStageScrollMargins" in viewer
-    assert "const bottom = Math.max(54, this.container.clientHeight || 0);" in viewer
-    assert "this.stage.style.margin = `54px ${right}px ${bottom}px 54px`;" in viewer
+    assert "this.pan = { x: 0, y: 0 };" in viewer
+    assert "setPan(x, y)" in viewer
+    assert "getPan()" in viewer
+    assert "applyViewTransform()" in viewer
+    assert "this.stage.style.transform = `translate(${this.pan.x}px, ${this.pan.y}px)`;" in viewer
+    assert "clampPanAxis" in viewer
+    assert "updateStageScrollMargins" not in viewer
