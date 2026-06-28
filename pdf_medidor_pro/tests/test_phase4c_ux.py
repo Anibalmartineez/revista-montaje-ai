@@ -12,6 +12,10 @@ def read_controller() -> str:
     return (ROOT / "static" / "js" / "pdf_medidor_pro.js").read_text(encoding="utf-8")
 
 
+def read_viewer() -> str:
+    return (ROOT / "static" / "js" / "viewer.js").read_text(encoding="utf-8")
+
+
 def test_topbar_has_no_visible_tool_buttons_and_left_panel_keeps_tools():
     template = read_template()
     topbar = template.split('<section class="pmp-app-grid">', 1)[0]
@@ -52,3 +56,11 @@ def test_space_pan_uses_delta_x_and_delta_y():
     assert "refs.viewer.scrollLeft = panning.left - deltaX;" in controller
     assert "refs.viewer.scrollTop = panning.top - deltaY;" in controller
     assert "event.preventDefault();" in controller
+
+
+def test_viewer_keeps_vertical_scroll_space_for_space_pan():
+    viewer = read_viewer()
+
+    assert "updateStageScrollMargins" in viewer
+    assert "const bottom = Math.max(54, this.container.clientHeight || 0);" in viewer
+    assert "this.stage.style.margin = `54px ${right}px ${bottom}px 54px`;" in viewer

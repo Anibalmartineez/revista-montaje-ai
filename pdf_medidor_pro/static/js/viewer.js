@@ -25,6 +25,7 @@
         this.onChange();
       });
       window.addEventListener("resize", () => {
+        this.updateStageScrollMargins();
         this.syncCanvas();
         this.onChange();
       });
@@ -53,6 +54,7 @@
       this.image.style.height = `${height}px`;
       this.stage.style.width = `${width}px`;
       this.stage.style.height = `${height}px`;
+      this.updateStageScrollMargins();
       if (previousPoint && options && options.anchor) {
         const px = this.mmToImagePx(previousPoint);
         this.container.scrollLeft = Math.max(0, px.x - options.anchor.x);
@@ -98,6 +100,12 @@
         this.canvas.height = Math.round(height * dpr);
       }
       this.ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    }
+
+    updateStageScrollMargins() {
+      const right = Math.max(54, this.container.clientWidth || 0);
+      const bottom = Math.max(54, this.container.clientHeight || 0);
+      this.stage.style.margin = `54px ${right}px ${bottom}px 54px`;
     }
 
     clear() {
