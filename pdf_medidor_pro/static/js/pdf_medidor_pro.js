@@ -4,6 +4,7 @@
   const apiBase = "/api/pdf-medidor-pro";
   const ns = window.PdfMedidorPro;
   const model = ns.objectModel;
+  const undoHistory = ns.undoRedo.createHistory(50);
   const refs = {};
   const state = {
     archivo: "",
@@ -66,6 +67,8 @@
     refs.uploadForm = document.getElementById("pmp-upload-form");
     refs.openButton = document.getElementById("pmp-open-button");
     refs.saveButton = document.getElementById("pmp-save-button");
+    refs.undoButton = document.getElementById("pmp-undo-button");
+    refs.redoButton = document.getElementById("pmp-redo-button");
     refs.fileInput = document.getElementById("pmp-file-input");
     refs.autoTable = document.getElementById("pmp-auto-table");
     refs.viewer = document.getElementById("pmp-viewer");
@@ -108,6 +111,8 @@
       if (refs.fileInput.files.length) refs.uploadForm.requestSubmit();
     });
     refs.saveButton.addEventListener("click", saveLocalState);
+    refs.undoButton.addEventListener("click", undoAction);
+    refs.redoButton.addEventListener("click", redoAction);
     refs.canvas.addEventListener("mousedown", onCanvasDown);
     refs.canvas.addEventListener("mousemove", onCanvasMove);
     window.addEventListener("mousemove", onWindowMove);
@@ -205,6 +210,7 @@
       refs.exportPngButton.disabled = false;
       viewer.setPreview(payload.preview_url, state.renderMm, payload.preview);
       restoreLocalState();
+      resetUndoHistory();
       setStatus("PDF analizado.");
     } catch (error) {
       setStatus(error.message, true);
@@ -227,6 +233,7 @@
           handle: hit.handle,
           start: point,
           object: clone(currentSelected()),
+          historyCaptured: false,
         };
       }
       renderAll();
@@ -265,6 +272,10 @@
     if (state.editing) {
       const point = state.hoverSnap.point;
       const original = state.editing.object;
+      if (!state.editing.historyCaptured) {
+        captureUndo();
+        state.editing.historyCaptured = true;
+      }
       if (state.editing.action === "resize") {
         replaceMeasurement(model.resizeRectangle(original, state.editing.handle, point));
       } else {
@@ -311,11 +322,13 @@
     };
     if (drawing.type === "line") {
       const line = model.createLine(drawing.start, drawing.current, patch);
+      captureUndo();
       state.measurements.push(line);
       state.selectedMeasurementId = line.id;
       if (state.mode === "calibrate") refs.calibrationReal.focus();
     } else {
       const rect = model.createRectangle(drawing.start, drawing.current, patch);
+      captureUndo();
       state.measurements.push(rect);
       state.selectedMeasurementId = rect.id;
       state.finalMeasurementId = rect.id;
@@ -345,6 +358,9 @@
 
   function onKeyDown(event) {
     if (isTyping(event.target)) return;
+    if (isDialogOpen()) return;
+    if (handleUndoRedoShortcut(event)) return;
+    if (handleNudgeShortcut(event)) return;
     if (event.code === "Space") {
       event.preventDefault();
       state.spacePan = true;
@@ -397,6 +413,7 @@
   }
 
   function clearMeasurements() {
+    if (state.measurements.length || state.finalMeasurementId) captureUndo();
     state.drawing = null;
     state.editing = null;
     state.measurements = [];
@@ -474,6 +491,7 @@
     const zoomText = `${Math.round((viewer ? viewer.zoom : 1) * 100)}%`;
     refs.zoomCurrent.textContent = zoomText;
     refs.zoomDisplay.textContent = zoomText;
+    renderUndoRedoButtons();
     renderAutoTable();
     renderInspectorPanel();
     renderHistoryPanel();
@@ -537,13 +555,16 @@
       delete: deleteMeasurement,
       toggleVisible: (id) => {
         const item = state.measurements.find((m) => m.id === id);
-        if (item) item.visible = item.visible === false;
+        if (item) {
+          captureUndo();
+          item.visible = item.visible === false;
+        }
         renderAll();
       },
       useFinal,
       rename: (id, name) => {
         const item = state.measurements.find((m) => m.id === id);
-        if (item) replaceMeasurement(model.renameObject(item, name));
+        if (item) replaceMeasurement(model.renameObject(item, name), { record: true });
       },
     });
   }
@@ -723,6 +744,7 @@
   function useFinal(id) {
     const item = state.measurements.find((m) => m.id === id);
     if (!item || item.tipo !== "rectangulo") return;
+    captureUndo();
     state.finalMeasurementId = id;
     state.finalOrigin = "manual";
     state.finalConfidence = "alta";
@@ -733,6 +755,7 @@
   function duplicateSelected() {
     const selected = currentSelected();
     if (!selected) return;
+    captureUndo();
     const duplicated = model.duplicateObject(selected);
     state.measurements.push(duplicated);
     state.selectedMeasurementId = duplicated.id;
@@ -745,6 +768,8 @@
   }
 
   function deleteMeasurement(id) {
+    if (!state.measurements.some((item) => item.id === id)) return;
+    captureUndo();
     state.measurements = model.deleteObject(state.measurements, id);
     if (state.finalMeasurementId === id) state.finalMeasurementId = null;
     if (state.selectedMeasurementId === id) state.selectedMeasurementId = null;
@@ -754,12 +779,90 @@
   function updateSelected(updater) {
     const selected = currentSelected();
     if (!selected) return;
+    captureUndo();
     replaceMeasurement(updater(selected));
   }
 
-  function replaceMeasurement(item) {
+  function replaceMeasurement(item, options) {
+    if (options && options.record) captureUndo();
     state.measurements = model.replaceObject(state.measurements, item);
     renderAll();
+  }
+
+  function handleUndoRedoShortcut(event) {
+    const key = event.key.toLowerCase();
+    if (!event.ctrlKey || key !== "z" && key !== "y") return false;
+    event.preventDefault();
+    if (key === "z" && event.shiftKey) {
+      redoAction();
+    } else if (key === "z") {
+      undoAction();
+    } else {
+      redoAction();
+    }
+    return true;
+  }
+
+  function handleNudgeShortcut(event) {
+    const directions = {
+      ArrowUp: { dx: 0, dy: -1 },
+      ArrowDown: { dx: 0, dy: 1 },
+      ArrowLeft: { dx: -1, dy: 0 },
+      ArrowRight: { dx: 1, dy: 0 },
+    };
+    const direction = directions[event.key];
+    const selected = currentSelected();
+    if (!direction || !selected) return false;
+    event.preventDefault();
+    const step = event.ctrlKey ? 0.01 : event.shiftKey ? 1 : 0.1;
+    captureUndo();
+    replaceMeasurement(model.moveObject(selected, direction.dx * step, direction.dy * step));
+    setStatus(`Nudge ${fmt(step)} mm.`);
+    return true;
+  }
+
+  function undoAction() {
+    if (!undoHistory.canUndo()) {
+      renderUndoRedoButtons();
+      return;
+    }
+    applyUndoSnapshot(undoHistory.undo(state));
+    setStatus("Accion deshecha.");
+  }
+
+  function redoAction() {
+    if (!undoHistory.canRedo()) {
+      renderUndoRedoButtons();
+      return;
+    }
+    applyUndoSnapshot(undoHistory.redo(state));
+    setStatus("Accion rehecha.");
+  }
+
+  function captureUndo() {
+    undoHistory.capture(state);
+  }
+
+  function resetUndoHistory() {
+    undoHistory.reset();
+    renderUndoRedoButtons();
+  }
+
+  function applyUndoSnapshot(snapshot) {
+    state.measurements = clone(snapshot.measurements || []);
+    state.selectedMeasurementId = snapshot.selectedMeasurementId || null;
+    state.finalMeasurementId = snapshot.finalMeasurementId || null;
+    state.finalOrigin = snapshot.finalOrigin || "auto";
+    state.finalConfidence = snapshot.finalConfidence || "media";
+    state.drawing = null;
+    state.editing = null;
+    renderAll();
+  }
+
+  function renderUndoRedoButtons() {
+    if (!refs.undoButton || !refs.redoButton) return;
+    refs.undoButton.disabled = !undoHistory.canUndo();
+    refs.redoButton.disabled = !undoHistory.canRedo();
   }
 
   function metrics(item) {
@@ -780,6 +883,10 @@
 
   function isTyping(target) {
     return ["INPUT", "TEXTAREA", "SELECT"].includes(target && target.tagName);
+  }
+
+  function isDialogOpen() {
+    return Boolean(document.querySelector("dialog[open], [role='dialog'][aria-modal='true']"));
   }
 
   function setStatus(message, isError) {

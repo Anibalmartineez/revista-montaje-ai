@@ -77,3 +77,22 @@ console.log(JSON.stringify(model.constrainLineAngle({x_mm: 0, y_mm: 0}, {x_mm: 1
     )
 
     assert result["y_mm"] == 0
+
+
+def test_nudge_precision_uses_exact_mm_steps():
+    result = run_node(
+        """
+const line = model.createLine({x_mm: 1, y_mm: 2}, {x_mm: 3, y_mm: 4});
+const rect = model.createRectangle({x_mm: 10, y_mm: 10}, {x_mm: 20, y_mm: 20});
+console.log(JSON.stringify({
+  lineFine: model.moveObject(line, 0.01, 0),
+  rectNormal: model.moveObject(rect, 0, -0.1),
+  rectShift: model.moveObject(rect, 1, 0)
+}));
+"""
+    )
+
+    assert result["lineFine"]["a"]["x_mm"] == 1.01
+    assert result["lineFine"]["b"]["x_mm"] == 3.01
+    assert result["rectNormal"]["y_mm"] == 9.9
+    assert result["rectShift"]["x_mm"] == 11

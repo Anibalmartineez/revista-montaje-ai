@@ -13,6 +13,8 @@
           <input id="pmp-file-input" name="pdf" type="file" accept="application/pdf,.pdf" hidden>
           <button class="pmp-button pmp-primary" id="pmp-open-button" type="button">Abrir PDF</button>
           <button class="pmp-button" id="pmp-save-button" type="button">Guardar</button>
+          <button class="pmp-button" id="pmp-undo-button" type="button" disabled>Deshacer</button>
+          <button class="pmp-button" id="pmp-redo-button" type="button" disabled>Rehacer</button>
           <button class="pmp-button" id="pmp-export-button" type="button" disabled>Exportar JSON</button>
           <button class="pmp-button" id="pmp-export-png-button" type="button" disabled>Exportar PNG</button>
         </form>
@@ -183,6 +185,7 @@
     <script src="{{ url_for('pdf_medidor_pro.static_file', filename='js/inspector_panel.js') }}" defer></script>
     <script src="{{ url_for('pdf_medidor_pro.static_file', filename='js/history_panel.js') }}" defer></script>
     <script src="{{ url_for('pdf_medidor_pro.static_file', filename='js/png_export.js') }}" defer></script>
+    <script src="{{ url_for('pdf_medidor_pro.static_file', filename='js/undo_redo.js') }}" defer></script>
     <script src="{{ url_for('pdf_medidor_pro.static_file', filename='js/pdf_medidor_pro.js') }}" defer></script>
   </body>
 </html>

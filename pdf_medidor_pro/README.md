@@ -11,6 +11,7 @@ PDF Medidor Pro es un modulo aislado para revisar medidas tecnicas de un PDF, re
 - Calibrar la escala con una medida conocida.
 - Hacer zoom profesional, pan, lupa y snap.
 - Seleccionar, mover, renombrar, ocultar, duplicar y redimensionar mediciones.
+- Deshacer, rehacer y ajustar objetos con flechas en pasos de precision.
 - Exportar PNG desde el navegador con preview, mediciones y guias visibles.
 - Exportar un JSON tecnico para futuras integraciones.
 
@@ -25,6 +26,7 @@ PDF Medidor Pro es un modulo aislado para revisar medidas tecnicas de un PDF, re
 - `static/js/`: visor, medicion, rectangulo, calibracion, export y entrypoint.
 - `static/js/magnifier.js`, `snap.js`: precision visual de Fase 2.
 - `static/js/object_model.js`: operaciones puras para objetos editables.
+- `static/js/undo_redo.js`: historial reversible de objetos de medicion.
 - `static/js/inspector_panel.js`, `history_panel.js`, `guides.js`, `png_export.js`: UI profesional de Fase 3.
 - `services/snap_engine.py`: motor de snap de Fase 2.
 - `uploads/`, `previews/`, `exports/`: carpetas runtime conservadas con `.gitkeep`.
@@ -68,6 +70,17 @@ La Fase 3 convierte la pantalla en una herramienta de medicion de preprensa:
 - historial inferior tabular con seleccionar, renombrar, ocultar, eliminar y usar rectangulo como final.
 
 `Guardar` conserva el estado de mediciones en `localStorage` por archivo y pagina. No agrega persistencia backend.
+
+## Fase 4A/4B
+
+La primera parte de Fase 4 agrega control fino sin cambiar el contrato JSON:
+
+- `Deshacer` y `Rehacer` en la barra superior.
+- Atajos `Ctrl+Z`, `Ctrl+Y` y `Ctrl+Shift+Z`.
+- Historial reversible de hasta 50 estados para crear, mover, redimensionar, eliminar, renombrar, cambiar color/visibilidad, duplicar y cambiar medida final.
+- Nudging con teclado: flechas `0.1 mm`, `Shift+flechas` `1 mm`, `Ctrl+flechas` `0.01 mm`.
+
+El nudging mueve en milimetros exactos y no aplica snap automatico.
 
 Para correr solo el modulo:
 
