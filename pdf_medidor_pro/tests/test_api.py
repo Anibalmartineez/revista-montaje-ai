@@ -91,12 +91,16 @@ def test_export_normalizes_json_contract():
                         "tipo": "rectangulo",
                         "origen": "manual",
                         "nombre": "Rectangulo manual",
+                        "color": "#2563eb",
+                        "stroke_width": 2,
+                        "pagina": 1,
                         "ancho_mm": 20,
                         "alto_mm": 10,
                         "x_mm": 5,
                         "y_mm": 5,
                         "area_mm2": 200,
                         "perimetro_mm": 60,
+                        "angulo_deg": 0,
                         "confianza": 0.9,
                     }
                 ],
@@ -108,6 +112,9 @@ def test_export_normalizes_json_contract():
     assert payload["ok"] is True
     assert payload["export"]["archivo"] == "sample.pdf"
     assert payload["export"]["mediciones"][0]["origen"] == "manual"
+    assert payload["export"]["mediciones"][0]["color"] == "#2563eb"
+    assert payload["export"]["mediciones"][0]["stroke_width"] == 2
+    assert payload["export"]["mediciones"][0]["pagina"] == 1
     assert payload["url"].startswith("/api/pdf-medidor-pro/exports/")
 
 

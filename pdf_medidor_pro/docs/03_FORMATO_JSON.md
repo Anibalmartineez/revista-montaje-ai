@@ -50,3 +50,40 @@
 - `calibracion.factor_escala` multiplica mediciones posteriores.
 - `origen_medida_final` fase 1 puede ser `manual` o `auto`.
 - `confianza` fase 1 puede ser `alta` cuando hay rectangulo manual o `media` cuando solo hay cajas automaticas.
+
+## Ampliacion compatible Fase 3
+
+La clave `mediciones` conserva el historial tecnico de objetos manuales:
+
+```json
+{
+  "mediciones": [
+    {
+      "id": "r_1",
+      "tipo": "rectangulo",
+      "origen": "manual",
+      "nombre": "Medida final",
+      "visible": true,
+      "color": "#2563eb",
+      "stroke_width": 2,
+      "pagina": 1,
+      "ancho_mm": 120,
+      "alto_mm": 80,
+      "x_mm": 10,
+      "y_mm": 15,
+      "area_mm2": 9600,
+      "perimetro_mm": 400,
+      "angulo_deg": 0,
+      "confianza": 1
+    }
+  ]
+}
+```
+
+Reglas de compatibilidad:
+
+- las claves base se mantienen;
+- `mediciones` puede estar vacio;
+- `origen` se normaliza a `manual` o `auto`;
+- no existen valores de origen automatizado experimental;
+- color, grosor, pagina, visibilidad y angulo describen el objeto editable.

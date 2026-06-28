@@ -8,47 +8,98 @@
   </head>
   <body>
     <main class="pmp-shell">
-      <header class="pmp-header">
-        <div>
-          <h1>PDF Medidor Pro</h1>
-          <p>Lectura tecnica de cajas PDF, medicion manual y export JSON.</p>
+      <header class="pmp-topbar">
+        <form class="pmp-upload" id="pmp-upload-form">
+          <input id="pmp-file-input" name="pdf" type="file" accept="application/pdf,.pdf" hidden>
+          <button class="pmp-button pmp-primary" id="pmp-open-button" type="button">Abrir PDF</button>
+          <button class="pmp-button" id="pmp-save-button" type="button">Guardar</button>
+          <button class="pmp-button" id="pmp-export-button" type="button" disabled>Exportar JSON</button>
+          <button class="pmp-button" id="pmp-export-png-button" type="button" disabled>Exportar PNG</button>
+        </form>
+
+        <div class="pmp-toolbar-group pmp-zoom-bar" aria-label="Controles de zoom">
+          <button id="pmp-zoom-out" type="button">-</button>
+          <output id="pmp-zoom-display">100%</output>
+          <button id="pmp-zoom-in" type="button">+</button>
+          <button id="pmp-fit-page" type="button">Ajustar pagina</button>
+          <button id="pmp-fit-width" type="button">Ajustar ancho</button>
+          <button id="pmp-one-to-one" type="button">1:1</button>
+          <button type="button" data-pmp-zoom="0.25">25%</button>
+          <button type="button" data-pmp-zoom="0.5">50%</button>
+          <button type="button" data-pmp-zoom="1">100%</button>
+          <button type="button" data-pmp-zoom="2">200%</button>
+          <button type="button" data-pmp-zoom="4">400%</button>
+          <button type="button" data-pmp-zoom="8">800%</button>
+          <button type="button" data-pmp-zoom="16">1600%</button>
+          <button type="button" data-pmp-zoom="32">3200%</button>
         </div>
-        <div class="pmp-status" id="pmp-status">Listo</div>
+
+        <div class="pmp-toolbar-group" aria-label="Herramientas rapidas">
+          <button class="pmp-tool is-active" type="button" data-pmp-tool="select">Seleccionar</button>
+          <button class="pmp-tool" type="button" data-pmp-tool="hand">Mano</button>
+          <button class="pmp-tool" type="button" data-pmp-tool="line">Linea</button>
+          <button class="pmp-tool" type="button" data-pmp-tool="rectangle">Rectangulo</button>
+          <button class="pmp-tool" type="button" data-pmp-tool="calibrate">Calibracion</button>
+        </div>
+
+        <div class="pmp-topbar-status">
+          <span id="pmp-current-file">Ningun archivo</span>
+          <span id="pmp-page-info">Pagina 1</span>
+          <span id="pmp-zoom-current">100%</span>
+          <strong class="pmp-status" id="pmp-status">Listo</strong>
+        </div>
       </header>
 
-      <section class="pmp-workspace">
-        <aside class="pmp-panel pmp-side">
-          <form class="pmp-upload" id="pmp-upload-form">
-            <label class="pmp-file">
-              <span>Archivo PDF</span>
-              <input id="pmp-file-input" name="pdf" type="file" accept="application/pdf,.pdf">
-            </label>
-            <button class="pmp-button pmp-primary" type="submit">Subir y analizar</button>
-          </form>
-
-          <section class="pmp-section">
-            <h2>Medidas automaticas</h2>
-            <div class="pmp-auto-table" id="pmp-auto-table">
-              <p class="pmp-muted">Sin PDF cargado.</p>
+      <section class="pmp-app-grid">
+        <aside class="pmp-left-panel">
+          <section class="pmp-panel-section">
+            <h2>Herramientas</h2>
+            <div class="pmp-tool-list">
+              <button class="pmp-tool is-active" type="button" data-pmp-tool="select">Seleccionar</button>
+              <button class="pmp-tool" type="button" data-pmp-tool="hand">Mano</button>
+              <button class="pmp-tool" type="button" data-pmp-tool="line">Medir linea</button>
+              <button class="pmp-tool" type="button" data-pmp-tool="rectangle">Medir rectangulo</button>
+              <button class="pmp-tool" type="button" data-pmp-tool="calibrate">Calibracion</button>
+              <button class="pmp-tool" type="button" data-pmp-tool="guides">Guias</button>
             </div>
           </section>
 
-          <section class="pmp-section">
-            <h2>Herramientas</h2>
-            <div class="pmp-tools" role="group" aria-label="Herramientas de medicion">
-              <button class="pmp-tool is-active" type="button" data-pmp-tool="line">Linea</button>
-              <button class="pmp-tool" type="button" data-pmp-tool="rectangle">Rectangulo</button>
-              <button class="pmp-tool" type="button" data-pmp-tool="hand">Mano</button>
-            </div>
+          <section class="pmp-panel-section">
+            <h2>Opciones</h2>
+            <label class="pmp-field">
+              <span>Color</span>
+              <input id="pmp-color-input" type="color" value="#d97706">
+            </label>
+            <label class="pmp-field">
+              <span>Grosor</span>
+              <input id="pmp-stroke-input" type="number" min="1" max="12" step="1" value="2">
+            </label>
+            <label class="pmp-field">
+              <span>Unidad</span>
+              <select id="pmp-unit-select">
+                <option value="mm" selected>mm</option>
+              </select>
+            </label>
+            <label class="pmp-field">
+              <span>Decimales</span>
+              <input id="pmp-decimals-input" type="number" min="0" max="4" step="1" value="3">
+            </label>
+            <label class="pmp-toggle">
+              <input id="pmp-live-toggle" type="checkbox" checked>
+              <span>Mostrar medidas en vivo</span>
+            </label>
             <label class="pmp-toggle">
               <input id="pmp-snap-toggle" type="checkbox">
               <span>Snap</span>
             </label>
-            <button class="pmp-button" id="pmp-clear-button" type="button">Borrar mediciones</button>
+            <label class="pmp-toggle">
+              <input id="pmp-guides-toggle" type="checkbox" checked>
+              <span>Guias</span>
+            </label>
           </section>
 
-          <section class="pmp-section">
-            <h2>Lupa</h2>
+          <section class="pmp-panel-section">
+            <h2>Lupa y guias</h2>
             <div class="pmp-inline">
               <button class="pmp-button" id="pmp-magnifier-toggle" type="button">Lupa</button>
               <select id="pmp-magnifier-factor" class="pmp-select">
@@ -57,49 +108,35 @@
                 <option value="20">20x</option>
               </select>
             </div>
-            <p class="pmp-help">Mantener Alt activa la lupa temporal.</p>
+            <div class="pmp-inline">
+              <button class="pmp-button" id="pmp-add-guide-v" type="button">Guia V</button>
+              <button class="pmp-button" id="pmp-add-guide-h" type="button">Guia H</button>
+            </div>
           </section>
 
-          <section class="pmp-section">
+          <section class="pmp-panel-section">
             <h2>Calibracion</h2>
             <label class="pmp-field">
-              <span>Medida real (mm)</span>
+              <span>Medida real</span>
               <input id="pmp-calibration-real" type="number" min="0.01" step="0.01" placeholder="100">
             </label>
-            <button class="pmp-button" id="pmp-calibrate-button" type="button">Aplicar escala</button>
+            <button class="pmp-button pmp-full" id="pmp-calibrate-button" type="button">Aplicar escala</button>
             <div class="pmp-calibration-state" id="pmp-calibration-state">Escala sin calibrar</div>
           </section>
 
-          <section class="pmp-section">
-            <h2>Export</h2>
-            <button class="pmp-button pmp-primary" id="pmp-export-button" type="button" disabled>Exportar JSON</button>
-            <a class="pmp-download" id="pmp-export-link" href="#" target="_blank" rel="noopener" hidden>Abrir JSON</a>
+          <section class="pmp-panel-section">
+            <h2>Medidas automaticas</h2>
+            <div class="pmp-auto-table" id="pmp-auto-table">
+              <p class="pmp-muted">Sin PDF cargado.</p>
+            </div>
           </section>
+
+          <button class="pmp-button pmp-full" id="pmp-clear-button" type="button">Borrar mediciones</button>
         </aside>
 
         <section class="pmp-viewer-panel">
-          <div class="pmp-viewer-toolbar">
-            <div>
-              <strong id="pmp-current-file">Ningun archivo</strong>
-              <span id="pmp-page-info">Pagina 1</span>
-            </div>
-            <div class="pmp-zoom-bar" aria-label="Controles de zoom">
-              <button type="button" data-pmp-zoom="0.25">25%</button>
-              <button type="button" data-pmp-zoom="0.5">50%</button>
-              <button type="button" data-pmp-zoom="1">100%</button>
-              <button type="button" data-pmp-zoom="2">200%</button>
-              <button type="button" data-pmp-zoom="4">400%</button>
-              <button type="button" data-pmp-zoom="8">800%</button>
-              <button type="button" data-pmp-zoom="16">1600%</button>
-              <button type="button" data-pmp-zoom="32">3200%</button>
-              <button id="pmp-zoom-out" type="button">-</button>
-              <button id="pmp-zoom-in" type="button">+</button>
-              <button id="pmp-fit-width" type="button">Ajustar ancho</button>
-              <button id="pmp-fit-page" type="button">Ajustar pagina</button>
-              <button id="pmp-one-to-one" type="button">1:1</button>
-              <strong id="pmp-zoom-current">100%</strong>
-            </div>
-            <span id="pmp-tool-hint">Linea: selecciona dos puntos.</span>
+          <div class="pmp-viewer-header">
+            <span id="pmp-tool-hint">Seleccionar: mover, editar o redimensionar objetos.</span>
           </div>
           <div class="pmp-viewer" id="pmp-viewer">
             <div class="pmp-empty" id="pmp-empty-state">Carga un PDF para comenzar.</div>
@@ -111,30 +148,41 @@
           </div>
         </section>
 
-        <aside class="pmp-panel pmp-results">
-          <section class="pmp-section">
-            <h2>Mediciones</h2>
-            <div class="pmp-measurements" id="pmp-measurements"></div>
+        <aside class="pmp-right-panel">
+          <section class="pmp-panel-section">
+            <h2>Inspector</h2>
+            <div id="pmp-inspector" class="pmp-inspector"></div>
           </section>
-          <section class="pmp-section">
-            <h2>Medida manual final</h2>
+          <section class="pmp-panel-section">
+            <h2>Medida final</h2>
             <div class="pmp-final-box" id="pmp-final-box">Sin rectangulo final.</div>
           </section>
-          <section class="pmp-section">
+          <section class="pmp-panel-section">
             <h2>JSON tecnico</h2>
+            <a class="pmp-download" id="pmp-export-link" href="#" target="_blank" rel="noopener" hidden>Abrir JSON</a>
             <pre class="pmp-json" id="pmp-json-output">{}</pre>
           </section>
         </aside>
+
+        <section class="pmp-history-panel">
+          <h2>Historial de mediciones</h2>
+          <div id="pmp-history" class="pmp-history"></div>
+        </section>
       </section>
     </main>
 
+    <script src="{{ url_for('pdf_medidor_pro.static_file', filename='js/object_model.js') }}" defer></script>
     <script src="{{ url_for('pdf_medidor_pro.static_file', filename='js/viewer.js') }}" defer></script>
     <script src="{{ url_for('pdf_medidor_pro.static_file', filename='js/measurement.js') }}" defer></script>
     <script src="{{ url_for('pdf_medidor_pro.static_file', filename='js/rectangle.js') }}" defer></script>
     <script src="{{ url_for('pdf_medidor_pro.static_file', filename='js/calibration.js') }}" defer></script>
     <script src="{{ url_for('pdf_medidor_pro.static_file', filename='js/export.js') }}" defer></script>
     <script src="{{ url_for('pdf_medidor_pro.static_file', filename='js/snap.js') }}" defer></script>
+    <script src="{{ url_for('pdf_medidor_pro.static_file', filename='js/guides.js') }}" defer></script>
     <script src="{{ url_for('pdf_medidor_pro.static_file', filename='js/magnifier.js') }}" defer></script>
+    <script src="{{ url_for('pdf_medidor_pro.static_file', filename='js/inspector_panel.js') }}" defer></script>
+    <script src="{{ url_for('pdf_medidor_pro.static_file', filename='js/history_panel.js') }}" defer></script>
+    <script src="{{ url_for('pdf_medidor_pro.static_file', filename='js/png_export.js') }}" defer></script>
     <script src="{{ url_for('pdf_medidor_pro.static_file', filename='js/pdf_medidor_pro.js') }}" defer></script>
   </body>
 </html>

@@ -74,8 +74,11 @@ def _normalize_measurement(item: dict[str, Any]) -> dict[str, Any]:
         "origen": _origin(str(item.get("origen") or "manual")),
         "nombre": str(item.get("nombre") or "Medicion"),
         "visible": bool(item.get("visible", True)),
+        "color": str(item.get("color") or "#0f766e"),
+        "stroke_width": _number(item.get("stroke_width")) or 1.0,
+        "pagina": _positive_int(item.get("pagina")),
     }
-    for key in ("ancho_mm", "alto_mm", "x_mm", "y_mm", "area_mm2", "perimetro_mm"):
+    for key in ("ancho_mm", "alto_mm", "x_mm", "y_mm", "area_mm2", "perimetro_mm", "angulo_deg"):
         measurement[key] = _signed_number(item.get(key))
     measurement["confianza"] = _confidence(item.get("confianza"))
     if isinstance(item.get("a"), dict):
@@ -90,6 +93,14 @@ def _signed_number(value: Any) -> float:
         return round(float(value), 3)
     except (TypeError, ValueError):
         return 0.0
+
+
+def _positive_int(value: Any) -> int:
+    try:
+        numeric = int(value)
+    except (TypeError, ValueError):
+        return 1
+    return numeric if numeric > 0 else 1
 
 
 def _confidence(value: Any) -> float:
