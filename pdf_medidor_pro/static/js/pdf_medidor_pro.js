@@ -9,6 +9,7 @@
   const state = {
     archivo: "",
     pagina: 1,
+    pageCount: 1,
     previewFilename: "",
     renderMm: { ancho: 0, alto: 0 },
     medidasAuto: ns.emptyAuto(),
@@ -70,7 +71,6 @@
     refs.undoButton = document.getElementById("pmp-undo-button");
     refs.redoButton = document.getElementById("pmp-redo-button");
     refs.fileInput = document.getElementById("pmp-file-input");
-    refs.autoTable = document.getElementById("pmp-auto-table");
     refs.viewer = document.getElementById("pmp-viewer");
     refs.stage = document.getElementById("pmp-stage");
     refs.emptyState = document.getElementById("pmp-empty-state");
@@ -82,6 +82,10 @@
     refs.toolHint = document.getElementById("pmp-tool-hint");
     refs.zoomCurrent = document.getElementById("pmp-zoom-current");
     refs.zoomDisplay = document.getElementById("pmp-zoom-display");
+    refs.statusTool = document.getElementById("pmp-status-tool");
+    refs.statusZoom = document.getElementById("pmp-status-zoom");
+    refs.statusPage = document.getElementById("pmp-status-page");
+    refs.statusCoords = document.getElementById("pmp-status-coords");
     refs.snapToggle = document.getElementById("pmp-snap-toggle");
     refs.guidesToggle = document.getElementById("pmp-guides-toggle");
     refs.liveToggle = document.getElementById("pmp-live-toggle");
@@ -193,6 +197,7 @@
       }
       state.archivo = payload.archivo;
       state.pagina = payload.pagina || 1;
+      state.pageCount = payload.page_count || state.pagina || 1;
       state.previewFilename = payload.preview.filename || "";
       state.renderMm = payload.preview.render_mm || payload.render_mm || { ancho: 0, alto: 0 };
       state.medidasAuto = payload.medidas_auto || ns.emptyAuto();
@@ -220,6 +225,7 @@
   function onCanvasDown(event) {
     if (!hasPdf()) return;
     if (state.mode === "hand" || state.spacePan) {
+      event.preventDefault();
       beginPan(event);
       return;
     }
@@ -289,11 +295,14 @@
 
   function onWindowMove(event) {
     if (!panning) return;
-    if (Math.abs(event.clientX - panning.x) > 2 || Math.abs(event.clientY - panning.y) > 2) {
+    event.preventDefault();
+    const deltaX = event.clientX - panning.x;
+    const deltaY = event.clientY - panning.y;
+    if (Math.abs(deltaX) > 2 || Math.abs(deltaY) > 2) {
       panning.moved = true;
     }
-    refs.viewer.scrollLeft = panning.left - (event.clientX - panning.x);
-    refs.viewer.scrollTop = panning.top - (event.clientY - panning.y);
+    refs.viewer.scrollLeft = panning.left - deltaX;
+    refs.viewer.scrollTop = panning.top - deltaY;
     renderCanvas();
   }
 
@@ -377,6 +386,7 @@
     if (key === "r") setMode("rectangle");
     if (key === "c") setMode("calibrate");
     if (key === "g") setMode("guides");
+    if (key === "v" || key === "s") setMode("select");
     if (event.key === "Delete" || event.key === "Backspace") deleteSelected();
   }
 
@@ -398,8 +408,10 @@
       button.classList.toggle("is-active", button.dataset.pmpTool === state.mode);
     });
     refs.toolHint.textContent = toolHint();
+    ["select", "line", "rectangle", "hand", "calibrate", "guides"].forEach((tool) => {
+      refs.viewer.classList.toggle(`is-${tool}-tool`, state.mode === tool);
+    });
     refs.viewer.classList.toggle("is-hand-tool", state.mode === "hand");
-    refs.viewer.classList.toggle("is-select-tool", state.mode === "select");
     renderCanvas();
   }
 
@@ -410,6 +422,18 @@
     if (state.mode === "calibrate") return "Calibracion: mide una linea y aplica la medida real.";
     if (state.mode === "guides") return "Guias: clic crea vertical; Shift clic crea horizontal.";
     return "Mano: arrastra para desplazar.";
+  }
+
+  function toolLabel(mode) {
+    const labels = {
+      select: "Seleccionar",
+      hand: "Mano",
+      line: "Linea",
+      rectangle: "Rectangulo",
+      calibrate: "Calibracion",
+      guides: "Guias",
+    };
+    return labels[mode] || "Seleccionar";
   }
 
   function clearMeasurements() {
@@ -492,7 +516,7 @@
     refs.zoomCurrent.textContent = zoomText;
     refs.zoomDisplay.textContent = zoomText;
     renderUndoRedoButtons();
-    renderAutoTable();
+    renderStatusbar(zoomText);
     renderInspectorPanel();
     renderHistoryPanel();
     renderFinalBox();
@@ -501,25 +525,12 @@
     renderCanvas();
   }
 
-  function renderAutoTable() {
-    const labels = [
-      ["mediabox_mm", "MediaBox"],
-      ["cropbox_mm", "CropBox"],
-      ["trimbox_mm", "TrimBox"],
-      ["bleedbox_mm", "BleedBox"],
-      ["artbox_mm", "ArtBox"],
-    ];
-    refs.autoTable.innerHTML = labels.map(([key, label]) => {
-      const box = state.medidasAuto[key] || { ancho: 0, alto: 0 };
-      return `<div class="pmp-auto-row"><strong>${label}</strong><span>${fmt(box.ancho)} x ${fmt(box.alto)} mm</span></div>`;
-    }).join("");
-  }
-
   function renderInspectorPanel() {
     ns.renderInspector(refs.inspector, {
       selected: currentSelected(),
       archivo: state.archivo,
       page: state.pagina,
+      pageCount: state.pageCount,
       renderMm: state.renderMm,
       medidasAuto: state.medidasAuto,
       metrics,
@@ -613,6 +624,17 @@
       viewer.drawRulers(state.pointerMm);
       viewer.drawCoordinates(state.pointerMm, fmt);
     }
+    renderStatusbar(`${Math.round((viewer ? viewer.zoom : 1) * 100)}%`);
+  }
+
+  function renderStatusbar(zoomText) {
+    if (!refs.statusTool) return;
+    refs.statusTool.textContent = `Herramienta activa: ${toolLabel(state.mode)}`;
+    refs.statusZoom.textContent = `Zoom: ${zoomText}`;
+    refs.statusPage.textContent = `Pagina: ${state.pagina || 1}${state.pageCount ? `/${state.pageCount}` : ""}`;
+    refs.statusCoords.textContent = state.pointerMm
+      ? `X: ${fmt(state.pointerMm.x_mm)} mm · Y: ${fmt(state.pointerMm.y_mm)} mm`
+      : "X: -- mm · Y: -- mm";
   }
 
   function drawDraft() {
@@ -882,7 +904,8 @@
   }
 
   function isTyping(target) {
-    return ["INPUT", "TEXTAREA", "SELECT"].includes(target && target.tagName);
+    if (!target) return false;
+    return ["INPUT", "TEXTAREA", "SELECT", "BUTTON"].includes(target.tagName) || target.isContentEditable;
   }
 
   function isDialogOpen() {

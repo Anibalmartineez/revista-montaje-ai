@@ -57,6 +57,7 @@
     const rows = [
       ["Archivo", context.archivo || "Sin PDF"],
       ["Pagina", context.page || 1],
+      ["Paginas", context.pageCount || context.page || 1],
       ["Render", `${fmt(context.renderMm.ancho)} x ${fmt(context.renderMm.alto)} mm`],
       ["MediaBox", box(auto.mediabox_mm, fmt)],
       ["CropBox", box(auto.cropbox_mm, fmt)],

@@ -36,14 +36,6 @@
           <button type="button" data-pmp-zoom="32">3200%</button>
         </div>
 
-        <div class="pmp-toolbar-group" aria-label="Herramientas rapidas">
-          <button class="pmp-tool is-active" type="button" data-pmp-tool="select">Seleccionar</button>
-          <button class="pmp-tool" type="button" data-pmp-tool="hand">Mano</button>
-          <button class="pmp-tool" type="button" data-pmp-tool="line">Linea</button>
-          <button class="pmp-tool" type="button" data-pmp-tool="rectangle">Rectangulo</button>
-          <button class="pmp-tool" type="button" data-pmp-tool="calibrate">Calibracion</button>
-        </div>
-
         <div class="pmp-topbar-status">
           <span id="pmp-current-file">Ningun archivo</span>
           <span id="pmp-page-info">Pagina 1</span>
@@ -126,13 +118,6 @@
             <div class="pmp-calibration-state" id="pmp-calibration-state">Escala sin calibrar</div>
           </section>
 
-          <section class="pmp-panel-section">
-            <h2>Medidas automaticas</h2>
-            <div class="pmp-auto-table" id="pmp-auto-table">
-              <p class="pmp-muted">Sin PDF cargado.</p>
-            </div>
-          </section>
-
           <button class="pmp-button pmp-full" id="pmp-clear-button" type="button">Borrar mediciones</button>
         </aside>
 
@@ -170,6 +155,13 @@
           <h2>Historial de mediciones</h2>
           <div id="pmp-history" class="pmp-history"></div>
         </section>
+
+        <footer class="pmp-statusbar" id="pmp-statusbar">
+          <span id="pmp-status-tool">Herramienta activa: Seleccionar</span>
+          <span id="pmp-status-zoom">Zoom: 100%</span>
+          <span id="pmp-status-page">Pagina: 1</span>
+          <span id="pmp-status-coords">X: -- mm · Y: -- mm</span>
+        </footer>
       </section>
     </main>
 

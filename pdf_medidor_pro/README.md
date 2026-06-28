@@ -12,6 +12,7 @@ PDF Medidor Pro es un modulo aislado para revisar medidas tecnicas de un PDF, re
 - Hacer zoom profesional, pan, lupa y snap.
 - Seleccionar, mover, renombrar, ocultar, duplicar y redimensionar mediciones.
 - Deshacer, rehacer y ajustar objetos con flechas en pasos de precision.
+- Mantener una interfaz sin duplicacion visual: topbar para acciones, panel izquierdo para herramientas e inspector derecho para informacion tecnica.
 - Exportar PNG desde el navegador con preview, mediciones y guias visibles.
 - Exportar un JSON tecnico para futuras integraciones.
 
@@ -81,6 +82,16 @@ La primera parte de Fase 4 agrega control fino sin cambiar el contrato JSON:
 - Nudging con teclado: flechas `0.1 mm`, `Shift+flechas` `1 mm`, `Ctrl+flechas` `0.01 mm`.
 
 El nudging mueve en milimetros exactos y no aplica snap automatico.
+
+## Fase 4C
+
+La Fase 4C limpia la experiencia visual sin agregar herramientas nuevas:
+
+- la barra superior queda solo para acciones globales y zoom;
+- las herramientas visuales quedan solo en el panel izquierdo;
+- la informacion automatica del PDF queda solo en el inspector derecho;
+- la barra inferior muestra herramienta activa, zoom, pagina y coordenadas;
+- `Espacio + arrastrar` permite pan libre en X/Y como una aplicacion de escritorio.
 
 Para correr solo el modulo:
 
