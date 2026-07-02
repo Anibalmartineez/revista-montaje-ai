@@ -15,6 +15,16 @@ def render_first_page(
     dpi: int = 150,
 ) -> dict[str, object]:
     """Render the first PDF page to a PNG image."""
+    return render_page(pdf_path, output_path, page_index=0, dpi=dpi)
+
+
+def render_page(
+    pdf_path: str | Path,
+    output_path: str | Path,
+    page_index: int = 0,
+    dpi: int = 150,
+) -> dict[str, object]:
+    """Render a PDF page to a PNG image."""
 
     pdf_path = Path(pdf_path)
     output_path = Path(output_path)
@@ -23,7 +33,9 @@ def render_first_page(
     with fitz.open(pdf_path) as doc:
         if doc.page_count < 1:
             raise ValueError("El PDF no contiene paginas.")
-        page = doc.load_page(0)
+        if page_index < 0 or page_index >= doc.page_count:
+            raise ValueError("La pagina solicitada no existe.")
+        page = doc.load_page(page_index)
         zoom = float(dpi) / 72.0
         pix = page.get_pixmap(
             matrix=fitz.Matrix(zoom, zoom),

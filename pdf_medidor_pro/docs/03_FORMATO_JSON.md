@@ -87,3 +87,34 @@ Reglas de compatibilidad:
 - `origen` se normaliza a `manual` o `auto`;
 - no existen valores de origen automatizado experimental;
 - color, grosor, pagina, visibilidad y angulo describen el objeto editable.
+
+## Ampliacion compatible Fase 4E multipagina
+
+El contrato base sigue describiendo la pagina activa exportada. Para documentos multipagina se agregan:
+
+```json
+{
+  "page_count": 3,
+  "paginas": [
+    {
+      "pagina": 1,
+      "medidas_auto": {},
+      "medidas_manual": {
+        "ancho_final_mm": 0,
+        "alto_final_mm": 0
+      },
+      "origen_medida_final": "auto",
+      "confianza": "media",
+      "mediciones": []
+    }
+  ]
+}
+```
+
+Reglas:
+
+- `page_count` indica el total de paginas del PDF cargado;
+- `paginas[]` agrupa medidas automaticas, medida final y mediciones por pagina;
+- la lista plana `mediciones` se conserva como union de todas las paginas;
+- cada medicion conserva su campo `pagina`;
+- las guias no forman parte del JSON tecnico y siguen siendo estado interno de trabajo.

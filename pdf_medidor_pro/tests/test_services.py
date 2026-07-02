@@ -6,12 +6,14 @@ from pdf_medidor_pro.services.calibration_engine import calculate_scale_factor
 from pdf_medidor_pro.services.export_json import build_export_payload
 from pdf_medidor_pro.services.geometry import mm_to_pt
 from pdf_medidor_pro.services.pdf_analyzer import analyze_pdf_boxes
-from pdf_medidor_pro.services.pdf_renderer import render_first_page
+from pdf_medidor_pro.services.pdf_renderer import render_first_page, render_page
 
 
-def make_pdf(path: Path, width_mm: float = 100, height_mm: float = 50) -> Path:
+def make_pdf(path: Path, width_mm: float = 100, height_mm: float = 50, pages: list[tuple[float, float]] | None = None) -> Path:
     doc = fitz.open()
-    doc.new_page(width=mm_to_pt(width_mm), height=mm_to_pt(height_mm))
+    sizes = pages or [(width_mm, height_mm)]
+    for page_width, page_height in sizes:
+        doc.new_page(width=mm_to_pt(page_width), height=mm_to_pt(page_height))
     doc.save(path)
     doc.close()
     return path
@@ -38,6 +40,18 @@ def test_render_first_page_creates_png(tmp_path):
     assert result["filename"] == "preview.png"
     assert result["width_px"] > 0
     assert result["height_px"] > 0
+
+
+def test_render_page_creates_png_for_selected_page(tmp_path):
+    pdf_path = make_pdf(tmp_path / "multi.pdf", pages=[(100, 50), (80, 40)])
+    output_path = tmp_path / "page_2.png"
+
+    result = render_page(pdf_path, output_path, page_index=1, dpi=72)
+
+    assert output_path.exists()
+    assert result["filename"] == "page_2.png"
+    assert result["render_mm"]["ancho"] == 80
+    assert result["render_mm"]["alto"] == 40
 
 
 def test_calculate_scale_factor():
@@ -92,3 +106,25 @@ def test_build_export_payload_accepts_compatible_measurements():
     assert payload["origen_medida_final"] == "manual"
     assert payload["mediciones"][0]["origen"] == "manual"
     assert payload["mediciones"][0]["confianza"] == 0.96
+
+
+def test_build_export_payload_accepts_multipage_contract():
+    payload = build_export_payload(
+        archivo="trabajo.pdf",
+        pagina=2,
+        page_count=2,
+        medidas_auto={},
+        medidas_manual={},
+        calibracion={},
+        mediciones=[{"id": "m2", "tipo": "linea", "pagina": 2}],
+        paginas=[
+            {"pagina": 2, "medidas_auto": {"mediabox_mm": {"ancho": 80, "alto": 40}}, "mediciones": [{"id": "m2", "tipo": "linea", "pagina": 2}]},
+            {"pagina": 1, "medidas_auto": {"mediabox_mm": {"ancho": 100, "alto": 50}}, "mediciones": []},
+        ],
+        origen_medida_final="manual",
+        confianza="alta",
+    )
+
+    assert payload["page_count"] == 2
+    assert [page["pagina"] for page in payload["paginas"]] == [1, 2]
+    assert payload["paginas"][1]["mediciones"][0]["pagina"] == 2

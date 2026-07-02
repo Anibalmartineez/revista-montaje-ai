@@ -6,7 +6,7 @@ PDF Medidor Pro es un modulo aislado para revisar medidas tecnicas de un PDF, re
 
 - Subir un PDF sin tocar el Editor Offset Visual ni Sistema Presupuesto.
 - Leer medidas automaticas de `MediaBox`, `CropBox`, `TrimBox`, `BleedBox` y `ArtBox`.
-- Renderizar la primera pagina como PNG.
+- Renderizar paginas del PDF como PNG y navegar documentos multipagina.
 - Medir manualmente lineas y rectangulos como objetos editables.
 - Calibrar la escala con una medida conocida.
 - Hacer zoom profesional, pan, lupa y snap.
@@ -15,6 +15,7 @@ PDF Medidor Pro es un modulo aislado para revisar medidas tecnicas de un PDF, re
 - Mantener una interfaz sin duplicacion visual: topbar para acciones, panel izquierdo para herramientas e inspector derecho para informacion tecnica.
 - Exportar PNG desde el navegador con preview, mediciones y guias visibles.
 - Crear, seleccionar, mover y borrar guias editables para alinear mediciones tecnicas.
+- Mantener mediciones, guias y medida final separadas por pagina.
 - Exportar un JSON tecnico para futuras integraciones.
 
 ## Estructura creada
@@ -43,6 +44,7 @@ Rutas principales:
 - UI: `/pdf-medidor-pro`
 - API health: `/api/pdf-medidor-pro/health`
 - Upload: `/api/pdf-medidor-pro/upload`
+- Render page: `/api/pdf-medidor-pro/render-page`
 - Export: `/api/pdf-medidor-pro/export`
 
 ## Uso manual
@@ -106,6 +108,17 @@ La Fase 4D convierte las guias en objetos editables de trabajo:
 - snap a guias sigue funcionando para lineas, rectangulos y coordenadas.
 
 Las guias siguen siendo estado interno de trabajo y no agregan claves al JSON tecnico exportado.
+
+## Fase 4E
+
+La Fase 4E agrega soporte multipagina real:
+
+- el upload informa `page_count`;
+- la barra superior permite ir a pagina anterior, siguiente o especifica;
+- cada pagina se renderiza bajo demanda desde el PDF subido;
+- mediciones, guias editables y medida final se mantienen separadas por pagina;
+- el JSON conserva las claves base y agrega `page_count` y `paginas`;
+- el PNG exportado corresponde solo a la pagina actual.
 
 Para correr solo el modulo:
 

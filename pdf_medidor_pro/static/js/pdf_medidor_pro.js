@@ -8,8 +8,11 @@
   const refs = {};
   const state = {
     archivo: "",
+    storedFilename: "",
     pagina: 1,
     pageCount: 1,
+    pages: {},
+    previewUrl: "",
     previewFilename: "",
     renderMm: { ancho: 0, alto: 0 },
     medidasAuto: ns.emptyAuto(),
@@ -81,6 +84,10 @@
     refs.magnifier = document.getElementById("pmp-magnifier");
     refs.currentFile = document.getElementById("pmp-current-file");
     refs.pageInfo = document.getElementById("pmp-page-info");
+    refs.prevPageButton = document.getElementById("pmp-prev-page");
+    refs.nextPageButton = document.getElementById("pmp-next-page");
+    refs.pageInput = document.getElementById("pmp-page-input");
+    refs.pageTotal = document.getElementById("pmp-page-total");
     refs.toolHint = document.getElementById("pmp-tool-hint");
     refs.zoomCurrent = document.getElementById("pmp-zoom-current");
     refs.zoomDisplay = document.getElementById("pmp-zoom-display");
@@ -175,6 +182,9 @@
     document.getElementById("pmp-one-to-one").addEventListener("click", () => viewer.oneToOne());
     document.getElementById("pmp-add-guide-v").addEventListener("click", () => addGuide("vertical"));
     document.getElementById("pmp-add-guide-h").addEventListener("click", () => addGuide("horizontal"));
+    refs.prevPageButton.addEventListener("click", () => goToPage(state.pagina - 1));
+    refs.nextPageButton.addEventListener("click", () => goToPage(state.pagina + 1));
+    refs.pageInput.addEventListener("change", () => goToPage(Number(refs.pageInput.value || 1)));
     window.addEventListener("keydown", onKeyDown);
     window.addEventListener("keyup", onKeyUp);
   }
@@ -198,8 +208,11 @@
         throw new Error(payload.error ? payload.error.message : "No se pudo analizar el PDF.");
       }
       state.archivo = payload.archivo;
+      state.storedFilename = payload.stored_filename || "";
       state.pagina = payload.pagina || 1;
       state.pageCount = payload.page_count || state.pagina || 1;
+      state.pages = {};
+      state.previewUrl = payload.preview_url || (payload.preview && payload.preview.url) || "";
       state.previewFilename = payload.preview.filename || "";
       state.renderMm = payload.preview.render_mm || payload.render_mm || { ancho: 0, alto: 0 };
       state.medidasAuto = payload.medidas_auto || ns.emptyAuto();
@@ -217,12 +230,129 @@
       refs.exportButton.disabled = false;
       refs.exportPngButton.disabled = false;
       viewer.setPreview(payload.preview_url, state.renderMm, payload.preview);
+      saveActivePage();
       restoreLocalState();
+      applyPageState(state.pagina);
       resetUndoHistory();
       setStatus("PDF analizado.");
     } catch (error) {
       setStatus(error.message, true);
     }
+  }
+
+  async function goToPage(page) {
+    if (!state.storedFilename || !hasPdf()) return;
+    const requested = Math.trunc(Number(page || 1));
+    const target = clamp(Number.isFinite(requested) ? requested : 1, 1, state.pageCount || 1);
+    if (target === state.pagina) {
+      renderAll();
+      return;
+    }
+    saveActivePage();
+    setStatus(`Cargando pagina ${target}...`);
+    try {
+      if (!state.pages[String(target)] || !state.pages[String(target)].previewUrl) {
+        await fetchPage(target);
+      }
+      applyPageState(target, { resetUndo: true, resetPan: true });
+      setStatus(`Pagina ${target} cargada.`);
+    } catch (error) {
+      setStatus(error.message, true);
+      applyPageState(state.pagina);
+    }
+  }
+
+  async function fetchPage(page) {
+    const response = await fetch(`${apiBase}/render-page`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        stored_filename: state.storedFilename,
+        pagina: page,
+      }),
+    });
+    const payload = await response.json();
+    if (!response.ok || !payload.ok) {
+      throw new Error(payload.error ? payload.error.message : "No se pudo renderizar la pagina.");
+    }
+    state.pageCount = payload.page_count || state.pageCount || page;
+    mergePageMetadata(page, payload);
+  }
+
+  function mergePageMetadata(page, payload) {
+    const key = String(page);
+    const existing = state.pages[key] || emptyPageState(page);
+    state.pages[key] = Object.assign({}, existing, {
+      medidasAuto: payload.medidas_auto || existing.medidasAuto || ns.emptyAuto(),
+      renderMm: payload.preview && payload.preview.render_mm ? payload.preview.render_mm : payload.render_mm || existing.renderMm || { ancho: 0, alto: 0 },
+      previewUrl: payload.preview_url || (payload.preview && payload.preview.url) || existing.previewUrl || "",
+      previewInfo: payload.preview || existing.previewInfo || null,
+    });
+  }
+
+  function saveActivePage() {
+    if (!state.pagina) return;
+    state.pages[String(state.pagina)] = activePageSnapshot();
+  }
+
+  function activePageSnapshot() {
+    return {
+      measurements: clone(state.measurements || []),
+      guides: ns.guides.normalizeGuides(state.guides || []),
+      selectedMeasurementId: state.selectedMeasurementId || null,
+      selectedGuideId: state.selectedGuideId || null,
+      finalMeasurementId: state.finalMeasurementId || null,
+      finalOrigin: state.finalOrigin || "auto",
+      finalConfidence: state.finalConfidence || "media",
+      medidasAuto: state.medidasAuto || ns.emptyAuto(),
+      renderMm: state.renderMm || { ancho: 0, alto: 0 },
+      previewUrl: state.previewUrl || "",
+      previewInfo: state.previewFilename ? { filename: state.previewFilename, render_mm: state.renderMm } : null,
+    };
+  }
+
+  function applyPageState(page, options) {
+    const data = state.pages[String(page)] || emptyPageState(page);
+    state.pagina = page;
+    state.measurements = clone(data.measurements || []);
+    state.guides = ns.guides.normalizeGuides(data.guides || []);
+    state.selectedMeasurementId = data.selectedMeasurementId || null;
+    state.selectedGuideId = data.selectedGuideId || null;
+    state.finalMeasurementId = data.finalMeasurementId || null;
+    state.finalOrigin = data.finalOrigin || "auto";
+    state.finalConfidence = data.finalConfidence || "media";
+    state.medidasAuto = data.medidasAuto || ns.emptyAuto();
+    state.renderMm = data.renderMm || { ancho: 0, alto: 0 };
+    state.previewUrl = data.previewUrl || "";
+    state.previewFilename = data.previewInfo && data.previewInfo.filename ? data.previewInfo.filename : "";
+    state.pointerMm = null;
+    state.hoverSnap = null;
+    state.drawing = null;
+    state.editing = null;
+    state.guideEditing = null;
+    if (state.previewUrl) {
+      viewer.setPreview(state.previewUrl, state.renderMm, data.previewInfo || { filename: state.previewFilename });
+    }
+    if (options && options.resetPan && viewer) viewer.resetPan();
+    if (options && options.resetUndo) resetUndoHistory();
+    renderAll();
+  }
+
+  function emptyPageState(page) {
+    return {
+      measurements: [],
+      guides: [],
+      selectedMeasurementId: null,
+      selectedGuideId: null,
+      finalMeasurementId: null,
+      finalOrigin: "auto",
+      finalConfidence: "media",
+      medidasAuto: ns.emptyAuto(),
+      renderMm: { ancho: 0, alto: 0 },
+      previewUrl: "",
+      previewInfo: null,
+      pagina: page,
+    };
   }
 
   function onCanvasDown(event) {
@@ -524,6 +654,7 @@
   }
 
   async function exportJson() {
+    saveActivePage();
     const payload = currentExportPayload();
     setStatus("Exportando JSON...");
     try {
@@ -565,10 +696,11 @@
   function renderAll() {
     if (!refs.currentFile) return;
     refs.currentFile.textContent = state.archivo || "Ningun archivo";
-    refs.pageInfo.textContent = `Pagina ${state.pagina || 1}`;
+    refs.pageInfo.textContent = `Pagina ${state.pagina || 1}/${state.pageCount || 1}`;
     const zoomText = `${Math.round((viewer ? viewer.zoom : 1) * 100)}%`;
     refs.zoomCurrent.textContent = zoomText;
     refs.zoomDisplay.textContent = zoomText;
+    renderPageControls();
     renderUndoRedoButtons();
     renderStatusbar(zoomText);
     renderInspectorPanel();
@@ -577,6 +709,18 @@
     renderCalibration();
     refs.jsonOutput.textContent = JSON.stringify(currentExportPayload(), null, 2);
     renderCanvas();
+  }
+
+  function renderPageControls() {
+    const hasDocument = Boolean(state.storedFilename);
+    const pageCount = state.pageCount || 1;
+    refs.prevPageButton.disabled = !hasDocument || state.pagina <= 1;
+    refs.nextPageButton.disabled = !hasDocument || state.pagina >= pageCount;
+    refs.pageInput.disabled = !hasDocument;
+    refs.pageInput.min = "1";
+    refs.pageInput.max = String(pageCount);
+    refs.pageInput.value = String(state.pagina || 1);
+    refs.pageTotal.textContent = `de ${pageCount}`;
   }
 
   function renderInspectorPanel() {
@@ -724,15 +868,41 @@
   }
 
   function currentExportPayload() {
-    const final = state.measurements.find((item) => item.id === state.finalMeasurementId && item.tipo === "rectangulo");
+    const pages = collectPageExports();
+    const active = pages.find((page) => page.pagina === state.pagina) || pageExport(state.pagina, activePageSnapshot());
+    const measurements = pages.reduce((items, page) => items.concat(page.mediciones || []), []);
+    return ns.buildExportPayload(state, active.medidas_manual, measurements, pages);
+  }
+
+  function collectPageExports() {
+    const active = activePageSnapshot();
+    const pages = [];
+    const total = Math.max(1, Number(state.pageCount || 1));
+    for (let page = 1; page <= total; page += 1) {
+      const data = page === state.pagina ? active : state.pages[String(page)] || emptyPageState(page);
+      pages.push(pageExport(page, data));
+    }
+    return pages;
+  }
+
+  function pageExport(page, data) {
+    const measurements = (data.measurements || []).map((item) => {
+      const withPage = Object.assign({}, item, { pagina: page });
+      if (withPage.tipo === "linea") return ns.lineExport(withPage, state.calibration.factor_escala);
+      return ns.rectangleExport(withPage, state.calibration.factor_escala);
+    });
+    const final = (data.measurements || []).find((item) => item.id === data.finalMeasurementId && item.tipo === "rectangulo");
     const manualBox = final
       ? ns.measureRectangle(final, state.calibration.factor_escala)
       : { ancho_final_mm: 0, alto_final_mm: 0 };
-    const measurements = state.measurements.map((item) => {
-      if (item.tipo === "linea") return ns.lineExport(item, state.calibration.factor_escala);
-      return ns.rectangleExport(item, state.calibration.factor_escala);
-    });
-    return ns.buildExportPayload(state, manualBox, measurements);
+    return {
+      pagina: page,
+      medidas_auto: data.medidasAuto || ns.emptyAuto(),
+      medidas_manual: manualBox,
+      origen_medida_final: data.finalOrigin || (final ? "manual" : "auto"),
+      confianza: data.finalConfidence || (final ? "alta" : "media"),
+      mediciones: measurements,
+    };
   }
 
   function snappedPoint(event) {
@@ -783,33 +953,71 @@
       setStatus("No hay PDF cargado.", true);
       return;
     }
-    localStorage.setItem(localStateKey(), JSON.stringify({
-      measurements: state.measurements,
-      guides: ns.guides.normalizeGuides(state.guides),
-      finalMeasurementId: state.finalMeasurementId,
+    saveActivePage();
+    localStorage.setItem(localDocumentKey(), JSON.stringify({
+      pages: editablePagesForLocal(),
       calibration: state.calibration,
-      finalOrigin: state.finalOrigin,
-      finalConfidence: state.finalConfidence,
     }));
     setStatus("Estado guardado en este navegador.");
   }
 
   function restoreLocalState() {
     if (!state.archivo) return;
+    const documentRaw = localStorage.getItem(localDocumentKey());
+    if (documentRaw) {
+      try {
+        const saved = JSON.parse(documentRaw);
+        mergeSavedPages(saved.pages || {});
+        state.calibration = saved.calibration || { activa: false, factor_escala: 1 };
+        setStatus("Estado local restaurado.");
+        return;
+      } catch (error) {
+        setStatus("No se pudo restaurar el estado local.", true);
+      }
+    }
     const raw = localStorage.getItem(localStateKey());
     if (!raw) return;
     try {
       const saved = JSON.parse(raw);
-      state.measurements = Array.isArray(saved.measurements) ? saved.measurements : [];
-      state.guides = ns.guides.normalizeGuides(Array.isArray(saved.guides) ? saved.guides : []);
-      state.finalMeasurementId = saved.finalMeasurementId || null;
+      const current = state.pages[String(state.pagina)] || emptyPageState(state.pagina);
+      state.pages[String(state.pagina)] = Object.assign({}, current, editablePageForLocal(saved));
       state.calibration = saved.calibration || { activa: false, factor_escala: 1 };
-      state.finalOrigin = saved.finalOrigin || "manual";
-      state.finalConfidence = saved.finalConfidence || "alta";
       setStatus("Estado local restaurado.");
     } catch (error) {
       setStatus("No se pudo restaurar el estado local.", true);
     }
+  }
+
+  function editablePagesForLocal() {
+    const pages = {};
+    Object.keys(state.pages || {}).forEach((key) => {
+      pages[key] = editablePageForLocal(state.pages[key]);
+    });
+    return pages;
+  }
+
+  function editablePageForLocal(page) {
+    return {
+      measurements: clone(page && page.measurements ? page.measurements : []),
+      guides: ns.guides.normalizeGuides(page && page.guides ? page.guides : []),
+      selectedMeasurementId: page && page.selectedMeasurementId ? page.selectedMeasurementId : null,
+      selectedGuideId: page && page.selectedGuideId ? page.selectedGuideId : null,
+      finalMeasurementId: page && page.finalMeasurementId ? page.finalMeasurementId : null,
+      finalOrigin: page && page.finalOrigin ? page.finalOrigin : "auto",
+      finalConfidence: page && page.finalConfidence ? page.finalConfidence : "media",
+    };
+  }
+
+  function mergeSavedPages(pages) {
+    Object.keys(pages || {}).forEach((key) => {
+      const page = clamp(Math.trunc(Number(key || 1)), 1, state.pageCount || 1);
+      const current = state.pages[String(page)] || emptyPageState(page);
+      state.pages[String(page)] = Object.assign({}, current, editablePageForLocal(pages[key]));
+    });
+  }
+
+  function localDocumentKey() {
+    return `pdf_medidor_pro:${state.archivo}:document`;
   }
 
   function localStateKey() {

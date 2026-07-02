@@ -24,10 +24,12 @@ def build_export_payload(
     medidas_manual: dict[str, Any] | None,
     calibracion: dict[str, Any] | None,
     mediciones: list[dict[str, Any]] | None = None,
+    page_count: Any | None = None,
+    paginas: list[dict[str, Any]] | None = None,
     origen_medida_final: str = "manual",
     confianza: str = "alta",
 ) -> dict[str, Any]:
-    return {
+    payload = {
         "archivo": archivo,
         "pagina": int(pagina or 1),
         "medidas_auto": _normalize_auto_boxes(medidas_auto),
@@ -37,6 +39,14 @@ def build_export_payload(
         "confianza": confianza or "alta",
         "mediciones": _normalize_measurements(mediciones),
     }
+    normalized_pages = _normalize_pages(paginas)
+    if page_count is not None:
+        payload["page_count"] = _positive_int(page_count)
+    if normalized_pages:
+        payload["paginas"] = normalized_pages
+        if page_count is None:
+            payload["page_count"] = max(page["pagina"] for page in normalized_pages)
+    return payload
 
 
 def _normalize_auto_boxes(medidas_auto: dict[str, Any] | None) -> dict[str, dict[str, float]]:
@@ -86,6 +96,26 @@ def _normalize_measurement(item: dict[str, Any]) -> dict[str, Any]:
     if isinstance(item.get("b"), dict):
         measurement["b"] = {"x_mm": _signed_number(item["b"].get("x_mm")), "y_mm": _signed_number(item["b"].get("y_mm"))}
     return measurement
+
+
+def _normalize_pages(paginas: list[dict[str, Any]] | None) -> list[dict[str, Any]]:
+    if not isinstance(paginas, list):
+        return []
+    normalized = []
+    for item in paginas:
+        if not isinstance(item, dict):
+            continue
+        normalized.append(
+            {
+                "pagina": _positive_int(item.get("pagina")),
+                "medidas_auto": _normalize_auto_boxes(item.get("medidas_auto")),
+                "medidas_manual": normalize_manual_measurements(item.get("medidas_manual")),
+                "origen_medida_final": _origin(item.get("origen_medida_final")),
+                "confianza": str(item.get("confianza") or "alta"),
+                "mediciones": _normalize_measurements(item.get("mediciones")),
+            }
+        )
+    return sorted(normalized, key=lambda page: page["pagina"])
 
 
 def _signed_number(value: Any) -> float:

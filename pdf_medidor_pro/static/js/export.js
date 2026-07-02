@@ -3,9 +3,9 @@
 
   window.PdfMedidorPro = window.PdfMedidorPro || {};
 
-  function buildExportPayload(state, manualBox, measurements) {
+  function buildExportPayload(state, manualBox, measurements, pages) {
     const hasManual = manualBox.ancho_final_mm > 0 && manualBox.alto_final_mm > 0;
-    return {
+    const payload = {
       archivo: state.archivo || "trabajo.pdf",
       pagina: state.pagina || 1,
       medidas_auto: state.medidasAuto || emptyAuto(),
@@ -15,6 +15,9 @@
       confianza: state.finalConfidence || (hasManual ? "alta" : "media"),
       mediciones: Array.isArray(measurements) ? measurements : [],
     };
+    if (state.pageCount) payload.page_count = state.pageCount;
+    if (Array.isArray(pages)) payload.paginas = pages;
+    return payload;
   }
 
   function emptyAuto() {

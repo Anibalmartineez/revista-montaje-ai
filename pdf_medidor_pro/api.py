@@ -20,7 +20,7 @@ from .config import (
 )
 from .services.export_json import build_export_payload
 from .services.pdf_analyzer import analyze_pdf_boxes
-from .services.pdf_renderer import render_first_page
+from .services.pdf_renderer import render_first_page, render_page
 
 
 def create_pdf_medidor_pro_blueprint() -> Blueprint:
@@ -89,6 +89,48 @@ def create_pdf_medidor_pro_blueprint() -> Blueprint:
             }
         )
 
+    @bp.post("/api/pdf-medidor-pro/render-page")
+    def render_pdf_page():
+        ensure_runtime_dirs()
+        payload = request.get_json(silent=True) or {}
+        if not isinstance(payload, dict):
+            return _error("INVALID_JSON", "El cuerpo debe ser un objeto JSON.", 400)
+
+        stored_filename = secure_filename(str(payload.get("stored_filename") or ""))
+        if not stored_filename:
+            return _error("PDF_REQUIRED", "Falta el archivo PDF cargado.", 400)
+
+        pdf_path = UPLOAD_DIR / stored_filename
+        if not pdf_path.exists() or not pdf_path.is_file():
+            return _error("PDF_NOT_FOUND", "El PDF solicitado no existe.", 404)
+
+        try:
+            pagina = int(payload.get("pagina") or 1)
+        except (TypeError, ValueError):
+            return _error("INVALID_PAGE", "La pagina solicitada no es valida.", 400)
+
+        page_index = pagina - 1
+        try:
+            analysis = analyze_pdf_boxes(pdf_path, page_index=page_index)
+            dpi = int(current_app.config.get("PDF_MEDIDOR_PRO_DPI", DEFAULT_RENDER_DPI))
+            preview_filename = f"{Path(stored_filename).stem}_p{pagina}.png"
+            preview_info = render_page(pdf_path, PREVIEW_DIR / preview_filename, page_index=page_index, dpi=dpi)
+        except Exception as exc:
+            return _error("PAGE_RENDER_FAILED", str(exc), 400)
+
+        preview_url = url_for("pdf_medidor_pro.preview_file", filename=preview_filename)
+        return jsonify(
+            {
+                "ok": True,
+                "pagina": analysis["pagina"],
+                "page_count": analysis["page_count"],
+                "medidas_auto": analysis["medidas_auto"],
+                "render_mm": analysis["render_mm"],
+                "preview": {**preview_info, "url": preview_url},
+                "preview_url": preview_url,
+            }
+        )
+
     @bp.post("/api/pdf-medidor-pro/export")
     def export_json():
         ensure_runtime_dirs()
@@ -103,6 +145,8 @@ def create_pdf_medidor_pro_blueprint() -> Blueprint:
             medidas_manual=payload.get("medidas_manual"),
             calibracion=payload.get("calibracion"),
             mediciones=payload.get("mediciones"),
+            page_count=payload.get("page_count"),
+            paginas=payload.get("paginas"),
             origen_medida_final=str(payload.get("origen_medida_final") or "manual"),
             confianza=str(payload.get("confianza") or "alta"),
         )
