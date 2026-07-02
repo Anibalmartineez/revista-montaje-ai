@@ -70,17 +70,23 @@
       if (guide.visible === false) return;
       ctx.beginPath();
       if (guide.orientation === "vertical") {
-        const x = (Number(guide.value_mm || 0) / Math.max(0.0001, Number(renderMm.ancho || 0))) * canvas.width;
+        const x = (guideValue(guide) / Math.max(0.0001, Number(renderMm.ancho || 0))) * canvas.width;
         ctx.moveTo(x, 0);
         ctx.lineTo(x, canvas.height);
       } else {
-        const y = (Number(guide.value_mm || 0) / Math.max(0.0001, Number(renderMm.alto || 0))) * canvas.height;
+        const y = (guideValue(guide) / Math.max(0.0001, Number(renderMm.alto || 0))) * canvas.height;
         ctx.moveTo(0, y);
         ctx.lineTo(canvas.width, y);
       }
       ctx.stroke();
     });
     ctx.restore();
+  }
+
+  function guideValue(guide) {
+    if (!guide) return 0;
+    if (guide.position_mm !== undefined && guide.position_mm !== null) return Number(guide.position_mm || 0);
+    return Number(guide.value_mm || 0);
   }
 
   function download(canvas, filename) {

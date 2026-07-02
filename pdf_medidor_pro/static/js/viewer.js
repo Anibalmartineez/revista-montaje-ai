@@ -294,26 +294,47 @@
       this.ctx.restore();
     }
 
-    drawGuides(guides) {
+    drawGuides(guides, selectedGuideId) {
       const ctx = this.ctx;
       ctx.save();
-      ctx.strokeStyle = "rgba(8, 145, 178, 0.78)";
-      ctx.lineWidth = 1;
-      ctx.setLineDash([6, 5]);
       (guides || []).forEach((guide) => {
         if (guide.visible === false) return;
+        const selected = guide.id === selectedGuideId;
+        ctx.strokeStyle = selected ? "#be123c" : "rgba(8, 145, 178, 0.78)";
+        ctx.fillStyle = selected ? "#be123c" : "#0e7490";
+        ctx.lineWidth = selected ? 2 : 1;
+        ctx.setLineDash(selected ? [] : [6, 5]);
         ctx.beginPath();
         if (guide.orientation === "vertical") {
-          const x = this.mmToViewport({ x_mm: guide.value_mm, y_mm: 0 }).x;
+          const value = guideValue(guide);
+          const x = this.mmToViewport({ x_mm: value, y_mm: 0 }).x;
           ctx.moveTo(x, 24);
           ctx.lineTo(x, this.canvas.clientHeight);
+          ctx.stroke();
+          if (selected) this.drawGuideLabel({ x, y: 34 }, `X ${value} mm`);
         } else {
-          const y = this.mmToViewport({ x_mm: 0, y_mm: guide.value_mm }).y;
+          const value = guideValue(guide);
+          const y = this.mmToViewport({ x_mm: 0, y_mm: value }).y;
           ctx.moveTo(34, y);
           ctx.lineTo(this.canvas.clientWidth, y);
+          ctx.stroke();
+          if (selected) this.drawGuideLabel({ x: 42, y }, `Y ${value} mm`);
         }
-        ctx.stroke();
       });
+      ctx.restore();
+    }
+
+    drawGuideLabel(point, text) {
+      const ctx = this.ctx;
+      ctx.save();
+      ctx.font = "11px Arial";
+      const width = ctx.measureText(text).width + 12;
+      const x = Math.min(this.canvas.clientWidth - width - 8, Math.max(40, point.x + 8));
+      const y = Math.min(this.canvas.clientHeight - 22, Math.max(28, point.y + 8));
+      ctx.fillStyle = "rgba(15, 23, 42, 0.88)";
+      ctx.fillRect(x, y, width, 20);
+      ctx.fillStyle = "#ffffff";
+      ctx.fillText(text, x + 6, y + 14);
       ctx.restore();
     }
 
@@ -449,6 +470,28 @@
       return null;
     }
 
+    hitTestGuide(pointMm, guides, threshold) {
+      const pointView = this.mmToViewport(pointMm);
+      const tolerance = Number(threshold || 8);
+      for (let i = (guides || []).length - 1; i >= 0; i -= 1) {
+        const guide = guides[i];
+        if (!guide || guide.visible === false) continue;
+        const value = guideValue(guide);
+        if (guide.orientation === "vertical") {
+          const x = this.mmToViewport({ x_mm: value, y_mm: 0 }).x;
+          if (Math.abs(pointView.x - x) <= tolerance) {
+            return { id: guide.id, action: "move-guide", orientation: "vertical" };
+          }
+        } else {
+          const y = this.mmToViewport({ x_mm: 0, y_mm: value }).y;
+          if (Math.abs(pointView.y - y) <= tolerance) {
+            return { id: guide.id, action: "move-guide", orientation: "horizontal" };
+          }
+        }
+      }
+      return null;
+    }
+
     hitTestHandle(pointView, item) {
       if (item.tipo !== "rectangulo") return null;
       const handles = this.rectangleHandles(item);
@@ -537,6 +580,12 @@
 
   function round(value) {
     return Math.round(Number(value || 0) * 1000) / 1000;
+  }
+
+  function guideValue(guide) {
+    if (!guide) return 0;
+    if (guide.position_mm !== undefined && guide.position_mm !== null) return round(guide.position_mm);
+    return round(guide.value_mm);
   }
 
   window.PdfMedidorPro.Viewer = Viewer;

@@ -57,7 +57,9 @@
   function snapshot(state) {
     return {
       measurements: clone(state && state.measurements ? state.measurements : []),
+      guides: clone(state && state.guides ? state.guides : []),
       selectedMeasurementId: state && state.selectedMeasurementId ? state.selectedMeasurementId : null,
+      selectedGuideId: state && state.selectedGuideId ? state.selectedGuideId : null,
       finalMeasurementId: state && state.finalMeasurementId ? state.finalMeasurementId : null,
       finalOrigin: state && state.finalOrigin ? state.finalOrigin : "auto",
       finalConfidence: state && state.finalConfidence ? state.finalConfidence : "media",

@@ -20,6 +20,7 @@
     measurements: [],
     guides: [],
     selectedMeasurementId: null,
+    selectedGuideId: null,
     finalMeasurementId: null,
     calibration: { activa: false, factor_escala: 1 },
     finalOrigin: "auto",
@@ -36,6 +37,7 @@
     },
     drawing: null,
     editing: null,
+    guideEditing: null,
   };
 
   let viewer = null;
@@ -206,6 +208,7 @@
       state.measurements = [];
       state.guides = [];
       state.selectedMeasurementId = null;
+      state.selectedGuideId = null;
       state.finalMeasurementId = null;
       state.calibration = { activa: false, factor_escala: 1 };
       state.finalOrigin = "auto";
@@ -232,8 +235,9 @@
     const point = snappedPoint(event);
     if (state.mode === "select") {
       const hit = viewer.hitTest(point, state.measurements);
-      state.selectedMeasurementId = hit ? hit.id : null;
       if (hit) {
+        state.selectedMeasurementId = hit.id;
+        state.selectedGuideId = null;
         state.editing = {
           action: hit.action,
           handle: hit.handle,
@@ -241,13 +245,41 @@
           object: clone(currentSelected()),
           historyCaptured: false,
         };
+      } else {
+        const guideHit = viewer.hitTestGuide(point, state.guides, 8);
+        state.selectedGuideId = guideHit ? guideHit.id : null;
+        state.selectedMeasurementId = null;
+        if (guideHit) {
+          state.guideEditing = {
+            start: point,
+            guide: clone(currentSelectedGuide()),
+            historyCaptured: false,
+          };
+        }
       }
       renderAll();
       return;
     }
     if (state.mode === "guides") {
-      state.guides.push(ns.guides.createGuide(event.shiftKey ? "horizontal" : "vertical", event.shiftKey ? point.y_mm : point.x_mm));
-      setStatus("Guia creada.");
+      const guideHit = viewer.hitTestGuide(point, state.guides, 8);
+      if (guideHit) {
+        state.selectedGuideId = guideHit.id;
+        state.selectedMeasurementId = null;
+        state.guideEditing = {
+          start: point,
+          guide: clone(currentSelectedGuide()),
+          historyCaptured: false,
+        };
+        setStatus("Guia seleccionada.");
+      } else {
+        const orientation = event.shiftKey ? "horizontal" : "vertical";
+        captureUndo();
+        const guide = ns.guides.createGuide(orientation, clampGuidePosition(orientation, event.shiftKey ? point.y_mm : point.x_mm));
+        state.guides.push(guide);
+        state.selectedGuideId = guide.id;
+        state.selectedMeasurementId = null;
+        setStatus("Guia creada.");
+      }
       renderAll();
       return;
     }
@@ -290,6 +322,20 @@
       renderAll();
       return;
     }
+    if (state.guideEditing) {
+      const original = state.guideEditing.guide;
+      if (!original) return;
+      if (!state.guideEditing.historyCaptured) {
+        captureUndo();
+        state.guideEditing.historyCaptured = true;
+      }
+      const position = original.orientation === "vertical"
+        ? clampGuidePosition("vertical", state.pointerMm.x_mm)
+        : clampGuidePosition("horizontal", state.pointerMm.y_mm);
+      replaceGuide(ns.guides.moveGuide(original, position));
+      renderAll();
+      return;
+    }
     renderCanvas();
   }
 
@@ -316,6 +362,11 @@
       renderAll();
       return;
     }
+    if (state.guideEditing) {
+      state.guideEditing = null;
+      renderAll();
+      return;
+    }
     if (!state.drawing) return;
     const drawing = state.drawing;
     state.drawing = null;
@@ -333,12 +384,14 @@
       captureUndo();
       state.measurements.push(line);
       state.selectedMeasurementId = line.id;
+      state.selectedGuideId = null;
       if (state.mode === "calibrate") refs.calibrationReal.focus();
     } else {
       const rect = model.createRectangle(drawing.start, drawing.current, patch);
       captureUndo();
       state.measurements.push(rect);
       state.selectedMeasurementId = rect.id;
+      state.selectedGuideId = null;
       state.finalMeasurementId = rect.id;
       state.finalOrigin = "manual";
       state.finalConfidence = "alta";
@@ -402,6 +455,7 @@
     state.mode = ["select", "line", "rectangle", "hand", "calibrate", "guides"].includes(mode) ? mode : "select";
     state.drawing = null;
     state.editing = null;
+    state.guideEditing = null;
     document.querySelectorAll("[data-pmp-tool]").forEach((button) => {
       button.classList.toggle("is-active", button.dataset.pmpTool === state.mode);
     });
@@ -435,12 +489,14 @@
   }
 
   function clearMeasurements() {
-    if (state.measurements.length || state.finalMeasurementId) captureUndo();
+    if (state.measurements.length || state.guides.length || state.finalMeasurementId) captureUndo();
     state.drawing = null;
     state.editing = null;
+    state.guideEditing = null;
     state.measurements = [];
     state.guides = [];
     state.selectedMeasurementId = null;
+    state.selectedGuideId = null;
     state.finalMeasurementId = null;
     state.calibration = { activa: false, factor_escala: 1 };
     state.finalOrigin = "auto";
@@ -526,6 +582,7 @@
   function renderInspectorPanel() {
     ns.renderInspector(refs.inspector, {
       selected: currentSelected(),
+      selectedGuide: currentSelectedGuide(),
       archivo: state.archivo,
       page: state.pagina,
       pageCount: state.pageCount,
@@ -545,6 +602,7 @@
       resize: (width, height) => updateSelected((item) => resizeSelectedDimensions(item, width, height)),
       useFinal: () => useFinal(state.selectedMeasurementId),
       duplicate: duplicateSelected,
+      guideVisible: (visible) => updateSelectedGuide((guide) => Object.assign({}, guide, { visible: Boolean(visible) })),
     });
   }
 
@@ -559,6 +617,7 @@
     ns.bindHistory(refs.history, {
       select: (id) => {
         state.selectedMeasurementId = id;
+        state.selectedGuideId = null;
         renderAll();
       },
       delete: deleteMeasurement,
@@ -604,7 +663,7 @@
     viewer.syncCanvas();
     viewer.clear();
     if (hasPdf()) {
-      if (state.showGuides) viewer.drawGuides(state.guides);
+      if (state.showGuides) viewer.drawGuides(state.guides, state.selectedGuideId);
       viewer.drawCenter();
     }
     state.measurements.forEach((item) => {
@@ -711,7 +770,11 @@
   function addGuide(orientation) {
     if (!hasPdf()) return;
     const value = orientation === "vertical" ? Number(state.renderMm.ancho || 0) / 2 : Number(state.renderMm.alto || 0) / 2;
-    state.guides.push(ns.guides.createGuide(orientation, value));
+    captureUndo();
+    const guide = ns.guides.createGuide(orientation, value);
+    state.guides.push(guide);
+    state.selectedGuideId = guide.id;
+    state.selectedMeasurementId = null;
     renderAll();
   }
 
@@ -722,7 +785,7 @@
     }
     localStorage.setItem(localStateKey(), JSON.stringify({
       measurements: state.measurements,
-      guides: state.guides,
+      guides: ns.guides.normalizeGuides(state.guides),
       finalMeasurementId: state.finalMeasurementId,
       calibration: state.calibration,
       finalOrigin: state.finalOrigin,
@@ -738,7 +801,7 @@
     try {
       const saved = JSON.parse(raw);
       state.measurements = Array.isArray(saved.measurements) ? saved.measurements : [];
-      state.guides = Array.isArray(saved.guides) ? saved.guides : [];
+      state.guides = ns.guides.normalizeGuides(Array.isArray(saved.guides) ? saved.guides : []);
       state.finalMeasurementId = saved.finalMeasurementId || null;
       state.calibration = saved.calibration || { activa: false, factor_escala: 1 };
       state.finalOrigin = saved.finalOrigin || "manual";
@@ -769,6 +832,7 @@
     state.finalOrigin = "manual";
     state.finalConfidence = "alta";
     state.selectedMeasurementId = id;
+    state.selectedGuideId = null;
     renderAll();
   }
 
@@ -779,12 +843,25 @@
     const duplicated = model.duplicateObject(selected);
     state.measurements.push(duplicated);
     state.selectedMeasurementId = duplicated.id;
+    state.selectedGuideId = null;
     renderAll();
   }
 
   function deleteSelected() {
+    if (state.selectedGuideId) {
+      deleteGuide(state.selectedGuideId);
+      return;
+    }
     if (!state.selectedMeasurementId) return;
     deleteMeasurement(state.selectedMeasurementId);
+  }
+
+  function deleteGuide(id) {
+    if (!state.guides.some((guide) => guide.id === id)) return;
+    captureUndo();
+    state.guides = ns.guides.deleteGuide(state.guides, id);
+    if (state.selectedGuideId === id) state.selectedGuideId = null;
+    renderAll();
   }
 
   function deleteMeasurement(id) {
@@ -806,6 +883,18 @@
   function replaceMeasurement(item, options) {
     if (options && options.record) captureUndo();
     state.measurements = model.replaceObject(state.measurements, item);
+    renderAll();
+  }
+
+  function updateSelectedGuide(updater) {
+    const selected = currentSelectedGuide();
+    if (!selected) return;
+    captureUndo();
+    replaceGuide(updater(selected));
+  }
+
+  function replaceGuide(guide) {
+    state.guides = ns.guides.replaceGuide(state.guides, guide);
     renderAll();
   }
 
@@ -831,6 +920,17 @@
       ArrowRight: { dx: 1, dy: 0 },
     };
     const direction = directions[event.key];
+    const guide = currentSelectedGuide();
+    if (direction && guide) {
+      const step = event.ctrlKey ? 0.01 : event.shiftKey ? 1 : 0.1;
+      const delta = guide.orientation === "vertical" ? direction.dx * step : direction.dy * step;
+      if (delta === 0) return false;
+      event.preventDefault();
+      captureUndo();
+      replaceGuide(ns.guides.moveGuide(guide, clampGuidePosition(guide.orientation, ns.guides.guidePosition(guide) + delta)));
+      setStatus(`Nudge guia ${fmt(step)} mm.`);
+      return true;
+    }
     const selected = currentSelected();
     if (!direction || !selected) return false;
     event.preventDefault();
@@ -870,12 +970,15 @@
 
   function applyUndoSnapshot(snapshot) {
     state.measurements = clone(snapshot.measurements || []);
+    state.guides = ns.guides.normalizeGuides(snapshot.guides || []);
     state.selectedMeasurementId = snapshot.selectedMeasurementId || null;
+    state.selectedGuideId = snapshot.selectedGuideId || null;
     state.finalMeasurementId = snapshot.finalMeasurementId || null;
     state.finalOrigin = snapshot.finalOrigin || "auto";
     state.finalConfidence = snapshot.finalConfidence || "media";
     state.drawing = null;
     state.editing = null;
+    state.guideEditing = null;
     renderAll();
   }
 
@@ -895,6 +998,15 @@
 
   function currentSelected() {
     return state.measurements.find((item) => item.id === state.selectedMeasurementId);
+  }
+
+  function currentSelectedGuide() {
+    return state.guides.find((guide) => guide.id === state.selectedGuideId) || null;
+  }
+
+  function clampGuidePosition(orientation, value) {
+    const max = orientation === "vertical" ? Number(state.renderMm.ancho || 0) : Number(state.renderMm.alto || 0);
+    return model.round(clamp(Number(value || 0), 0, max));
   }
 
   function hasPdf() {

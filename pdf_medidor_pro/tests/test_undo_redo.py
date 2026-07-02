@@ -79,3 +79,22 @@ console.log(JSON.stringify({undo: history.undo(current), redo: history.redo(curr
     assert result["undo"]["measurements"][0]["id"] == "m1"
     assert result["redo"]["measurements"][0]["id"] == "m1"
     assert result["sizes"] == {"undo": 0, "redo": 0}
+
+
+def test_guides_are_reversible_internal_state():
+    result = run_node(
+        """
+const history = undoRedo.createHistory(50);
+const empty = {measurements: [], guides: [], selectedGuideId: null};
+const withGuide = {measurements: [], guides: [{id: "g1", type: "guide", orientation: "vertical", position_mm: 12}], selectedGuideId: "g1"};
+history.capture(empty);
+const undone = history.undo(withGuide);
+const redone = history.redo(undone);
+console.log(JSON.stringify({undone, redone}));
+"""
+    )
+
+    assert result["undone"]["guides"] == []
+    assert result["undone"]["selectedGuideId"] is None
+    assert result["redone"]["guides"][0]["id"] == "g1"
+    assert result["redone"]["selectedGuideId"] == "g1"

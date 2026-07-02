@@ -5,8 +5,13 @@
 
   function renderInspector(container, context) {
     const selected = context.selected;
+    const selectedGuide = context.selectedGuide;
     const fmt = context.fmt;
     if (!container) return;
+    if (selectedGuide) {
+      container.innerHTML = renderGuideInfo(selectedGuide, fmt);
+      return;
+    }
     if (!selected) {
       container.innerHTML = renderPdfInfo(context, fmt);
       return;
@@ -43,6 +48,7 @@
     const height = container.querySelector("#pmp-inspector-height");
     const final = container.querySelector("#pmp-inspector-final");
     const duplicate = container.querySelector("#pmp-inspector-duplicate");
+    const guideVisible = container.querySelector("#pmp-inspector-guide-visible");
     if (name) name.addEventListener("change", () => handlers.rename(name.value));
     if (color) color.addEventListener("input", () => handlers.color(color.value));
     if (visible) visible.addEventListener("change", () => handlers.visible(visible.checked));
@@ -50,6 +56,22 @@
     if (height) height.addEventListener("change", () => handlers.resize(null, Number(height.value)));
     if (final) final.addEventListener("click", handlers.useFinal);
     if (duplicate) duplicate.addEventListener("click", handlers.duplicate);
+    if (guideVisible && handlers.guideVisible) guideVisible.addEventListener("change", () => handlers.guideVisible(guideVisible.checked));
+  }
+
+  function renderGuideInfo(guide, fmt) {
+    const orientation = guide.orientation === "horizontal" ? "horizontal" : "vertical";
+    const axis = orientation === "vertical" ? "X" : "Y";
+    const position = guide.position_mm !== undefined && guide.position_mm !== null ? guide.position_mm : guide.value_mm;
+    return [
+      '<div class="pmp-inspector-grid">',
+      field("Tipo", orientation === "vertical" ? "Guia vertical" : "Guia horizontal", true),
+      field("Orientacion", orientation, true),
+      field(axis, `${fmt(position)} mm`, true),
+      checkbox("Visible", "pmp-inspector-guide-visible", guide.visible !== false),
+      field("Bloqueada", guide.locked ? "Si" : "No", true),
+      "</div>",
+    ].join("");
   }
 
   function renderPdfInfo(context, fmt) {
