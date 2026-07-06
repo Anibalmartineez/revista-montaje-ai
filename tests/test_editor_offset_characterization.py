@@ -7,6 +7,7 @@ from copy import deepcopy
 from pathlib import Path
 
 import pytest
+from PIL import Image
 from reportlab.lib.units import mm
 from reportlab.pdfgen import canvas
 
@@ -59,6 +60,13 @@ def _pdf_bytes(width_mm=40, height_mm=20):
     c.save()
     buffer.seek(0)
     return buffer
+
+
+def _solid_pdf(path, width_mm=10, height_mm=10, gray=0):
+    c = canvas.Canvas(str(path), pagesize=(width_mm * mm, height_mm * mm))
+    c.setFillGray(gray / 255.0)
+    c.rect(0, 0, width_mm * mm, height_mm * mm, stroke=0, fill=1)
+    c.save()
 
 
 def _repeat_layout(*, face="front"):
@@ -118,6 +126,33 @@ def test_editor_offset_save_persists_constructor_defaults(client, editor_app):
     assert stored["allowed_engines"] == ["repeat", "nesting", "hybrid"]
     assert stored["export_settings"]["crop_marks"] is True
     assert stored["export_settings"]["output_mode"] == "raster"
+
+
+def test_preview_png_keeps_bottom_left_slot_y_semantics(work_dir):
+    bottom_pdf = work_dir / "bottom.pdf"
+    top_pdf = work_dir / "top.pdf"
+    preview_path = work_dir / "preview.png"
+    _solid_pdf(bottom_pdf, gray=0)
+    _solid_pdf(top_pdf, gray=160)
+
+    montaje_offset_inteligente.generar_preview_pliego(
+        disenos=[(str(bottom_pdf), 1), (str(top_pdf), 1)],
+        positions=[
+            {"file_idx": 0, "x_mm": 10, "y_mm": 10, "w_mm": 10, "h_mm": 10, "rot_deg": 0},
+            {"file_idx": 1, "x_mm": 10, "y_mm": 70, "w_mm": 10, "h_mm": 10, "rot_deg": 0},
+        ],
+        hoja_ancho_mm=100,
+        hoja_alto_mm=100,
+        preview_path=str(preview_path),
+    )
+
+    dpi = montaje_offset_inteligente.PREVIEW_DPI
+    with Image.open(preview_path) as preview:
+        x = montaje_offset_inteligente.mm_to_px(15, dpi)
+        top_visual_y = montaje_offset_inteligente.mm_to_px(25, dpi)
+        bottom_visual_y = montaje_offset_inteligente.mm_to_px(85, dpi)
+        assert preview.getpixel((x, top_visual_y)) == pytest.approx(160, abs=8)
+        assert preview.getpixel((x, bottom_visual_y)) == pytest.approx(0, abs=8)
 
 
 def test_editor_offset_upload_appends_design_from_work_contract(client, editor_app):

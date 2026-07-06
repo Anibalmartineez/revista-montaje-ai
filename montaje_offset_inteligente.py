@@ -133,7 +133,7 @@ def generar_preview_pliego(disenos, positions, hoja_ancho_mm, hoja_alto_mm, prev
                 scaled = scaled.rotate(-rot, resample=Image.BILINEAR, expand=False)
 
         x_px = mm_to_px(pos["x_mm"], dpi)
-        y_px = mm_to_px(pos["y_mm"], dpi)
+        y_px = H - mm_to_px(pos["y_mm"], dpi) - scaled.height
         canvas_img.paste(scaled, (x_px, y_px))
         del scaled
 
