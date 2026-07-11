@@ -114,6 +114,14 @@ def _matches_box(w_mm: float, h_mm: float, expected_w: float, expected_h: float)
     return _close_mm(w_mm, expected_w) and _close_mm(h_mm, expected_h)
 
 
+def _repeat_expected_boxes(design_w: float, design_h: float, bleed_mm: float, rot: int) -> tuple[tuple[float, float], tuple[float, float]]:
+    final_w = design_w + 2 * float(bleed_mm)
+    final_h = design_h + 2 * float(bleed_mm)
+    if rot in (90, 270):
+        return (design_h, design_w), (final_h, final_w)
+    return (design_w, design_h), (final_w, final_h)
+
+
 def _resolve_slot_box_final(
     slot: dict,
     design: dict | None,
@@ -126,22 +134,25 @@ def _resolve_slot_box_final(
         return False
 
     rot = _normalize_rotation(slot.get("rotation_deg", slot.get("rot_deg", 0)))
-    if rot not in (90, 270):
-        return True
-
     design_size = _design_trim_size(design)
     if design_size is None:
         return True
 
     design_w, design_h = design_size
-    final_w = design_w + 2 * float(bleed_mm)
-    final_h = design_h + 2 * float(bleed_mm)
     slot_w = float(slot.get("w_mm", 0) or 0)
     slot_h = float(slot.get("h_mm", 0) or 0)
+    trim_box, final_box = _repeat_expected_boxes(design_w, design_h, bleed_mm, rot)
 
-    if _matches_box(slot_w, slot_h, final_h, final_w):
+    if float(bleed_mm) > 0 and _matches_box(slot_w, slot_h, *trim_box):
+        return False
+
+    if _matches_box(slot_w, slot_h, *final_box):
         return True
-    if _matches_box(slot_w, slot_h, final_w, final_h):
+
+    # Legacy manual-rotation layouts can store an unrotated expanded box while
+    # carrying rotation on the slot. Keep the recentering path for those jobs.
+    legacy_unrotated_final = (design_w + 2 * float(bleed_mm), design_h + 2 * float(bleed_mm))
+    if rot in (90, 270) and _matches_box(slot_w, slot_h, *legacy_unrotated_final):
         return False
     return True
 
