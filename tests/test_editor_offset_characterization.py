@@ -8,6 +8,7 @@ from pathlib import Path
 
 import pytest
 from PIL import Image
+from PyPDF2 import PdfReader, PdfWriter
 from reportlab.lib.units import mm
 from reportlab.pdfgen import canvas
 
@@ -60,6 +61,33 @@ def _pdf_bytes(width_mm=40, height_mm=20):
     c.save()
     buffer.seek(0)
     return buffer
+
+
+def _pdf_bytes_with_page_boxes(
+    *, media_size=(80, 40), trim_size=(50, 30), bleed_size=(54, 34)
+):
+    buffer = _pdf_bytes(width_mm=media_size[0], height_mm=media_size[1])
+    reader = PdfReader(buffer)
+    page = reader.pages[0]
+    media_w, media_h = media_size
+    trim_w, trim_h = trim_size
+    bleed_w, bleed_h = bleed_size
+    trim_left = (media_w - trim_w) / 2
+    trim_bottom = (media_h - trim_h) / 2
+    bleed_left = (media_w - bleed_w) / 2
+    bleed_bottom = (media_h - bleed_h) / 2
+
+    page.trimbox.lower_left = (trim_left * mm, trim_bottom * mm)
+    page.trimbox.upper_right = ((trim_left + trim_w) * mm, (trim_bottom + trim_h) * mm)
+    page.bleedbox.lower_left = (bleed_left * mm, bleed_bottom * mm)
+    page.bleedbox.upper_right = ((bleed_left + bleed_w) * mm, (bleed_bottom + bleed_h) * mm)
+
+    writer = PdfWriter()
+    writer.add_page(page)
+    out = io.BytesIO()
+    writer.write(out)
+    out.seek(0)
+    return out
 
 
 def _solid_pdf(path, width_mm=10, height_mm=10, gray=0):
@@ -155,7 +183,9 @@ def test_preview_png_keeps_bottom_left_slot_y_semantics(work_dir):
         assert preview.getpixel((x, bottom_visual_y)) == pytest.approx(0, abs=8)
 
 
-def test_editor_offset_upload_appends_design_from_work_contract(client, editor_app):
+def test_editor_offset_upload_current_behavior_expands_work_final_size_without_bleed(
+    client, editor_app
+):
     job_id = "charupload"
     initial_layout = {
         "sheet_mm": [300, 400],
@@ -198,6 +228,43 @@ def test_editor_offset_upload_appends_design_from_work_contract(client, editor_a
     assert design["width_mm"] == pytest.approx(54)
     assert design["height_mm"] == pytest.approx(34)
     assert design["bleed_mm"] == pytest.approx(2)
+
+
+def test_editor_offset_upload_characterizes_current_behavior_uses_pdf_mediabox(
+    client, editor_app
+):
+    job_id = "charboxes"
+    initial_layout = {
+        "sheet_mm": [300, 400],
+        "margins_mm": [10, 10, 10, 10],
+        "bleed_default_mm": 0,
+        "works": [],
+        "designs": [],
+        "slots": [],
+    }
+    with editor_app.app_context():
+        _save_constructor_layout(_constructor_job_dir(job_id), deepcopy(initial_layout))
+
+    response = client.post(
+        f"/editor_offset/upload/{job_id}",
+        data={
+            "files": (
+                _pdf_bytes_with_page_boxes(
+                    media_size=(80, 40),
+                    trim_size=(50, 30),
+                    bleed_size=(54, 34),
+                ),
+                "cajas.pdf",
+            ),
+        },
+        content_type="multipart/form-data",
+    )
+
+    assert response.status_code == 200
+    design = response.get_json()["designs"][0]
+    assert design["width_mm"] == pytest.approx(80)
+    assert design["height_mm"] == pytest.approx(40)
+    assert design["bleed_mm"] == pytest.approx(0)
 
 
 def test_apply_imposition_endpoint_generates_and_persists_repeat_slots(client, editor_app):
@@ -512,6 +579,79 @@ def test_repeat_auto_rotated_slot_keeps_final_footprint_semantics(work_dir):
     assert pos["h_mm"] == pytest.approx(70)
     assert pos["source_w_mm"] == pytest.approx(70)
     assert pos["source_h_mm"] == pytest.approx(20)
+
+
+def test_output_service_characterizes_current_behavior_with_expanded_design_size(
+    work_dir,
+):
+    job_dir = work_dir / "job_expanded_design_bleed"
+    job_dir.mkdir()
+    pdf_path = job_dir / "pieza.pdf"
+    pdf_path.write_bytes(_pdf_bytes(width_mm=54, height_mm=34).getvalue())
+    captured = []
+
+    def fake_render(_disenos, config):
+        captured.append(config)
+        out = Path(config.output_path)
+        out.parent.mkdir(parents=True, exist_ok=True)
+        out.write_bytes(b"%PDF-1.4\n%%EOF\n")
+        return str(out)
+
+    layout = {
+        "sheet_mm": [200, 160],
+        "margins_mm": [10, 10, 10, 10],
+        "bleed_default_mm": 2,
+        "gap_default_mm": 5,
+        "designs": [
+            {
+                "ref": "file0",
+                "filename": "pieza.pdf",
+                "width_mm": 54,
+                "height_mm": 34,
+                "bleed_mm": 2,
+                "forms_per_plate": 1,
+            }
+        ],
+        "works": [],
+        "faces": ["front"],
+        "active_face": "front",
+        "imposition_engine": "repeat",
+        "export_settings": {"bleed_mm": 2, "crop_marks": True, "output_mode": "raster"},
+        "design_export": {},
+        "slots": [
+            {
+                "id": "sr_0",
+                "design_ref": "file0",
+                "x_mm": 10,
+                "y_mm": 20,
+                "w_mm": 58,
+                "h_mm": 38,
+                "bleed_mm": 2,
+                "rotation_deg": 0,
+                "face": "front",
+                "crop_marks": True,
+            }
+        ],
+    }
+
+    montar_constructor_layout(
+        layout,
+        str(job_dir),
+        preview=False,
+        diseno_cls=montaje_offset_inteligente.Diseno,
+        config_cls=montaje_offset_inteligente.MontajeConfig,
+        render_fn=fake_render,
+    )
+
+    posiciones = captured[0].posiciones_manual
+    assert len(posiciones) == 1
+    pos = posiciones[0]
+    assert pos["w_mm"] == pytest.approx(58)
+    assert pos["h_mm"] == pytest.approx(38)
+    assert pos["bleed_mm"] == pytest.approx(2)
+    assert pos["slot_box_final"] is True
+    assert pos["source_w_mm"] == pytest.approx(54)
+    assert pos["source_h_mm"] == pytest.approx(34)
 
 
 def test_explicit_slot_box_final_is_respected_for_repeat_slots(work_dir):

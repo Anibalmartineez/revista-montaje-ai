@@ -133,6 +133,34 @@ def test_repeat_respects_explicit_zero_bleed():
     assert {(slot["w_mm"], slot["h_mm"]) for slot in slots} == {(30.0, 20.0)}
 
 
+def test_repeat_current_behavior_expands_trim_design_size_by_bleed():
+    layout = _layout(
+        _design("trim", width=50, height=30, forms=1, bleed=2),
+        spacing=(2, 2),
+    )
+
+    slots = _build_step_repeat_slots(layout)
+
+    assert len(slots) == 1
+    assert slots[0]["w_mm"] == pytest.approx(54)
+    assert slots[0]["h_mm"] == pytest.approx(34)
+    assert slots[0]["bleed_mm"] == pytest.approx(2)
+
+
+def test_repeat_characterizes_current_behavior_double_counts_bleed_for_expanded_design_size():
+    layout = _layout(
+        _design("expanded", width=54, height=34, forms=1, bleed=2),
+        spacing=(2, 2),
+    )
+
+    slots = _build_step_repeat_slots(layout)
+
+    assert len(slots) == 1
+    assert slots[0]["w_mm"] == pytest.approx(58)
+    assert slots[0]["h_mm"] == pytest.approx(38)
+    assert slots[0]["bleed_mm"] == pytest.approx(2)
+
+
 def test_repeat_uses_spacing_settings_between_slots():
     layout = _layout(_design("spaced", width=20, height=10, forms=2, bleed=0), spacing=(7, 11))
 
