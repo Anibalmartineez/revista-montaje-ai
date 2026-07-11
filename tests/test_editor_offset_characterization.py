@@ -654,6 +654,135 @@ def test_output_service_characterizes_current_behavior_with_expanded_design_size
     assert pos["source_h_mm"] == pytest.approx(34)
 
 
+def test_output_service_repeat_prefers_slot_bleed_over_export_default(work_dir):
+    job_dir = work_dir / "job_repeat_slot_bleed"
+    job_dir.mkdir()
+    pdf_path = job_dir / "pieza.pdf"
+    pdf_path.write_bytes(_pdf_bytes(width_mm=50, height_mm=30).getvalue())
+    captured = []
+
+    def fake_render(_disenos, config):
+        captured.append(config)
+        out = Path(config.output_path)
+        out.parent.mkdir(parents=True, exist_ok=True)
+        out.write_bytes(b"%PDF-1.4\n%%EOF\n")
+        return str(out)
+
+    layout = {
+        "sheet_mm": [200, 160],
+        "margins_mm": [10, 10, 10, 10],
+        "bleed_default_mm": 3,
+        "gap_default_mm": 5,
+        "designs": [
+            {
+                "ref": "file0",
+                "filename": "pieza.pdf",
+                "width_mm": 50,
+                "height_mm": 30,
+                "bleed_mm": 1,
+                "forms_per_plate": 1,
+            }
+        ],
+        "works": [],
+        "faces": ["front"],
+        "active_face": "front",
+        "imposition_engine": "repeat",
+        "export_settings": {"bleed_mm": 3, "crop_marks": True, "output_mode": "raster"},
+        "design_export": {},
+        "slots": [
+            {
+                "id": "sr_0",
+                "design_ref": "file0",
+                "x_mm": 10,
+                "y_mm": 20,
+                "w_mm": 50,
+                "h_mm": 30,
+                "bleed_mm": 1,
+                "rotation_deg": 0,
+                "face": "front",
+                "crop_marks": True,
+            }
+        ],
+    }
+
+    montar_constructor_layout(
+        layout,
+        str(job_dir),
+        preview=False,
+        diseno_cls=montaje_offset_inteligente.Diseno,
+        config_cls=montaje_offset_inteligente.MontajeConfig,
+        render_fn=fake_render,
+    )
+
+    pos = captured[0].posiciones_manual[0]
+    assert pos["bleed_mm"] == pytest.approx(1)
+
+
+def test_output_service_repeat_keeps_explicit_slot_bleed_override(work_dir):
+    job_dir = work_dir / "job_repeat_slot_bleed_override"
+    job_dir.mkdir()
+    pdf_path = job_dir / "pieza.pdf"
+    pdf_path.write_bytes(_pdf_bytes(width_mm=50, height_mm=30).getvalue())
+    captured = []
+
+    def fake_render(_disenos, config):
+        captured.append(config)
+        out = Path(config.output_path)
+        out.parent.mkdir(parents=True, exist_ok=True)
+        out.write_bytes(b"%PDF-1.4\n%%EOF\n")
+        return str(out)
+
+    layout = {
+        "sheet_mm": [200, 160],
+        "margins_mm": [10, 10, 10, 10],
+        "bleed_default_mm": 3,
+        "gap_default_mm": 5,
+        "designs": [
+            {
+                "ref": "file0",
+                "filename": "pieza.pdf",
+                "width_mm": 50,
+                "height_mm": 30,
+                "bleed_mm": 3,
+                "forms_per_plate": 1,
+            }
+        ],
+        "works": [],
+        "faces": ["front"],
+        "active_face": "front",
+        "imposition_engine": "repeat",
+        "export_settings": {"bleed_mm": 3, "crop_marks": True, "output_mode": "raster"},
+        "design_export": {"file0": {"bleed_mm": 2}},
+        "slots": [
+            {
+                "id": "sr_0",
+                "design_ref": "file0",
+                "x_mm": 10,
+                "y_mm": 20,
+                "w_mm": 50,
+                "h_mm": 30,
+                "bleed_mm": 1,
+                "export_overrides": {"bleed_mm": True},
+                "rotation_deg": 0,
+                "face": "front",
+                "crop_marks": True,
+            }
+        ],
+    }
+
+    montar_constructor_layout(
+        layout,
+        str(job_dir),
+        preview=False,
+        diseno_cls=montaje_offset_inteligente.Diseno,
+        config_cls=montaje_offset_inteligente.MontajeConfig,
+        render_fn=fake_render,
+    )
+
+    pos = captured[0].posiciones_manual[0]
+    assert pos["bleed_mm"] == pytest.approx(1)
+
+
 def test_explicit_slot_box_final_is_respected_for_repeat_slots(work_dir):
     job_dir = work_dir / "job_explicit_slot_box"
     job_dir.mkdir()

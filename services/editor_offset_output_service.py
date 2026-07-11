@@ -26,6 +26,9 @@ def _sanitize_slot_bleed(
     if _slot_has_export_override(slot, "bleed_mm"):
         bleed_val = slot.get("bleed_mm")
 
+    if bleed_val is None and prefer_slot and slot.get("bleed_mm") is not None:
+        bleed_val = slot.get("bleed_mm")
+
     if bleed_val is None and design_ref is not None:
         design_overrides = (design_export or {}).get(str(design_ref))
         if isinstance(design_overrides, dict):
