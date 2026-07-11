@@ -183,7 +183,7 @@ def test_preview_png_keeps_bottom_left_slot_y_semantics(work_dir):
         assert preview.getpixel((x, bottom_visual_y)) == pytest.approx(0, abs=8)
 
 
-def test_editor_offset_upload_current_behavior_expands_work_final_size_without_bleed(
+def test_editor_offset_upload_persists_work_final_size_as_trim_without_bleed(
     client, editor_app
 ):
     job_id = "charupload"
@@ -225,8 +225,8 @@ def test_editor_offset_upload_current_behavior_expands_work_final_size_without_b
     assert design["work_id"] == "work0"
     assert design["forms_per_plate"] == 4
     assert design["allow_rotation"] is False
-    assert design["width_mm"] == pytest.approx(54)
-    assert design["height_mm"] == pytest.approx(34)
+    assert design["width_mm"] == pytest.approx(50)
+    assert design["height_mm"] == pytest.approx(30)
     assert design["bleed_mm"] == pytest.approx(2)
 
 

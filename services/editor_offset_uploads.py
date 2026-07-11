@@ -73,9 +73,6 @@ def append_uploaded_designs(
                 if len(final_size) == 2:
                     width_mm = first_numeric(final_size[0], width_mm, default=0.0)
                     height_mm = first_numeric(final_size[1], height_mm, default=0.0)
-                    if not related_work.get("has_bleed"):
-                        width_mm += 2 * bleed_mm
-                        height_mm += 2 * bleed_mm
         designs.append(
             {
                 "ref": new_ref,
