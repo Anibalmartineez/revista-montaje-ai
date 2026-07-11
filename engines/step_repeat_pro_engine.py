@@ -29,7 +29,19 @@ def design_dimensions(design: Dict, layout: Dict) -> tuple[float, float, float]:
     bleed = first_numeric(design.get("bleed_mm"), layout.get("bleed_default_mm"), default=0.0)
     width = first_numeric(design.get("width_mm"), default=0.0)
     height = first_numeric(design.get("height_mm"), default=0.0)
-    return width + 2 * bleed, height + 2 * bleed, bleed
+    return width, height, bleed
+
+
+def productive_size(width: float, height: float, bleed: float) -> tuple[float, float]:
+    bleed_pad = 2 * max(0.0, bleed)
+    return width + bleed_pad, height + bleed_pad
+
+
+def slot_productive_size(slot: Dict) -> tuple[float, float]:
+    width = first_numeric(slot.get("w_mm"), default=0.0)
+    height = first_numeric(slot.get("h_mm"), default=0.0)
+    bleed = first_numeric(slot.get("bleed_mm"), default=0.0)
+    return productive_size(width, height, bleed)
 
 
 def ordered_repeat_designs(layout: Dict) -> List[Dict]:
@@ -137,15 +149,15 @@ def get_zone_bounds(layout: Dict, zone: str) -> tuple[float, float, float, float
 def slot_overlaps_existing(candidate: Dict, existing_slots: List[Dict]) -> bool:
     x = first_numeric(candidate.get("x_mm"), default=0.0)
     y = first_numeric(candidate.get("y_mm"), default=0.0)
-    w = first_numeric(candidate.get("w_mm"), default=0.0)
-    h = first_numeric(candidate.get("h_mm"), default=0.0)
+    w, h = slot_productive_size(candidate)
     right = x + w
     top = y + h
     for slot in existing_slots:
         sx = first_numeric(slot.get("x_mm"), default=0.0)
         sy = first_numeric(slot.get("y_mm"), default=0.0)
-        sr = sx + first_numeric(slot.get("w_mm"), default=0.0)
-        st = sy + first_numeric(slot.get("h_mm"), default=0.0)
+        slot_w, slot_h = slot_productive_size(slot)
+        sr = sx + slot_w
+        st = sy + slot_h
         if x < sr and right > sx and y < st and top > sy:
             return True
     return False
@@ -249,11 +261,12 @@ def append_step_repeat_slots_in_bounds(
 
     for design in designs:
         design_ref = str(design.get("ref") or "")
-        piece_w, piece_h, bleed = design_dimensions(design, layout)
+        trim_w, trim_h, bleed = design_dimensions(design, layout)
+        piece_w, piece_h = productive_size(trim_w, trim_h, bleed)
         allow_rotation = bool(design.get("allow_rotation", True))
         forms = max(1, int(design.get("forms_per_plate") or 1))
         remaining_h = sheet_top - cursor_y
-        slot_w, slot_h, rot, cols = choose_repeat_orientation(
+        slot_total_w, slot_total_h, rot, cols = choose_repeat_orientation(
             piece_w,
             piece_h,
             forms,
@@ -263,6 +276,8 @@ def append_step_repeat_slots_in_bounds(
             gap_x,
             gap_y,
         )
+        slot_trim_w = trim_h if rot in (90, 270) else trim_w
+        slot_trim_h = trim_w if rot in (90, 270) else trim_h
         if cols <= 0:
             if placement_attempts is not None and design_ref:
                 placement_attempts[design_ref] = max(placement_attempts.get(design_ref, 0), 0)
@@ -275,10 +290,10 @@ def append_step_repeat_slots_in_bounds(
         while placed < forms:
             col = idx % cols
             row = idx // cols
-            x_mm = left + col * (slot_w + gap_x)
-            y_mm = cursor_y + row * (slot_h + gap_y)
+            x_mm = left + col * (slot_total_w + gap_x)
+            y_mm = cursor_y + row * (slot_total_h + gap_y)
 
-            if x_mm + slot_w > left + usable_w + 1e-6 or y_mm + slot_h > sheet_top + 1e-6:
+            if x_mm + slot_total_w > left + usable_w + 1e-6 or y_mm + slot_total_h > sheet_top + 1e-6:
                 if placement_attempts is not None and design_ref:
                     placement_attempts[design_ref] = max(placement_attempts.get(design_ref, 0), placed)
                 return None
@@ -288,8 +303,8 @@ def append_step_repeat_slots_in_bounds(
                 "id": f"sr_{len(slots) + len(design_slots)}",
                 "x_mm": x_mm,
                 "y_mm": y_mm,
-                "w_mm": slot_w,
-                "h_mm": slot_h,
+                "w_mm": slot_trim_w,
+                "h_mm": slot_trim_h,
                 "rotation_deg": rot,
                 "logical_work_id": design.get("work_id"),
                 "bleed_mm": bleed,
@@ -310,7 +325,7 @@ def append_step_repeat_slots_in_bounds(
         slots.extend(design_slots)
 
         if rows_used:
-            cursor_y += rows_used * slot_h + max(0, rows_used - 1) * gap_y + gap_y
+            cursor_y += rows_used * slot_total_h + max(0, rows_used - 1) * gap_y + gap_y
 
     group_end = len(slots)
     if group_end <= group_start:
@@ -402,10 +417,11 @@ def estimate_repeat_group_height(
     total_h = 0.0
     remaining_h = usable_h
     for design in designs:
-        piece_w, piece_h, _ = design_dimensions(design, layout)
+        trim_w, trim_h, bleed = design_dimensions(design, layout)
+        piece_w, piece_h = productive_size(trim_w, trim_h, bleed)
         allow_rotation = bool(design.get("allow_rotation", True))
         forms = max(1, int(design.get("forms_per_plate") or 1))
-        slot_w, slot_h, _, cols = choose_repeat_orientation(
+        slot_total_w, slot_total_h, _, cols = choose_repeat_orientation(
             piece_w,
             piece_h,
             forms,
@@ -418,7 +434,7 @@ def estimate_repeat_group_height(
         if cols <= 0:
             return None
         rows = int(math.ceil(forms / cols))
-        block_h = rows * slot_h + max(0, rows - 1) * gap_y + gap_y
+        block_h = rows * slot_total_h + max(0, rows - 1) * gap_y + gap_y
         if block_h > remaining_h + 1e-6:
             return None
         total_h += block_h
@@ -490,10 +506,11 @@ def append_fill_slots_smart(
 
     for design in designs:
         design_ref = str(design.get("ref") or "")
-        piece_w, piece_h, bleed = design_dimensions(design, layout)
+        trim_w, trim_h, bleed = design_dimensions(design, layout)
+        piece_w, piece_h = productive_size(trim_w, trim_h, bleed)
         allow_rotation = bool(design.get("allow_rotation", True))
         forms = max(1, int(design.get("forms_per_plate") or 1))
-        slot_w, slot_h, rot, _ = choose_repeat_orientation(
+        slot_total_w, slot_total_h, rot, _ = choose_repeat_orientation(
             piece_w,
             piece_h,
             forms,
@@ -503,7 +520,15 @@ def append_fill_slots_smart(
             gap_x,
             gap_y,
         )
-        candidates = candidate_positions_for_fill((left, bottom, usable_w, usable_h), slot_w, slot_h, gap_x, gap_y)
+        slot_trim_w = trim_h if rot in (90, 270) else trim_w
+        slot_trim_h = trim_w if rot in (90, 270) else trim_h
+        candidates = candidate_positions_for_fill(
+            (left, bottom, usable_w, usable_h),
+            slot_total_w,
+            slot_total_h,
+            gap_x,
+            gap_y,
+        )
         placed = 0
         design_slots: List[Dict] = []
         for x_mm, y_mm in candidates:
@@ -513,8 +538,8 @@ def append_fill_slots_smart(
                 "id": f"sr_{len(slots) + len(design_slots)}",
                 "x_mm": x_mm,
                 "y_mm": y_mm,
-                "w_mm": slot_w,
-                "h_mm": slot_h,
+                "w_mm": slot_trim_w,
+                "h_mm": slot_trim_h,
                 "rotation_deg": rot,
                 "logical_work_id": design.get("work_id"),
                 "bleed_mm": bleed,
@@ -539,8 +564,8 @@ def slot_group_bbox(slots: List[Dict], start: int, end: int) -> tuple[float, flo
         return None
     min_x = min(first_numeric(slot.get("x_mm"), default=0.0) for slot in group)
     min_y = min(first_numeric(slot.get("y_mm"), default=0.0) for slot in group)
-    max_x = max(first_numeric(slot.get("x_mm"), default=0.0) + first_numeric(slot.get("w_mm"), default=0.0) for slot in group)
-    max_y = max(first_numeric(slot.get("y_mm"), default=0.0) + first_numeric(slot.get("h_mm"), default=0.0) for slot in group)
+    max_x = max(first_numeric(slot.get("x_mm"), default=0.0) + slot_productive_size(slot)[0] for slot in group)
+    max_y = max(first_numeric(slot.get("y_mm"), default=0.0) + slot_productive_size(slot)[1] for slot in group)
     return min_x, min_y, max_x, max_y
 
 
@@ -572,8 +597,7 @@ def can_place_translated_group(
     for slot in translated_slots:
         x = first_numeric(slot.get("x_mm"), default=0.0)
         y = first_numeric(slot.get("y_mm"), default=0.0)
-        w = first_numeric(slot.get("w_mm"), default=0.0)
-        h = first_numeric(slot.get("h_mm"), default=0.0)
+        w, h = slot_productive_size(slot)
         if x < left - 1e-6 or y < bottom - 1e-6 or x + w > right + 1e-6 or y + h > top + 1e-6:
             return False
         if slot_overlaps_existing(slot, others):
@@ -643,8 +667,7 @@ def translated_groups_are_safe(
     for slot in translated_slots:
         x = first_numeric(slot.get("x_mm"), default=0.0)
         y = first_numeric(slot.get("y_mm"), default=0.0)
-        w = first_numeric(slot.get("w_mm"), default=0.0)
-        h = first_numeric(slot.get("h_mm"), default=0.0)
+        w, h = slot_productive_size(slot)
         if x < left - 1e-6 or y < bottom - 1e-6 or x + w > right + 1e-6 or y + h > top + 1e-6:
             return False
         if slot_overlaps_existing(slot, outside_slots) or slot_overlaps_existing(slot, checked):

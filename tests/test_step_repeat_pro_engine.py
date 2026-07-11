@@ -74,11 +74,15 @@ def _layout(*designs, sheet=(200, 200), margins=(10, 10, 10, 10), spacing=(4, 3)
 
 
 def _overlaps(a, b):
+    aw = a["w_mm"] + 2 * a.get("bleed_mm", 0)
+    ah = a["h_mm"] + 2 * a.get("bleed_mm", 0)
+    bw = b["w_mm"] + 2 * b.get("bleed_mm", 0)
+    bh = b["h_mm"] + 2 * b.get("bleed_mm", 0)
     return (
-        a["x_mm"] < b["x_mm"] + b["w_mm"]
-        and a["x_mm"] + a["w_mm"] > b["x_mm"]
-        and a["y_mm"] < b["y_mm"] + b["h_mm"]
-        and a["y_mm"] + a["h_mm"] > b["y_mm"]
+        a["x_mm"] < b["x_mm"] + bw
+        and a["x_mm"] + aw > b["x_mm"]
+        and a["y_mm"] < b["y_mm"] + bh
+        and a["y_mm"] + ah > b["y_mm"]
     )
 
 
@@ -133,9 +137,23 @@ def test_repeat_respects_explicit_zero_bleed():
     assert {(slot["w_mm"], slot["h_mm"]) for slot in slots} == {(30.0, 20.0)}
 
 
-def test_repeat_current_behavior_expands_trim_design_size_by_bleed():
+def test_repeat_persists_trim_design_size_and_bleed_separately():
     layout = _layout(
         _design("trim", width=50, height=30, forms=1, bleed=2),
+        spacing=(2, 2),
+    )
+
+    slots = _build_step_repeat_slots(layout)
+
+    assert len(slots) == 1
+    assert slots[0]["w_mm"] == pytest.approx(50)
+    assert slots[0]["h_mm"] == pytest.approx(30)
+    assert slots[0]["bleed_mm"] == pytest.approx(2)
+
+
+def test_repeat_avoids_double_counting_bleed_in_persisted_slot_dimensions():
+    layout = _layout(
+        _design("expanded", width=54, height=34, forms=1, bleed=2),
         spacing=(2, 2),
     )
 
@@ -147,18 +165,18 @@ def test_repeat_current_behavior_expands_trim_design_size_by_bleed():
     assert slots[0]["bleed_mm"] == pytest.approx(2)
 
 
-def test_repeat_characterizes_current_behavior_double_counts_bleed_for_expanded_design_size():
+def test_repeat_packs_with_productive_bleed_box_while_persisting_trim_size():
     layout = _layout(
-        _design("expanded", width=54, height=34, forms=1, bleed=2),
-        spacing=(2, 2),
+        _design("trim", width=50, height=30, forms=2, bleed=2),
+        spacing=(0, 0),
     )
 
-    slots = _build_step_repeat_slots(layout)
+    slots = sorted(_build_step_repeat_slots(layout), key=lambda slot: slot["x_mm"])
 
-    assert len(slots) == 1
-    assert slots[0]["w_mm"] == pytest.approx(58)
-    assert slots[0]["h_mm"] == pytest.approx(38)
-    assert slots[0]["bleed_mm"] == pytest.approx(2)
+    assert len(slots) == 2
+    assert {(slot["w_mm"], slot["h_mm"], slot["bleed_mm"]) for slot in slots} == {(50.0, 30.0, 2.0)}
+    assert slots[1]["x_mm"] - slots[0]["x_mm"] == pytest.approx(54)
+    _assert_no_collisions(slots)
 
 
 def test_repeat_uses_spacing_settings_between_slots():
