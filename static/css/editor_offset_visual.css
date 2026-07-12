@@ -580,6 +580,15 @@ body {
   transform: rotate(var(--slot-rotation-deg, 0deg));
 }
 
+.slot-bleed-overlay {
+  position: absolute;
+  box-sizing: border-box;
+  border: 1px dashed rgba(192, 38, 211, 0.9);
+  box-shadow: 0 0 0 1px rgba(192, 38, 211, 0.16);
+  pointer-events: none;
+  transform: translate(-1px, -1px);
+}
+
 .slot.locked {
   border-style: dashed;
   border-color: #6b7280;

@@ -34,6 +34,58 @@
     }
   }
 
+  function nonNegativeNumber(value) {
+    if (value === null || value === undefined || value === '' || typeof value === 'boolean') {
+      return null;
+    }
+    const parsed = Number(value);
+    return Number.isFinite(parsed) && parsed >= 0 ? parsed : null;
+  }
+
+  function resolveVisualBleedMm(layout, slot) {
+    const slotBleed = nonNegativeNumber(slot?.bleed_mm);
+    if (slotBleed !== null) return slotBleed;
+
+    const design = (layout?.designs || []).find(
+      (candidate) => String(candidate?.ref) === String(slot?.design_ref),
+    );
+    const designBleed = nonNegativeNumber(design?.bleed_mm);
+    if (designBleed !== null) return designBleed;
+
+    const layoutBleed = nonNegativeNumber(layout?.bleed_default_mm);
+    return layoutBleed !== null ? layoutBleed : 0;
+  }
+
+  function slotUsesFinalBox(slot) {
+    const value = slot?.slot_box_final;
+    if (typeof value === 'boolean') return value;
+    if (typeof value === 'number') return value === 1;
+    if (typeof value === 'string') {
+      return ['1', 'true', 'yes', 'on'].includes(value.trim().toLowerCase());
+    }
+    return false;
+  }
+
+  function renderSlotBleedOverlay(ctx) {
+    const { slotEl, slot, layout, renderBox, mmToPx } = ctx;
+    if (!slotEl || slotUsesFinalBox(slot)) return null;
+
+    const bleedMm = resolveVisualBleedMm(layout, slot);
+    if (bleedMm <= 0) return null;
+
+    const overlayEl = document.createElement('div');
+    overlayEl.className = 'slot-bleed-overlay';
+    overlayEl.dataset.bleedMm = String(bleedMm);
+    overlayEl.dataset.outerWidthMm = String(Number(renderBox.w || 0) + 2 * bleedMm);
+    overlayEl.dataset.outerHeightMm = String(Number(renderBox.h || 0) + 2 * bleedMm);
+    overlayEl.style.left = `${-mmToPx(bleedMm)}px`;
+    overlayEl.style.top = `${-mmToPx(bleedMm)}px`;
+    overlayEl.style.width = `${mmToPx(Number(renderBox.w || 0) + 2 * bleedMm)}px`;
+    overlayEl.style.height = `${mmToPx(Number(renderBox.h || 0) + 2 * bleedMm)}px`;
+    slotEl.appendChild(overlayEl);
+    return overlayEl;
+  }
+
   function buildVisibleSlotViewModels(ctx) {
     const {
       layout,
@@ -204,6 +256,14 @@
         slotEl.dataset.rotation = String(renderBox.rotation);
       }
 
+      renderSlotBleedOverlay({
+        slotEl,
+        slot,
+        layout,
+        renderBox,
+        mmToPx,
+      });
+
       if (typeof attachSlotHandlers === 'function') {
         attachSlotHandlers(slotEl, slot);
       }
@@ -238,5 +298,8 @@
     renderCtpGuide,
     renderGeometryValidationPanel,
     renderDistanceIndicator,
+    resolveVisualBleedMm,
+    slotUsesFinalBox,
+    renderSlotBleedOverlay,
   };
 })();
