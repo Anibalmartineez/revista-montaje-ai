@@ -46,3 +46,5 @@ pdf_medidor_pro/previews/*
 !pdf_medidor_pro/previews/.gitkeep
 pdf_medidor_pro/exports/*
 !pdf_medidor_pro/exports/.gitkeep
+
+.codex-runtime/
