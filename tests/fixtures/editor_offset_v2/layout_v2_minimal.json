@@ -1,0 +1,103 @@
+{
+  "layout_schema_version": 2,
+  "job": {
+    "id": "ev2_minimal",
+    "name": "Layout V2 mínimo",
+    "revision": 0,
+    "created_at": "2026-07-18T00:00:00Z",
+    "updated_at": "2026-07-18T00:00:00Z"
+  },
+  "coordinate_system": {
+    "unit": "mm",
+    "origin": "bottom_left",
+    "x_axis": "right",
+    "y_axis": "up",
+    "rotation_direction": "counter_clockwise",
+    "rotation_origin": "trim_center"
+  },
+  "sheet": {
+    "size_mm": {
+      "width": 700.0,
+      "height": 500.0
+    },
+    "printable_margins_mm": {
+      "left": 0.0,
+      "right": 0.0,
+      "bottom": 0.0,
+      "top": 0.0
+    }
+  },
+  "faces": {
+    "enabled": ["front"],
+    "duplex": {
+      "enabled": false,
+      "flip": "none"
+    }
+  },
+  "assets": [],
+  "works": [],
+  "slots": [],
+  "imposition": {
+    "engine": "manual",
+    "engine_version": "2.0.0",
+    "settings": {
+      "horizontal_gap_mm": 0.0,
+      "vertical_gap_mm": 0.0,
+      "exact_quantity": true,
+      "fill_remaining_space": false,
+      "respect_priority": true,
+      "respect_preferred_zones": true
+    },
+    "last_result": null
+  },
+  "export": {
+    "profile": "offset_production",
+    "render_mode": "vector_hybrid",
+    "dpi": 300,
+    "faces": {
+      "front": true,
+      "back": false,
+      "combine_in_single_pdf": false,
+      "order": ["front"]
+    },
+    "marks_profiles": [
+      {
+        "id": "standard_offset",
+        "crop_marks": true,
+        "registration_marks": true,
+        "technical_text": true,
+        "color_bar": true
+      }
+    ],
+    "default_marks_profile_id": "standard_offset",
+    "bleed_policy": "slot_geometry",
+    "crop_to_content": false,
+    "preserve_vector_content": true
+  },
+  "ctp": {
+    "enabled": false,
+    "face": "front",
+    "gripper": {
+      "edge": "bottom",
+      "depth_mm": 0.0
+    },
+    "plate": {
+      "offset_x_mm": 0.0,
+      "offset_y_mm": 0.0
+    },
+    "color_bar": {
+      "enabled": false,
+      "height_mm": 0.0,
+      "position": "opposite_gripper"
+    },
+    "technical_text": {
+      "enabled": false,
+      "job_name": false,
+      "date": false,
+      "plate_name": false
+    },
+    "registration_marks": {
+      "enabled": false
+    }
+  }
+}

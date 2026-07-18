@@ -1,0 +1,286 @@
+{
+  "layout_schema_version": 2,
+  "job": {
+    "id": "ev2_complete",
+    "name": "Tarjeta institucional frente y dorso",
+    "revision": 4,
+    "created_at": "2026-07-18T14:10:00Z",
+    "updated_at": "2026-07-18T14:25:00Z"
+  },
+  "coordinate_system": {
+    "unit": "mm",
+    "origin": "bottom_left",
+    "x_axis": "right",
+    "y_axis": "up",
+    "rotation_direction": "counter_clockwise",
+    "rotation_origin": "trim_center"
+  },
+  "sheet": {
+    "size_mm": {
+      "width": 700.0,
+      "height": 500.0
+    },
+    "printable_margins_mm": {
+      "left": 12.0,
+      "right": 12.0,
+      "bottom": 15.0,
+      "top": 18.0
+    },
+    "background": {
+      "color": "#ffffff"
+    }
+  },
+  "faces": {
+    "enabled": ["front", "back"],
+    "duplex": {
+      "enabled": true,
+      "flip": "long_edge"
+    }
+  },
+  "assets": [
+    {
+      "id": "asset_card_front",
+      "original_filename": "tarjeta_frente.pdf",
+      "storage_key": "assets/asset_card_front/source.pdf",
+      "mime_type": "application/pdf",
+      "sha256": "e1c7c24d61d37b6ee0ceac7a313c41d2d83fe7c03c2b71e7b33a02c7c6454a99",
+      "page_count": 1,
+      "status": "ready",
+      "created_at": "2026-07-18T14:11:00Z",
+      "pages": [
+        {
+          "number": 1,
+          "intrinsic_rotation_deg": 0,
+          "boxes_mm": {
+            "media": {"x": 0.0, "y": 0.0, "width": 96.0, "height": 56.0},
+            "trim": {"x": 3.0, "y": 3.0, "width": 90.0, "height": 50.0},
+            "bleed": {"x": 0.0, "y": 0.0, "width": 96.0, "height": 56.0},
+            "crop": null
+          },
+          "preview_key": "derived/asset_card_front/page_1_thumbnail.webp",
+          "preflight": {
+            "status": "warning",
+            "color_spaces": ["CMYK"],
+            "minimum_effective_dpi": 286,
+            "has_transparency": false,
+            "has_overprint": true,
+            "issues": [
+              {
+                "code": "LOW_RESOLUTION_IMAGE",
+                "level": "warning",
+                "message": "Una imagen se encuentra por debajo de 300 dpi."
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "asset_card_back",
+      "original_filename": "tarjeta_dorso.pdf",
+      "storage_key": "assets/asset_card_back/source.pdf",
+      "mime_type": "application/pdf",
+      "sha256": "36f8d44cc033dce1ad9f4549d272c042014013e892616498f1472d89e934526b",
+      "page_count": 1,
+      "status": "ready",
+      "created_at": "2026-07-18T14:12:00Z",
+      "pages": [
+        {
+          "number": 1,
+          "intrinsic_rotation_deg": 0,
+          "boxes_mm": {
+            "media": {"x": 0.0, "y": 0.0, "width": 96.0, "height": 56.0},
+            "trim": {"x": 3.0, "y": 3.0, "width": 90.0, "height": 50.0},
+            "bleed": {"x": 0.0, "y": 0.0, "width": 96.0, "height": 56.0},
+            "crop": {"x": 0.0, "y": 0.0, "width": 96.0, "height": 56.0}
+          },
+          "preview_key": "derived/asset_card_back/page_1_thumbnail.webp",
+          "preflight": {
+            "status": "pass",
+            "color_spaces": ["CMYK"],
+            "minimum_effective_dpi": 300,
+            "has_transparency": false,
+            "has_overprint": false,
+            "issues": []
+          }
+        }
+      ]
+    }
+  ],
+  "works": [
+    {
+      "id": "work_card",
+      "name": "Tarjeta institucional",
+      "trim_size_mm": {"width": 90.0, "height": 50.0},
+      "bleed_mm": 3.0,
+      "requested_forms": 24,
+      "allowed_rotations_deg": [0, 90],
+      "priority": 100,
+      "preferred_zone": "auto",
+      "preferred_flow": "rows",
+      "front_source": {
+        "asset_id": "asset_card_front",
+        "page": 1,
+        "pdf_box": "trim"
+      },
+      "back_source": {
+        "asset_id": "asset_card_back",
+        "page": 1,
+        "pdf_box": "trim"
+      }
+    }
+  ],
+  "slots": [
+    {
+      "id": "slot_front_001",
+      "face": "front",
+      "work_id": "work_card",
+      "source": {
+        "asset_id": "asset_card_front",
+        "page": 1,
+        "pdf_box": "trim"
+      },
+      "geometry": {
+        "position_mm": {"x_mm": 60.0, "y_mm": 55.0, "anchor": "trim_center"},
+        "trim_size_mm": {"width": 90.0, "height": 50.0},
+        "bleed_mm": 3.0,
+        "rotation_deg": 0.0
+      },
+      "content_transform": {
+        "fit_mode": "actual_size",
+        "scale_x": 1.0,
+        "scale_y": 1.0,
+        "offset_mm": {"x": 0.0, "y": 0.0},
+        "rotation_deg": 0.0,
+        "mirror_x": false,
+        "mirror_y": false,
+        "clip_to": "bleed_box"
+      },
+      "locks": {
+        "geometry": ["engine"],
+        "content": [],
+        "production": [],
+        "delete": []
+      },
+      "production": {
+        "marks_profile_id": "standard_offset"
+      },
+      "generated_by": {
+        "type": "engine",
+        "engine": "repeat",
+        "operation_id": "repeat_20260718_001"
+      }
+    },
+    {
+      "id": "slot_back_001",
+      "face": "back",
+      "work_id": "work_card",
+      "source": {
+        "asset_id": "asset_card_back",
+        "page": 1,
+        "pdf_box": "trim"
+      },
+      "geometry": {
+        "position_mm": {"x_mm": 640.0, "y_mm": 55.0, "anchor": "trim_center"},
+        "trim_size_mm": {"width": 90.0, "height": 50.0},
+        "bleed_mm": 3.0,
+        "rotation_deg": 180.0
+      },
+      "content_transform": {
+        "fit_mode": "actual_size",
+        "scale_x": 1.0,
+        "scale_y": 1.0,
+        "offset_mm": {"x": 0.0, "y": 0.0},
+        "rotation_deg": 0.0,
+        "mirror_x": false,
+        "mirror_y": false,
+        "clip_to": "bleed_box"
+      },
+      "locks": {
+        "geometry": [],
+        "content": [],
+        "production": [],
+        "delete": []
+      },
+      "production": {
+        "marks_profile_id": "standard_offset"
+      },
+      "generated_by": {
+        "type": "duplex_copy",
+        "source_slot_id": "slot_front_001"
+      }
+    }
+  ],
+  "imposition": {
+    "engine": "repeat",
+    "engine_version": "2.0.0",
+    "settings": {
+      "horizontal_gap_mm": 4.0,
+      "vertical_gap_mm": 4.0,
+      "exact_quantity": true,
+      "fill_remaining_space": false,
+      "respect_priority": true,
+      "respect_preferred_zones": true
+    },
+    "last_result": {
+      "operation_id": "repeat_20260718_001",
+      "status": "complete",
+      "requested": 24,
+      "placed": 24,
+      "unplaced": 0,
+      "overproduced": 0,
+      "generated_at": "2026-07-18T14:20:00Z",
+      "warnings": []
+    }
+  },
+  "export": {
+    "profile": "offset_production",
+    "render_mode": "vector_hybrid",
+    "dpi": 300,
+    "faces": {
+      "front": true,
+      "back": true,
+      "combine_in_single_pdf": true,
+      "order": ["front", "back"]
+    },
+    "marks_profiles": [
+      {
+        "id": "standard_offset",
+        "crop_marks": true,
+        "registration_marks": true,
+        "technical_text": true,
+        "color_bar": true
+      }
+    ],
+    "default_marks_profile_id": "standard_offset",
+    "bleed_policy": "slot_geometry",
+    "crop_to_content": false,
+    "preserve_vector_content": true
+  },
+  "ctp": {
+    "enabled": true,
+    "face": "front",
+    "gripper": {
+      "edge": "bottom",
+      "depth_mm": 12.0
+    },
+    "plate": {
+      "offset_x_mm": 0.0,
+      "offset_y_mm": 0.0
+    },
+    "color_bar": {
+      "enabled": true,
+      "height_mm": 8.0,
+      "position": "opposite_gripper"
+    },
+    "technical_text": {
+      "enabled": true,
+      "job_name": true,
+      "date": true,
+      "plate_name": true
+    },
+    "registration_marks": {
+      "enabled": true
+    }
+  }
+}
