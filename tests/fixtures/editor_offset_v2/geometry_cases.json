@@ -1,0 +1,204 @@
+{
+  "fixture_schema_version": 1,
+  "unit": "mm",
+  "default_tolerance_mm": 1e-9,
+  "slot_cases": [
+    {
+      "id": "unrotated_bleed_3",
+      "center": {"x": 60.0, "y": 55.0},
+      "trim_size": {"width": 90.0, "height": 50.0},
+      "bleed": 3.0,
+      "rotation_deg": 0,
+      "expected": {
+        "oriented_trim_size": {"width": 90.0, "height": 50.0},
+        "productive_size": {"width": 96.0, "height": 56.0},
+        "trim_bounds": {"left": 15.0, "right": 105.0, "bottom": 30.0, "top": 80.0},
+        "bleed_bounds": {"left": 12.0, "right": 108.0, "bottom": 27.0, "top": 83.0},
+        "trim_polygon": [[15.0, 30.0], [105.0, 30.0], [105.0, 80.0], [15.0, 80.0]]
+      }
+    },
+    {
+      "id": "rotation_90",
+      "center": {"x": 60.0, "y": 55.0},
+      "trim_size": {"width": 90.0, "height": 50.0},
+      "bleed": 3.0,
+      "rotation_deg": 90,
+      "expected": {
+        "oriented_trim_size": {"width": 50.0, "height": 90.0},
+        "productive_size": {"width": 96.0, "height": 56.0},
+        "trim_bounds": {"left": 35.0, "right": 85.0, "bottom": 10.0, "top": 100.0},
+        "bleed_bounds": {"left": 32.0, "right": 88.0, "bottom": 7.0, "top": 103.0},
+        "trim_polygon": [[85.0, 10.0], [85.0, 100.0], [35.0, 100.0], [35.0, 10.0]]
+      }
+    },
+    {
+      "id": "rotation_180",
+      "center": {"x": 60.0, "y": 55.0},
+      "trim_size": {"width": 90.0, "height": 50.0},
+      "bleed": 3.0,
+      "rotation_deg": 180,
+      "expected": {
+        "oriented_trim_size": {"width": 90.0, "height": 50.0},
+        "productive_size": {"width": 96.0, "height": 56.0},
+        "trim_bounds": {"left": 15.0, "right": 105.0, "bottom": 30.0, "top": 80.0},
+        "bleed_bounds": {"left": 12.0, "right": 108.0, "bottom": 27.0, "top": 83.0},
+        "trim_polygon": [[105.0, 80.0], [15.0, 80.0], [15.0, 30.0], [105.0, 30.0]]
+      }
+    },
+    {
+      "id": "rotation_270",
+      "center": {"x": 60.0, "y": 55.0},
+      "trim_size": {"width": 90.0, "height": 50.0},
+      "bleed": 3.0,
+      "rotation_deg": 270,
+      "expected": {
+        "oriented_trim_size": {"width": 50.0, "height": 90.0},
+        "productive_size": {"width": 96.0, "height": 56.0},
+        "trim_bounds": {"left": 35.0, "right": 85.0, "bottom": 10.0, "top": 100.0},
+        "bleed_bounds": {"left": 32.0, "right": 88.0, "bottom": 7.0, "top": 103.0},
+        "trim_polygon": [[35.0, 100.0], [35.0, 10.0], [85.0, 10.0], [85.0, 100.0]]
+      }
+    },
+    {
+      "id": "bleed_zero",
+      "center": {"x": 25.0, "y": 25.0},
+      "trim_size": {"width": 20.0, "height": 10.0},
+      "bleed": 0.0,
+      "rotation_deg": 0,
+      "expected": {
+        "oriented_trim_size": {"width": 20.0, "height": 10.0},
+        "productive_size": {"width": 20.0, "height": 10.0},
+        "trim_bounds": {"left": 15.0, "right": 35.0, "bottom": 20.0, "top": 30.0},
+        "bleed_bounds": {"left": 15.0, "right": 35.0, "bottom": 20.0, "top": 30.0},
+        "trim_polygon": [[15.0, 20.0], [35.0, 20.0], [35.0, 30.0], [15.0, 30.0]]
+      }
+    },
+    {
+      "id": "decimal_coordinates",
+      "center": {"x": 12.75, "y": 8.125},
+      "trim_size": {"width": 7.5, "height": 2.25},
+      "bleed": 0.375,
+      "rotation_deg": 270,
+      "expected": {
+        "oriented_trim_size": {"width": 2.25, "height": 7.5},
+        "productive_size": {"width": 8.25, "height": 3.0},
+        "trim_bounds": {"left": 11.625, "right": 13.875, "bottom": 4.375, "top": 11.875},
+        "bleed_bounds": {"left": 11.25, "right": 14.25, "bottom": 4.0, "top": 12.25},
+        "trim_polygon": [[11.625, 11.875], [11.625, 4.375], [13.875, 4.375], [13.875, 11.875]]
+      }
+    },
+    {
+      "id": "realistic_offset_sheet_piece",
+      "center": {"x": 350.0, "y": 250.0},
+      "trim_size": {"width": 210.0, "height": 297.0},
+      "bleed": 3.0,
+      "rotation_deg": 90,
+      "expected": {
+        "oriented_trim_size": {"width": 297.0, "height": 210.0},
+        "productive_size": {"width": 216.0, "height": 303.0},
+        "trim_bounds": {"left": 201.5, "right": 498.5, "bottom": 145.0, "top": 355.0},
+        "bleed_bounds": {"left": 198.5, "right": 501.5, "bottom": 142.0, "top": 358.0},
+        "trim_polygon": [[498.5, 145.0], [498.5, 355.0], [201.5, 355.0], [201.5, 145.0]]
+      }
+    }
+  ],
+  "sheet_cases": [
+    {
+      "id": "productive_exactly_on_left_and_bottom_edges",
+      "sheet_size": {"width": 100.0, "height": 100.0},
+      "slot": {"center": {"x": 13.0, "y": 8.0}, "trim_size": {"width": 20.0, "height": 10.0}, "bleed": 3.0, "rotation_deg": 0},
+      "use_bleed": true,
+      "expected": true
+    },
+    {
+      "id": "outside_left",
+      "sheet_size": {"width": 100.0, "height": 100.0},
+      "slot": {"center": {"x": 12.9, "y": 50.0}, "trim_size": {"width": 20.0, "height": 10.0}, "bleed": 3.0, "rotation_deg": 0},
+      "use_bleed": true,
+      "expected": false
+    },
+    {
+      "id": "outside_right",
+      "sheet_size": {"width": 100.0, "height": 100.0},
+      "slot": {"center": {"x": 87.1, "y": 50.0}, "trim_size": {"width": 20.0, "height": 10.0}, "bleed": 3.0, "rotation_deg": 0},
+      "use_bleed": true,
+      "expected": false
+    },
+    {
+      "id": "outside_top",
+      "sheet_size": {"width": 100.0, "height": 100.0},
+      "slot": {"center": {"x": 50.0, "y": 92.1}, "trim_size": {"width": 20.0, "height": 10.0}, "bleed": 3.0, "rotation_deg": 0},
+      "use_bleed": true,
+      "expected": false
+    },
+    {
+      "id": "outside_bottom",
+      "sheet_size": {"width": 100.0, "height": 100.0},
+      "slot": {"center": {"x": 50.0, "y": 7.9}, "trim_size": {"width": 20.0, "height": 10.0}, "bleed": 3.0, "rotation_deg": 0},
+      "use_bleed": true,
+      "expected": false
+    },
+    {
+      "id": "trim_inside_but_bleed_outside",
+      "sheet_size": {"width": 100.0, "height": 100.0},
+      "slot": {"center": {"x": 10.0, "y": 5.0}, "trim_size": {"width": 20.0, "height": 10.0}, "bleed": 3.0, "rotation_deg": 0},
+      "use_bleed": false,
+      "expected": true,
+      "expected_with_bleed": false
+    },
+    {
+      "id": "realistic_offset_inside",
+      "sheet_size": {"width": 700.0, "height": 500.0},
+      "slot": {"center": {"x": 350.0, "y": 250.0}, "trim_size": {"width": 210.0, "height": 297.0}, "bleed": 3.0, "rotation_deg": 90},
+      "use_bleed": true,
+      "expected": true
+    }
+  ],
+  "overlap_cases": [
+    {
+      "id": "separated",
+      "slot_a": {"center": {"x": 10.0, "y": 10.0}, "trim_size": {"width": 10.0, "height": 10.0}, "bleed": 0.0, "rotation_deg": 0},
+      "slot_b": {"center": {"x": 21.0, "y": 10.0}, "trim_size": {"width": 10.0, "height": 10.0}, "bleed": 0.0, "rotation_deg": 0},
+      "use_bleed": true,
+      "expected": false
+    },
+    {
+      "id": "touching_edge",
+      "slot_a": {"center": {"x": 10.0, "y": 10.0}, "trim_size": {"width": 10.0, "height": 10.0}, "bleed": 0.0, "rotation_deg": 0},
+      "slot_b": {"center": {"x": 20.0, "y": 10.0}, "trim_size": {"width": 10.0, "height": 10.0}, "bleed": 0.0, "rotation_deg": 0},
+      "use_bleed": true,
+      "expected": false
+    },
+    {
+      "id": "overlapping",
+      "slot_a": {"center": {"x": 10.0, "y": 10.0}, "trim_size": {"width": 10.0, "height": 10.0}, "bleed": 0.0, "rotation_deg": 0},
+      "slot_b": {"center": {"x": 19.0, "y": 10.0}, "trim_size": {"width": 10.0, "height": 10.0}, "bleed": 0.0, "rotation_deg": 0},
+      "use_bleed": true,
+      "expected": true
+    },
+    {
+      "id": "cardinal_rotated_overlap",
+      "slot_a": {"center": {"x": 10.0, "y": 10.0}, "trim_size": {"width": 20.0, "height": 8.0}, "bleed": 0.0, "rotation_deg": 90},
+      "slot_b": {"center": {"x": 13.0, "y": 10.0}, "trim_size": {"width": 8.0, "height": 20.0}, "bleed": 0.0, "rotation_deg": 0},
+      "use_bleed": true,
+      "expected": true
+    },
+    {
+      "id": "bleed_only_overlap",
+      "slot_a": {"center": {"x": 10.0, "y": 10.0}, "trim_size": {"width": 10.0, "height": 10.0}, "bleed": 1.0, "rotation_deg": 0},
+      "slot_b": {"center": {"x": 21.5, "y": 10.0}, "trim_size": {"width": 10.0, "height": 10.0}, "bleed": 1.0, "rotation_deg": 0},
+      "use_bleed": true,
+      "expected": true,
+      "expected_without_bleed": false
+    }
+  ],
+  "polygon_cases": [
+    {
+      "id": "rotated_rectangles_aabb_overlap_without_polygon_overlap",
+      "polygon_a": [[-1.767766953, -2.474873734], [2.474873734, 1.767766953], [1.767766953, 2.474873734], [-2.474873734, -1.767766953]],
+      "polygon_b": [[-2.61629509, -1.626345597], [1.626345597, 2.61629509], [0.919238816, 3.323401871], [-3.323401871, -0.919238816]],
+      "expected_bounds_overlap": true,
+      "expected_polygon_overlap": false
+    }
+  ]
+}

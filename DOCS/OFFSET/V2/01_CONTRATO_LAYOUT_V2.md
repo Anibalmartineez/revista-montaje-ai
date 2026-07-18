@@ -131,7 +131,7 @@ Ejemplo:
 
 `bleed_mm` es uniforme en los cuatro lados y no modifica las dimensiones trim persistidas.
 
-La rotación debe ser finita y estar normalizada en el intervalo `[0, 360)`.
+La rotación geométrica del slot admite exclusivamente `0`, `90`, `180` o `270` grados. El contrato no normaliza valores equivalentes: `-90`, `360`, `450`, `89` o `90.0001` son inválidos.
 
 ## 8. Footprint derivado
 
@@ -202,6 +202,8 @@ Los archivos derivados o corregidos deberán crear otra revisión de asset en un
 
 Una fuente de trabajo puede ser `null` mientras el trabajo todavía no tenga PDF. Un slot, en cambio, siempre requiere una fuente válida.
 
+`allowed_rotations_deg` solo puede contener valores de la enumeración cardinal `0`, `90`, `180` y `270`, sin duplicados.
+
 ## 11. Slots
 
 Cada slot contiene:
@@ -244,7 +246,9 @@ La cara que el operador está viendo no se persiste.
 * espejos X/Y;
 * clipping a trim, bleed o sin clipping.
 
-La exportabilidad de transformaciones avanzadas será responsabilidad del preflight y del futuro adaptador de salida.
+`geometry.rotation_deg` rota la caja trim y su footprint productivo alrededor del centro trim. `content_transform.rotation_deg` rota internamente el contenido de la página PDF dentro de esa caja, sin cambiar el footprint del slot.
+
+En la versión inicial ambas rotaciones son cardinales y solo admiten `0`, `90`, `180` o `270`. La rotación interna también queda restringida porque el adaptador de salida todavía no soporta rotaciones libres del contenido. La exportabilidad de las demás transformaciones avanzadas será responsabilidad del preflight y del futuro adaptador de salida.
 
 ## 14. Bloqueos
 
@@ -345,7 +349,7 @@ El validador comprueba como mínimo:
 * bleed no negativo;
 * números finitos;
 * caras válidas y habilitadas;
-* rotaciones normalizadas;
+* rotaciones geométricas y de contenido limitadas a `0`, `90`, `180` o `270`;
 * fuentes de lock conocidas;
 * revisión no negativa;
 * exportación, imposición y CTP estructuralmente completos.

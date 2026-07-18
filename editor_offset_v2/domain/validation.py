@@ -7,6 +7,7 @@ from dataclasses import dataclass
 from typing import Any, Iterable, Mapping, Sequence
 
 from .layout_v2 import (
+    CARDINAL_ROTATIONS_DEG,
     EXPECTED_COORDINATE_SYSTEM,
     LAYOUT_SCHEMA_VERSION,
     LEGACY_FIELD_NAMES,
@@ -178,6 +179,27 @@ def _validate_rect(value: Any, validator: _Validator, path: str) -> None:
     validator.number(obj.get("height"), f"{path}.height", positive=True)
 
 
+def _validate_cardinal_rotation(
+    value: Any,
+    validator: _Validator,
+    path: str,
+) -> float | None:
+    rotation = validator.number(value, path)
+    if rotation is None:
+        return None
+    if rotation not in CARDINAL_ROTATIONS_DEG:
+        allowed = ", ".join(
+            str(int(item)) for item in sorted(CARDINAL_ROTATIONS_DEG)
+        )
+        validator.issue(
+            "INVALID_ROTATION",
+            path,
+            f"must be one of {allowed}",
+        )
+        return None
+    return rotation
+
+
 def _validate_source_ref(
     value: Any,
     validator: _Validator,
@@ -312,16 +334,11 @@ def _validate_assets(
                         validator.issue("DUPLICATE_PAGE", f"{page_path}.number", "page number is duplicated")
                     else:
                         known_pages[number] = set()
-                rotation = validator.number(
+                _validate_cardinal_rotation(
                     page.get("intrinsic_rotation_deg"),
+                    validator,
                     f"{page_path}.intrinsic_rotation_deg",
                 )
-                if rotation is not None and rotation not in {0.0, 90.0, 180.0, 270.0}:
-                    validator.issue(
-                        "INVALID_ROTATION",
-                        f"{page_path}.intrinsic_rotation_deg",
-                        "intrinsic PDF rotation must be 0, 90, 180 or 270",
-                    )
                 boxes = validator.object(
                     page.get("boxes_mm"),
                     f"{page_path}.boxes_mm",
@@ -404,10 +421,12 @@ def _validate_works(
             seen_rotations: set[float] = set()
             for rotation_index, rotation_value in enumerate(rotations):
                 rotation_path = f"{path}.allowed_rotations_deg[{rotation_index}]"
-                rotation = validator.number(rotation_value, rotation_path)
+                rotation = _validate_cardinal_rotation(
+                    rotation_value,
+                    validator,
+                    rotation_path,
+                )
                 if rotation is not None:
-                    if not 0 <= rotation < 360:
-                        validator.issue("INVALID_ROTATION", rotation_path, "must be in [0, 360)")
                     if rotation in seen_rotations:
                         validator.issue("DUPLICATE_ROTATION", rotation_path, "rotation is duplicated")
                     seen_rotations.add(rotation)
@@ -450,9 +469,11 @@ def _validate_content_transform(value: Any, validator: _Validator, path: str) ->
     if offset is not None:
         validator.number(offset.get("x"), f"{path}.offset_mm.x")
         validator.number(offset.get("y"), f"{path}.offset_mm.y")
-    rotation = validator.number(transform.get("rotation_deg"), f"{path}.rotation_deg")
-    if rotation is not None and not 0 <= rotation < 360:
-        validator.issue("INVALID_ROTATION", f"{path}.rotation_deg", "must be in [0, 360)")
+    _validate_cardinal_rotation(
+        transform.get("rotation_deg"),
+        validator,
+        f"{path}.rotation_deg",
+    )
     validator.boolean(transform.get("mirror_x"), f"{path}.mirror_x")
     validator.boolean(transform.get("mirror_y"), f"{path}.mirror_y")
     validator.enum(transform.get("clip_to"), f"{path}.clip_to", VALID_CLIP_TARGETS)
@@ -521,9 +542,11 @@ def _validate_slots(
                     )
             _validate_size(geometry.get("trim_size_mm"), validator, f"{path}.geometry.trim_size_mm")
             validator.number(geometry.get("bleed_mm"), f"{path}.geometry.bleed_mm", nonnegative=True)
-            rotation = validator.number(geometry.get("rotation_deg"), f"{path}.geometry.rotation_deg")
-            if rotation is not None and not 0 <= rotation < 360:
-                validator.issue("INVALID_ROTATION", f"{path}.geometry.rotation_deg", "must be in [0, 360)")
+            _validate_cardinal_rotation(
+                geometry.get("rotation_deg"),
+                validator,
+                f"{path}.geometry.rotation_deg",
+            )
 
         _validate_content_transform(slot.get("content_transform"), validator, f"{path}.content_transform")
 

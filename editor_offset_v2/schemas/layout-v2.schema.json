@@ -447,9 +447,7 @@
           "minItems": 1,
           "uniqueItems": true,
           "items": {
-            "type": "number",
-            "minimum": 0,
-            "exclusiveMaximum": 360
+            "enum": [0, 90, 180, 270]
           }
         },
         "priority": {
@@ -521,9 +519,7 @@
           }
         },
         "rotation_deg": {
-          "type": "number",
-          "minimum": 0,
-          "exclusiveMaximum": 360
+          "enum": [0, 90, 180, 270]
         },
         "mirror_x": {
           "type": "boolean"
@@ -617,9 +613,7 @@
               "$ref": "#/$defs/nonNegativeNumber"
             },
             "rotation_deg": {
-              "type": "number",
-              "minimum": 0,
-              "exclusiveMaximum": 360
+              "enum": [0, 90, 180, 270]
             }
           }
         },

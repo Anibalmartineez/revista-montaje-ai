@@ -7,7 +7,10 @@ from pathlib import Path
 
 import pytest
 
-from editor_offset_v2.domain.layout_v2 import LEGACY_FIELD_NAMES
+from editor_offset_v2.domain.layout_v2 import (
+    CARDINAL_ROTATIONS_DEG,
+    LEGACY_FIELD_NAMES,
+)
 from editor_offset_v2.domain.validation import (
     LayoutV2ValidationError,
     assert_valid_layout_v2,
@@ -28,6 +31,19 @@ def codes(layout: object) -> set[str]:
     return {issue.code for issue in validate_layout_v2(layout)}
 
 
+def set_rotation(layout: dict, target: str, value: object) -> None:
+    if target == "slot":
+        layout["slots"][0]["geometry"]["rotation_deg"] = value
+    elif target == "work":
+        layout["works"][0]["allowed_rotations_deg"] = [value]
+    elif target == "content":
+        layout["slots"][0]["content_transform"]["rotation_deg"] = value
+    elif target == "page":
+        layout["assets"][0]["pages"][0]["intrinsic_rotation_deg"] = value
+    else:
+        raise AssertionError(f"Unknown rotation target: {target}")
+
+
 @pytest.mark.parametrize(
     "fixture_name",
     ["layout_v2_minimal.json", "layout_v2_complete.json"],
@@ -42,6 +58,31 @@ def test_json_schema_is_valid_json_and_declares_v2():
     assert schema["$schema"] == "https://json-schema.org/draft/2020-12/schema"
     assert schema["properties"]["layout_schema_version"]["const"] == 2
     assert schema["additionalProperties"] is False
+
+
+def test_json_schema_rotation_enums_match_python_canonical_rotations():
+    schema = json.loads(SCHEMA_PATH.read_text(encoding="utf-8"))
+    definitions = schema["$defs"]
+    expected = set(CARDINAL_ROTATIONS_DEG)
+
+    schema_enums = {
+        "work": definitions["work"]["properties"]["allowed_rotations_deg"][
+            "items"
+        ]["enum"],
+        "content": definitions["contentTransform"]["properties"]["rotation_deg"][
+            "enum"
+        ],
+        "slot": definitions["slot"]["properties"]["geometry"]["properties"][
+            "rotation_deg"
+        ]["enum"],
+        "page": definitions["page"]["properties"]["intrinsic_rotation_deg"][
+            "enum"
+        ],
+    }
+
+    for values in schema_enums.values():
+        assert set(values) == expected
+        assert values == [0, 90, 180, 270]
 
 
 def test_schema_and_fixtures_do_not_contain_legacy_field_names():
@@ -143,10 +184,23 @@ def test_rejects_negative_bleed():
     assert "NEGATIVE_NUMBER" in codes(layout)
 
 
-@pytest.mark.parametrize("value", [math.inf, math.nan, -1, 360])
-def test_rejects_invalid_slot_rotation(value):
+@pytest.mark.parametrize("target", ["slot", "work", "content", "page"])
+@pytest.mark.parametrize("value", [0, 90, 180, 270])
+def test_accepts_only_canonical_rotations_for_v2_rotation_fields(target, value):
     layout = load_fixture()
-    layout["slots"][0]["geometry"]["rotation_deg"] = value
+    set_rotation(layout, target, value)
+
+    assert validate_layout_v2(layout) == []
+
+
+@pytest.mark.parametrize("target", ["slot", "work", "content", "page"])
+@pytest.mark.parametrize(
+    "value",
+    [-90, 45, 89, 90.0001, 360, 450, math.nan, math.inf],
+)
+def test_rejects_non_cardinal_rotations_for_v2_rotation_fields(target, value):
+    layout = load_fixture()
+    set_rotation(layout, target, value)
 
     issue_codes = codes(layout)
     assert issue_codes & {"NON_FINITE_NUMBER", "INVALID_ROTATION"}
