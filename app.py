@@ -7,6 +7,7 @@ from flask import Flask, jsonify, render_template_string, send_from_directory
 from werkzeug.exceptions import RequestEntityTooLarge
 
 from routes import routes_bp
+from editor_offset_v2.blueprint import init_editor_offset_v2
 from pdf_medidor_pro.api import pdf_medidor_pro_bp
 from sistema_presupuesto.api import presupuesto_api_bp
 
@@ -49,6 +50,7 @@ def presupuesto_static(filename):
 
 
 app.register_blueprint(routes_bp)
+init_editor_offset_v2(app)
 if pdf_medidor_pro_bp.name not in app.blueprints:
     app.register_blueprint(pdf_medidor_pro_bp)
 if presupuesto_api_bp.name not in app.blueprints:

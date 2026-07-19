@@ -1,0 +1,333 @@
+:root {
+  color-scheme: dark;
+  --ev2-bg: #0d1118;
+  --ev2-panel: #151b24;
+  --ev2-panel-raised: #1a222d;
+  --ev2-line: #293342;
+  --ev2-text: #e8edf4;
+  --ev2-muted: #8996a8;
+  --ev2-accent: #56d8a0;
+  --ev2-accent-dark: #173b31;
+  --ev2-canvas: #202a36;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  min-height: 100%;
+  margin: 0;
+}
+
+body {
+  background: var(--ev2-bg);
+  color: var(--ev2-text);
+  font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+}
+
+button {
+  font: inherit;
+}
+
+.ev2-shell {
+  display: grid;
+  grid-template-columns: 72px 240px minmax(360px, 1fr) 280px;
+  grid-template-rows: 72px minmax(540px, calc(100vh - 108px)) 36px;
+  grid-template-areas:
+    "topbar topbar topbar topbar"
+    "tools assets workspace inspector"
+    "status status status status";
+  min-height: 100vh;
+  overflow: hidden;
+}
+
+.ev2-topbar {
+  grid-area: topbar;
+  display: flex;
+  align-items: center;
+  gap: 24px;
+  padding: 0 20px;
+  border-bottom: 1px solid var(--ev2-line);
+  background: #111720;
+}
+
+.ev2-brand {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 330px;
+}
+
+.ev2-brand-mark {
+  display: grid;
+  place-items: center;
+  width: 38px;
+  height: 38px;
+  border: 1px solid #3f8b70;
+  border-radius: 10px;
+  background: var(--ev2-accent-dark);
+  color: var(--ev2-accent);
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: .08em;
+}
+
+.ev2-eyebrow,
+.ev2-brand h1,
+.ev2-tools p,
+.ev2-empty-state p,
+.ev2-canvas-placeholder p {
+  margin: 0;
+}
+
+.ev2-eyebrow {
+  color: var(--ev2-muted);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: .16em;
+  text-transform: uppercase;
+}
+
+.ev2-brand h1 {
+  margin-top: 3px;
+  font-size: 16px;
+  font-weight: 650;
+}
+
+.ev2-document-meta {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  min-width: 0;
+  color: var(--ev2-muted);
+  font-size: 12px;
+}
+
+.ev2-document-meta strong {
+  display: inline-block;
+  max-width: 190px;
+  overflow: hidden;
+  color: var(--ev2-text);
+  text-overflow: ellipsis;
+  vertical-align: bottom;
+  white-space: nowrap;
+}
+
+.ev2-status-pill {
+  padding: 5px 9px;
+  border: 1px solid #315748;
+  border-radius: 999px;
+  background: #172a24;
+  color: #8ce4bd;
+  font-weight: 700;
+}
+
+.ev2-primary-action {
+  margin-left: auto;
+  padding: 9px 15px;
+  border: 0;
+  border-radius: 8px;
+  background: var(--ev2-accent);
+  color: #082119;
+  cursor: pointer;
+  font-weight: 750;
+}
+
+.ev2-primary-action:disabled {
+  cursor: wait;
+  opacity: .55;
+}
+
+.ev2-tools,
+.ev2-assets,
+.ev2-inspector {
+  min-height: 0;
+  padding: 16px;
+  border-right: 1px solid var(--ev2-line);
+  background: var(--ev2-panel);
+}
+
+.ev2-tools {
+  grid-area: tools;
+  padding-inline: 10px;
+  text-align: center;
+}
+
+.ev2-assets {
+  grid-area: assets;
+}
+
+.ev2-inspector {
+  grid-area: inspector;
+  border-right: 0;
+  border-left: 1px solid var(--ev2-line);
+}
+
+.ev2-region-label {
+  display: block;
+  color: var(--ev2-muted);
+  font-size: 10px;
+  font-weight: 750;
+  letter-spacing: .14em;
+  text-transform: uppercase;
+}
+
+.ev2-placeholder-icon {
+  display: grid;
+  place-items: center;
+  width: 38px;
+  height: 38px;
+  margin: 24px auto 12px;
+  border: 1px dashed #425064;
+  border-radius: 10px;
+  color: var(--ev2-muted);
+}
+
+.ev2-tools p {
+  color: var(--ev2-muted);
+  font-size: 10px;
+  line-height: 1.5;
+}
+
+.ev2-empty-state {
+  margin-top: 18px;
+  padding: 24px 16px;
+  border: 1px dashed #344153;
+  border-radius: 10px;
+  color: var(--ev2-muted);
+  text-align: center;
+}
+
+.ev2-empty-state span {
+  display: inline-block;
+  margin-bottom: 10px;
+  color: #b1bdcc;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: .1em;
+}
+
+.ev2-empty-state p {
+  font-size: 12px;
+  line-height: 1.55;
+}
+
+.ev2-workspace {
+  grid-area: workspace;
+  display: grid;
+  min-width: 0;
+  min-height: 0;
+  padding: 34px;
+  background:
+    linear-gradient(rgba(255, 255, 255, .018) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, .018) 1px, transparent 1px),
+    var(--ev2-canvas);
+  background-size: 24px 24px;
+}
+
+.ev2-canvas-placeholder {
+  place-self: center;
+  width: min(620px, 88%);
+  padding: 52px;
+  border: 1px solid #3a4656;
+  border-radius: 14px;
+  background: rgba(17, 23, 32, .88);
+  box-shadow: 0 24px 60px rgba(0, 0, 0, .26);
+  text-align: center;
+}
+
+.ev2-canvas-kicker {
+  color: var(--ev2-accent);
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: .16em;
+  text-transform: uppercase;
+}
+
+.ev2-canvas-placeholder h2 {
+  margin: 12px 0 10px;
+  font-size: 30px;
+  letter-spacing: -.03em;
+}
+
+.ev2-canvas-placeholder p {
+  color: var(--ev2-muted);
+  font-size: 14px;
+  line-height: 1.6;
+}
+
+.ev2-open-document {
+  display: flex;
+  justify-content: space-between;
+  gap: 18px;
+  margin-top: 28px;
+  padding-top: 18px;
+  border-top: 1px solid var(--ev2-line);
+  color: var(--ev2-muted);
+  font-size: 12px;
+  text-align: left;
+}
+
+.ev2-open-document strong {
+  color: var(--ev2-text);
+  text-align: right;
+}
+
+.ev2-inspector-list {
+  margin: 18px 0 0;
+}
+
+.ev2-inspector-list div {
+  display: flex;
+  justify-content: space-between;
+  gap: 20px;
+  padding: 12px 0;
+  border-bottom: 1px solid var(--ev2-line);
+}
+
+.ev2-inspector-list dt,
+.ev2-inspector-list dd {
+  margin: 0;
+  font-size: 12px;
+}
+
+.ev2-inspector-list dt {
+  color: var(--ev2-muted);
+}
+
+.ev2-statusbar {
+  grid-area: status;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 0 16px;
+  border-top: 1px solid var(--ev2-line);
+  background: #10161e;
+  color: var(--ev2-muted);
+  font-size: 11px;
+}
+
+.ev2-status-message {
+  margin-left: auto;
+  color: #f2b7b7;
+}
+
+@media (max-width: 980px) {
+  .ev2-shell {
+    grid-template-columns: 64px minmax(320px, 1fr) 230px;
+    grid-template-areas:
+      "topbar topbar topbar"
+      "tools workspace inspector"
+      "status status status";
+  }
+
+  .ev2-assets {
+    display: none;
+  }
+
+  .ev2-document-meta span:not(.ev2-status-pill) {
+    display: none;
+  }
+}

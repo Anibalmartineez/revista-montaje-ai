@@ -1,0 +1,88 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Editor Offset Visual V2</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/editor_offset_visual_v2.css') }}">
+</head>
+<body>
+  <main class="ev2-shell" aria-label="Editor Offset Visual V2">
+    <header class="ev2-topbar">
+      <div class="ev2-brand">
+        <span class="ev2-brand-mark" aria-hidden="true">V2</span>
+        <div>
+          <p class="ev2-eyebrow">Preprensa offset</p>
+          <h1>Editor Offset Visual V2</h1>
+        </div>
+      </div>
+
+      <div class="ev2-document-meta" aria-label="Estado del documento">
+        <span class="ev2-status-pill">Shell V2</span>
+        <span>Job <strong id="ev2-job-id">{{ editor_context.job_id or 'Sin crear' }}</strong></span>
+        <span>Revisión <strong id="ev2-revision">{{ editor_context.revision if editor_context.revision is not none else '—' }}</strong></span>
+      </div>
+
+      <button class="ev2-primary-action" id="ev2-new-job" type="button">
+        Nuevo job
+      </button>
+    </header>
+
+    <aside class="ev2-tools" aria-label="Herramientas futuras">
+      <span class="ev2-region-label">Herramientas</span>
+      <div class="ev2-placeholder-icon" aria-hidden="true">+</div>
+      <p>Disponible en próximas fases.</p>
+    </aside>
+
+    <aside class="ev2-assets" aria-label="Panel de assets futuro">
+      <span class="ev2-region-label">Assets</span>
+      <div class="ev2-empty-state">
+        <span aria-hidden="true">PDF</span>
+        <p>Los assets se incorporarán después del shell.</p>
+      </div>
+    </aside>
+
+    <section class="ev2-workspace" aria-label="Área de trabajo futura">
+      <div class="ev2-canvas-placeholder">
+        <span class="ev2-canvas-kicker">Superficie reservada</span>
+        <h2>Canvas V2</h2>
+        <p>El canvas y las herramientas de edición se incorporarán en las siguientes fases.</p>
+        {% if editor_context.job_name %}
+          <div class="ev2-open-document">
+            <span>Documento abierto</span>
+            <strong>{{ editor_context.job_name }}</strong>
+          </div>
+        {% endif %}
+      </div>
+    </section>
+
+    <aside class="ev2-inspector" aria-label="Inspector futuro">
+      <span class="ev2-region-label">Inspector</span>
+      <dl class="ev2-inspector-list">
+        <div>
+          <dt>Estado</dt>
+          <dd>Shell V2</dd>
+        </div>
+        <div>
+          <dt>Contrato</dt>
+          <dd>Layout V2</dd>
+        </div>
+        <div>
+          <dt>Persistencia</dt>
+          <dd id="ev2-save-status">{{ 'Guardado' if editor_context.job_id else 'Sin job' }}</dd>
+        </div>
+      </dl>
+    </aside>
+
+    <footer class="ev2-statusbar">
+      <span>Canvas pendiente</span>
+      <span aria-hidden="true">•</span>
+      <span>Sin herramientas activas</span>
+      <span class="ev2-status-message" id="ev2-status-message" role="status" aria-live="polite"></span>
+    </footer>
+  </main>
+
+  <script id="editor-offset-v2-context" type="application/json">{{ editor_context | tojson }}</script>
+  <script src="{{ url_for('static', filename='js/editor_offset_visual_v2.js') }}" defer></script>
+</body>
+</html>
