@@ -1,13 +1,18 @@
 (function (root, factory) {
   "use strict";
-  const api = factory();
+  const editPolicy = typeof module === "object" && module.exports
+    ? require("./edit_policy.js")
+    : root.EditorOffsetV2?.EditPolicy;
+  const api = factory(editPolicy);
   if (typeof module === "object" && module.exports) {
     module.exports = api;
   }
   root.EditorOffsetV2 = root.EditorOffsetV2 || {};
   root.EditorOffsetV2.Commands = api;
-})(typeof globalThis !== "undefined" ? globalThis : this, function () {
+})(typeof globalThis !== "undefined" ? globalThis : this, function (EditPolicy) {
   "use strict";
+
+  if (!EditPolicy) throw new Error("Editor V2 edit policy is required");
 
   function clone(value) {
     return typeof structuredClone === "function"
@@ -90,6 +95,7 @@
     }
 
     execute(layout) {
+      EditPolicy.assertCan(layout, this.affectedIds, "move");
       this.apply(layout, this.afterPositions);
     }
 
@@ -113,9 +119,11 @@
       if (!this.affectedIds.length) {
         throw new Error("DeleteSlotsCommand requires existing slots");
       }
+      EditPolicy.assertCan(layout, this.affectedIds, "delete");
     }
 
     execute(layout) {
+      EditPolicy.assertCan(layout, this.affectedIds, "delete");
       const ids = new Set(this.affectedIds);
       layout.slots = layout.slots.filter((slot) => !ids.has(slot.id));
     }
@@ -212,6 +220,7 @@
       this.beforeSource = clone(slot.source);
       this.afterSource = clone(replacementSource);
       this.affectedIds = Object.freeze([slotId]);
+      EditPolicy.assertCan(layout, this.affectedIds, "replace_content");
       const rotation = replacement.page.intrinsic_rotation_deg;
       const boxWidth = rotation === 90 || rotation === 270
         ? replacement.box.height
@@ -234,6 +243,7 @@
     }
 
     execute(layout) {
+      EditPolicy.assertCan(layout, this.affectedIds, "replace_content");
       this.apply(layout, this.afterSource);
     }
 
@@ -273,6 +283,13 @@
           .map((slot, index) => ({ slot: clone(slot), index }))
           .filter((entry) => entry.slot.face === face && workIds.has(entry.slot.work_id))
         : [];
+      if (mode === "replace_work_face") {
+        EditPolicy.assertCan(
+          layout,
+          this.removed.map((entry) => entry.slot.id),
+          "replace_by_repeat",
+        );
+      }
       const proposedIds = this.proposed.map((slot) => slot.id);
       if (new Set(proposedIds).size !== proposedIds.length) {
         throw new Error("Repeat proposal contains duplicate slot ids");
@@ -306,6 +323,11 @@
     execute(layout) {
       const workIds = new Set(this.workIds);
       if (this.mode === "replace_work_face") {
+        EditPolicy.assertCan(
+          layout,
+          this.removed.map((entry) => entry.slot.id),
+          "replace_by_repeat",
+        );
         layout.slots = layout.slots.filter(
           (slot) => !(slot.face === this.face && workIds.has(slot.work_id)),
         );

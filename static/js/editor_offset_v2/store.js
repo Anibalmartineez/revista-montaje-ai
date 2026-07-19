@@ -67,6 +67,7 @@
         proposal: null,
         error: null,
       };
+      this.feedback = null;
       this.undoStack = [];
       this.redoStack = [];
       this.changeVersion = 0;
@@ -102,6 +103,7 @@
         saveState: { ...this.saveState },
         assetPanel: { ...this.assetPanel },
         repeatPanel: clone(this.repeatPanel),
+        feedback: this.feedback,
         canUndo: this.undoStack.length > 0,
         canRedo: this.redoStack.length > 0,
         hasUnsavedChanges: this.hasUnsavedChanges(),
@@ -145,6 +147,7 @@
 
     markChanged() {
       this.changeVersion += 1;
+      this.feedback = null;
       if (this.saveState.status !== "saving" && this.saveState.status !== "conflict") {
         this.saveState = { ...this.saveState, status: "dirty", error: null };
       }
@@ -241,6 +244,11 @@
         error: error || null,
       };
       this.emit("repeat_state");
+    }
+
+    setFeedback(message) {
+      this.feedback = message || null;
+      this.emit("feedback");
     }
 
     selectedAssetPage() {

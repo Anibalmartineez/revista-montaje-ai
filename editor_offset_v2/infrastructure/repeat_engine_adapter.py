@@ -72,7 +72,13 @@ class RepeatEngineAdapter:
     ) -> RepeatResultV2:
         source_layout = copy.deepcopy(dict(layout))
         printable = self._printable_bounds(source_layout)
-        empty_metrics = self._metrics(printable, ())
+        retained_slots = self._retained_slots(
+            source_layout,
+            work_ids,
+            face,
+            apply_mode,
+        )
+        empty_metrics = self._metrics(printable, (), retained_slots)
         plans, issues = self._work_plans(source_layout, work_ids, face)
         requested = sum(int(plan.work["requested_forms"]) for plan in plans)
         if issues:
@@ -178,7 +184,7 @@ class RepeatEngineAdapter:
             unplaced=unplaced,
             overproduced=overproduced,
             warnings=tuple(warnings),
-            metrics=self._metrics(printable, tuple(slots)),
+            metrics=self._metrics(printable, tuple(slots), retained_slots),
             issues=tuple(
                 RepeatIssueV2("PARTIAL_IMPOSITION", "warning", warning)
                 for warning in warnings
@@ -645,7 +651,7 @@ class RepeatEngineAdapter:
                     "clip_to": "bleed_box" if source["pdf_box"] == "bleed" else "trim_box",
                 },
                 "locks": {
-                    "geometry": ["engine"],
+                    "geometry": [],
                     "content": [],
                     "production": [],
                     "delete": [],
@@ -712,24 +718,53 @@ class RepeatEngineAdapter:
                     break
         return normalized, tuple(issues)
 
+    @staticmethod
+    def _retained_slots(
+        layout: Mapping[str, object],
+        work_ids: Sequence[str],
+        face: str,
+        apply_mode: str,
+    ) -> tuple[Mapping[str, object], ...]:
+        selected = set(work_ids)
+        return tuple(
+            slot
+            for slot in layout["slots"]
+            if slot["face"] == face
+            and not (
+                apply_mode == "replace_work_face"
+                and slot["work_id"] in selected
+            )
+        )
+
     def _metrics(
         self,
         printable: Bounds,
-        slots: Sequence[Mapping[str, object]],
+        proposal_slots: Sequence[Mapping[str, object]],
+        retained_slots: Sequence[Mapping[str, object]],
     ) -> RepeatMetricsV2:
-        occupied = 0.0
-        for slot in slots:
-            geometry = self._slot_geometry(slot)
-            product = productive_size(geometry.trim_size, geometry.bleed)
-            occupied += product.width * product.height
+        def occupied_area(slots: Sequence[Mapping[str, object]]) -> float:
+            occupied = 0.0
+            for slot in slots:
+                geometry = self._slot_geometry(slot)
+                product = productive_size(geometry.trim_size, geometry.bleed)
+                occupied += product.width * product.height
+            return occupied
+
+        proposal_occupied = occupied_area(proposal_slots)
+        retained_occupied = occupied_area(retained_slots)
+        projected_occupied = proposal_occupied + retained_occupied
         area = printable.width * printable.height
-        utilization = occupied / area * 100.0 if area > 0 else 0.0
+        proposal_utilization = proposal_occupied / area * 100.0 if area > 0 else 0.0
+        projected_utilization = projected_occupied / area * 100.0 if area > 0 else 0.0
         return RepeatMetricsV2(
             printable_width_mm=printable.width,
             printable_height_mm=printable.height,
             printable_area_mm2=area,
-            occupied_productive_area_mm2=occupied,
-            utilization_percent=utilization,
+            occupied_productive_area_mm2=proposal_occupied,
+            utilization_percent=proposal_utilization,
+            proposal_utilization_pct=proposal_utilization,
+            projected_total_occupied_productive_area_mm2=projected_occupied,
+            projected_total_utilization_pct=projected_utilization,
         )
 
 

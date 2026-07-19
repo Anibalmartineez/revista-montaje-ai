@@ -1,11 +1,16 @@
 (function (root, factory) {
   "use strict";
-  const api = factory();
+  const layoutMetrics = typeof module === "object" && module.exports
+    ? require("./layout_metrics.js")
+    : root.EditorOffsetV2?.LayoutMetrics;
+  const api = factory(layoutMetrics);
   if (typeof module === "object" && module.exports) module.exports = api;
   root.EditorOffsetV2 = root.EditorOffsetV2 || {};
   root.EditorOffsetV2.RepeatPanel = api;
-})(typeof globalThis !== "undefined" ? globalThis : this, function () {
+})(typeof globalThis !== "undefined" ? globalThis : this, function (LayoutMetrics) {
   "use strict";
+
+  if (!LayoutMetrics) throw new Error("Editor V2 layout metrics are required");
 
   function selectedWorkIds(container) {
     return [...container.querySelectorAll('input[type="checkbox"]:checked')]
@@ -16,7 +21,7 @@
     return {
       horizontal_gap_mm: Number(refs.repeatGapX.value),
       vertical_gap_mm: Number(refs.repeatGapY.value),
-      exact_quantity: refs.repeatExact.checked,
+      exact_quantity: true,
       fill_remaining_space: refs.repeatFill.checked,
       allow_partial: refs.repeatPartial.checked,
     };
@@ -36,24 +41,25 @@
   }
 
   class Panel {
-    constructor(store, refs, api, saver, context, commands) {
+    constructor(store, refs, api, saver, context, commands, editPolicy) {
       this.store = store;
       this.refs = refs;
       this.api = api;
       this.saver = saver;
       this.context = context;
       this.commands = commands;
+      this.editPolicy = editPolicy;
       this.proposalContext = null;
       this.applied = false;
       for (const option of this.refs.repeatFace.options) {
-        option.disabled = !this.store.layout.faces.enabled.includes(option.value);
+        option.disabled = option.value === "back"
+          || !this.store.layout.faces.enabled.includes(option.value);
       }
-      if (!this.store.layout.faces.enabled.includes(this.refs.repeatFace.value)) {
-        this.refs.repeatFace.value = this.store.layout.faces.enabled[0];
-      }
+      this.refs.repeatFace.value = "front";
       this.bind();
       this.renderWorks();
       this.renderState();
+      this.renderHistory();
     }
 
     bind() {
@@ -63,7 +69,6 @@
         this.refs.repeatFace,
         this.refs.repeatGapX,
         this.refs.repeatGapY,
-        this.refs.repeatExact,
         this.refs.repeatPartial,
         this.refs.repeatFill,
         ...this.refs.repeatModes,
@@ -74,6 +79,7 @@
       this.unsubscribe = this.store.subscribe((event) => {
         if (["command", "undo", "redo", "external_update"].includes(event.type)) {
           this.renderWorks();
+          this.renderHistory();
         }
         if (event.type === "repeat_state") this.renderState();
       });
@@ -108,6 +114,7 @@
       this.proposalContext = null;
       this.applied = false;
       this.store.setRepeatState("idle", null, null);
+      this.renderHistory();
     }
 
     selectedMode() {
@@ -119,6 +126,10 @@
       const settings = readSettings(this.refs);
       if (!workIds.length) {
         this.store.setRepeatState("error", null, "Selecciona al menos un work.");
+        return;
+      }
+      if (this.refs.repeatFace.value !== "front") {
+        this.store.setRepeatState("error", null, "La interfaz Repeat solo permite frente por ahora.");
         return;
       }
       if (![settings.horizontal_gap_mm, settings.vertical_gap_mm].every(
@@ -183,7 +194,24 @@
       this.refs.repeatStatus.textContent = state.error
         || ({ idle: "Configura y calcula una propuesta.", calculating: "Calculando…", ready: "Propuesta lista para aplicar.", applied: "Propuesta aplicada al layout." }[state.status] || "");
       this.refs.repeatStatus.dataset.state = state.status;
-      this.refs.repeatApply.disabled = state.status !== "ready" || !proposal?.success;
+      const replaceIds = this.proposalContext?.mode === "replace_work_face"
+        ? this.store.layout.slots
+          .filter((slot) => slot.face === this.proposalContext.face
+            && this.proposalContext.workIds.includes(slot.work_id))
+          .map((slot) => slot.id)
+        : [];
+      const blocked = this.editPolicy.blockedSlotIds(
+        this.store.layout,
+        replaceIds,
+        "replace_by_repeat",
+      );
+      this.refs.repeatApply.disabled = state.status !== "ready"
+        || !proposal?.success
+        || blocked.length > 0;
+      if (blocked.length && state.status === "ready") {
+        this.refs.repeatStatus.textContent = `Repeat no puede reemplazar slots bloqueados: ${blocked.join(", ")}.`;
+        this.refs.repeatStatus.dataset.state = "error";
+      }
       this.refs.repeatSummary.hidden = !proposal;
       if (!proposal) {
         renderIssueList(this.refs.repeatIssues, [], []);
@@ -193,8 +221,32 @@
       this.refs.repeatPlaced.textContent = String(proposal.placed);
       this.refs.repeatUnplaced.textContent = String(proposal.unplaced);
       this.refs.repeatOverproduced.textContent = String(proposal.overproduced);
-      this.refs.repeatUtilization.textContent = `${proposal.metrics.utilization_percent.toFixed(2)}%`;
+      const proposalPct = proposal.metrics.proposal_utilization_pct
+        ?? proposal.metrics.utilization_percent;
+      const projectedPct = proposal.metrics.projected_total_utilization_pct
+        ?? proposalPct;
+      this.refs.repeatProposalUtilization.textContent = `${proposalPct.toFixed(2)}%`;
+      this.refs.repeatProjectedUtilization.textContent = `${projectedPct.toFixed(2)}%`;
       renderIssueList(this.refs.repeatIssues, proposal.issues, proposal.warnings);
+    }
+
+    renderHistory() {
+      const historical = this.store.layout.imposition.last_result;
+      this.refs.repeatHistory.textContent = historical
+        ? `Resultado al aplicar la última imposición · ${historical.operation_id} · solicitadas ${historical.requested}, colocadas ${historical.placed}, no colocadas ${historical.unplaced}.`
+        : "Resultado al aplicar la última imposición · todavía no existe.";
+      const current = LayoutMetrics.currentSlotMetrics(
+        this.store.layout,
+        this.refs.repeatFace.value,
+      );
+      this.refs.repeatCurrentFace.textContent = String(current.total);
+      this.refs.repeatCurrentWorks.textContent = LayoutMetrics.workCountsLabel(
+        this.store.layout,
+        current.byWork,
+      );
+      this.refs.repeatCurrentOperation.textContent = current.operationId
+        ? String(current.lastOperationPresent)
+        : "—";
     }
   }
 

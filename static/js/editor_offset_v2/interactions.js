@@ -29,11 +29,12 @@
   }
 
   class CanvasInteractions {
-    constructor(store, refs, geometry, commands) {
+    constructor(store, refs, geometry, commands, editPolicy) {
       this.store = store;
       this.refs = refs;
       this.geometry = geometry;
       this.commands = commands;
+      this.editPolicy = editPolicy;
       this.spacePressed = false;
       this.panSession = null;
       this.bound = {
@@ -94,6 +95,16 @@
         this.store.setSelection([slotId], "replace");
       }
       if (!this.store.selection.has(slotId)) {
+        return;
+      }
+      try {
+        this.editPolicy.assertCan(
+          this.store.layout,
+          [...this.store.selection],
+          "move",
+        );
+      } catch (error) {
+        this.store.setFeedback(error.message);
         return;
       }
       const point = this.domainPoint(event);
@@ -176,9 +187,13 @@
       this.refs.canvas.classList.remove("is-dragging");
       this.releasePointer(event.pointerId);
       if (moved) {
-        this.store.executeCommand(
-          new this.commands.MoveSlotsCommand(session.beforePositions, afterPositions),
-        );
+        try {
+          this.store.executeCommand(
+            new this.commands.MoveSlotsCommand(session.beforePositions, afterPositions),
+          );
+        } catch (error) {
+          this.store.setFeedback(error.message);
+        }
       }
     }
 
@@ -249,9 +264,13 @@
       }
       if ((event.key === "Delete" || event.key === "Backspace") && this.store.selection.size) {
         event.preventDefault();
-        this.store.executeCommand(
-          new this.commands.DeleteSlotsCommand(this.store.layout, [...this.store.selection]),
-        );
+        try {
+          this.store.executeCommand(
+            new this.commands.DeleteSlotsCommand(this.store.layout, [...this.store.selection]),
+          );
+        } catch (error) {
+          this.store.setFeedback(error.message);
+        }
       }
     }
 

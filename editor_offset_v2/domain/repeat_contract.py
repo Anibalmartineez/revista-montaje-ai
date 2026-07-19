@@ -39,6 +39,9 @@ class RepeatMetricsV2:
     printable_area_mm2: float
     occupied_productive_area_mm2: float
     utilization_percent: float
+    proposal_utilization_pct: float
+    projected_total_occupied_productive_area_mm2: float
+    projected_total_utilization_pct: float
 
     def as_dict(self) -> dict[str, float]:
         return {
@@ -47,6 +50,11 @@ class RepeatMetricsV2:
             "printable_area_mm2": self.printable_area_mm2,
             "occupied_productive_area_mm2": self.occupied_productive_area_mm2,
             "utilization_percent": self.utilization_percent,
+            "proposal_utilization_pct": self.proposal_utilization_pct,
+            "projected_total_occupied_productive_area_mm2": (
+                self.projected_total_occupied_productive_area_mm2
+            ),
+            "projected_total_utilization_pct": self.projected_total_utilization_pct,
         }
 
 

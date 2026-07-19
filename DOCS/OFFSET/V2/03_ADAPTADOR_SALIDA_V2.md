@@ -2,7 +2,7 @@
 
 ## 1. Objetivo
 
-La Fase 3 crea una frontera aislada entre el contrato limpio del Editor Offset
+La Fase 3 creó una frontera aislada entre el contrato limpio del Editor Offset
 Visual V2 y la salida productiva existente. El adaptador traduce solamente un
 `layout_schema_version = 2` válido. No abre Layout V1, no migra jobs, no infiere
 dimensiones y no ejecuta el renderer.
@@ -17,9 +17,7 @@ Layout V2
   -> futura conexión con montaje_offset_inteligente.py
 ```
 
-En esta fase no existe todavía conexión con preview, PDF final, Flask, jobs ni
-uploads. `montaje_offset_inteligente.py` y los servicios V1 permanecen sin
-cambios.
+El adaptador continúa siendo un puente temporal, no el destino arquitectónico final. Jobs y uploads ya existen, y Flask expone un diagnóstico de capacidades de solo lectura; preview y PDF final siguen desconectados. `montaje_offset_inteligente.py` y los servicios V1 permanecen sin cambios. El destino futuro es `Editor V2 -> motor de salida V2 propio`.
 
 ## 2. Frontera V2/legacy
 
@@ -219,7 +217,7 @@ conserva en un modelo tipado y la serialización temporal declara CTP desactivad
 Con `ctp.enabled = true`, el resultado contiene
 `UNSUPPORTED_CTP_CONFIGURATION` y no produce `OutputJob`. Aunque existen
 algunas equivalencias parciales, la semántica completa de placa, cara, pinza,
-offsets, barra de color, texto técnico y registro debe resolverse en la Fase 9.
+offsets, barra de color, texto técnico y registro debe resolverse en una fase específica del roadmap vigente.
 El adaptador no finge compatibilidad parcial.
 
 ## 11. Errores, warnings e invariantes
@@ -272,6 +270,14 @@ from editor_offset_v2.application.output_service import (
 issues = validate_output_capabilities(layout)
 ```
 
+La aplicación expone esta misma frontera sobre el layout persistido:
+
+```http
+GET /api/editor-offset-v2/jobs/<job_id>/output-capabilities
+```
+
+El endpoint informa revisión, compatibilidad, errores y warnings estructurados sin modificar el layout ni incrementar la revisión. Este diagnóstico significa **compatibilidad con la salida temporal actual**; no equivale a PDF listo para imprimir, preflight final, preview ni ejecución del renderer legacy.
+
 ## 13. Serialización temporal
 
 `serialize_output_job()` genera una estructura determinista con:
@@ -289,11 +295,9 @@ productivo, rotación, bleed, crop marks y dimensiones trim de la fuente. Esta
 forma coincide con la rama manual que hoy consume
 `montaje_offset_inteligente.py`, pero aún no se la entrega automáticamente.
 
-## 14. Conexión futura con preview y PDF
+## 14. Evolución futura de salida
 
-Una fase posterior deberá tomar el contrato serializado y construir de forma
-controlada los objetos `Diseno` y `MontajeConfig`, uno por cara. Esa conexión
-deberá:
+Mientras el puente temporal siga vigente, una conexión controlada podría tomar el contrato serializado y construir objetos `Diseno` y `MontajeConfig`, uno por cara. Cualquier conexión deberá:
 
 1. volver a rechazar un resultado no exitoso;
 2. usar exclusivamente las rutas resueltas del adaptador;
@@ -302,14 +306,13 @@ deberá:
 5. comparar preview y PDF final con fixtures de paridad;
 6. mantener `montaje_offset_inteligente.py` sin semántica V2.
 
-El renderer, el preflight futuro y el conector productivo no deben volver a
+El destino arquitectónico es un motor de salida nativo V2. El OutputAdapter legacy seguirá siendo puente hasta que el motor nativo alcance paridad y cobertura suficientes. El renderer, el preflight futuro y el conector productivo no deben volver a
 implementar las fórmulas de centro, rotación, bleed o footprint. El kernel V2
 continúa siendo la única fuente de verdad geométrica.
 
 ## 15. Fuera de alcance
 
-Esta fase no implementa endpoints, Flask, frontend, TypeScript, uploads,
-persistencia de jobs, generación PDF, preview, Repeat, CTP productivo,
+El alcance de salida todavía no implementa generación PDF, preview, CTP productivo,
 transformaciones de contenido ni preparación física de assets. Tampoco modifica
 el Editor V1 ni adapta layouts anteriores.
 

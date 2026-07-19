@@ -14,18 +14,35 @@ Orden de evidencia aplicado:
 
 La revisión fue estática. En esta tarea no se ejecutaron tests ni se inició Flask; cuando este documento dice **probada**, significa que existe una aserción automatizada directa en la cobertura revisada, no que esa prueba se haya vuelto a ejecutar durante la auditoría.
 
+### 1.1 Actualización operativa — Fase 8P
+
+La Fase 8P posterior a esta auditoría fue implementada y validada. Las secciones históricas de hallazgos se conservan como evidencia del problema original, pero su resolución vigente es:
+
+- Repeat normal conserva `generated_by` y crea slots editables con `locks.geometry = []`;
+- `edit_policy.js` aplica de forma atómica locks de geometría, delete y contenido a drag y comandos, incluido Repeat replace;
+- la UI distingue fuente predeterminada del work y fuente efectiva del slot, con override derivado;
+- `imposition.last_result` se presenta como resultado histórico y los conteos actuales se derivan de `slots[]`;
+- Repeat distingue aprovechamiento de propuesta y total proyectado, manteniendo `utilization_percent` como alias compatible de la propuesta;
+- `exact_quantity` permanece aceptado por API pero oculto y fijado a `true` en la UI;
+- canvas muestra área imprimible y diferencia fuera del pliego de fuera del área imprimible;
+- Repeat back sigue soportado por backend, pero está deshabilitado temporalmente en la UI;
+- placeholder dev queda oculto por defecto bajo `EDITOR_OFFSET_V2_DEV_TOOLS_ENABLED`;
+- existe diagnóstico visible de compatibilidad con la salida temporal, sin preview ni PDF;
+- el artwork real se etiqueta como `Vista aproximada del PDF`;
+- 04–07 son documentos históricos de fase; 01–03, 08–09 siguen vivos.
+
 ## 2. Resumen ejecutivo
 
 Editor V2 ya es una aplicación aislada y accesible, no un prototipo documental. Puede crear y abrir jobs, persistir Layout V2 con control de revisión, subir PDFs, inspeccionar páginas y cajas, generar miniaturas, crear works y slots reales, mover y seleccionar slots en SVG, deshacer/rehacer, guardar automáticamente y calcular/aplicar Repeat como una operación reversible.
 
 La base más estable está en Python: contrato estricto, persistencia atómica, almacenamiento seguro de assets, kernel geométrico puro y adaptadores aislados. La base frontend también está modularizada, pero continúa en JavaScript estándar con un kernel de vista reducido y duplicado. Esa duplicación está caracterizada para bounds cardinales mediante fixtures compartidos, no para toda la API geométrica Python.
 
-Antes de incorporar herramientas manuales avanzadas deben resolverse cuatro deudas:
+La Fase 8P resolvió las contradicciones de locks, procedencia, fuentes, historial y estado visible. Permanecen como deudas para fases posteriores:
 
-1. los comandos e interacciones actuales no hacen cumplir `locks.geometry`, `locks.content` ni `locks.delete`;
-2. `activeFace`, `activeTool` y `hoverId` existen en el store, pero no tienen flujo funcional completo;
-3. el artwork SVG no aplica `content_transform`: representa una miniatura completa con `meet` y clip trim;
-4. el OutputAdapter existe y está probado de forma aislada, pero no está conectado a endpoints, preview ni PDF final y bloquea transformaciones de contenido avanzadas, CTP activo, páginas distintas de 1 y cajas distintas de TrimBox.
+1. `activeFace`, `activeTool` y `hoverId` existen en el store, pero no tienen flujo funcional completo;
+2. el artwork SVG no aplica `content_transform`: representa una miniatura completa con `meet` y clip trim, ahora advertida explícitamente como aproximada;
+3. el OutputAdapter sigue sin conectar preview ni PDF final y bloquea transformaciones avanzadas, CTP activo, páginas distintas de 1 y cajas distintas de TrimBox;
+4. la paridad geométrica JavaScript continúa siendo cardinal y parcial.
 
 ## 3. Mapa de arquitectura actual
 
@@ -75,12 +92,15 @@ El blueprint construye servicios por request desde la configuración Flask. El d
 | `POST /api/editor-offset-v2/jobs/<job_id>/assets` | Sube, inspecciona, miniaturiza e incorpora un PDF. | Sí, incrementa revisión. |
 | `GET /api/editor-offset-v2/jobs/<job_id>/assets/<asset_id>/thumbnails/<page>` | Sirve PNG resuelto por el servidor. | No. |
 | `POST /api/editor-offset-v2/jobs/<job_id>/imposition/repeat` | Calcula una propuesta Repeat normalizada. | No; el frontend decide si aplicarla. |
+| `GET /api/editor-offset-v2/jobs/<job_id>/output-capabilities` | Diagnostica compatibilidad del layout persistido con el puente temporal. | No; informa la revisión analizada. |
 
-No existen endpoints V2 de preflight productivo, preview, exportación, CTP, Nesting o Hybrid.
+No existen endpoints V2 de preflight profundo, preview, exportación ejecutable, CTP, Nesting o Hybrid.
 
 ### 3.3 Feature flag
 
 `EDITOR_OFFSET_V2_ENABLED` se instala desde configuración Flask y por defecto queda desactivado salvo configuración o variable de entorno explícita. Con la bandera apagada, páginas y API V2 responden 404; la API devuelve `V2_DISABLED`. Los tests verifican que una aplicación V1 de prueba continúa disponible y que la bandera no crea estado global entre apps.
+
+`EDITOR_OFFSET_V2_DEV_TOOLS_ENABLED` es independiente y `false` por defecto. Solo controla la visibilidad de la herramienta placeholder; no habilita ni deshabilita Editor V2.
 
 ## 4. Jobs, almacenamiento y revisiones
 
@@ -193,6 +213,10 @@ El frontend usa módulos JavaScript estándar cargados como scripts diferidos ba
 | `autosave.js` | Debounce y serialización de guardados. |
 | `assets_panel.js` | Upload, selección de fuente, work, slot y sustitución. |
 | `repeat_panel.js` | Configuración, cálculo, resumen y aplicación Repeat. |
+| `edit_policy.js` | Capacidades puras y enforcement atómico de locks. |
+| `source_semantics.js` | Fuente predeterminada del work y override efectivo del slot. |
+| `layout_metrics.js` | Conteos actuales derivados e historial de operación. |
+| `output_panel.js` | Consulta y presentación del diagnóstico de salida temporal. |
 | `dom_refs.js` | Resolución estricta de elementos del shell. |
 | `bootstrap.js` | Composición de módulos y listeners de alto nivel. |
 
@@ -246,17 +270,9 @@ clean | dirty | saving | save_error | conflict
 
 Un 409 conserva layout/revisión local, cambia a `conflict`, detiene autosave y ofrece únicamente recargar. No hay merge ni force-save.
 
-### 9.4 Deuda de locks
+### 9.4 Política de locks estabilizada
 
-Aunque el contrato define locks, actualmente:
-
-- drag crea `MoveSlotsCommand` sin revisar `locks.geometry`;
-- `DeleteSlotsCommand` no revisa `locks.delete`;
-- `ReplaceSlotSourceCommand` no revisa `locks.content`;
-- replace de Repeat elimina slots del work/cara sin revisar locks;
-- botones y lista no muestran estado bloqueado.
-
-Esto incluye slots Repeat, que nacen con `locks.geometry = ["engine"]` pero pueden moverse con drag. Antes de añadir más herramientas debe existir una política central y testeada de permisos de comando.
+`edit_policy.js` resuelve `move`, `delete`, `replace_content` y `replace_by_repeat`. Cualquier fuente válida (`user`, `engine`, `ctp`, `system`) bloquea cuando realmente está presente. Drag consulta la política; los comandos vuelven a defenderla; y una operación múltiple con un bloqueado rechaza el conjunto completo con IDs visibles. Repeat normal ya no crea un lock de geometría: su procedencia permanece exclusivamente en `generated_by`.
 
 ## 10. Canvas SVG
 
@@ -288,7 +304,7 @@ El layout nunca se invierte. Pointer Events pasan por `getScreenCTM().inverse()`
 
 ### 10.3 Trim, bleed y límites
 
-Trim y bleed se dibujan desde dimensiones sin rotar dentro del grupo rotado. `isWithinSheet()` usa bounds productivos con bleed y marca `is-outside`; no corrige ni bloquea el movimiento. Esa señal compara contra el pliego completo, no contra `printable_margins_mm`.
+Trim y bleed se dibujan desde dimensiones sin rotar dentro del grupo rotado. La vista deriva bounds productivos con bleed, dibuja el rectángulo de `printable_margins_mm` y clasifica por separado `is-outside-sheet` e `is-outside-printable`. No corrige ni bloquea el movimiento.
 
 ### 10.4 Artwork
 
@@ -300,7 +316,8 @@ Limitaciones confirmadas:
 - no aplica offset de la caja PDF;
 - no aplica `fit_mode`, escala, offset interno, rotación interna ni espejo;
 - siempre recorta visualmente a trim, aunque `content_transform.clip_to` declare otra cosa;
-- marca mismatch de dimensiones por clase CSS, sin preflight visible detallado.
+- marca mismatch de dimensiones por clase CSS;
+- muestra una advertencia no intrusiva `Vista aproximada del PDF`; el diagnóstico de salida temporal permanece separado.
 
 ### 10.5 Selección y drag
 
@@ -338,7 +355,7 @@ La UI crea works reales desde una página/caja, con nombre, trim, bleed, cantida
 
 ### 11.6 Placeholders
 
-El bundle placeholder continúa en `commands.js`, tiene asset `status=error`, preflight bloqueante y botón visible `Placeholder dev`. No aparece en el panel de assets ready y OutputAdapter/Repeat lo rechazan. Sigue siendo una capacidad de desarrollo expuesta en la UI, no solo una fábrica interna de tests.
+El bundle placeholder continúa en `commands.js`, tiene asset `status=error` y preflight bloqueante. OutputAdapter y Repeat lo rechazan. El botón solo se renderiza con `EDITOR_OFFSET_V2_DEV_TOOLS_ENABLED=true`; el editor normal lo oculta.
 
 ## 12. Repeat V2
 
@@ -358,9 +375,13 @@ Se distinguen requested, placed, unplaced y overproduced. Sin fill no sobreprodu
 
 ### 12.4 Frente/dorso
 
-Repeat puede calcular front o back si la cara está habilitada y el work tiene la fuente correspondiente. No inventa ni espeja dorso. El canvas no ofrece navegación de cara, de modo que una propuesta back puede aplicarse pero no existe un control normal para cambiar la vista activa a back.
+Repeat puede calcular front o back en backend si la cara está habilitada y el work tiene la fuente correspondiente. No inventa ni espeja dorso. Hasta que exista navegación de cara, la UI deshabilita `back` y solo envía `front`.
 
-### 12.5 Limitaciones
+### 12.5 Semántica de resultado y métricas
+
+`last_result` se conserva como trazabilidad histórica del momento de aplicación. La UI deriva de los slots actuales el total de la cara, total por work y cuántos slots de la última `operation_id` siguen presentes. La respuesta Repeat expone `proposal_utilization_pct` y `projected_total_utilization_pct`; `utilization_percent` se conserva temporalmente con el significado histórico de propuesta.
+
+### 12.6 Limitaciones
 
 - No hay preview fantasma de la propuesta en canvas.
 - Add bloquea colisión con slots existentes; el motor no los recibe como obstáculos para reacomodar.
@@ -435,9 +456,9 @@ No cubre actualmente:
 | Dirty/autosave/409 | Implementada y probada | Node y tests HTTP; conflicto visible no está en Playwright. |
 | Canvas SVG trim/bleed | Implementada y probada | Código + fixtures Node; sin screenshot/regresión visual. |
 | Selección simple/múltiple/lista | Implementada y probada | Node cubre store; interacción DOM no tiene Playwright dedicado. |
-| Drag con preview temporal | Implementada parcialmente | Código correcto por sesión/comando; no E2E actual ni locks. |
+| Drag con preview temporal | Implementada y probada | Política de move, comando, undo/redo, autosave y Playwright con slot Repeat. |
 | Zoom/pan/reset | Implementada parcialmente | Código activo; sin test de precisión DOM/E2E. |
-| Fuera de pliego | Implementada parcialmente | Señal visual por bleed contra sheet; no márgenes, no preflight. |
+| Pliego y área imprimible | Implementada y probada | Señales separadas por footprint con bleed; no bloquean ni corrigen. |
 | Upload/asset inmutable/hash | Implementada y probada | Servicio/rutas/rollback/seguridad. |
 | Inspección de cajas PDF | Implementada y probada | Cajas y ausencia explícita; no preflight profundo. |
 | Miniaturas | Implementada y probada | PNG y endpoint; recorte por caja no implementado. |
@@ -446,19 +467,20 @@ No cubre actualmente:
 | Slot manual back | No implementada | Fábrica fija `face=front` y `front_source`. |
 | Artwork SVG | Implementada parcialmente | Miniatura, clip trim, rotación del slot; no `content_transform` ni caja exacta. |
 | Sustitución de fuente | Implementada y probada | Node cubre comando; UI no está en Playwright. |
-| Placeholders dev | Implementada y probada | Válidos en contrato, no exportables; siguen visibles en UI. |
+| Placeholders dev | Implementada y probada | Válidos en contrato, no exportables; ocultos por defecto con flag independiente. |
 | Repeat proposal | Implementada y probada | Servicio/adaptador/endpoints y Playwright. |
 | Repeat add/replace | Implementada y probada | Node; Playwright solo aplica modo add. |
 | Repeat parcial/fill | Implementada y probada | Python; no flujo visible Playwright. |
-| Repeat back | Implementada y probada en backend | Python; bloqueada visualmente por falta de navegación de cara. |
-| OutputAdapter | Implementada y probada, latente | No conectado al blueprint ni a producción. |
+| Repeat back | Implementada y probada en backend | UI temporalmente deshabilitada hasta navegación de cara. |
+| Output capabilities | Implementada y probada | Endpoint/UI de solo lectura; no equivale a preflight ni PDF. |
+| OutputAdapter | Implementada y probada, puente temporal | Diagnóstico conectado; renderer productivo todavía desconectado. |
 | Preview productivo | No implementada | Sin endpoint/UI V2. |
 | PDF final V2 | No implementada | Sin conexión al renderer productivo. |
 | CTP productivo | Bloqueada por otra fase | Contrato existe; adapter bloquea `ctp.enabled=true`. |
 | Preflight PDF profundo | No implementada | Solo estructura y campos `not_run`. |
 | Inspector editable | No implementada | Renderer genera `<dl>` de solo lectura. |
 | Nudge/rotación manual/duplicar/copiar | No implementada | Sin comandos ni UI. |
-| Locks operativos | Latente | Contrato presente, comportamiento no aplicado. |
+| Locks operativos base | Implementada y probada | Move/delete/content/Repeat replace atómicos; UI de lock/unlock aún pendiente. |
 | Box select/árbol/criterios | No implementada | Solo lista plana y selección múltiple directa. |
 | Alinear/distribuir/snap/guías/medir | No implementada | Kernel Python tiene primitivas parciales; frontend no. |
 | Resize | No implementada | Sin handles/comando/política de artwork. |
@@ -472,33 +494,30 @@ No cubre actualmente:
 | `01_CONTRATO_LAYOUT_V2.md` | Parcialmente desactualizado | Semántica e invariantes siguen vigentes; todavía habla de API/kernel/adaptador como futuros en algunos apartados. Necesita reflejar que jobs, assets y Repeat ya existen. |
 | `02_KERNEL_GEOMETRICO_V2.md` | Parcialmente desactualizado | API y fórmulas coinciden con código; “futura capa SVG/TypeScript” ya tiene una réplica JS parcial. Debe distinguir paridad cardinal actual de paridad completa pendiente. |
 | `03_ADAPTADOR_SALIDA_V2.md` | Vigente | Responsabilidades, capacidades y bloqueo de CTP/contenido coinciden con código y tests; sigue correctamente desconectado de Flask/producción. |
-| `04_SHELL_Y_JOBS_V2.md` | Contradicho por el código en su descripción del shell actual | Jobs/flag/repositorio siguen vigentes; afirma que el template solo carga un script y no tiene store/canvas/assets/Repeat, lo cual ya no describe el sistema actual. Conserva valor histórico de Fase 4. |
-| `05_CANVAS_STORE_V2.md` | Parcialmente desactualizado | Store, comandos base, SVG y autosave siguen vigentes; el inventario de módulos/comandos y los límites “sin assets/Repeat” fueron superados. |
-| `06_ASSETS_Y_SLOTS_V2.md` | Parcialmente desactualizado | Upload, inspección, miniaturas, works, slots y artwork coinciden; la afirmación “Repeat no implementado/próxima fase” ya quedó superada. |
-| `07_REPEAT_V2.md` | Vigente | Flujo, adapter, cantidades, add/replace, límites y cobertura coinciden con código actual. Necesita ampliación futura cuando exista navegación visual back o preview fantasma. |
+| `04_SHELL_Y_JOBS_V2.md` | Histórico de fase | Conserva el cierre de Fase 4 y enlaza a estado/roadmap vigentes. |
+| `05_CANVAS_STORE_V2.md` | Histórico de fase | Conserva el cierre de Fase 5 y enlaza a estado/roadmap vigentes. |
+| `06_ASSETS_Y_SLOTS_V2.md` | Histórico de fase | Conserva el cierre de Fase 6 y enlaza a estado/roadmap vigentes. |
+| `07_REPEAT_V2.md` | Histórico de fase | Conserva el cierre de Fase 7; la semántica posterior está en esta auditoría y en Fase 8P. |
 
 No se modificó ninguno de estos documentos durante la auditoría.
 
 ## 16. Deuda y riesgos prioritarios
 
-### Alta prioridad antes de herramientas manuales
+### Alta prioridad después de la estabilización 8P
 
-1. **Locks declarativos sin enforcement.** Es una inconsistencia entre contrato e interacción real y afecta drag, delete, replace y Repeat replace.
-2. **Paridad geométrica frontend incompleta.** Bounds cardinales bastan para movimiento/alineación inicial, pero no para box select poligonal, overlap, snap avanzado o resize.
-3. **Dos geometrías distintas por concepto.** La UI futura debe separar slot productivo y transformación interna del artwork; mezclarlas produciría diferencias con output.
-4. **Exportabilidad no conectada.** No debe presentarse una transformación visual como productiva mientras OutputAdapter la bloquee.
+1. **Paridad geométrica frontend incompleta.** Bounds cardinales y área imprimible bastan para movimiento inicial, pero no para box select poligonal, overlap, snap avanzado o resize.
+2. **Dos geometrías distintas por concepto.** La UI futura debe separar slot productivo y transformación interna del artwork; mezclarlas produciría diferencias con output.
+3. **Salida productiva desconectada.** El diagnóstico informa compatibilidad, pero no debe confundirse con preview/PDF ni ejecutar el puente legacy.
 
 ### Prioridad media
 
-5. No hay navegación activa frente/dorso; existen datos back que el operador no puede inspeccionar en el canvas normal.
-6. El canvas valida “fuera” contra sheet, mientras Repeat usa márgenes imprimibles.
-7. El tree actual es una lista plana de slots de la cara activa.
-8. Placeholders siguen expuestos en UI y pueden contaminar jobs de usuario, aunque quedan bloqueados para Repeat/output.
-9. Pan no tiene prueba de precisión y su cálculo por píxel no deriva directamente del viewBox real.
-10. La cobertura Playwright concentra muchas garantías en un único happy path Repeat.
+4. No hay navegación activa frente/dorso; la UI bloquea back para evitar objetos invisibles.
+5. El tree actual es una lista plana de slots de la cara activa.
+6. Pan no tiene prueba de precisión y su cálculo por píxel no deriva directamente del viewBox real.
+7. Preflight profundo, corrección PDF y motor de salida nativo siguen pendientes.
 
 ## 17. Conclusión
 
-V2 está listo para iniciar herramientas manuales de bajo riesgo que solo cambien posición y rotación cardinal mediante comandos. No está listo para habilitar resize, transformación interna del PDF, ocultación productiva, grupos persistentes o herramientas basadas en colisiones avanzadas sin decisiones de contrato y paridad geométrica adicionales.
+Tras 8P, V2 está listo para iniciar herramientas manuales de bajo riesgo que solo cambien posición mediante comandos y la política central existente. No está listo para habilitar resize, transformación interna del PDF, ocultación productiva, grupos persistentes o herramientas basadas en colisiones avanzadas sin decisiones de contrato y paridad geométrica adicionales.
 
-La siguiente fase recomendada es un incremento pequeño: inspector editable de centro X/Y, nudge y registro de atajos, acompañado por una política central de locks para toda mutación geométrica. No debe editar trim, bleed ni contenido todavía.
+La siguiente fase recomendada es 8A: inspector editable de centro X/Y, nudge y registro de atajos, reutilizando la política central ya implementada. No debe editar trim, bleed ni contenido todavía.

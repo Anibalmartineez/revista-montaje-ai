@@ -1,13 +1,21 @@
 (function (root, factory) {
   "use strict";
-  const api = factory();
+  const sourceSemantics = typeof module === "object" && module.exports
+    ? require("./source_semantics.js")
+    : root.EditorOffsetV2?.SourceSemantics;
+  const editPolicy = typeof module === "object" && module.exports
+    ? require("./edit_policy.js")
+    : root.EditorOffsetV2?.EditPolicy;
+  const api = factory(sourceSemantics, editPolicy);
   if (typeof module === "object" && module.exports) {
     module.exports = api;
   }
   root.EditorOffsetV2 = root.EditorOffsetV2 || {};
   root.EditorOffsetV2.CanvasRenderer = api;
-})(typeof globalThis !== "undefined" ? globalThis : this, function () {
+})(typeof globalThis !== "undefined" ? globalThis : this, function (SourceSemantics, EditPolicy) {
   "use strict";
+
+  if (!SourceSemantics || !EditPolicy) throw new Error("Editor V2 renderer policies are required");
 
   const SVG_NS = "http://www.w3.org/2000/svg";
 
@@ -68,6 +76,25 @@
     return image;
   }
 
+  function artworkIsApproximate(slot, layout, assetsApiUrl) {
+    const asset = layout.assets.find((item) => item.id === slot.source.asset_id);
+    const page = asset?.pages.find((item) => item.number === slot.source.page);
+    return Boolean(asset && asset.status === "ready" && page && assetsApiUrl);
+  }
+
+  function slotPlacementClasses(slot, sheet, geometry) {
+    const placement = geometry.classifySlotPlacement(slot, sheet);
+    return {
+      placement,
+      className: placement === "outside_sheet"
+        ? "is-outside-sheet"
+        : placement === "outside_printable" ? "is-outside-printable" : "",
+      message: placement === "outside_sheet"
+        ? "Fuera del pliego"
+        : placement === "outside_printable" ? "Fuera del área imprimible" : "",
+    };
+  }
+
   class Renderer {
     constructor(store, refs, geometry, assetsApiUrl) {
       this.store = store;
@@ -121,7 +148,16 @@
         class: "ev2-svg-sheet",
         "data-canvas-background": "true",
       });
-      svg.append(workspace, sheetRect);
+      const printable = this.geometry.printableBounds(state.layout.sheet);
+      const printableRect = svgElement("rect", {
+        x: printable.left,
+        y: this.geometry.mmToSvgY(printable.top, sheet.height),
+        width: printable.width,
+        height: printable.height,
+        class: "ev2-svg-printable-area",
+        "data-printable-area": "true",
+      });
+      svg.append(workspace, sheetRect, printableRect);
 
       const visibleSlots = state.layout.slots
         .filter((slot) => slot.face === state.activeFace)
@@ -132,15 +168,30 @@
         const trim = slot.geometry.trim_size_mm;
         const bleed = slot.geometry.bleed_mm;
         const selected = state.selection.includes(slot.id);
-        const outside = !this.geometry.isWithinSheet(slot, sheet, true);
+        const placement = slotPlacementClasses(slot, state.layout.sheet, this.geometry);
+        const approximate = artworkIsApproximate(slot, state.layout, this.assetsApiUrl);
         const group = svgElement("g", {
-          class: ["ev2-svg-slot", selected && "is-selected", outside && "is-outside"]
+          class: [
+            "ev2-svg-slot",
+            selected && "is-selected",
+            placement.className,
+            approximate && "has-approximate-artwork",
+          ]
             .filter(Boolean)
             .join(" "),
           transform: `translate(${this.geometry.mmToSvgX(center.x_mm)} ${this.geometry.mmToSvgY(center.y_mm, sheet.height)}) rotate(${-slot.geometry.rotation_deg})`,
           "data-slot-id": slot.id,
           tabindex: "0",
         });
+        if (placement.message || approximate) {
+          group.append(svgElement(
+            "title",
+            {},
+            [placement.message, approximate && "Vista aproximada del PDF"]
+              .filter(Boolean)
+              .join(" · "),
+          ));
+        }
         const clipId = `ev2-slot-clip-${slotIndex}`;
         const clipPath = svgElement("clipPath", {
           id: clipId,
@@ -224,6 +275,18 @@
         name.textContent = slot.id;
         dimensions.textContent = `${slot.geometry.trim_size_mm.width} × ${slot.geometry.trim_size_mm.height} mm`;
         button.append(name, dimensions);
+        if (SourceSemantics.hasSourceOverride(state.layout, slot)) {
+          const override = document.createElement("small");
+          override.className = "ev2-source-override";
+          override.textContent = "Fuente sobrescrita en este slot";
+          button.append(override);
+        }
+        if (artworkIsApproximate(slot, state.layout, this.assetsApiUrl)) {
+          const approximate = document.createElement("small");
+          approximate.className = "ev2-approximate-artwork";
+          approximate.textContent = "Vista aproximada del PDF";
+          button.append(approximate);
+        }
         item.append(button);
         this.refs.slotsList.append(item);
       }
@@ -243,6 +306,20 @@
           ["Rotación", `${selected[0].geometry.rotation_deg}°`],
         ]
         : [["Selección", selected.length ? `${selected.length} slots` : "Ninguna"]];
+      if (selected.length === 1) {
+        const slot = selected[0];
+        if (SourceSemantics.hasSourceOverride(state.layout, slot)) {
+          values.push(["Fuente", "Fuente sobrescrita en este slot"]);
+        }
+        if (artworkIsApproximate(slot, state.layout, this.assetsApiUrl)) {
+          values.push([
+            "Artwork",
+            "Vista aproximada del PDF. La miniatura muestra la página completa ajustada al slot. El recorte y las transformaciones productivas exactas aún no están conectados.",
+          ]);
+        }
+        const placement = slotPlacementClasses(slot, state.layout.sheet, this.geometry);
+        if (placement.message) values.push(["Geometría", placement.message]);
+      }
       for (const [label, value] of values) {
         const row = document.createElement("div");
         const term = document.createElement("dt");
@@ -265,13 +342,14 @@
       this.refs.revision.textContent = String(state.revision);
       this.refs.saveStatus.textContent = labels[state.saveState.status];
       this.refs.saveStatus.dataset.state = state.saveState.status;
-      this.refs.statusMessage.textContent = state.saveState.error || "";
+      this.refs.statusMessage.textContent = state.saveState.error || state.feedback || "";
       this.refs.save.disabled = !state.hasUnsavedChanges
         || state.saveState.status === "saving"
         || state.saveState.status === "conflict";
       this.refs.undo.disabled = !state.canUndo;
       this.refs.redo.disabled = !state.canRedo;
-      this.refs.deleteSlots.disabled = state.selection.length === 0;
+      this.refs.deleteSlots.disabled = state.selection.length === 0
+        || !EditPolicy.can(state.layout, state.selection, "delete");
       this.refs.reloadConflict.hidden = state.saveState.status !== "conflict";
       this.refs.activeFace.textContent = state.activeFace === "front" ? "Frente" : "Dorso";
       this.refs.cursor.textContent = state.cursorMm.x === null
@@ -286,5 +364,12 @@
     }
   }
 
-  return Object.freeze({ Renderer, artworkForSlot, svgElement, withPreview });
+  return Object.freeze({
+    Renderer,
+    artworkForSlot,
+    artworkIsApproximate,
+    slotPlacementClasses,
+    svgElement,
+    withPreview,
+  });
 });

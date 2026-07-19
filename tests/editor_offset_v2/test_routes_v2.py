@@ -9,6 +9,7 @@ from flask import Flask
 
 from editor_offset_v2.blueprint import init_editor_offset_v2
 from editor_offset_v2.config import (
+    EDITOR_OFFSET_V2_DEV_TOOLS_ENABLED,
     EDITOR_OFFSET_V2_ENABLED,
     EDITOR_OFFSET_V2_JOBS_ROOT,
 )
@@ -23,7 +24,7 @@ COMPLETE_FIXTURE = (
 
 @pytest.fixture
 def app_factory(tmp_path):
-    def create(enabled: bool = True) -> Flask:
+    def create(enabled: bool = True, *, dev_tools: bool = False) -> Flask:
         app = Flask(
             __name__,
             template_folder=str(REPO_ROOT / "templates"),
@@ -33,6 +34,7 @@ def app_factory(tmp_path):
         app.config.update(
             TESTING=True,
             EDITOR_OFFSET_V2_ENABLED=enabled,
+            EDITOR_OFFSET_V2_DEV_TOOLS_ENABLED=dev_tools,
             EDITOR_OFFSET_V2_JOBS_ROOT=str(tmp_path / "v2_jobs"),
         )
 
@@ -104,8 +106,26 @@ def test_shell_without_job_has_v2_assets_and_never_loads_v1_script(app_factory):
     assert "/static/js/editor_offset_v2/canvas_renderer.js" in html
     assert "/static/js/editor_offset_v2/repeat_panel.js" in html
     assert 'id="ev2-repeat-calculate"' in html
+    assert 'id="ev2-create-slot"' not in html
+    assert "Placeholder dev" not in html
+    assert 'id="ev2-repeat-exact"' not in html
+    assert 'value="back" disabled' in html
+    assert "El cálculo de dorso estará disponible" in html
     assert "static/js/editor_offset_visual.js" not in html
     assert "data-editor-tab" not in html
+
+
+def test_development_placeholder_control_requires_its_own_flag(app_factory):
+    hidden = app_factory(dev_tools=False).test_client().get(
+        "/editor_offset_visual_v2"
+    ).get_data(as_text=True)
+    visible = app_factory(dev_tools=True).test_client().get(
+        "/editor_offset_visual_v2"
+    ).get_data(as_text=True)
+
+    assert 'id="ev2-create-slot"' not in hidden
+    assert 'id="ev2-create-slot"' in visible
+    assert "nunca representa un PDF exportable" in visible
 
 
 def test_post_creates_server_id_valid_layout_directories_and_open_url(app_factory):
@@ -337,6 +357,8 @@ def test_template_embeds_parseable_context_json(app_factory):
     assert context["save_layout_url"] is None
     assert context["assets_api_url"] is None
     assert context["repeat_api_url"] is None
+    assert context["output_capabilities_api_url"] is None
+    assert context["dev_tools_enabled"] is False
 
 
 def test_template_context_has_canonical_get_and_save_urls(app_factory):
@@ -356,3 +378,61 @@ def test_template_context_has_canonical_get_and_save_urls(app_factory):
     assert context["repeat_api_url"] == (
         f"/api/editor-offset-v2/jobs/{job_id}/imposition/repeat"
     )
+    assert context["output_capabilities_api_url"] == (
+        f"/api/editor-offset-v2/jobs/{job_id}/output-capabilities"
+    )
+
+
+def test_output_capabilities_endpoint_is_read_only_and_reports_revision(app_factory):
+    app = app_factory()
+    client = app.test_client()
+    created = create_job(client)
+    layout = with_fixture_slot(created["layout"])
+    saved = client.put(
+        f"/api/editor-offset-v2/jobs/{created['job_id']}/layout",
+        json={"base_revision": 1, "layout": layout},
+    ).get_json()
+    layout_path = (
+        Path(app.config[EDITOR_OFFSET_V2_JOBS_ROOT])
+        / created["job_id"]
+        / "layout_v2.json"
+    )
+    before = layout_path.read_bytes()
+
+    response = client.get(
+        f"/api/editor-offset-v2/jobs/{created['job_id']}/output-capabilities"
+    )
+
+    assert response.status_code == 200
+    payload = response.get_json()
+    assert payload["ok"] is True
+    assert payload["revision"] == saved["revision"] == 2
+    assert payload["compatible"] is True
+    assert payload["errors"] == []
+    assert isinstance(payload["warnings"], list)
+    assert layout_path.read_bytes() == before
+    assert client.get(
+        f"/api/editor-offset-v2/jobs/{created['job_id']}"
+    ).get_json()["revision"] == 2
+
+
+def test_output_capabilities_reports_structured_slot_issue(app_factory):
+    client = app_factory().test_client()
+    created = create_job(client)
+    layout = with_fixture_slot(created["layout"])
+    layout["slots"][0]["content_transform"]["scale_x"] = 0.75
+    saved = client.put(
+        f"/api/editor-offset-v2/jobs/{created['job_id']}/layout",
+        json={"base_revision": 1, "layout": layout},
+    )
+    assert saved.status_code == 200
+
+    payload = client.get(
+        f"/api/editor-offset-v2/jobs/{created['job_id']}/output-capabilities"
+    ).get_json()
+
+    issue = next(item for item in payload["errors"] if item["code"] == "UNSUPPORTED_CONTENT_SCALE")
+    assert payload["compatible"] is False
+    assert issue["slot_id"] == layout["slots"][0]["id"]
+    assert issue["asset_id"] == layout["slots"][0]["source"]["asset_id"]
+    assert issue["path"].endswith(".content_transform")

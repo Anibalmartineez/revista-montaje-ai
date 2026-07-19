@@ -1,5 +1,13 @@
 # Fase 5 — Store, comandos, guardado y canvas SVG básico
 
+> ESTADO: DOCUMENTO HISTÓRICO DE FASE
+>
+> Este archivo describe el sistema al finalizar esta fase. No representa por sí solo el estado funcional actual.
+>
+> Estado actual: `08_AUDITORIA_ESTADO_ACTUAL_V2.md`
+>
+> Roadmap vigente: `09_PLAN_HERRAMIENTAS_MANUALES_V2.md`
+
 ## Objetivo
 
 Esta fase incorpora el primer núcleo interactivo del Editor Offset Visual V2 sin conectar assets PDF reales ni la salida productiva. Un Layout V2 persistido se carga en un store aislado, las modificaciones confirmadas pasan por comandos y el resultado se guarda mediante la API con control de revisión creada en la Fase 4.

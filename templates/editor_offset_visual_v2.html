@@ -41,10 +41,12 @@
         <span aria-hidden="true">↖</span>
         Selección
       </button>
+      {% if editor_context.dev_tools_enabled %}
       <button class="ev2-tool" id="ev2-create-slot" type="button" {% if not editor_context.job_id %}disabled{% endif %}>
         <span aria-hidden="true">＋</span>
         Placeholder dev
       </button>
+      {% endif %}
       <button class="ev2-tool" id="ev2-delete-slots" type="button" disabled>
         <span aria-hidden="true">⌫</span>
         Eliminar
@@ -102,9 +104,11 @@
       <ul class="ev2-slots-list" id="ev2-slots-list">
         <li class="ev2-list-empty">No hay slots en esta cara.</li>
       </ul>
+      {% if editor_context.dev_tools_enabled %}
       <div class="ev2-development-note">
         “Placeholder dev” permanece solo para pruebas y nunca representa un PDF exportable.
       </div>
+      {% endif %}
     </aside>
 
     <section class="ev2-workspace" aria-label="Canvas del montaje">
@@ -127,7 +131,7 @@
     <aside class="ev2-inspector" aria-label="Inspector del slot">
       <div class="ev2-panel-heading">
         <span class="ev2-region-label">Inspector</span>
-        <small>Geometría y Repeat · Fase 7</small>
+        <small>Geometría, procedencia y salida temporal</small>
       </div>
       <dl class="ev2-inspector-list" id="ev2-inspector-values">
         <div><dt>Selección</dt><dd>Ninguna</dd></div>
@@ -145,7 +149,7 @@
           <label>Cara
             <select id="ev2-repeat-face">
               <option value="front">Frente</option>
-              <option value="back">Dorso</option>
+              <option value="back" disabled>Dorso</option>
             </select>
           </label>
           <label>Gap horizontal
@@ -155,7 +159,8 @@
             <input id="ev2-repeat-gap-y" type="number" min="0" step="0.1" value="{{ repeat_settings.get('vertical_gap_mm', 3) }}">
           </label>
         </div>
-        <label><input id="ev2-repeat-exact" type="checkbox" checked> Cantidad exacta</label>
+        <p class="ev2-repeat-note">Repeat utilizará la fuente predeterminada del work.</p>
+        <p class="ev2-repeat-note">El cálculo de dorso estará disponible cuando se incorpore la navegación de caras.</p>
         <label><input id="ev2-repeat-partial" type="checkbox"> Permitir parcial</label>
         <label><input id="ev2-repeat-fill" type="checkbox"> Completar espacio</label>
         <fieldset class="ev2-repeat-mode">
@@ -169,13 +174,29 @@
         </div>
         <p id="ev2-repeat-status" class="ev2-inline-status" role="status" aria-live="polite"></p>
         <dl id="ev2-repeat-summary" class="ev2-repeat-summary" hidden>
-          <div><dt>Solicitadas</dt><dd id="ev2-repeat-requested">0</dd></div>
-          <div><dt>Colocadas</dt><dd id="ev2-repeat-placed">0</dd></div>
-          <div><dt>No colocadas</dt><dd id="ev2-repeat-unplaced">0</dd></div>
-          <div><dt>Sobreproducción</dt><dd id="ev2-repeat-overproduced">0</dd></div>
-          <div><dt>Aprovechamiento</dt><dd id="ev2-repeat-utilization">0%</dd></div>
+          <div><dt>Solicitadas · works seleccionados</dt><dd id="ev2-repeat-requested">0</dd></div>
+          <div><dt>Colocadas · propuesta actual</dt><dd id="ev2-repeat-placed">0</dd></div>
+          <div><dt>No colocadas · propuesta actual</dt><dd id="ev2-repeat-unplaced">0</dd></div>
+          <div><dt>Sobreproducción · propuesta actual</dt><dd id="ev2-repeat-overproduced">0</dd></div>
+          <div><dt>Aprovechamiento de la propuesta</dt><dd id="ev2-repeat-proposal-utilization">0%</dd></div>
+          <div><dt>Aprovechamiento total proyectado</dt><dd id="ev2-repeat-projected-utilization">0%</dd></div>
         </dl>
         <ul id="ev2-repeat-issues" class="ev2-repeat-issues"></ul>
+        <div class="ev2-repeat-history">
+          <strong id="ev2-repeat-history">Resultado al aplicar la última imposición · todavía no existe.</strong>
+          <dl class="ev2-repeat-summary">
+            <div><dt>Slots actuales de la cara</dt><dd id="ev2-repeat-current-face">0</dd></div>
+            <div><dt>Slots actuales por work</dt><dd id="ev2-repeat-current-works">Ninguno</dd></div>
+            <div><dt>Slots de la última operación todavía presentes</dt><dd id="ev2-repeat-current-operation">—</dd></div>
+          </dl>
+        </div>
+      </details>
+      <details class="ev2-output-panel" open>
+        <summary>Compatibilidad con la salida actual</summary>
+        <p class="ev2-repeat-note">Este diagnóstico no es un preflight final ni genera PDF.</p>
+        <button id="ev2-output-check" type="button" {% if not editor_context.job_id %}disabled{% endif %}>Consultar compatibilidad</button>
+        <p id="ev2-output-status" class="ev2-inline-status" role="status" aria-live="polite">Corresponde a la última revisión guardada.</p>
+        <ul id="ev2-output-issues" class="ev2-repeat-issues"></ul>
       </details>
     </aside>
 
@@ -200,6 +221,9 @@
   <script id="editor-offset-v2-context" type="application/json">{{ editor_context | tojson }}</script>
   <script src="{{ url_for('static', filename='js/editor_offset_v2/dom_refs.js') }}" defer></script>
   <script src="{{ url_for('static', filename='js/editor_offset_v2/geometry_view.js') }}" defer></script>
+  <script src="{{ url_for('static', filename='js/editor_offset_v2/edit_policy.js') }}" defer></script>
+  <script src="{{ url_for('static', filename='js/editor_offset_v2/source_semantics.js') }}" defer></script>
+  <script src="{{ url_for('static', filename='js/editor_offset_v2/layout_metrics.js') }}" defer></script>
   <script src="{{ url_for('static', filename='js/editor_offset_v2/commands.js') }}" defer></script>
   <script src="{{ url_for('static', filename='js/editor_offset_v2/store.js') }}" defer></script>
   <script src="{{ url_for('static', filename='js/editor_offset_v2/api_client.js') }}" defer></script>
@@ -208,6 +232,7 @@
   <script src="{{ url_for('static', filename='js/editor_offset_v2/interactions.js') }}" defer></script>
   <script src="{{ url_for('static', filename='js/editor_offset_v2/assets_panel.js') }}" defer></script>
   <script src="{{ url_for('static', filename='js/editor_offset_v2/repeat_panel.js') }}" defer></script>
+  <script src="{{ url_for('static', filename='js/editor_offset_v2/output_panel.js') }}" defer></script>
   <script src="{{ url_for('static', filename='js/editor_offset_v2/bootstrap.js') }}" defer></script>
   <script src="{{ url_for('static', filename='js/editor_offset_visual_v2.js') }}" defer></script>
 </body>

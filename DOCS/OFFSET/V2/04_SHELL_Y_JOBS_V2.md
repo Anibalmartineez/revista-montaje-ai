@@ -1,5 +1,13 @@
 # Shell, Blueprint y repositorio de jobs del Editor Offset Visual V2
 
+> ESTADO: DOCUMENTO HISTÓRICO DE FASE
+>
+> Este archivo describe el sistema al finalizar esta fase. No representa por sí solo el estado funcional actual.
+>
+> Estado actual: `08_AUDITORIA_ESTADO_ACTUAL_V2.md`
+>
+> Roadmap vigente: `09_PLAN_HERRAMIENTAS_MANUALES_V2.md`
+
 ## 1. Objetivo de la Fase 4
 
 La Fase 4 crea la primera superficie HTTP accesible del Editor Offset Visual V2

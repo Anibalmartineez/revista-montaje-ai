@@ -93,6 +93,41 @@
       && bounds.top <= sheetSize.height;
   }
 
+  function printableBounds(sheet) {
+    const size = sheet.size_mm;
+    const margins = sheet.printable_margins_mm;
+    return {
+      left: finiteNumber(margins.left, "printable left"),
+      right: finiteNumber(size.width, "sheet width")
+        - finiteNumber(margins.right, "printable right"),
+      bottom: finiteNumber(margins.bottom, "printable bottom"),
+      top: finiteNumber(size.height, "sheet height")
+        - finiteNumber(margins.top, "printable top"),
+      width: size.width - margins.left - margins.right,
+      height: size.height - margins.bottom - margins.top,
+    };
+  }
+
+  function boundsWithin(bounds, container) {
+    return bounds.left >= container.left
+      && bounds.bottom >= container.bottom
+      && bounds.right <= container.right
+      && bounds.top <= container.top;
+  }
+
+  function classifySlotPlacement(slot, sheet) {
+    const productiveBounds = bleedBounds(slot);
+    const sheetBounds = {
+      left: 0,
+      right: sheet.size_mm.width,
+      bottom: 0,
+      top: sheet.size_mm.height,
+    };
+    if (!boundsWithin(productiveBounds, sheetBounds)) return "outside_sheet";
+    if (!boundsWithin(productiveBounds, printableBounds(sheet))) return "outside_printable";
+    return "inside";
+  }
+
   function mmToSvgX(xMm) {
     return finiteNumber(xMm, "x_mm");
   }
@@ -126,6 +161,9 @@
     bleedBounds,
     boundsUnion,
     isWithinSheet,
+    printableBounds,
+    boundsWithin,
+    classifySlotPlacement,
     mmToSvgX,
     mmToSvgY,
     svgToMmX,

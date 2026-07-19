@@ -8,6 +8,7 @@ from typing import Any
 
 
 EDITOR_OFFSET_V2_ENABLED = "EDITOR_OFFSET_V2_ENABLED"
+EDITOR_OFFSET_V2_DEV_TOOLS_ENABLED = "EDITOR_OFFSET_V2_DEV_TOOLS_ENABLED"
 EDITOR_OFFSET_V2_JOBS_ROOT = "EDITOR_OFFSET_V2_JOBS_ROOT"
 EDITOR_OFFSET_V2_MAX_UPLOAD_BYTES = "EDITOR_OFFSET_V2_MAX_UPLOAD_BYTES"
 DEFAULT_EDITOR_OFFSET_V2_MAX_UPLOAD_BYTES = 50 * 1024 * 1024
@@ -28,6 +29,10 @@ def configure_editor_offset_v2(app: Any) -> None:
         _environment_flag(EDITOR_OFFSET_V2_ENABLED),
     )
     app.config.setdefault(
+        EDITOR_OFFSET_V2_DEV_TOOLS_ENABLED,
+        _environment_flag(EDITOR_OFFSET_V2_DEV_TOOLS_ENABLED),
+    )
+    app.config.setdefault(
         EDITOR_OFFSET_V2_JOBS_ROOT,
         str(Path(app.instance_path) / "editor_offset_v2_jobs"),
     )
@@ -39,6 +44,7 @@ def configure_editor_offset_v2(app: Any) -> None:
 
 __all__ = [
     "EDITOR_OFFSET_V2_ENABLED",
+    "EDITOR_OFFSET_V2_DEV_TOOLS_ENABLED",
     "EDITOR_OFFSET_V2_JOBS_ROOT",
     "EDITOR_OFFSET_V2_MAX_UPLOAD_BYTES",
     "DEFAULT_EDITOR_OFFSET_V2_MAX_UPLOAD_BYTES",

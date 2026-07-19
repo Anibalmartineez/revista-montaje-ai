@@ -22,9 +22,11 @@ from editor_offset_v2.application.asset_service import (
     AssetServiceError,
 )
 from editor_offset_v2.application.job_service import JobService, JobServiceError
+from editor_offset_v2.application.output_service import validate_output_capabilities
 from editor_offset_v2.application.repeat_service import RepeatService, RepeatServiceError
 from editor_offset_v2.config import (
     EDITOR_OFFSET_V2_ENABLED,
+    EDITOR_OFFSET_V2_DEV_TOOLS_ENABLED,
     EDITOR_OFFSET_V2_JOBS_ROOT,
     EDITOR_OFFSET_V2_MAX_UPLOAD_BYTES,
     configure_editor_offset_v2,
@@ -104,6 +106,10 @@ def editor_shell():
         "save_layout_url": None,
         "assets_api_url": None,
         "repeat_api_url": None,
+        "output_capabilities_api_url": None,
+        "dev_tools_enabled": current_app.config.get(
+            EDITOR_OFFSET_V2_DEV_TOOLS_ENABLED
+        ) is True,
     }
     return render_template("editor_offset_visual_v2.html", editor_context=context)
 
@@ -136,6 +142,13 @@ def editor_with_job(job_id: str):
             "editor_offset_v2.propose_repeat",
             job_id=result.job_id,
         ),
+        "output_capabilities_api_url": url_for(
+            "editor_offset_v2.output_capabilities",
+            job_id=result.job_id,
+        ),
+        "dev_tools_enabled": current_app.config.get(
+            EDITOR_OFFSET_V2_DEV_TOOLS_ENABLED
+        ) is True,
     }
     return render_template("editor_offset_visual_v2.html", editor_context=context)
 
@@ -267,6 +280,30 @@ def propose_repeat(job_id: str):
     except (RepeatServiceError, JobServiceError) as error:
         return _error_payload(error)
     return jsonify({"ok": True, "result": result.as_dict()})
+
+
+@editor_offset_v2_bp.get(
+    "/api/editor-offset-v2/jobs/<job_id>/output-capabilities"
+)
+def output_capabilities(job_id: str):
+    try:
+        result = _job_service().get_job(job_id)
+    except JobServiceError as error:
+        return _error_payload(error)
+    issues = tuple(validate_output_capabilities(result.layout))
+    errors = [issue.as_dict() for issue in issues if issue.level == "error"]
+    warnings = [issue.as_dict() for issue in issues if issue.level == "warning"]
+    return jsonify(
+        {
+            "ok": True,
+            "job_id": result.job_id,
+            "revision": result.revision,
+            "compatible": not errors,
+            "errors": errors,
+            "warnings": warnings,
+            "issues": [issue.as_dict() for issue in issues],
+        }
+    )
 
 
 @editor_offset_v2_bp.put("/api/editor-offset-v2/jobs/<job_id>/layout")

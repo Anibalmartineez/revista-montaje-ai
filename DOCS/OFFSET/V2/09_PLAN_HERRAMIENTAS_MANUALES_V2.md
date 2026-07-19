@@ -4,6 +4,10 @@
 
 Este plan parte del código auditado después de las fases 1–7. No propone reconstruir el editor ni introducir un framework. Extiende la arquitectura que ya funciona:
 
+> ACTUALIZACIÓN VIGENTE — FASE 8P COMPLETADA
+>
+> La estabilización semántica descrita en `10_ESTABILIZACION_SEMANTICA_V2.md` precede a 8A. Ya existen política base de locks, slots Repeat editables, área imprimible visible, source override, historial/conteos Repeat, métricas propuesta/total, placeholder oculto, back bloqueado en UI, output capabilities y advertencia de artwork aproximado. Las fases 8A–8H no deben reimplementar estas piezas.
+
 ```text
 EditorStore
   -> comando reversible
@@ -24,9 +28,9 @@ Base disponible:
 - contrato de locks y `generated_by.type = duplicate`;
 - kernel Python con polígonos, bounds, SAT y distancias.
 
-Deudas que condicionan el orden:
+Deudas que condicionan el orden después de 8P:
 
-- los locks todavía no se aplican a comandos;
+- la UI todavía no permite crear ni retirar locks de usuario, aunque el enforcement base ya existe;
 - el inspector es de solo lectura;
 - el kernel JS solo cubre bounds cardinales;
 - no hay navegación de cara;
@@ -89,7 +93,7 @@ Reglas comunes:
 2. Un gesto continuo produce un solo comando al confirmar.
 3. Todo comando persistente deja dirty y activa el autosave existente.
 4. Selección, hover, viewport, clipboard interno, guías temporales y previews no se persisten ni activan autosave.
-5. Una política central de capacidades debe resolver locks; no se repetirán checks distintos en botones, drag y comandos.
+5. La política central `edit_policy.js` ya resuelve move/delete/content/Repeat replace; toda capacidad nueva debe extender esa misma frontera y mantener defensa en UI y comando.
 6. Las operaciones geométricas consumen Geometría JS con paridad de fixtures; no se dispersan fórmulas en el renderer.
 7. El backend vuelve a validar siempre el Layout V2 al guardar.
 
@@ -219,11 +223,11 @@ Una marca roja de bounds no reemplaza un preflight. Una transformación visual n
 
 ## 10. Roadmap por fases pequeñas
 
-### Fase 8A — Posicionamiento manual preciso
+### Fase 8A — Posicionamiento manual preciso sobre la base 8P
 
 - **Rama:** `feat/editor-offset-v2-manual-positioning`
-- **Alcance:** política pura de locks geométricos; inspector editable solo para centro X/Y; nudge; Ctrl/Cmd+S; agrupación de key repeat; feedback de slot bloqueado.
-- **Archivos:** nuevo `edit_policy.js`; `commands.js`, `store.js`, `interactions.js`, `canvas_renderer.js`, `dom_refs.js`, `bootstrap.js`, template/CSS; tests Node/Playwright y doc de fase.
+- **Alcance:** reutilizar la política `move` existente; inspector editable solo para centro X/Y; nudge; Ctrl/Cmd+S; agrupación de key repeat; feedback consistente de slot bloqueado.
+- **Archivos:** `commands.js`, `store.js`, `interactions.js`, `canvas_renderer.js`, `dom_refs.js`, `bootstrap.js`, template/CSS; `edit_policy.js` solo si la API `move` necesita una extensión compatible; tests Node/Playwright y doc de fase.
 - **Tests:** valores finitos/decimales, multi delta, locks, no-op, undo/redo, dirty/autosave, input focus, save shortcut y persistencia visible.
 - **Riesgo:** bajo-moderado; toca rutas comunes de movimiento.
 - **No tocar:** trim/bleed, rotación, contenido, contrato Python, output, Repeat, assets, V1.
@@ -232,7 +236,7 @@ Una marca roja de bounds no reemplaza un preflight. Una transformación visual n
 ### Fase 8B — Rotación cardinal, duplicado, clipboard y locks de usuario
 
 - **Rama:** `feat/editor-offset-v2-object-operations`
-- **Alcance:** rotación 0/90/180/270, duplicar, copiar/pegar dentro del job, select all/work/asset, lock/unlock user y enforcement delete/content.
+- **Alcance:** rotación 0/90/180/270, duplicar, copiar/pegar dentro del job, select all/work/asset y UI/comandos de lock/unlock `user`; reutilizar enforcement delete/content ya creado en 8P.
 - **Archivos:** comandos/store/interactions/panel assets/objects/renderer/UI; posiblemente `objects_panel.js` inicial.
 - **Tests:** IDs, generated_by, cuatro rotaciones, locks por superficie, clipboard, criterios, undo/redo/autosave y Playwright.
 - **Riesgo:** moderado por política de locks y referencias.
@@ -302,7 +306,8 @@ Una marca roja de bounds no reemplaza un preflight. Una transformación visual n
 ## 11. Orden recomendado
 
 ```text
-8A Posición precisa + política de locks
+8P Estabilización semántica (completada)
+  -> 8A Posición precisa sobre política de locks existente
   -> 8B Operaciones de objeto y rotación cardinal
   -> 8C Alinear/distribuir/matriz
   -> 8D Selección avanzada y árbol
@@ -316,12 +321,12 @@ Una marca roja de bounds no reemplaza un preflight. Una transformación visual n
 
 ## 12. Primera fase recomendada
 
-La primera fase segura es **Fase 8A — Posicionamiento manual preciso**. Aprovecha un contrato y un comando ya existentes, no cambia schema ni backend y elimina la deuda más peligrosa antes de multiplicar las rutas de edición: los locks no aplicados.
+La primera fase segura es **Fase 8A — Posicionamiento manual preciso**. Aprovecha contrato, comando y política de locks ya existentes; no cambia schema ni backend y no reabre las decisiones cerradas en 8P.
 
 Alcance exacto:
 
-- crear una política pura para permiso de movimiento;
-- hacer que drag respete `locks.geometry`;
+- reutilizar la capacidad pura `move` de `edit_policy.js`;
+- mantener el drag actual y su enforcement de `locks.geometry`;
 - editar X/Y desde inspector para una selección única;
 - mover selección múltiple mediante delta explícito;
 - nudge con flechas y paso definido en mm;
@@ -335,11 +340,11 @@ Alcance exacto:
 ```text
 Quiero continuar con el Editor Offset Visual V2.
 
-Las fases 1 a 7 y la auditoría de herramientas manuales ya están integradas en mi rama local main.
+Las fases 1 a 7, la auditoría y la estabilización semántica 8P ya están integradas en mi rama local main.
 
 Implementa únicamente:
 
-# Fase 8A — Posicionamiento manual preciso y política de locks geométricos
+# Fase 8A — Posicionamiento manual preciso sobre política de locks existente
 
 ## Preparación Git
 
@@ -362,6 +367,8 @@ Revisa antes de modificar:
 
 - DOCS/OFFSET/V2/08_AUDITORIA_ESTADO_ACTUAL_V2.md
 - DOCS/OFFSET/V2/09_PLAN_HERRAMIENTAS_MANUALES_V2.md
+- DOCS/OFFSET/V2/10_ESTABILIZACION_SEMANTICA_V2.md
+- DOCS/OFFSET/V2/11_DECISIONES_ARQUITECTONICAS_PENDIENTES_V2.md
 - editor_offset_v2/domain/layout_v2.py
 - editor_offset_v2/domain/geometry.py
 - static/js/editor_offset_v2/store.js
@@ -383,32 +390,24 @@ Permitir posicionamiento manual preciso sin ampliar todavía la geometría produ
 - mover una selección mediante delta;
 - nudge con teclado;
 - guardar con Ctrl/Cmd+S;
-- respetar locks geométricos en todas las rutas de movimiento;
+- reutilizar y preservar el enforcement de locks geométricos ya existente en todas las rutas de movimiento;
 - mantener un comando por acción confirmada.
 
 No implementar rotación, resize, snap, alineación, box select, transformación de artwork ni navegación de cara.
 
-## Política de locks
+## Política de locks existente
 
-Crea un módulo puro, por ejemplo:
+Reutiliza `static/js/editor_offset_v2/edit_policy.js` y su capacidad `move`. No crees una segunda política ni cambies la semántica cerrada en 8P.
 
-static/js/editor_offset_v2/edit_policy.js
-
-Debe exponer una API explícita equivalente a:
-
-canMoveSlot(slot)
-movableSlotIds(layout, ids)
-movementBlockReason(slot)
-
-Regla inicial:
+Reglas vigentes:
 
 - un slot puede moverse solo si locks.geometry está vacío;
 - cualquier fuente user, engine, ctp o system bloquea;
 - no elimines ni normalices locks;
-- no permitas que drag, inspector o nudge evadan la política;
+- el drag y `MoveSlotsCommand` ya la defienden; inspector y nudge deben usar la misma frontera;
 - una operación multiselección con al menos un slot bloqueado debe rechazarse completamente, no mover un subconjunto silenciosamente;
 - mostrar feedback visible con IDs y motivo;
-- el comando también debe defender la regla, no solo los botones.
+- `MoveSlotsCommand` debe continuar defendiendo la regla, no solo los botones.
 
 No agregues todavía UI para quitar locks.
 
@@ -523,7 +522,7 @@ No dejes Flask persistente; usa el fixture/servidor controlado existente.
 
 ## Documentación
 
-Crea DOCS/OFFSET/V2/10_POSICIONAMIENTO_MANUAL_V2.md con:
+Crea DOCS/OFFSET/V2/12_POSICIONAMIENTO_MANUAL_V2.md con:
 
 - política de locks;
 - inspector;
@@ -551,7 +550,8 @@ No modifiques Python de dominio/backend salvo que detectes un bloqueo real; si o
 No:
 
 - cambies Layout V2 ni el JSON Schema;
-- cambies assets, Repeat u OutputAdapter;
+- cambies assets, Repeat, output capabilities u OutputAdapter;
+- reimplementes área imprimible, source override, historial/métricas Repeat, placeholder dev o advertencia de artwork aproximado;
 - conectes preview/PDF/CTP;
 - implementes rotación;
 - implementes resize;

@@ -1,5 +1,13 @@
 # Fase 6 — Assets PDF, páginas, miniaturas y slots reales
 
+> ESTADO: DOCUMENTO HISTÓRICO DE FASE
+>
+> Este archivo describe el sistema al finalizar esta fase. No representa por sí solo el estado funcional actual.
+>
+> Estado actual: `08_AUDITORIA_ESTADO_ACTUAL_V2.md`
+>
+> Roadmap vigente: `09_PLAN_HERRAMIENTAS_MANUALES_V2.md`
+
 ## Objetivo
 
 Esta fase incorpora PDFs físicos al Editor Offset Visual V2 sin conectar Repeat, preview productivo, PDF final ni CTP. El flujo implementado es:

@@ -54,6 +54,33 @@ def _write_test_pdf(path: Path) -> None:
     document.close()
 
 
+def _open_job_with_repeat(page, server_url: str, pdf_path: Path, quantity: int = 2) -> None:
+    page.goto(f"{server_url}/editor_offset_visual_v2", wait_until="domcontentloaded")
+    page.locator("#ev2-new-job").click()
+    page.wait_for_url("**/editor_offset_visual_v2/ev2_*", timeout=10_000)
+    page.locator("#ev2-asset-file").set_input_files(str(pdf_path))
+    with page.expect_response(
+        lambda response: response.request.method == "POST" and "/assets" in response.url,
+    ):
+        page.locator("#ev2-asset-upload-button").click()
+    expect(page.locator(".ev2-asset-card")).to_have_count(1)
+    page.locator("#ev2-work-quantity").fill(str(quantity))
+    page.locator("#ev2-create-work").click()
+    page.wait_for_function(
+        "() => window.__EDITOR_OFFSET_V2__.store.layout.works.length === 1"
+    )
+    with page.expect_response(
+        lambda response: response.request.method == "POST"
+        and "/imposition/repeat" in response.url,
+    ):
+        page.locator("#ev2-repeat-calculate").click()
+    page.wait_for_function(
+        "() => window.__EDITOR_OFFSET_V2__.store.repeatPanel.status === 'ready'"
+    )
+    page.locator("#ev2-repeat-apply").click()
+    expect(page.locator(".ev2-svg-slot")).to_have_count(quantity)
+
+
 def test_v2_visible_repeat_calculate_apply_undo_redo_save_and_reload(v2_server, tmp_path):
     console_errors: list[str] = []
     page_errors: list[str] = []
@@ -119,11 +146,38 @@ def test_v2_visible_repeat_calculate_apply_undo_redo_save_and_reload(v2_server, 
             assert page.evaluate(
                 "() => window.__EDITOR_OFFSET_V2__.store.layout.imposition.last_result.operation_id"
             ).startswith("repeat_")
+            assert page.evaluate(
+                "() => window.__EDITOR_OFFSET_V2__.store.layout.slots.every("
+                "slot => slot.locks.geometry.length === 0 "
+                "&& slot.generated_by.engine === 'repeat')"
+            )
+
+            first_slot = page.locator(".ev2-svg-slot").first
+            box = first_slot.bounding_box()
+            assert box is not None
+            before_move = page.evaluate(
+                "() => ({ ...window.__EDITOR_OFFSET_V2__.store.layout.slots[0].geometry.position_mm })"
+            )
+            page.mouse.move(box["x"] + box["width"] / 2, box["y"] + box["height"] / 2)
+            page.mouse.down()
+            page.mouse.move(box["x"] + box["width"] / 2 + 28, box["y"] + box["height"] / 2 - 14)
+            page.mouse.up()
+            page.wait_for_function(
+                "before => window.__EDITOR_OFFSET_V2__.store.layout.slots[0].geometry.position_mm.x_mm !== before.x_mm",
+                arg=before_move,
+            )
+            moved_position = page.evaluate(
+                "() => ({ ...window.__EDITOR_OFFSET_V2__.store.layout.slots[0].geometry.position_mm })"
+            )
 
             page.locator("#ev2-undo").click()
-            expect(page.locator(".ev2-svg-slot")).to_have_count(0)
+            assert page.evaluate(
+                "() => window.__EDITOR_OFFSET_V2__.store.layout.slots[0].geometry.position_mm.x_mm"
+            ) == pytest.approx(before_move["x_mm"])
             page.locator("#ev2-redo").click()
-            expect(page.locator(".ev2-svg-slot")).to_have_count(4)
+            assert page.evaluate(
+                "() => window.__EDITOR_OFFSET_V2__.store.layout.slots[0].geometry.position_mm.x_mm"
+            ) == pytest.approx(moved_position["x_mm"])
 
             page.evaluate("() => window.__EDITOR_OFFSET_V2__.saver.manualSave()")
             page.wait_for_function(
@@ -146,7 +200,133 @@ def test_v2_visible_repeat_calculate_apply_undo_redo_save_and_reload(v2_server, 
             assert page.evaluate(
                 "() => window.__EDITOR_OFFSET_V2__.store.layout.imposition.last_result.placed"
             ) == 4
+            assert page.evaluate(
+                "() => window.__EDITOR_OFFSET_V2__.store.layout.slots[0].geometry.position_mm.x_mm"
+            ) == pytest.approx(moved_position["x_mm"])
+            assert page.evaluate(
+                "() => window.__EDITOR_OFFSET_V2__.store.layout.slots[0].generated_by.engine"
+            ) == "repeat"
             assert not console_errors
             assert not page_errors
+        finally:
+            browser.close()
+
+
+def test_v2_locks_block_drag_delete_and_source_replacement_atomically(v2_server, tmp_path):
+    pdf_path = tmp_path / "locks.pdf"
+    _write_test_pdf(pdf_path)
+
+    with sync_playwright() as playwright:
+        browser = playwright.chromium.launch(headless=True)
+        page = browser.new_page(viewport={"width": 1440, "height": 900})
+        try:
+            _open_job_with_repeat(page, v2_server, pdf_path, quantity=2)
+            first_slot = page.locator(".ev2-svg-slot").first
+            slot_id = page.evaluate(
+                "() => window.__EDITOR_OFFSET_V2__.store.layout.slots[0].id"
+            )
+            page.evaluate(
+                "slotId => window.__EDITOR_OFFSET_V2__.store.setSelection([slotId], 'replace')",
+                slot_id,
+            )
+            before = page.evaluate(
+                "() => ({ ...window.__EDITOR_OFFSET_V2__.store.layout.slots[0].geometry.position_mm })"
+            )
+            page.evaluate(
+                "() => { const store = window.__EDITOR_OFFSET_V2__.store; "
+                "store.layout.slots[0].locks.geometry = ['system']; "
+                "store.emit('external_update'); }"
+            )
+            box = first_slot.bounding_box()
+            assert box is not None
+            page.mouse.move(box["x"] + box["width"] / 2, box["y"] + box["height"] / 2)
+            page.mouse.down()
+            page.mouse.move(box["x"] + box["width"] / 2 + 30, box["y"] + box["height"] / 2)
+            page.mouse.up()
+            after = page.evaluate(
+                "() => ({ ...window.__EDITOR_OFFSET_V2__.store.layout.slots[0].geometry.position_mm })"
+            )
+            assert after == before
+            expect(page.locator("#ev2-status-message")).to_contain_text(slot_id)
+
+            page.evaluate(
+                "() => { const store = window.__EDITOR_OFFSET_V2__.store; "
+                "store.layout.slots[0].locks.geometry = []; "
+                "store.layout.slots[0].locks.delete = ['user']; "
+                "store.emit('external_update'); }"
+            )
+            expect(page.locator("#ev2-delete-slots")).to_be_disabled()
+            page.keyboard.press("Delete")
+            assert page.evaluate(
+                "() => window.__EDITOR_OFFSET_V2__.store.layout.slots.length"
+            ) == 2
+            expect(page.locator("#ev2-status-message")).to_contain_text(slot_id)
+
+            source_before = page.evaluate(
+                "() => ({ ...window.__EDITOR_OFFSET_V2__.store.layout.slots[0].source })"
+            )
+            page.evaluate(
+                "() => { const store = window.__EDITOR_OFFSET_V2__.store; "
+                "store.layout.slots[0].locks.content = ['ctp']; "
+                "store.emit('external_update'); }"
+            )
+            expect(page.locator("#ev2-replace-source")).to_be_disabled()
+            assert page.evaluate(
+                "() => ({ ...window.__EDITOR_OFFSET_V2__.store.layout.slots[0].source })"
+            ) == source_before
+        finally:
+            browser.close()
+
+
+def test_v2_visual_semantics_printable_output_and_approximate_artwork(v2_server, tmp_path):
+    pdf_path = tmp_path / "visual-state.pdf"
+    _write_test_pdf(pdf_path)
+
+    with sync_playwright() as playwright:
+        browser = playwright.chromium.launch(headless=True)
+        page = browser.new_page(viewport={"width": 1440, "height": 900})
+        try:
+            _open_job_with_repeat(page, v2_server, pdf_path, quantity=2)
+            expect(page.locator("[data-printable-area='true']")).to_have_count(1)
+            expect(page.locator("#ev2-create-slot")).to_have_count(0)
+            assert page.locator(
+                "#ev2-repeat-face option[value='back']"
+            ).evaluate("option => option.disabled") is True
+            expect(page.locator(".ev2-approximate-artwork")).to_have_count(2)
+            expect(page.locator("#ev2-repeat-history")).to_contain_text(
+                "Resultado al aplicar la última imposición"
+            )
+            expect(page.locator("#ev2-repeat-current-face")).to_have_text("2")
+
+            page.evaluate(
+                "() => { const store = window.__EDITOR_OFFSET_V2__.store; "
+                "const slot = store.layout.slots[0]; "
+                "store.layout.sheet.printable_margins_mm.left = 60; "
+                "const half = slot.geometry.trim_size_mm.width / 2 + slot.geometry.bleed_mm; "
+                "slot.geometry.position_mm.x_mm = half + 1; "
+                "slot.content_transform.scale_x = 0.9; "
+                "store.markChanged(); store.emit('external_update'); }"
+            )
+            expect(page.locator(".ev2-svg-slot.is-outside-printable")).to_have_count(1)
+            page.evaluate(
+                "() => window.__EDITOR_OFFSET_V2__.store.setSelection("
+                "[window.__EDITOR_OFFSET_V2__.store.layout.slots[0].id], 'replace')"
+            )
+            expect(page.locator("#ev2-inspector-values")).to_contain_text(
+                "Fuera del área imprimible"
+            )
+            expect(page.locator("#ev2-inspector-values")).to_contain_text(
+                "Vista aproximada del PDF"
+            )
+
+            with page.expect_response(
+                lambda response: response.request.method == "GET"
+                and "/output-capabilities" in response.url,
+            ):
+                page.locator("#ev2-output-check").click()
+            expect(page.locator("#ev2-output-status")).to_contain_text(
+                "No compatible con salida temporal"
+            )
+            expect(page.locator("#ev2-output-issues [data-code='UNSUPPORTED_CONTENT_SCALE']")).to_have_count(1)
         finally:
             browser.close()

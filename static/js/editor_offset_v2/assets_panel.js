@@ -27,13 +27,14 @@
   }
 
   class AssetsPanel {
-    constructor(store, refs, api, saver, context, commands) {
+    constructor(store, refs, api, saver, context, commands, editPolicy) {
       this.store = store;
       this.refs = refs;
       this.api = api;
       this.saver = saver;
       this.context = context;
       this.commands = commands;
+      this.editPolicy = editPolicy;
       this.uploading = false;
       this.bind();
       this.unsubscribe = store.subscribe((event) => this.onStoreEvent(event));
@@ -189,8 +190,10 @@
     }
 
     renderActionState() {
-      this.refs.replaceSource.disabled = this.store.selection.size !== 1
-        || !this.store.selectedAssetPage();
+      const ids = [...this.store.selection];
+      this.refs.replaceSource.disabled = ids.length !== 1
+        || !this.store.selectedAssetPage()
+        || !this.editPolicy.can(this.store.layout, ids, "replace_content");
     }
 
     selectThumbnail(event) {

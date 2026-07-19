@@ -15,7 +15,7 @@ El kernel es puro, determinista e independiente de:
 * preview;
 * salida productiva.
 
-Las futuras capas de canvas, selección, drag, resize, snap, preflight, CTP y output deberán consumir esta semántica. No deben volver a implementar estas fórmulas de manera independiente.
+Canvas, selección, drag, Repeat y output consumen esta semántica o una réplica frontend reducida con paridad comprobada. Resize, snap, preflight profundo y CTP deberán mantener la misma regla. No deben dispersar fórmulas independientes.
 
 ## 2. Alcance de la Fase 2
 
@@ -46,7 +46,7 @@ El sistema coincide con Layout V2:
 * rotación positiva: antihoraria;
 * pivote: centro trim.
 
-El kernel no contiene conversiones a coordenadas del navegador. La futura capa SVG deberá transformar el eje Y únicamente en su frontera visual.
+El kernel no contiene conversiones a coordenadas del navegador. La capa SVG actual transforma el eje Y únicamente en `geometry_view.js`, en su frontera visual.
 
 ## 4. Centro trim
 
@@ -405,7 +405,7 @@ inside = slot_within_sheet(slot, Size(700, 500))
 * el contacto de bordes no es overlap;
 * las operaciones no modifican sus argumentos.
 
-## 20. Fixtures y futura paridad TypeScript
+## 20. Fixtures y paridad frontend actual
 
 `tests/fixtures/editor_offset_v2/geometry_cases.json` no contiene objetos Python. Usa únicamente JSON y milímetros.
 
@@ -420,7 +420,11 @@ Incluye:
 * falsos positivos de bounds;
 * dimensiones realistas de offset.
 
-La futura implementación TypeScript deberá ejecutar los mismos fixtures y producir los mismos polígonos, bounds y resultados booleanos. La paridad debe comprobarse antes de conectar el canvas SVG.
+`static/js/editor_offset_v2/geometry_view.js` ya ejecuta una réplica reducida en JavaScript estándar. Comparte fixtures para tamaños, bounds y rotaciones cardinales; además deriva el rectángulo imprimible y clasifica slots por footprint con bleed contra pliego y márgenes.
+
+La paridad continúa siendo parcial: JavaScript todavía no replica SAT, polígonos ordenados, point-in-polygon, gaps, distancias ni la tolerancia completa del kernel Python. Estas capacidades deben incorporarse y probarse antes de box select poligonal, snap avanzado, overlap visual o resize.
+
+JavaScript estándar es la decisión actual para las fases 8A–8F. TypeScript sigue siendo una opción futura, no una obligación ni una condición de inicio. No se instala Vite ni TypeScript como parte de esta estabilización.
 
 ## 21. No implementado todavía
 
@@ -437,7 +441,7 @@ Esta fase no incluye:
 * parsing automático del layout completo;
 * preflight productivo;
 * adaptación a `montaje_offset_inteligente.py`;
-* TypeScript;
+* TypeScript y toolchain de bundling;
 * rotaciones arbitrarias.
 
 Las futuras capas deben importar el kernel o validar paridad contra sus fixtures. No deben copiar estas fórmulas a módulos independientes.

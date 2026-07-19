@@ -74,6 +74,10 @@
         body: JSON.stringify(payload),
       });
     }
+
+    async getOutputCapabilities(url) {
+      return requestJson(url, { method: "GET" });
+    }
   }
 
   return Object.freeze({ ApiError, EditorApiClient, requestJson });

@@ -64,6 +64,7 @@
       refs,
       modules.GeometryView,
       modules.Commands,
+      modules.EditPolicy,
     );
     const assetsPanel = new modules.AssetsPanel.AssetsPanel(
       store,
@@ -72,6 +73,7 @@
       saver,
       context,
       modules.Commands,
+      modules.EditPolicy,
     );
     const repeatPanel = new modules.RepeatPanel.Panel(
       store,
@@ -80,26 +82,40 @@
       saver,
       context,
       modules.Commands,
+      modules.EditPolicy,
+    );
+    const outputPanel = new modules.OutputPanel.Panel(
+      store,
+      refs,
+      api,
+      saver,
+      context,
     );
 
     refs.save.addEventListener("click", () => saver.manualSave());
     refs.undo.addEventListener("click", () => store.undo());
     refs.redo.addEventListener("click", () => store.redo());
-    refs.createSlot.addEventListener("click", () => {
-      const bundle = modules.Commands.createDevelopmentPlaceholderBundle(
-        store.layout,
-        developmentToken(),
-      );
-      store.executeCommand(new modules.Commands.CreateSlotCommand(bundle));
-      store.setSelection([bundle.slot.id], "replace");
-    });
+    if (refs.createSlot && context.dev_tools_enabled === true) {
+      refs.createSlot.addEventListener("click", () => {
+        const bundle = modules.Commands.createDevelopmentPlaceholderBundle(
+          store.layout,
+          developmentToken(),
+        );
+        store.executeCommand(new modules.Commands.CreateSlotCommand(bundle));
+        store.setSelection([bundle.slot.id], "replace");
+      });
+    }
     refs.deleteSlots.addEventListener("click", () => {
       if (!store.selection.size) {
         return;
       }
-      store.executeCommand(
-        new modules.Commands.DeleteSlotsCommand(store.layout, [...store.selection]),
-      );
+      try {
+        store.executeCommand(
+          new modules.Commands.DeleteSlotsCommand(store.layout, [...store.selection]),
+        );
+      } catch (error) {
+        store.setFeedback(error.message);
+      }
     });
     refs.zoomIn.addEventListener("click", () => {
       store.setZoom(modules.GeometryView.clampZoom(store.zoom * 1.2));
@@ -126,6 +142,7 @@
       interactions,
       assetsPanel,
       repeatPanel,
+      outputPanel,
     };
     root.__EDITOR_OFFSET_V2__ = instance;
     return instance;

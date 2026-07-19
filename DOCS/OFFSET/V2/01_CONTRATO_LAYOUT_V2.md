@@ -6,14 +6,15 @@
 
 Es un corte limpio. No interpreta, normaliza ni migra layouts del editor anterior. Un documento sin la versión exacta `2` no es un Layout V2.
 
-Esta primera fase solo define:
+El contrato define:
 
 * vocabulario canónico;
 * JSON Schema;
 * validación estricta en Python;
-* fixtures mínimo y completo.
+* fixtures mínimo y completo;
+* la frontera persistente que ya consumen jobs, assets, canvas y Repeat V2.
 
-Todavía no conecta el contrato con Flask, persistencia de jobs, motores, preview o PDF.
+Jobs, upload de assets, works, slots y Repeat ya están operativos sobre este contrato. Preview y PDF productivos continúan desconectados. Un Layout V2 válido no implica por sí solo compatibilidad con el puente de salida temporal.
 
 ## 2. Fuentes canónicas
 
@@ -156,7 +157,7 @@ footprint_height =
   + abs(productive_height × cos θ)
 ```
 
-El futuro kernel geométrico debe calcular además los cuatro vértices rotados. No se permite guardar una copia calculada del footprint dentro del layout, porque podría quedar desincronizada.
+El kernel geométrico Python calcula además los cuatro vértices rotados. No se permite guardar una copia calculada del footprint dentro del layout, porque podría quedar desincronizada.
 
 ## 9. Assets y páginas
 
@@ -194,7 +195,7 @@ Los archivos derivados o corregidos deberán crear otra revisión de asset en un
 
 ## 10. Trabajos lógicos
 
-`works[]` define la intención de producción:
+`works[]` define la intención de producción y sus fuentes predeterminadas:
 
 * identidad y nombre;
 * trim esperado;
@@ -207,6 +208,8 @@ Los archivos derivados o corregidos deberán crear otra revisión de asset en un
 * fuente posterior opcional.
 
 Una fuente de trabajo puede ser `null` mientras el trabajo todavía no tenga PDF. Un slot, en cambio, siempre requiere una fuente válida.
+
+`work.front_source` y `work.back_source` son las fuentes predeterminadas para crear slots nuevos y calcular nuevas imposiciones. No describen necesariamente la fuente efectiva de cada instancia ya creada.
 
 `allowed_rotations_deg` solo puede contener valores de la enumeración cardinal `0`, `90`, `180` y `270`, sin duplicados.
 
@@ -225,6 +228,8 @@ Cada slot contiene:
 * procedencia de la operación que lo creó.
 
 El slot no guarda dimensiones expandidas ni footprint.
+
+`slot.source` es la fuente efectiva de esa instancia. Puede diferir de la fuente predeterminada del work: esa diferencia es un override derivable y no requiere un campo persistente adicional. Sustituir la fuente de un slot no modifica el work ni propaga el cambio a otros slots. Repeat siempre parte de la fuente predeterminada del work para una propuesta nueva.
 
 ## 12. Frente y dorso
 
@@ -274,6 +279,8 @@ Cada bloqueo conserva una lista de fuentes:
 
 Una superficie está bloqueada cuando su lista no está vacía. Esto permite retirar un bloqueo CTP sin eliminar un bloqueo manual.
 
+Los locks gobiernan capacidades de edición; `generated_by` conserva procedencia. No deben usarse locks para registrar quién creó el slot. Los slots normales creados por Repeat conservan `generated_by.type = engine`, `engine = repeat` y `operation_id`, pero nacen con `locks.geometry = []` para permitir ajuste manual posterior.
+
 ## 15. Imposición
 
 El layout declara:
@@ -294,7 +301,9 @@ Motores reconocidos inicialmente:
 * `nesting`;
 * `hybrid`.
 
-El resultado contiene cantidades solicitadas, colocadas, faltantes y sobreproducidas. Es trazabilidad de la última operación, no reemplaza la lista de slots.
+El resultado contiene cantidades solicitadas, colocadas, faltantes y sobreproducidas. `imposition.last_result` es trazabilidad histórica del momento de aplicación; no describe el montaje actual después de mover, eliminar o sustituir slots. Los conteos actuales se derivan de `slots[]` y no se persisten por duplicado.
+
+`exact_quantity` permanece aceptado por compatibilidad y reservado en el contrato. La UI actual expone únicamente `allow_partial` y `fill_remaining_space`; no presenta `exact_quantity` como una tercera política independiente.
 
 ## 16. Exportación y marcas
 
@@ -331,7 +340,7 @@ La validación geométrica de la envolvente CTP se implementará en el kernel y 
 
 `job.revision` es un entero no negativo.
 
-En la futura API:
+En la API V2 actual:
 
 1. el cliente carga una revisión;
 2. edita localmente;
@@ -390,3 +399,9 @@ El ejemplo completo con assets, frente/dorso, Repeat, exportación y CTP está e
 `tests/fixtures/editor_offset_v2/layout_v2_complete.json`
 
 Ambos fixtures forman parte de los tests del contrato y deben permanecer sincronizados con el JSON Schema y el validador Python.
+
+## 22. Evolución de versión
+
+Los cambios incompatibles, los nuevos campos obligatorios y los cambios semánticos obligatorios requieren aumentar `layout_schema_version`. Un campo opcional y aditivo puede permanecer en V2 únicamente si se actualizan de forma coordinada schema, validador, fixtures, tests y todos los lectores/escritores afectados.
+
+No se introduce `layout_schema_revision` ni un campo persistente nuevo sin una necesidad ejecutable comprobada. La documentación no amplía por sí sola el contrato.

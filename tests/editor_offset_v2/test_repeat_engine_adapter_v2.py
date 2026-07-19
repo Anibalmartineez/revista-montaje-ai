@@ -125,6 +125,15 @@ def test_single_work_zero_bleed_exact_quantity_and_contract():
     assert (result.requested, result.placed, result.unplaced, result.overproduced) == (6, 6, 0, 0)
     assert all(slot["geometry"]["bleed_mm"] == 0 for slot in result.slots)
     assert all("w_mm" not in slot and "slot_box_final" not in slot for slot in result.slots)
+    assert all(slot["locks"]["geometry"] == [] for slot in result.slots)
+    assert all(
+        slot["generated_by"] == {
+            "type": "engine",
+            "engine": "repeat",
+            "operation_id": OPERATION_ID,
+        }
+        for slot in result.slots
+    )
     proposal = make_layout(case)
     proposal["slots"] = copy.deepcopy(list(result.slots))
     assert validate_layout_v2(proposal) == []
@@ -311,6 +320,51 @@ def test_add_checks_existing_overlap_while_replace_excludes_selected_work_face()
     assert add.success is False
     assert "OVERLAP_EXISTING_SLOT" in {issue.code for issue in add.issues}
     assert replace.success is True
+
+
+def test_proposal_and_projected_utilization_are_explicit_for_add_and_replace():
+    case = load_case("single_zero_bleed")
+    layout = make_layout(case)
+    initial = propose(layout, case)
+    assert initial.success is True
+    assert initial.metrics.utilization_percent == initial.metrics.proposal_utilization_pct
+    assert (
+        initial.metrics.projected_total_utilization_pct
+        == initial.metrics.proposal_utilization_pct
+    )
+
+    existing = copy.deepcopy(initial.slots[0])
+    existing["id"] = "slot_existing_manual"
+    existing["geometry"]["position_mm"].update({"x_mm": 170, "y_mm": 120})
+    existing["generated_by"] = {"type": "manual"}
+    existing["locks"]["geometry"] = []
+    layout["slots"] = [existing]
+
+    added = propose(layout, case, apply_mode="add")
+    replaced = propose(layout, case, apply_mode="replace_work_face")
+
+    assert added.success is True
+    assert added.metrics.projected_total_utilization_pct > added.metrics.proposal_utilization_pct
+    assert replaced.success is True
+    assert (
+        replaced.metrics.projected_total_utilization_pct
+        == replaced.metrics.proposal_utilization_pct
+    )
+    assert added.metrics.projected_total_utilization_pct <= 100
+    assert replaced.metrics.projected_total_utilization_pct <= 100
+
+
+def test_failed_proposal_reports_zero_proposal_utilization_deterministically():
+    case = load_case("partial_required")
+    layout = make_layout(case)
+
+    first = propose(layout, case)
+    second = propose(layout, case)
+
+    assert first.success is False
+    assert first.metrics.proposal_utilization_pct == 0
+    assert first.metrics.projected_total_utilization_pct == 0
+    assert first.metrics.as_dict() == second.metrics.as_dict()
 
 
 def test_adapter_is_pure_and_deterministic_for_same_arguments():

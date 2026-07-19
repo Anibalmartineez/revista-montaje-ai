@@ -1,5 +1,13 @@
 # Fase 7 — Motor Repeat para Editor Offset Visual V2
 
+> ESTADO: DOCUMENTO HISTÓRICO DE FASE
+>
+> Este archivo describe el sistema al finalizar esta fase. No representa por sí solo el estado funcional actual.
+>
+> Estado actual: `08_AUDITORIA_ESTADO_ACTUAL_V2.md`
+>
+> Roadmap vigente: `09_PLAN_HERRAMIENTAS_MANUALES_V2.md`
+
 ## Objetivo
 
 Esta fase conecta Layout V2 con el motor productivo `engines/step_repeat_pro_engine.py` mediante una frontera aislada. El motor no se modificó y ningún campo legacy entra en `layout_v2.json`.

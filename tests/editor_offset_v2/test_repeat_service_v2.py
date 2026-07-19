@@ -166,6 +166,21 @@ def test_service_returns_structured_failure_for_unknown_work(tmp_path):
     assert result.issues[0].code == "WORK_NOT_FOUND"
 
 
+def test_legacy_exact_quantity_setting_remains_accepted_but_is_not_a_third_policy(tmp_path):
+    service, _ = make_service(tmp_path)
+    exact = service.propose(JOB_ID, payload())
+    legacy_false = service.propose(
+        JOB_ID,
+        payload(settings={**payload()["settings"], "exact_quantity": False}),
+    )
+
+    assert exact.success is True
+    assert legacy_false.success is True
+    assert [slot["geometry"] for slot in exact.slots] == [
+        slot["geometry"] for slot in legacy_false.slots
+    ]
+
+
 def test_repeat_endpoint_returns_proposal_and_never_persists_it(tmp_path):
     jobs_root = tmp_path / "jobs"
     repository = JobRepository(jobs_root)
