@@ -31,6 +31,7 @@
       zoomIn: byId("ev2-zoom-in"),
       zoomOut: byId("ev2-zoom-out"),
       resetView: byId("ev2-reset-view"),
+      toggleLabels: byId("ev2-toggle-labels"),
       jobId: byId("ev2-job-id"),
       jobName: byId("ev2-job-name"),
       revision: byId("ev2-revision"),

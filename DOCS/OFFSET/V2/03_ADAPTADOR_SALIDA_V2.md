@@ -169,7 +169,11 @@ siendo conceptos diferentes. En esta fase la salida segura admite:
 - `clip_to = trim_box` únicamente cuando el bleed del slot es cero.
 
 El tamaño de la caja trim fuente debe coincidir con el trim del slot cuando se
-usa `actual_size`. El adaptador bloquea explícitamente:
+usa `actual_size`.
+
+La compatibilidad dimensional usa una tolerancia propia de `0.01 mm`, separada de `DEFAULT_TOLERANCE_MM` del kernel. Las cajas PDF provienen de puntos convertidos con `25.4 / 72`; diferencias normales dentro de esa tolerancia no bloquean. Para rotación intrínseca 90/270 se orienta la medida fuente durante la comparación, sin intercambiar ni reescribir el trim persistido. La rotación geométrica del slot no cambia esta comparación.
+
+El adaptador bloquea explícitamente:
 
 - `UNSUPPORTED_CONTENT_FIT_MODE`;
 - `UNSUPPORTED_CONTENT_SCALE`;

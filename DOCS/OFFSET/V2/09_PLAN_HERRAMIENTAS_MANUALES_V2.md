@@ -369,6 +369,7 @@ Revisa antes de modificar:
 - DOCS/OFFSET/V2/09_PLAN_HERRAMIENTAS_MANUALES_V2.md
 - DOCS/OFFSET/V2/10_ESTABILIZACION_SEMANTICA_V2.md
 - DOCS/OFFSET/V2/11_DECISIONES_ARQUITECTONICAS_PENDIENTES_V2.md
+- DOCS/OFFSET/V2/12_CORRECCION_COMPATIBILIDAD_DE_MEDIDA_Y_ETIQUETAS_V2.md
 - editor_offset_v2/domain/layout_v2.py
 - editor_offset_v2/domain/geometry.py
 - static/js/editor_offset_v2/store.js
@@ -522,7 +523,7 @@ No dejes Flask persistente; usa el fixture/servidor controlado existente.
 
 ## Documentación
 
-Crea DOCS/OFFSET/V2/12_POSICIONAMIENTO_MANUAL_V2.md con:
+Crea DOCS/OFFSET/V2/13_POSICIONAMIENTO_MANUAL_V2.md con:
 
 - política de locks;
 - inspector;

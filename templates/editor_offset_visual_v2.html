@@ -210,6 +210,7 @@
         <strong id="ev2-zoom">100%</strong>
         <button id="ev2-zoom-in" type="button" aria-label="Acercar" {% if not editor_context.job_id %}disabled{% endif %}>＋</button>
         <button id="ev2-reset-view" type="button" {% if not editor_context.job_id %}disabled{% endif %}>Restablecer</button>
+        <button id="ev2-toggle-labels" type="button" aria-pressed="true" title="Mostrar u ocultar etiquetas temporales" {% if not editor_context.job_id %}disabled{% endif %}>Etiquetas: sí</button>
       </div>
       <span class="ev2-divider" aria-hidden="true"></span>
       <span id="ev2-slot-count">0 slots</span>

@@ -18,6 +18,10 @@
   if (!SourceSemantics || !EditPolicy) throw new Error("Editor V2 renderer policies are required");
 
   const SVG_NS = "http://www.w3.org/2000/svg";
+  const SLOT_LABEL_BASE_FONT_MM = 4;
+  const SLOT_LABEL_MIN_PHYSICAL_MM = 6;
+  const SLOT_LABEL_MIN_VISIBLE_MM = 10;
+  const SOURCE_TRIM_VISUAL_TOLERANCE_MM = 0.01;
 
   function svgElement(name, attributes, text) {
     const element = document.createElementNS(SVG_NS, name);
@@ -28,6 +32,29 @@
       element.textContent = text;
     }
     return element;
+  }
+
+  function shortSlotLabel(slot, ordinal) {
+    const suffix = String(slot?.id || "").match(/_(\d+)$/);
+    const number = suffix ? Number(suffix[1]) : Number(ordinal);
+    return `#${Number.isInteger(number) && number > 0 ? number : ordinal}`;
+  }
+
+  function slotLabelPresentation(slot, ordinal, zoom, enabled) {
+    const width = Number(slot?.geometry?.trim_size_mm?.width);
+    const height = Number(slot?.geometry?.trim_size_mm?.height);
+    const safeZoom = Number.isFinite(zoom) && zoom > 0 ? zoom : 1;
+    const minimum = Math.min(width, height);
+    const text = shortSlotLabel(slot, ordinal);
+    const fontSizeMm = SLOT_LABEL_BASE_FONT_MM / safeZoom;
+    const estimatedWidthMm = text.length * fontSizeMm * 0.62;
+    const visible = Boolean(enabled)
+      && Number.isFinite(minimum)
+      && minimum >= SLOT_LABEL_MIN_PHYSICAL_MM
+      && minimum * safeZoom >= SLOT_LABEL_MIN_VISIBLE_MM
+      && estimatedWidthMm <= width * 0.75
+      && fontSizeMm <= height * 0.6;
+    return Object.freeze({ visible, text, fontSizeMm });
   }
 
   function withPreview(slot, store) {
@@ -69,8 +96,8 @@
     const rotated = [90, 270].includes(page.intrinsic_rotation_deg);
     const sourceWidth = rotated ? sourceBox.height : sourceBox.width;
     const sourceHeight = rotated ? sourceBox.width : sourceBox.height;
-    if (Math.abs(sourceWidth - trim.width) > 0.01
-        || Math.abs(sourceHeight - trim.height) > 0.01) {
+    if (Math.abs(sourceWidth - trim.width) > SOURCE_TRIM_VISUAL_TOLERANCE_MM
+        || Math.abs(sourceHeight - trim.height) > SOURCE_TRIM_VISUAL_TOLERANCE_MM) {
       image.classList.add("is-source-mismatch");
     }
     return image;
@@ -183,11 +210,11 @@
           "data-slot-id": slot.id,
           tabindex: "0",
         });
-        if (placement.message || approximate) {
+        if (slot.id || placement.message || approximate) {
           group.append(svgElement(
             "title",
             {},
-            [placement.message, approximate && "Vista aproximada del PDF"]
+            [slot.id, placement.message, approximate && "Vista aproximada del PDF"]
               .filter(Boolean)
               .join(" · "),
           ));
@@ -230,12 +257,21 @@
           }),
         );
         svg.append(group);
-        svg.append(svgElement("text", {
-          x: this.geometry.mmToSvgX(center.x_mm),
-          y: this.geometry.mmToSvgY(center.y_mm, sheet.height),
-          class: "ev2-svg-slot-label",
-          "data-slot-id": slot.id,
-        }, slot.id.replace(/^dev_slot_/, "Slot ")));
+        const label = slotLabelPresentation(
+          slot,
+          slotIndex + 1,
+          state.zoom,
+          state.showSlotLabels,
+        );
+        if (label.visible) {
+          svg.append(svgElement("text", {
+            x: this.geometry.mmToSvgX(center.x_mm),
+            y: this.geometry.mmToSvgY(center.y_mm, sheet.height),
+            class: "ev2-svg-slot-label",
+            "font-size": label.fontSizeMm,
+            "aria-hidden": "true",
+          }, label.text));
+        }
       }
 
       const selectedSlots = visibleSlots.filter((slot) => state.selection.includes(slot.id));
@@ -356,6 +392,8 @@
         ? "—"
         : `X ${state.cursorMm.x.toFixed(2)} · Y ${state.cursorMm.y.toFixed(2)} mm`;
       this.refs.zoom.textContent = `${Math.round(state.zoom * 100)}%`;
+      this.refs.toggleLabels.textContent = state.showSlotLabels ? "Etiquetas: sí" : "Etiquetas: no";
+      this.refs.toggleLabels.setAttribute("aria-pressed", String(state.showSlotLabels));
       this.refs.slotCount.textContent = `${state.layout.slots.length} slot${state.layout.slots.length === 1 ? "" : "s"}`;
     }
 
@@ -368,6 +406,8 @@
     Renderer,
     artworkForSlot,
     artworkIsApproximate,
+    shortSlotLabel,
+    slotLabelPresentation,
     slotPlacementClasses,
     svgElement,
     withPreview,

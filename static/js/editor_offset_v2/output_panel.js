@@ -25,6 +25,74 @@
     return ISSUE_LABELS[issue.code] || issue.message || issue.code;
   }
 
+  function groupIssues(issues, layout) {
+    const slots = new Map((layout?.slots || []).map((slot) => [slot.id, slot]));
+    const groups = new Map();
+    for (const issue of issues || []) {
+      const slot = issue.slot_id ? slots.get(issue.slot_id) : null;
+      const workId = slot?.work_id || issue.work_id || null;
+      const assetId = issue.asset_id || slot?.source?.asset_id || null;
+      const key = issue.slot_id
+        ? [issue.level, issue.code, assetId || "", workId || ""].join("|")
+        : [issue.level, issue.code, issue.path || ""].join("|");
+      if (!groups.has(key)) {
+        groups.set(key, {
+          code: issue.code,
+          level: issue.level,
+          message: issue.message,
+          path: issue.path || null,
+          assetId,
+          workId,
+          slotIds: [],
+          count: 0,
+        });
+      }
+      const group = groups.get(key);
+      group.count += 1;
+      if (issue.slot_id && !group.slotIds.includes(issue.slot_id)) {
+        group.slotIds.push(issue.slot_id);
+      }
+    }
+    return [...groups.values()].map((group) => ({
+      ...group,
+      slotIds: [...group.slotIds].sort(),
+    }));
+  }
+
+  function renderIssueGroup(group) {
+    const item = document.createElement("li");
+    item.dataset.code = group.code;
+    item.dataset.level = group.level;
+    item.dataset.affectedSlots = String(group.slotIds.length);
+
+    const summary = document.createElement("span");
+    const scope = [
+      group.workId && `work ${group.workId}`,
+      group.assetId && `asset ${group.assetId}`,
+      group.slotIds.length && `${group.slotIds.length} slot${group.slotIds.length === 1 ? "" : "s"} afectado${group.slotIds.length === 1 ? "" : "s"}`,
+      !group.slotIds.length && group.path,
+    ].filter(Boolean);
+    summary.textContent = `${issueLabel(group)}${scope.length ? ` · ${scope.join(" · ")}` : ""}`;
+    item.append(summary);
+
+    if (group.slotIds.length) {
+      const details = document.createElement("details");
+      const toggle = document.createElement("summary");
+      toggle.textContent = group.slotIds.length === 1 ? "Ver ID completo" : "Ver IDs completos";
+      const ids = document.createElement("ul");
+      for (const slotId of group.slotIds) {
+        const row = document.createElement("li");
+        const code = document.createElement("code");
+        code.textContent = slotId;
+        row.append(code);
+        ids.append(row);
+      }
+      details.append(toggle, ids);
+      item.append(details);
+    }
+    return item;
+  }
+
   class Panel {
     constructor(store, refs, api, saver, context) {
       this.store = store;
@@ -51,13 +119,8 @@
           ? `Compatible con salida temporal · revisión ${result.revision}`
           : `No compatible con salida temporal · revisión ${result.revision}`;
         this.refs.outputStatus.dataset.state = result.compatible ? "success" : "error";
-        for (const issue of result.issues) {
-          const item = document.createElement("li");
-          const subject = issue.slot_id || issue.asset_id || issue.path;
-          item.textContent = `${issueLabel(issue)}${subject ? ` · ${subject}` : ""}`;
-          item.dataset.code = issue.code;
-          item.dataset.level = issue.level;
-          this.refs.outputIssues.append(item);
+        for (const group of groupIssues(result.issues, this.store.layout)) {
+          this.refs.outputIssues.append(renderIssueGroup(group));
         }
       } catch (error) {
         this.refs.outputStatus.textContent = error.message || "No se pudo consultar la compatibilidad.";
@@ -68,5 +131,11 @@
     }
   }
 
-  return Object.freeze({ ISSUE_LABELS, Panel, issueLabel });
+  return Object.freeze({
+    ISSUE_LABELS,
+    Panel,
+    groupIssues,
+    issueLabel,
+    renderIssueGroup,
+  });
 });

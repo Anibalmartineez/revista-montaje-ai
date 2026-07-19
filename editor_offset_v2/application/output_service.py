@@ -3,11 +3,18 @@
 from __future__ import annotations
 
 from collections.abc import Mapping
+import math
 from typing import Any
 
-from editor_offset_v2.domain.geometry import DEFAULT_TOLERANCE_MM
 from editor_offset_v2.domain.output_contract import OutputIssue
 from editor_offset_v2.domain.validation import validate_layout_v2
+
+
+# PDF boxes originate in points and are persisted as millimetres, while work
+# trim values are entered at millimetre precision in the UI.  This tolerance is
+# deliberately separate from the geometry kernel epsilon: it represents safe
+# compatibility of two physical measurements, not floating-point noise.
+PDF_BOX_TRIM_COMPATIBILITY_TOLERANCE_MM = 0.01
 
 
 def _issue(
@@ -29,8 +36,37 @@ def _issue(
     )
 
 
-def _close(left: object, right: object) -> bool:
-    return abs(float(left) - float(right)) <= DEFAULT_TOLERANCE_MM
+def _pdf_measure_close(left: object, right: object) -> bool:
+    left_value = float(left)
+    right_value = float(right)
+    floating_margin = 4 * max(
+        math.ulp(left_value),
+        math.ulp(right_value),
+        math.ulp(PDF_BOX_TRIM_COMPATIBILITY_TOLERANCE_MM),
+    )
+    return (
+        abs(left_value - right_value)
+        <= PDF_BOX_TRIM_COMPATIBILITY_TOLERANCE_MM + floating_margin
+    )
+
+
+def _oriented_source_box_size(
+    page: Mapping[str, Any],
+    source_box: Mapping[str, Any],
+) -> tuple[float, float]:
+    """Return the source size in the page's visible intrinsic orientation.
+
+    PDF boxes remain persisted in their native, unrotated page coordinates.
+    A page rotation of 90/270 changes the visible source orientation, so only
+    the comparison view swaps axes.  Slot trim stays persisted before the
+    slot's own geometric rotation and is never rewritten here.
+    """
+
+    width = float(source_box["width"])
+    height = float(source_box["height"])
+    if page["intrinsic_rotation_deg"] in (90, 270):
+        return height, width
+    return width, height
 
 
 def _page_for(asset: Mapping[str, Any], number: int) -> Mapping[str, Any] | None:
@@ -207,15 +243,20 @@ def _validate_slot_capabilities(
             )
 
         selected_box = page["boxes_mm"][source["pdf_box"]]
+        source_width, source_height = _oriented_source_box_size(
+            page,
+            selected_box,
+        )
         trim_size = slot["geometry"]["trim_size_mm"]
         if not (
-            _close(selected_box["width"], trim_size["width"])
-            and _close(selected_box["height"], trim_size["height"])
+            _pdf_measure_close(source_width, trim_size["width"])
+            and _pdf_measure_close(source_height, trim_size["height"])
         ):
             issues.append(
                 _issue(
                     "SOURCE_TRIM_SIZE_MISMATCH",
-                    "At actual size, the selected source box must match the slot trim size.",
+                    "At actual size, the selected source box must match the slot "
+                    f"trim size within {PDF_BOX_TRIM_COMPATIBILITY_TOLERANCE_MM:g} mm.",
                     f"{slot_path}.geometry.trim_size_mm",
                     slot_id=slot_id,
                     asset_id=asset_id,
@@ -286,13 +327,13 @@ def _validate_slot_capabilities(
             if bleed_box is not None and trim_box is not None:
                 clip_supported = all(
                     (
-                        _close(bleed_box["x"], trim_box["x"] - bleed),
-                        _close(bleed_box["y"], trim_box["y"] - bleed),
-                        _close(
+                        _pdf_measure_close(bleed_box["x"], trim_box["x"] - bleed),
+                        _pdf_measure_close(bleed_box["y"], trim_box["y"] - bleed),
+                        _pdf_measure_close(
                             bleed_box["width"],
                             trim_box["width"] + 2 * bleed,
                         ),
-                        _close(
+                        _pdf_measure_close(
                             bleed_box["height"],
                             trim_box["height"] + 2 * bleed,
                         ),
@@ -372,4 +413,7 @@ def validate_output_capabilities(
     return tuple(issues)
 
 
-__all__ = ["validate_output_capabilities"]
+__all__ = [
+    "PDF_BOX_TRIM_COMPATIBILITY_TOLERANCE_MM",
+    "validate_output_capabilities",
+]

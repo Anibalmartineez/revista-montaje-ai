@@ -43,6 +43,7 @@
       this.activeTool = "select";
       this.zoom = 1;
       this.pan = { x: 0, y: 0 };
+      this.showSlotLabels = true;
       this.cursorMm = { x: null, y: null };
       this.pointerSession = null;
       this.previewPositions = {};
@@ -97,6 +98,7 @@
         activeTool: this.activeTool,
         zoom: this.zoom,
         pan: { ...this.pan },
+        showSlotLabels: this.showSlotLabels,
         cursorMm: { ...this.cursorMm },
         pointerSession: this.pointerSession,
         previewPositions: this.previewPositions,
@@ -192,6 +194,14 @@
       if (this.hoverId !== id) {
         this.hoverId = id;
         this.emit("hover");
+      }
+    }
+
+    setSlotLabelsVisible(visible) {
+      const next = Boolean(visible);
+      if (this.showSlotLabels !== next) {
+        this.showSlotLabels = next;
+        this.emit("slot_labels");
       }
     }
 

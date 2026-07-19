@@ -8,6 +8,7 @@ from pathlib import Path
 import pytest
 
 from editor_offset_v2.application.output_service import (
+    PDF_BOX_TRIM_COMPATIBILITY_TOLERANCE_MM,
     validate_output_capabilities,
 )
 from editor_offset_v2.domain.geometry import (
@@ -79,6 +80,137 @@ def replace_pointer(document: dict, pointer: str, value: object) -> None:
 
 def result_codes(result) -> set[str]:
     return {issue.code for issue in result.issues}
+
+
+def source_trim_mismatches(layout: dict):
+    return [
+        issue
+        for issue in validate_output_capabilities(layout)
+        if issue.code == "SOURCE_TRIM_SIZE_MISMATCH"
+    ]
+
+
+def set_front_source_and_trim(
+    layout: dict,
+    *,
+    source_width: float,
+    source_height: float,
+    trim_width: float,
+    trim_height: float,
+) -> dict:
+    slot = layout["slots"][0]
+    asset = next(
+        item for item in layout["assets"] if item["id"] == slot["source"]["asset_id"]
+    )
+    page = next(
+        item for item in asset["pages"] if item["number"] == slot["source"]["page"]
+    )
+    page["boxes_mm"][slot["source"]["pdf_box"]].update(
+        {"width": source_width, "height": source_height}
+    )
+    slot["geometry"]["trim_size_mm"] = {
+        "width": trim_width,
+        "height": trim_height,
+    }
+    work = next(item for item in layout["works"] if item["id"] == slot["work_id"])
+    work["trim_size_mm"] = {"width": trim_width, "height": trim_height}
+    return page
+
+
+def test_source_trim_exact_equality_is_compatible():
+    layout = make_supported_layout(front_and_back=False)
+    set_front_source_and_trim(
+        layout,
+        source_width=44.4,
+        source_height=34.2,
+        trim_width=44.4,
+        trim_height=34.2,
+    )
+
+    assert source_trim_mismatches(layout) == []
+
+
+def test_pdf_point_to_mm_rounding_does_not_create_false_trim_mismatch():
+    layout = make_supported_layout(front_and_back=False)
+    set_front_source_and_trim(
+        layout,
+        source_width=44.39992672222222,
+        source_height=34.20006283333333,
+        trim_width=44.4,
+        trim_height=34.2,
+    )
+
+    assert PDF_BOX_TRIM_COMPATIBILITY_TOLERANCE_MM == 0.01
+    assert source_trim_mismatches(layout) == []
+
+
+@pytest.mark.parametrize(
+    ("delta_mm", "mismatch_expected"),
+    [
+        (PDF_BOX_TRIM_COMPATIBILITY_TOLERANCE_MM, False),
+        (PDF_BOX_TRIM_COMPATIBILITY_TOLERANCE_MM + 0.000001, True),
+    ],
+)
+def test_pdf_trim_compatibility_uses_explicit_productive_tolerance(
+    delta_mm, mismatch_expected
+):
+    layout = make_supported_layout(front_and_back=False)
+    set_front_source_and_trim(
+        layout,
+        source_width=90 + delta_mm,
+        source_height=50,
+        trim_width=90,
+        trim_height=50,
+    )
+
+    assert bool(source_trim_mismatches(layout)) is mismatch_expected
+
+
+@pytest.mark.parametrize("intrinsic_rotation", [90, 270])
+def test_intrinsic_page_rotation_orients_source_size_without_swapping_slot_trim(
+    intrinsic_rotation,
+):
+    layout = make_supported_layout(front_and_back=False)
+    page = set_front_source_and_trim(
+        layout,
+        source_width=50,
+        source_height=90,
+        trim_width=90,
+        trim_height=50,
+    )
+    page["intrinsic_rotation_deg"] = intrinsic_rotation
+    persisted_trim = copy.deepcopy(layout["slots"][0]["geometry"]["trim_size_mm"])
+
+    codes = {issue.code for issue in validate_output_capabilities(layout)}
+
+    assert "SOURCE_TRIM_SIZE_MISMATCH" not in codes
+    assert "UNSUPPORTED_INTRINSIC_ROTATION" in codes
+    assert layout["slots"][0]["geometry"]["trim_size_mm"] == persisted_trim
+
+
+@pytest.mark.parametrize(
+    ("generated_by", "slot_rotation"),
+    [
+        ({"type": "manual"}, 0),
+        (
+            {
+                "type": "engine",
+                "engine": "repeat",
+                "operation_id": "repeat_size_compatibility",
+            },
+            90,
+        ),
+    ],
+)
+def test_manual_and_repeat_slots_compare_unrotated_trim_to_oriented_source(
+    generated_by, slot_rotation
+):
+    layout = make_supported_layout(front_and_back=False)
+    slot = layout["slots"][0]
+    slot["generated_by"] = generated_by
+    slot["geometry"]["rotation_deg"] = slot_rotation
+
+    assert source_trim_mismatches(layout) == []
 
 
 def test_rejects_layout_without_v2_version_before_touching_assets(tmp_path):

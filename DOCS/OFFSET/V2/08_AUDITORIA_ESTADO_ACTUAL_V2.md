@@ -31,6 +31,12 @@ La Fase 8P posterior a esta auditoría fue implementada y validada. Las seccione
 - el artwork real se etiqueta como `Vista aproximada del PDF`;
 - 04–07 son documentos históricos de fase; 01–03, 08–09 siguen vivos.
 
+Corrección posterior documentada en `12_CORRECCION_COMPATIBILIDAD_DE_MEDIDA_Y_ETIQUETAS_V2.md`:
+
+- output capabilities usa `0.01 mm` como tolerancia explícita PDF/trim y trata 90/270 como orientación derivada sin reescribir trim;
+- issues repetidos se agrupan visualmente por código, asset y work, conservando IDs desplegables;
+- el canvas muestra ordinales cortos adaptados al zoom, oculta etiquetas en slots pequeños y mantiene su visibilidad como estado temporal no persistente.
+
 ## 2. Resumen ejecutivo
 
 Editor V2 ya es una aplicación aislada y accesible, no un prototipo documental. Puede crear y abrir jobs, persistir Layout V2 con control de revisión, subir PDFs, inspeccionar páginas y cajas, generar miniaturas, crear works y slots reales, mover y seleccionar slots en SVG, deshacer/rehacer, guardar automáticamente y calcular/aplicar Repeat como una operación reversible.

@@ -324,3 +324,73 @@ test("approximate artwork, output labels and exact quantity default are explicit
     allow_partial: false,
   });
 });
+
+test("thirty identical slot issues are grouped by code, asset and work", () => {
+  const layout = fixture();
+  const base = unlockedFrontSlot(layout);
+  layout.slots = Array.from({ length: 30 }, (_, index) => {
+    const slot = structuredClone(base);
+    slot.id = `slot_repeat_operation_${String(index + 1).padStart(4, "0")}`;
+    return slot;
+  });
+  const issues = layout.slots.map((slot, index) => ({
+    code: "SOURCE_TRIM_SIZE_MISMATCH",
+    level: "error",
+    message: "mismatch",
+    path: `$.slots[${index}].geometry.trim_size_mm`,
+    slot_id: slot.id,
+    asset_id: slot.source.asset_id,
+  }));
+
+  const groups = OutputPanel.groupIssues(issues, layout);
+
+  assert.equal(groups.length, 1);
+  assert.equal(groups[0].code, "SOURCE_TRIM_SIZE_MISMATCH");
+  assert.equal(groups[0].assetId, base.source.asset_id);
+  assert.equal(groups[0].workId, base.work_id);
+  assert.equal(groups[0].count, 30);
+  assert.equal(groups[0].slotIds.length, 30);
+  assert.equal(groups[0].slotIds[0], "slot_repeat_operation_0001");
+  assert.equal(groups[0].slotIds[29], "slot_repeat_operation_0030");
+});
+
+test("slot labels stay short, adapt to zoom and hide on physically tiny slots", () => {
+  const layout = fixture();
+  const slot = unlockedFrontSlot(layout, "slot_repeat_operation_0030");
+  const presentations = [0.35, 1, 4].map((zoom) => (
+    CanvasRenderer.slotLabelPresentation(slot, 30, zoom, true)
+  ));
+
+  assert.deepEqual(presentations.map((item) => item.text), ["#30", "#30", "#30"]);
+  assert.ok(presentations.every((item) => item.visible));
+  assert.ok(presentations[0].fontSizeMm > presentations[1].fontSizeMm);
+  assert.ok(presentations[1].fontSizeMm > presentations[2].fontSizeMm);
+
+  slot.geometry.trim_size_mm = { width: 5, height: 5 };
+  assert.equal(
+    CanvasRenderer.slotLabelPresentation(slot, 30, 4, true).visible,
+    false,
+  );
+  assert.equal(
+    CanvasRenderer.slotLabelPresentation(slot, 30, 1, false).visible,
+    false,
+  );
+});
+
+test("slot label visibility is temporary and never dirties or changes the layout", () => {
+  const store = new EditorStore(fixture());
+  const before = structuredClone(store.layout);
+  const revision = store.revision;
+
+  store.setSlotLabelsVisible(false);
+  assert.equal(store.showSlotLabels, false);
+  assert.equal(store.hasUnsavedChanges(), false);
+  assert.equal(store.saveState.status, "clean");
+  assert.equal(store.changeVersion, 0);
+  assert.equal(store.revision, revision);
+  assert.deepEqual(store.layout, before);
+
+  store.setSlotLabelsVisible(true);
+  assert.equal(store.hasUnsavedChanges(), false);
+  assert.deepEqual(store.layout, before);
+});

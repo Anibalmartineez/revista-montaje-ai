@@ -170,3 +170,7 @@ No se implementaron inspector X/Y, nudge, rotación manual, duplicado, clipboard
 ## 17. Siguiente fase
 
 Fase 8A incorpora posicionamiento manual preciso: inspector X/Y, delta multiselección, nudge y atajo de guardado. Debe reutilizar `edit_policy.js`, área imprimible, output capabilities y las semánticas estabilizadas; no debe volver a implementarlas.
+
+## 18. Corrección posterior de medida y etiquetas
+
+La corrección documentada en `12_CORRECCION_COMPATIBILIDAD_DE_MEDIDA_Y_ETIQUETAS_V2.md` añade una tolerancia PDF/trim explícita de `0.01 mm`, tratamiento de orientación intrínseca, agrupación visual de issues repetidos y etiquetas ordinales temporales adaptadas al zoom. No cambia Layout V2 ni conecta salida productiva.

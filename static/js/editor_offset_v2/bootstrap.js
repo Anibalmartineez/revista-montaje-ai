@@ -124,6 +124,9 @@
       store.setZoom(modules.GeometryView.clampZoom(store.zoom / 1.2));
     });
     refs.resetView.addEventListener("click", () => store.resetView());
+    refs.toggleLabels.addEventListener("click", () => {
+      store.setSlotLabelsVisible(!store.showSlotLabels);
+    });
     refs.reloadConflict.addEventListener("click", () => window.location.reload());
 
     window.addEventListener("beforeunload", (event) => {

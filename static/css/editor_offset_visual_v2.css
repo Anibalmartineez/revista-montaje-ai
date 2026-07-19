@@ -648,9 +648,9 @@ button:disabled {
 
 .ev2-svg-slot-label {
   fill: #173141;
-  font-size: 4px;
   font-weight: 700;
   pointer-events: none;
+  user-select: none;
   text-anchor: middle;
   dominant-baseline: middle;
 }
@@ -706,6 +706,20 @@ button:disabled {
 
 .ev2-output-panel button {
   width: 100%;
+}
+
+.ev2-output-panel details {
+  margin-top: 5px;
+}
+
+.ev2-output-panel details ul {
+  max-height: 140px;
+  margin: 5px 0 0;
+  overflow: auto;
+}
+
+.ev2-output-panel code {
+  overflow-wrap: anywhere;
 }
 
 .ev2-repeat-works {

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+import json
 import threading
 
 import fitz
@@ -328,5 +329,152 @@ def test_v2_visual_semantics_printable_output_and_approximate_artwork(v2_server,
                 "No compatible con salida temporal"
             )
             expect(page.locator("#ev2-output-issues [data-code='UNSUPPORTED_CONTENT_SCALE']")).to_have_count(1)
+        finally:
+            browser.close()
+
+
+def test_v2_many_slot_labels_grouped_issues_zoom_drag_and_temporary_visibility(
+    v2_server, tmp_path
+):
+    pdf_path = tmp_path / "many-labels.pdf"
+    _write_test_pdf(pdf_path)
+
+    with sync_playwright() as playwright:
+        browser = playwright.chromium.launch(headless=True)
+        page = browser.new_page(viewport={"width": 1440, "height": 900})
+        try:
+            _open_job_with_repeat(page, v2_server, pdf_path, quantity=30)
+            page.wait_for_function(
+                "() => window.__EDITOR_OFFSET_V2__.store.saveState.status === 'clean'",
+                timeout=10_000,
+            )
+            expect(page.locator(".ev2-svg-slot")).to_have_count(30)
+            expect(page.locator(".ev2-svg-slot-label")).to_have_count(30)
+            assert page.locator(".ev2-svg-slot-label").all_text_contents()[:3] == [
+                "#1",
+                "#2",
+                "#3",
+            ]
+            assert page.locator(".ev2-svg-slot-label").last.text_content() == "#30"
+            assert page.locator(".ev2-svg-slot-label").first.evaluate(
+                "element => getComputedStyle(element).pointerEvents"
+            ) == "none"
+
+            server_before = page.evaluate(
+                "async () => (await fetch(window.__EDITOR_OFFSET_V2__.context.job_api_url)).json()"
+            )
+            layout_before = page.evaluate(
+                "() => JSON.stringify(window.__EDITOR_OFFSET_V2__.store.layout)"
+            )
+
+            page.locator("#ev2-toggle-labels").click()
+            expect(page.locator(".ev2-svg-slot-label")).to_have_count(0)
+            expect(page.locator("#ev2-toggle-labels")).to_have_attribute("aria-pressed", "false")
+            page.locator("#ev2-toggle-labels").click()
+            expect(page.locator(".ev2-svg-slot-label")).to_have_count(30)
+
+            font_sizes = []
+            for zoom in (0.35, 1, 4):
+                page.evaluate(
+                    "zoom => window.__EDITOR_OFFSET_V2__.store.setZoom(zoom)",
+                    zoom,
+                )
+                expect(page.locator("#ev2-zoom")).to_have_text(f"{round(zoom * 100)}%")
+                expect(page.locator(".ev2-svg-slot-label")).to_have_count(30)
+                font_sizes.append(
+                    float(page.locator(".ev2-svg-slot-label").first.get_attribute("font-size"))
+                )
+            assert font_sizes[0] > font_sizes[1] > font_sizes[2]
+
+            original_trim = page.evaluate(
+                "() => ({ ...window.__EDITOR_OFFSET_V2__.store.layout.slots[0].geometry.trim_size_mm })"
+            )
+            page.evaluate(
+                "() => { const store = window.__EDITOR_OFFSET_V2__.store; "
+                "store.layout.slots[0].geometry.trim_size_mm = { width: 5, height: 5 }; "
+                "store.emit('label_test'); }"
+            )
+            expect(page.locator(".ev2-svg-slot-label")).to_have_count(29)
+            page.evaluate(
+                "trim => { const store = window.__EDITOR_OFFSET_V2__.store; "
+                "store.layout.slots[0].geometry.trim_size_mm = trim; "
+                "store.setZoom(1); store.emit('label_test_restore'); }",
+                original_trim,
+            )
+            expect(page.locator(".ev2-svg-slot-label")).to_have_count(30)
+
+            server_after = page.evaluate(
+                "async () => (await fetch(window.__EDITOR_OFFSET_V2__.context.job_api_url)).json()"
+            )
+            assert server_after["revision"] == server_before["revision"]
+            assert server_after["layout"] == server_before["layout"]
+            assert page.evaluate(
+                "() => JSON.stringify(window.__EDITOR_OFFSET_V2__.store.layout)"
+            ) == layout_before
+            assert page.evaluate(
+                "() => window.__EDITOR_OFFSET_V2__.store.hasUnsavedChanges()"
+            ) is False
+
+            slot_ids = page.evaluate(
+                "() => window.__EDITOR_OFFSET_V2__.store.layout.slots.map(slot => slot.id)"
+            )
+            current_revision = server_after["revision"]
+            grouped_payload = {
+                "ok": True,
+                "revision": current_revision,
+                "compatible": False,
+                "errors": [],
+                "warnings": [],
+                "issues": [
+                    {
+                        "code": "SOURCE_TRIM_SIZE_MISMATCH",
+                        "level": "error",
+                        "message": "mismatch",
+                        "path": f"$.slots[{index}].geometry.trim_size_mm",
+                        "slot_id": slot_id,
+                        "asset_id": server_after["layout"]["assets"][0]["id"],
+                    }
+                    for index, slot_id in enumerate(slot_ids)
+                ],
+            }
+            page.route(
+                "**/output-capabilities",
+                lambda route: route.fulfill(
+                    status=200,
+                    content_type="application/json",
+                    body=json.dumps(grouped_payload),
+                ),
+            )
+            page.locator("#ev2-output-check").click()
+            grouped = page.locator(
+                "#ev2-output-issues [data-code='SOURCE_TRIM_SIZE_MISMATCH']"
+            )
+            expect(grouped).to_have_count(1)
+            expect(grouped).to_have_attribute("data-affected-slots", "30")
+            expect(grouped).to_contain_text("30 slots afectados")
+            grouped.locator("details summary").click()
+            expect(grouped.locator("details code")).to_have_count(30)
+            page.unroute("**/output-capabilities")
+
+            first_slot = page.locator(".ev2-svg-slot").first
+            slot_id = slot_ids[0]
+            page.evaluate("() => window.__EDITOR_OFFSET_V2__.store.clearSelection()")
+            box = first_slot.bounding_box()
+            assert box is not None
+            page.mouse.click(box["x"] + box["width"] / 2, box["y"] + box["height"] / 2)
+            expect(page.locator("#ev2-inspector-values")).to_contain_text(slot_id)
+            before_move = page.evaluate(
+                "() => ({ ...window.__EDITOR_OFFSET_V2__.store.layout.slots[0].geometry.position_mm })"
+            )
+            box = first_slot.bounding_box()
+            assert box is not None
+            page.mouse.move(box["x"] + box["width"] / 2, box["y"] + box["height"] / 2)
+            page.mouse.down()
+            page.mouse.move(box["x"] + box["width"] / 2 + 18, box["y"] + box["height"] / 2)
+            page.mouse.up()
+            page.wait_for_function(
+                "before => window.__EDITOR_OFFSET_V2__.store.layout.slots[0].geometry.position_mm.x_mm !== before.x_mm",
+                arg=before_move,
+            )
         finally:
             browser.close()

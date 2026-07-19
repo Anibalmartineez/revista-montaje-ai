@@ -388,6 +388,9 @@ def test_output_capabilities_endpoint_is_read_only_and_reports_revision(app_fact
     client = app.test_client()
     created = create_job(client)
     layout = with_fixture_slot(created["layout"])
+    layout["assets"][0]["pages"][0]["boxes_mm"]["trim"].update(
+        {"width": 89.99995, "height": 50.00006}
+    )
     saved = client.put(
         f"/api/editor-offset-v2/jobs/{created['job_id']}/layout",
         json={"base_revision": 1, "layout": layout},
