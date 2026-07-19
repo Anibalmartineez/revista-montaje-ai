@@ -1,0 +1,168 @@
+{
+  "fixture_schema_version": 1,
+  "source_layout_fixture": "layout_v2_complete.json",
+  "unit": "mm",
+  "supported_baseline": {
+    "ctp_enabled": false,
+    "advanced_marks_enabled": false,
+    "source_page": 1,
+    "source_pdf_box": "trim",
+    "content_fit_mode": "actual_size",
+    "content_scale": 1.0,
+    "content_offset_mm": [0.0, 0.0],
+    "content_rotation_deg": 0,
+    "content_mirror": false,
+    "clip_to": "bleed_box",
+    "output_dpi": 300
+  },
+  "geometry_cases": [
+    {
+      "id": "rotation_0_bleed_3",
+      "rotation_deg": 0,
+      "bleed_mm": 3.0,
+      "expected_lower_left_mm": [12.0, 27.0],
+      "expected_productive_size_mm": [96.0, 56.0]
+    },
+    {
+      "id": "rotation_90_bleed_3",
+      "rotation_deg": 90,
+      "bleed_mm": 3.0,
+      "expected_lower_left_mm": [32.0, 7.0],
+      "expected_productive_size_mm": [56.0, 96.0]
+    },
+    {
+      "id": "rotation_180_bleed_3",
+      "rotation_deg": 180,
+      "bleed_mm": 3.0,
+      "expected_lower_left_mm": [12.0, 27.0],
+      "expected_productive_size_mm": [96.0, 56.0]
+    },
+    {
+      "id": "rotation_270_bleed_3",
+      "rotation_deg": 270,
+      "bleed_mm": 3.0,
+      "expected_lower_left_mm": [32.0, 7.0],
+      "expected_productive_size_mm": [56.0, 96.0]
+    },
+    {
+      "id": "rotation_0_bleed_0",
+      "rotation_deg": 0,
+      "bleed_mm": 0.0,
+      "clip_to": "trim_box",
+      "expected_lower_left_mm": [15.0, 30.0],
+      "expected_productive_size_mm": [90.0, 50.0]
+    }
+  ],
+  "scenario_cases": [
+    {
+      "id": "valid_front_only",
+      "faces": ["front"],
+      "ctp_enabled": false,
+      "expected_success": true
+    },
+    {
+      "id": "valid_front_and_back",
+      "faces": ["front", "back"],
+      "distinct_assets": true,
+      "distinct_rotations": true,
+      "ctp_enabled": false,
+      "expected_success": true
+    },
+    {
+      "id": "physical_file_missing",
+      "create_physical_file": false,
+      "expected_code": "ASSET_FILE_NOT_FOUND"
+    },
+    {
+      "id": "ctp_disabled",
+      "ctp_enabled": false,
+      "expected_success": true
+    }
+  ],
+  "error_cases": [
+    {
+      "id": "asset_reference_missing",
+      "pointer": "/slots/0/source/asset_id",
+      "value": "missing_asset",
+      "expected_code": "BROKEN_REFERENCE"
+    },
+    {
+      "id": "page_reference_missing",
+      "pointer": "/slots/0/source/page",
+      "value": 99,
+      "expected_code": "BROKEN_REFERENCE"
+    },
+    {
+      "id": "pdf_box_missing",
+      "pointer": "/slots/0/source/pdf_box",
+      "value": "crop",
+      "expected_code": "MISSING_PDF_BOX"
+    },
+    {
+      "id": "storage_traversal",
+      "pointer": "/assets/0/storage_key",
+      "value": "../outside.pdf",
+      "expected_code": "UNSAFE_ASSET_STORAGE_KEY"
+    },
+    {
+      "id": "storage_absolute_windows",
+      "pointer": "/assets/0/storage_key",
+      "value": "C:\\outside\\source.pdf",
+      "expected_code": "UNSAFE_ASSET_STORAGE_KEY"
+    },
+    {
+      "id": "content_scale",
+      "pointer": "/slots/0/content_transform/scale_x",
+      "value": 1.1,
+      "expected_code": "UNSUPPORTED_CONTENT_SCALE"
+    },
+    {
+      "id": "content_offset",
+      "pointer": "/slots/0/content_transform/offset_mm/x",
+      "value": 2.0,
+      "expected_code": "UNSUPPORTED_CONTENT_OFFSET"
+    },
+    {
+      "id": "content_rotation",
+      "pointer": "/slots/0/content_transform/rotation_deg",
+      "value": 90,
+      "expected_code": "UNSUPPORTED_CONTENT_ROTATION"
+    },
+    {
+      "id": "content_mirror",
+      "pointer": "/slots/0/content_transform/mirror_x",
+      "value": true,
+      "expected_code": "UNSUPPORTED_CONTENT_MIRROR"
+    },
+    {
+      "id": "content_clip",
+      "pointer": "/slots/0/content_transform/clip_to",
+      "value": "none",
+      "expected_code": "UNSUPPORTED_CONTENT_CLIP"
+    },
+    {
+      "id": "ctp_active",
+      "pointer": "/ctp/enabled",
+      "value": true,
+      "expected_code": "UNSUPPORTED_CTP_CONFIGURATION"
+    },
+    {
+      "id": "marks_profile_missing",
+      "pointer": "/slots/0/production/marks_profile_id",
+      "value": "missing_profile",
+      "expected_code": "BROKEN_REFERENCE"
+    },
+    {
+      "id": "unsupported_dpi",
+      "pointer": "/export/dpi",
+      "value": 600,
+      "expected_code": "UNSUPPORTED_EXPORT_DPI"
+    },
+    {
+      "id": "unsupported_crop_to_content",
+      "pointer": "/export/crop_to_content",
+      "value": true,
+      "expected_code": "UNSUPPORTED_CROP_TO_CONTENT"
+    }
+  ]
+}

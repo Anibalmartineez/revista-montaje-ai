@@ -36,10 +36,36 @@ from .geometry import (
     vertical_gap,
 )
 from .layout_v2 import LAYOUT_SCHEMA_VERSION
+from .output_contract import (
+    OUTPUT_CONTRACT_VERSION,
+    OutputAdapterResult,
+    OutputCtpConfig,
+    OutputDesign,
+    OutputExportConfig,
+    OutputFace,
+    OutputIssue,
+    OutputJob,
+    OutputMargins,
+    OutputMarksProfile,
+    OutputPosition,
+    OutputSourceBox,
+)
 from .validation import LayoutV2ValidationError, assert_valid_layout_v2, validate_layout_v2
 
 __all__ = [
     "LAYOUT_SCHEMA_VERSION",
+    "OUTPUT_CONTRACT_VERSION",
+    "OutputAdapterResult",
+    "OutputCtpConfig",
+    "OutputDesign",
+    "OutputExportConfig",
+    "OutputFace",
+    "OutputIssue",
+    "OutputJob",
+    "OutputMargins",
+    "OutputMarksProfile",
+    "OutputPosition",
+    "OutputSourceBox",
     "LayoutV2ValidationError",
     "assert_valid_layout_v2",
     "validate_layout_v2",
