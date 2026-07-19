@@ -173,6 +173,12 @@ Un asset representa un PDF inmutable e incluye:
 * miniatura derivada;
 * resultado de preflight.
 
+Desde la Fase 6, los assets físicos nuevos incluyen además el resumen
+`preflight_status`, `preflight_report_id` y `preflight_updated_at`. Los campos
+son aditivos y opcionales para que los fixtures V2 creados antes de existir el
+servicio de assets sigan siendo válidos. El servicio de upload siempre los
+escribe; el detalle canónico continúa en `pages[].preflight`.
+
 Las páginas se numeran desde `1`.
 
 Cada página declara explícitamente:

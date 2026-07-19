@@ -9,6 +9,8 @@ from typing import Any
 
 EDITOR_OFFSET_V2_ENABLED = "EDITOR_OFFSET_V2_ENABLED"
 EDITOR_OFFSET_V2_JOBS_ROOT = "EDITOR_OFFSET_V2_JOBS_ROOT"
+EDITOR_OFFSET_V2_MAX_UPLOAD_BYTES = "EDITOR_OFFSET_V2_MAX_UPLOAD_BYTES"
+DEFAULT_EDITOR_OFFSET_V2_MAX_UPLOAD_BYTES = 50 * 1024 * 1024
 
 
 def _environment_flag(name: str, default: bool = False) -> bool:
@@ -29,10 +31,16 @@ def configure_editor_offset_v2(app: Any) -> None:
         EDITOR_OFFSET_V2_JOBS_ROOT,
         str(Path(app.instance_path) / "editor_offset_v2_jobs"),
     )
+    app.config.setdefault(
+        EDITOR_OFFSET_V2_MAX_UPLOAD_BYTES,
+        DEFAULT_EDITOR_OFFSET_V2_MAX_UPLOAD_BYTES,
+    )
 
 
 __all__ = [
     "EDITOR_OFFSET_V2_ENABLED",
     "EDITOR_OFFSET_V2_JOBS_ROOT",
+    "EDITOR_OFFSET_V2_MAX_UPLOAD_BYTES",
+    "DEFAULT_EDITOR_OFFSET_V2_MAX_UPLOAD_BYTES",
     "configure_editor_offset_v2",
 ]

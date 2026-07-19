@@ -36,11 +36,44 @@
     };
   }
 
+  function artworkForSlot(slot, layout, assetsApiUrl, clipId) {
+    const asset = layout.assets.find((item) => item.id === slot.source.asset_id);
+    const page = asset?.pages.find((item) => item.number === slot.source.page);
+    const sourceBox = page?.boxes_mm?.[slot.source.pdf_box];
+    if (!asset || asset.status !== "ready" || !page || !sourceBox || !assetsApiUrl) {
+      return null;
+    }
+    const trim = slot.geometry.trim_size_mm;
+    const image = svgElement("image", {
+      x: -trim.width / 2,
+      y: -trim.height / 2,
+      width: trim.width,
+      height: trim.height,
+      href: `${assetsApiUrl}/${encodeURIComponent(asset.id)}/thumbnails/${page.number}`,
+      preserveAspectRatio: "xMidYMid meet",
+      class: "ev2-svg-artwork",
+      "clip-path": `url(#${clipId})`,
+      "data-slot-id": slot.id,
+      "data-asset-id": asset.id,
+      "data-page": page.number,
+      "data-pdf-box": slot.source.pdf_box,
+    });
+    const rotated = [90, 270].includes(page.intrinsic_rotation_deg);
+    const sourceWidth = rotated ? sourceBox.height : sourceBox.width;
+    const sourceHeight = rotated ? sourceBox.width : sourceBox.height;
+    if (Math.abs(sourceWidth - trim.width) > 0.01
+        || Math.abs(sourceHeight - trim.height) > 0.01) {
+      image.classList.add("is-source-mismatch");
+    }
+    return image;
+  }
+
   class Renderer {
-    constructor(store, refs, geometry) {
+    constructor(store, refs, geometry, assetsApiUrl) {
       this.store = store;
       this.refs = refs;
       this.geometry = geometry;
+      this.assetsApiUrl = assetsApiUrl;
       this.unsubscribe = store.subscribe(() => this.render());
       this.render();
     }
@@ -69,6 +102,9 @@
       );
       svg.replaceChildren();
 
+      const definitions = svgElement("defs");
+      svg.append(definitions);
+
       const workspace = svgElement("rect", {
         x: centerX - viewWidth,
         y: centerY - viewHeight,
@@ -91,7 +127,7 @@
         .filter((slot) => slot.face === state.activeFace)
         .map((slot) => withPreview(slot, this.store));
 
-      for (const slot of visibleSlots) {
+      for (const [slotIndex, slot] of visibleSlots.entries()) {
         const center = slot.geometry.position_mm;
         const trim = slot.geometry.trim_size_mm;
         const bleed = slot.geometry.bleed_mm;
@@ -105,6 +141,25 @@
           "data-slot-id": slot.id,
           tabindex: "0",
         });
+        const clipId = `ev2-slot-clip-${slotIndex}`;
+        const clipPath = svgElement("clipPath", {
+          id: clipId,
+          clipPathUnits: "userSpaceOnUse",
+        });
+        clipPath.append(svgElement("rect", {
+          x: -trim.width / 2,
+          y: -trim.height / 2,
+          width: trim.width,
+          height: trim.height,
+        }));
+        definitions.append(clipPath);
+        const artwork = artworkForSlot(
+          slot,
+          state.layout,
+          this.assetsApiUrl,
+          clipId,
+        );
+        if (artwork) group.append(artwork);
         group.append(
           svgElement("rect", {
             x: -(trim.width + 2 * bleed) / 2,
@@ -231,5 +286,5 @@
     }
   }
 
-  return Object.freeze({ Renderer, svgElement, withPreview });
+  return Object.freeze({ Renderer, artworkForSlot, svgElement, withPreview });
 });

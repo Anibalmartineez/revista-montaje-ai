@@ -333,6 +333,7 @@ def test_template_embeds_parseable_context_json(app_factory):
     assert context["create_job_url"] == "/api/editor-offset-v2/jobs"
     assert context["job_api_url"] is None
     assert context["save_layout_url"] is None
+    assert context["assets_api_url"] is None
 
 
 def test_template_context_has_canonical_get_and_save_urls(app_factory):
@@ -348,3 +349,4 @@ def test_template_context_has_canonical_get_and_save_urls(app_factory):
     job_id = created["job_id"]
     assert context["job_api_url"] == f"/api/editor-offset-v2/jobs/{job_id}"
     assert context["save_layout_url"] == f"/api/editor-offset-v2/jobs/{job_id}/layout"
+    assert context["assets_api_url"] == f"/api/editor-offset-v2/jobs/{job_id}/assets"

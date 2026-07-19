@@ -3,6 +3,7 @@ from __future__ import annotations
 from pathlib import Path
 import threading
 
+import fitz
 import pytest
 from flask import Flask
 from werkzeug.serving import make_server
@@ -43,9 +44,21 @@ def v2_server(tmp_path):
         thread.join(timeout=5)
 
 
-def test_v2_visible_create_move_undo_redo_save_and_reload(v2_server):
+def _write_test_pdf(path: Path) -> None:
+    document = fitz.open()
+    page = document.new_page(width=255.118, height=141.732)
+    page.set_trimbox(fitz.Rect(6, 6, 249, 135))
+    page.insert_text((36, 70), "EDITOR OFFSET V2", fontsize=18)
+    page.draw_rect(fitz.Rect(18, 18, 237, 123), color=(0.1, 0.4, 0.8), width=3)
+    document.save(path)
+    document.close()
+
+
+def test_v2_visible_asset_work_slot_move_save_and_reload(v2_server, tmp_path):
     console_errors: list[str] = []
     page_errors: list[str] = []
+    pdf_path = tmp_path / "diseño prueba.pdf"
+    _write_test_pdf(pdf_path)
 
     with sync_playwright() as playwright:
         browser = playwright.chromium.launch(headless=True)
@@ -66,8 +79,26 @@ def test_v2_visible_create_move_undo_redo_save_and_reload(v2_server):
             page.wait_for_url("**/editor_offset_visual_v2/ev2_*", timeout=10_000)
             expect(page.locator("#ev2-canvas")).to_be_visible()
 
-            page.locator("#ev2-create-slot").click()
+            page.locator("#ev2-asset-file").set_input_files(str(pdf_path))
+            with page.expect_response(
+                lambda response: response.request.method == "POST"
+                and "/assets" in response.url,
+            ) as upload_info:
+                page.locator("#ev2-asset-upload-button").click()
+            assert upload_info.value.status == 201
+            expect(page.locator(".ev2-asset-card")).to_have_count(1)
+            expect(page.locator(".ev2-asset-pages img")).to_have_count(1)
+            page.wait_for_function(
+                "() => document.querySelector('.ev2-asset-pages img')?.naturalWidth > 0"
+            )
+
+            page.locator("#ev2-create-work").click()
+            page.wait_for_function(
+                "() => window.__EDITOR_OFFSET_V2__.store.layout.works.length === 1"
+            )
+            page.locator("#ev2-create-real-slot").click()
             expect(page.locator(".ev2-svg-slot")).to_have_count(1)
+            expect(page.locator(".ev2-svg-artwork")).to_have_count(1)
             original = page.evaluate(
                 "() => structuredClone(window.__EDITOR_OFFSET_V2__.store.layout.slots[0].geometry.position_mm)"
             )
@@ -107,7 +138,15 @@ def test_v2_visible_create_move_undo_redo_save_and_reload(v2_server):
             assert revision >= 2
 
             page.reload(wait_until="domcontentloaded")
+            expect(page.locator(".ev2-asset-card")).to_have_count(1)
             expect(page.locator(".ev2-svg-slot")).to_have_count(1)
+            expect(page.locator(".ev2-svg-artwork")).to_have_count(1)
+            persisted_counts = page.evaluate(
+                "() => ({ assets: window.__EDITOR_OFFSET_V2__.store.layout.assets.length, "
+                "works: window.__EDITOR_OFFSET_V2__.store.layout.works.length, "
+                "slots: window.__EDITOR_OFFSET_V2__.store.layout.slots.length })"
+            )
+            assert persisted_counts == {"assets": 1, "works": 1, "slots": 1}
             persisted = page.evaluate(
                 "() => window.__EDITOR_OFFSET_V2__.store.layout.slots[0].geometry.position_mm"
             )

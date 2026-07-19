@@ -85,6 +85,31 @@ def test_json_schema_rotation_enums_match_python_canonical_rotations():
         assert values == [0, 90, 180, 270]
 
 
+def test_physical_asset_preflight_summary_is_explicit_and_additive():
+    schema = json.loads(SCHEMA_PATH.read_text(encoding="utf-8"))
+    asset_schema = schema["$defs"]["asset"]
+    for field in (
+        "preflight_status",
+        "preflight_report_id",
+        "preflight_updated_at",
+    ):
+        assert field in asset_schema["properties"]
+        assert field not in asset_schema["required"]
+
+    layout = load_fixture()
+    layout["assets"][0].update(
+        {
+            "preflight_status": "not_run",
+            "preflight_report_id": None,
+            "preflight_updated_at": None,
+        }
+    )
+    assert validate_layout_v2(layout) == []
+
+    layout["assets"][0]["preflight_status"] = "unknown"
+    assert "INVALID_ENUM" in codes(layout)
+
+
 def test_schema_and_fixtures_do_not_contain_legacy_field_names():
     documents = [
         json.loads(SCHEMA_PATH.read_text(encoding="utf-8")),

@@ -60,7 +60,7 @@ button:disabled {
 
 .ev2-shell {
   display: grid;
-  grid-template-columns: 76px 232px minmax(420px, 1fr) 270px;
+  grid-template-columns: 76px 310px minmax(420px, 1fr) 270px;
   grid-template-rows: 68px minmax(460px, calc(100vh - 104px)) 36px;
   grid-template-areas:
     "topbar topbar topbar topbar"
@@ -237,7 +237,206 @@ button:disabled {
   grid-area: objects;
   display: flex;
   flex-direction: column;
+  overflow-y: auto;
   border-right: 1px solid var(--ev2-line);
+}
+
+.ev2-upload-form,
+.ev2-source-builder {
+  padding: 10px;
+  border-bottom: 1px solid var(--ev2-line);
+}
+
+.ev2-upload-form label,
+.ev2-form-grid label {
+  color: var(--ev2-muted);
+  font-size: 9px;
+}
+
+.ev2-upload-form input,
+.ev2-upload-form button,
+.ev2-form-grid input,
+.ev2-form-grid select,
+.ev2-slot-source-actions select,
+.ev2-slot-source-actions button,
+.ev2-source-builder > button {
+  width: 100%;
+  min-width: 0;
+  margin-top: 5px;
+  padding: 7px;
+  border: 1px solid var(--ev2-line);
+  border-radius: 6px;
+  background: var(--ev2-panel-raised);
+  color: var(--ev2-text);
+  font-size: 10px;
+}
+
+.ev2-upload-form input[type="file"] {
+  padding: 5px;
+  color: var(--ev2-muted);
+}
+
+.ev2-upload-form button,
+.ev2-source-builder > button {
+  border-color: #40886e;
+  background: var(--ev2-accent-dark);
+  color: var(--ev2-accent);
+  font-weight: 700;
+}
+
+.ev2-inline-status {
+  min-height: 14px;
+  margin: 6px 0 0;
+  color: var(--ev2-muted);
+  font-size: 9px;
+  line-height: 1.4;
+}
+
+.ev2-inline-status[data-state="error"] {
+  color: var(--ev2-danger);
+}
+
+.ev2-inline-status[data-state="warning"] {
+  color: var(--ev2-warning);
+}
+
+.ev2-inline-status[data-state="success"] {
+  color: var(--ev2-accent);
+}
+
+.ev2-assets-list {
+  max-height: 220px;
+  padding: 8px;
+  overflow: auto;
+  border-bottom: 1px solid var(--ev2-line);
+}
+
+.ev2-asset-card {
+  padding: 8px;
+  border: 1px solid var(--ev2-line);
+  border-radius: 7px;
+  background: #111821;
+}
+
+.ev2-asset-card + .ev2-asset-card {
+  margin-top: 7px;
+}
+
+.ev2-asset-card.is-selected {
+  border-color: #438c72;
+}
+
+.ev2-asset-card > div:first-child {
+  display: grid;
+}
+
+.ev2-asset-card strong {
+  overflow: hidden;
+  font-size: 10px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ev2-asset-card small {
+  margin-top: 2px;
+  color: var(--ev2-muted);
+  font-size: 8px;
+}
+
+.ev2-asset-pages {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 5px;
+  margin-top: 7px;
+}
+
+.ev2-asset-pages button {
+  display: grid;
+  gap: 3px;
+  padding: 3px;
+  overflow: hidden;
+  font-size: 8px;
+}
+
+.ev2-asset-pages button.is-selected {
+  border-color: var(--ev2-accent);
+  background: var(--ev2-accent-dark);
+}
+
+.ev2-asset-pages img {
+  width: 100%;
+  aspect-ratio: 4 / 3;
+  border-radius: 3px;
+  background: white;
+  object-fit: contain;
+}
+
+.ev2-source-builder summary {
+  color: var(--ev2-text);
+  cursor: pointer;
+  font-size: 10px;
+  font-weight: 700;
+}
+
+.ev2-form-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 6px;
+  margin-top: 8px;
+}
+
+.ev2-form-grid label {
+  display: grid;
+}
+
+.ev2-field-wide,
+.ev2-form-grid output {
+  grid-column: 1 / -1;
+}
+
+.ev2-form-grid output {
+  padding: 5px 7px;
+  border-radius: 5px;
+  background: #0e141c;
+  color: var(--ev2-accent);
+  font-size: 9px;
+  text-align: center;
+}
+
+.ev2-rotation-options {
+  display: flex;
+  gap: 8px;
+  margin: 8px 0;
+  padding: 6px;
+  border: 1px solid var(--ev2-line);
+  color: var(--ev2-muted);
+  font-size: 8px;
+}
+
+.ev2-rotation-options legend {
+  padding: 0 4px;
+}
+
+.ev2-back-source {
+  display: block;
+  margin: 7px 0;
+  color: var(--ev2-muted);
+  font-size: 9px;
+}
+
+.ev2-slot-source-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 5px;
+  margin-top: 8px;
+}
+
+.ev2-slot-source-actions select {
+  grid-column: 1 / -1;
+}
+
+.ev2-objects-heading {
+  margin-top: 0;
 }
 
 .ev2-panel-heading {
@@ -253,7 +452,8 @@ button:disabled {
 }
 
 .ev2-slots-list {
-  flex: 1;
+  flex: 0 0 auto;
+  max-height: 180px;
   min-height: 0;
   margin: 0;
   padding: 8px;
@@ -391,6 +591,14 @@ button:disabled {
   cursor: move;
 }
 
+.ev2-svg-artwork {
+  pointer-events: all;
+}
+
+.ev2-svg-artwork.is-source-mismatch {
+  opacity: .78;
+}
+
 .ev2-svg-bleed {
   fill: rgba(241, 184, 91, .12);
   stroke: #d0953d;
@@ -521,7 +729,7 @@ button:disabled {
 
 @media (max-width: 1050px) {
   .ev2-shell {
-    grid-template-columns: 68px 190px minmax(360px, 1fr) 225px;
+    grid-template-columns: 68px 270px minmax(360px, 1fr) 225px;
   }
 
   .ev2-brand {

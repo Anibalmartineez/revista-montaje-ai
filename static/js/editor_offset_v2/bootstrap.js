@@ -52,12 +52,25 @@
     }
 
     const store = new modules.Store.EditorStore(context.layout);
-    const renderer = new modules.CanvasRenderer.Renderer(store, refs, modules.GeometryView);
+    const renderer = new modules.CanvasRenderer.Renderer(
+      store,
+      refs,
+      modules.GeometryView,
+      context.assets_api_url,
+    );
     const saver = new modules.Autosave.SaveCoordinator(store, api, context.save_layout_url);
     const interactions = new modules.Interactions.CanvasInteractions(
       store,
       refs,
       modules.GeometryView,
+      modules.Commands,
+    );
+    const assetsPanel = new modules.AssetsPanel.AssetsPanel(
+      store,
+      refs,
+      api,
+      saver,
+      context,
       modules.Commands,
     );
 
@@ -97,7 +110,7 @@
       event.returnValue = "";
     });
 
-    const instance = { context, store, renderer, saver, interactions };
+    const instance = { context, store, renderer, saver, interactions, assetsPanel };
     root.__EDITOR_OFFSET_V2__ = instance;
     return instance;
   }

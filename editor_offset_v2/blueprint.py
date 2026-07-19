@@ -13,15 +13,22 @@ from flask import (
     jsonify,
     render_template,
     request,
+    send_file,
     url_for,
 )
 
+from editor_offset_v2.application.asset_service import (
+    AssetService,
+    AssetServiceError,
+)
 from editor_offset_v2.application.job_service import JobService, JobServiceError
 from editor_offset_v2.config import (
     EDITOR_OFFSET_V2_ENABLED,
     EDITOR_OFFSET_V2_JOBS_ROOT,
+    EDITOR_OFFSET_V2_MAX_UPLOAD_BYTES,
     configure_editor_offset_v2,
 )
+from editor_offset_v2.infrastructure.asset_repository import AssetRepository
 from editor_offset_v2.infrastructure.job_repository import JobRepository
 
 
@@ -37,7 +44,17 @@ def _job_service() -> JobService:
     return JobService(JobRepository(jobs_root))
 
 
-def _error_payload(error: JobServiceError):
+def _asset_service() -> AssetService:
+    jobs_root = Path(current_app.config[EDITOR_OFFSET_V2_JOBS_ROOT])
+    repository = JobRepository(jobs_root)
+    return AssetService(
+        JobService(repository),
+        AssetRepository(repository),
+        max_upload_bytes=current_app.config[EDITOR_OFFSET_V2_MAX_UPLOAD_BYTES],
+    )
+
+
+def _error_payload(error: JobServiceError | AssetServiceError):
     payload: dict[str, Any] = {
         "ok": False,
         "error": {
@@ -80,6 +97,7 @@ def editor_shell():
         "create_job_url": url_for("editor_offset_v2.create_job"),
         "job_api_url": None,
         "save_layout_url": None,
+        "assets_api_url": None,
     }
     return render_template("editor_offset_visual_v2.html", editor_context=context)
 
@@ -102,6 +120,10 @@ def editor_with_job(job_id: str):
         ),
         "save_layout_url": url_for(
             "editor_offset_v2.save_job_layout",
+            job_id=result.job_id,
+        ),
+        "assets_api_url": url_for(
+            "editor_offset_v2.upload_asset",
             job_id=result.job_id,
         ),
     }
@@ -174,6 +196,54 @@ def get_job(job_id: str):
             ),
             "layout": result.layout,
         }
+    )
+
+
+@editor_offset_v2_bp.post("/api/editor-offset-v2/jobs/<job_id>/assets")
+def upload_asset(job_id: str):
+    raw_revision = request.form.get("base_revision")
+    base_revision: object = (
+        int(raw_revision)
+        if isinstance(raw_revision, str) and raw_revision.isdecimal()
+        else raw_revision
+    )
+    try:
+        result = _asset_service().upload_pdf(
+            job_id,
+            base_revision,
+            request.files.get("file"),
+        )
+    except (AssetServiceError, JobServiceError) as error:
+        return _error_payload(error)
+    return (
+        jsonify(
+            {
+                "ok": True,
+                "job_id": result.job_id,
+                "asset_id": result.asset_id,
+                "revision": result.revision,
+                "asset": result.asset,
+                "layout": result.layout,
+            }
+        ),
+        201,
+    )
+
+
+@editor_offset_v2_bp.get(
+    "/api/editor-offset-v2/jobs/<job_id>/assets/<asset_id>/thumbnails/<page>"
+)
+def asset_thumbnail(job_id: str, asset_id: str, page: str):
+    page_number: object = int(page) if page.isdecimal() else page
+    try:
+        path = _asset_service().thumbnail_path(job_id, asset_id, page_number)
+    except (AssetServiceError, JobServiceError) as error:
+        return _error_payload(error)
+    return send_file(
+        path,
+        mimetype="image/png",
+        conditional=True,
+        max_age=3600,
     )
 
 

@@ -131,6 +131,194 @@
     }
   }
 
+  function sourcePage(layout, source) {
+    const asset = layout.assets.find((item) => item.id === source.asset_id);
+    const page = asset?.pages.find((item) => item.number === source.page);
+    const box = page?.boxes_mm?.[source.pdf_box];
+    if (!asset || !page || !box) {
+      throw new Error("Source must reference an existing asset page and PDF box");
+    }
+    return { asset, page, box };
+  }
+
+  function safeToken(value) {
+    const token = String(value).replace(/[^a-z0-9_-]/gi, "").slice(0, 48);
+    if (!token) throw new Error("A safe command token is required");
+    return token;
+  }
+
+  class CreateWorkCommand {
+    constructor(work) {
+      this.description = "Crear trabajo desde PDF";
+      this.work = clone(work);
+      this.affectedIds = Object.freeze([this.work.id]);
+    }
+
+    execute(layout) {
+      if (layout.works.some((work) => work.id === this.work.id)) {
+        throw new Error(`Work ${this.work.id} already exists`);
+      }
+      sourcePage(layout, this.work.front_source);
+      if (this.work.back_source) sourcePage(layout, this.work.back_source);
+      layout.works.push(clone(this.work));
+    }
+
+    undo(layout) {
+      if (layout.slots.some((slot) => slot.work_id === this.work.id)) {
+        throw new Error("Undo the work slots before removing their work");
+      }
+      layout.works = layout.works.filter((work) => work.id !== this.work.id);
+    }
+
+    redo(layout) {
+      this.execute(layout);
+    }
+  }
+
+  class CreateSlotFromWorkCommand {
+    constructor(slot) {
+      this.description = "Crear slot real desde trabajo";
+      this.slot = clone(slot);
+      this.affectedIds = Object.freeze([this.slot.id]);
+    }
+
+    execute(layout) {
+      if (layout.slots.some((slot) => slot.id === this.slot.id)) {
+        throw new Error(`Slot ${this.slot.id} already exists`);
+      }
+      if (!layout.works.some((work) => work.id === this.slot.work_id)) {
+        throw new Error("Slot must reference an existing work");
+      }
+      sourcePage(layout, this.slot.source);
+      layout.slots.push(clone(this.slot));
+    }
+
+    undo(layout) {
+      layout.slots = layout.slots.filter((slot) => slot.id !== this.slot.id);
+    }
+
+    redo(layout) {
+      this.execute(layout);
+    }
+  }
+
+  class ReplaceSlotSourceCommand {
+    constructor(layout, slotId, replacementSource) {
+      const slot = layout.slots.find((item) => item.id === slotId);
+      if (!slot) throw new Error("ReplaceSlotSourceCommand requires an existing slot");
+      const replacement = sourcePage(layout, replacementSource);
+      this.description = "Sustituir fuente del slot";
+      this.slotId = slotId;
+      this.beforeSource = clone(slot.source);
+      this.afterSource = clone(replacementSource);
+      this.affectedIds = Object.freeze([slotId]);
+      const rotation = replacement.page.intrinsic_rotation_deg;
+      const boxWidth = rotation === 90 || rotation === 270
+        ? replacement.box.height
+        : replacement.box.width;
+      const boxHeight = rotation === 90 || rotation === 270
+        ? replacement.box.width
+        : replacement.box.height;
+      const trim = slot.geometry.trim_size_mm;
+      this.dimensionWarning = Math.abs(trim.width - boxWidth) > 0.01
+        || Math.abs(trim.height - boxHeight) > 0.01
+        ? `La nueva caja mide ${boxWidth.toFixed(2)} × ${boxHeight.toFixed(2)} mm; el slot conserva ${trim.width.toFixed(2)} × ${trim.height.toFixed(2)} mm.`
+        : null;
+    }
+
+    apply(layout, source) {
+      sourcePage(layout, source);
+      const slot = layout.slots.find((item) => item.id === this.slotId);
+      if (!slot) throw new Error("The slot no longer exists");
+      slot.source = clone(source);
+    }
+
+    execute(layout) {
+      this.apply(layout, this.afterSource);
+    }
+
+    undo(layout) {
+      this.apply(layout, this.beforeSource);
+    }
+
+    redo(layout) {
+      this.execute(layout);
+    }
+  }
+
+  function createWorkFromSource(layout, source, values, token) {
+    const selected = sourcePage(layout, source);
+    const width = Number(values.width);
+    const height = Number(values.height);
+    const bleed = Number(values.bleed);
+    const requestedForms = Number(values.requestedForms);
+    const rotations = [...new Set(values.allowedRotations.map(Number))];
+    if (!Number.isFinite(width) || width <= 0 || !Number.isFinite(height) || height <= 0) {
+      throw new Error("Trim width and height must be positive millimetres");
+    }
+    if (!Number.isFinite(bleed) || bleed < 0) {
+      throw new Error("Bleed must be zero or greater");
+    }
+    if (!Number.isInteger(requestedForms) || requestedForms < 1) {
+      throw new Error("Requested quantity must be a positive integer");
+    }
+    if (!rotations.length || rotations.some((value) => ![0, 90, 180, 270].includes(value))) {
+      throw new Error("At least one cardinal rotation is required");
+    }
+    const name = String(values.name || selected.asset.original_filename).trim();
+    if (!name || name.length > 160) {
+      throw new Error("Work name must contain between 1 and 160 characters");
+    }
+    const id = `work_${safeToken(token)}`;
+    return {
+      id,
+      name,
+      trim_size_mm: { width, height },
+      bleed_mm: bleed,
+      requested_forms: requestedForms,
+      allowed_rotations_deg: rotations,
+      priority: 0,
+      preferred_zone: "none",
+      preferred_flow: "manual",
+      front_source: clone(source),
+      back_source: values.useSameSourceForBack ? clone(source) : null,
+    };
+  }
+
+  function createSlotFromWork(layout, workId, token, center) {
+    const work = layout.works.find((item) => item.id === workId);
+    if (!work || !work.front_source) throw new Error("An existing work with a front source is required");
+    sourcePage(layout, work.front_source);
+    if (!center || !Number.isFinite(center.x_mm) || !Number.isFinite(center.y_mm)) {
+      throw new Error("A finite visible center is required");
+    }
+    return {
+      id: `slot_${safeToken(token)}`,
+      face: "front",
+      work_id: work.id,
+      source: clone(work.front_source),
+      geometry: {
+        position_mm: { x_mm: center.x_mm, y_mm: center.y_mm, anchor: "trim_center" },
+        trim_size_mm: clone(work.trim_size_mm),
+        bleed_mm: work.bleed_mm,
+        rotation_deg: work.allowed_rotations_deg.includes(0) ? 0 : work.allowed_rotations_deg[0],
+      },
+      content_transform: {
+        fit_mode: "actual_size",
+        scale_x: 1,
+        scale_y: 1,
+        offset_mm: { x: 0, y: 0 },
+        rotation_deg: 0,
+        mirror_x: false,
+        mirror_y: false,
+        clip_to: work.front_source.pdf_box === "bleed" ? "bleed_box" : "trim_box",
+      },
+      locks: { geometry: [], content: [], production: [], delete: [] },
+      production: { marks_profile_id: layout.export.default_marks_profile_id },
+      generated_by: { type: "manual" },
+    };
+  }
+
   function createDevelopmentPlaceholderBundle(layout, token, nowIso) {
     const safeToken = String(token).replace(/[^a-z0-9_-]/gi, "").slice(0, 40);
     if (!safeToken) {
@@ -227,6 +415,12 @@
     CreateSlotCommand,
     MoveSlotsCommand,
     DeleteSlotsCommand,
+    CreateWorkCommand,
+    CreateSlotFromWorkCommand,
+    ReplaceSlotSourceCommand,
+    createWorkFromSource,
+    createSlotFromWork,
+    sourcePage,
     createDevelopmentPlaceholderBundle,
   });
 });

@@ -43,7 +43,7 @@
       </button>
       <button class="ev2-tool" id="ev2-create-slot" type="button" {% if not editor_context.job_id %}disabled{% endif %}>
         <span aria-hidden="true">＋</span>
-        Slot prueba
+        Placeholder dev
       </button>
       <button class="ev2-tool" id="ev2-delete-slots" type="button" disabled>
         <span aria-hidden="true">⌫</span>
@@ -51,16 +51,59 @@
       </button>
     </aside>
 
-    <aside class="ev2-objects" aria-label="Objetos del montaje">
+    <aside class="ev2-objects" aria-label="Assets y objetos del montaje">
       <div class="ev2-panel-heading">
-        <span class="ev2-region-label">Objetos</span>
-        <small>Slots de la cara activa</small>
+        <span class="ev2-region-label">Assets PDF</span>
+        <small>Originales inmutables del job</small>
+      </div>
+      <form class="ev2-upload-form" id="ev2-asset-upload-form">
+        <label for="ev2-asset-file">Archivo PDF</label>
+        <input id="ev2-asset-file" name="file" type="file" accept="application/pdf,.pdf" {% if not editor_context.job_id %}disabled{% endif %}>
+        <button id="ev2-asset-upload-button" type="submit" {% if not editor_context.job_id %}disabled{% endif %}>Subir PDF</button>
+        <p id="ev2-asset-upload-status" class="ev2-inline-status" role="status" aria-live="polite"></p>
+      </form>
+      <div class="ev2-assets-list" id="ev2-assets-list">
+        <p class="ev2-list-empty">Sube un PDF para crear el primer asset real.</p>
+      </div>
+
+      <details class="ev2-source-builder" open>
+        <summary>Fuente y work</summary>
+        <div class="ev2-form-grid">
+          <label>Asset<select id="ev2-asset-select" disabled></select></label>
+          <label>Página<select id="ev2-asset-page" disabled></select></label>
+          <label>Caja PDF<select id="ev2-asset-box" disabled></select></label>
+          <output id="ev2-box-dimensions">—</output>
+          <label class="ev2-field-wide">Nombre<input id="ev2-work-name" type="text" maxlength="160"></label>
+          <label>Ancho trim<input id="ev2-work-width" type="number" min="0.001" step="0.001"></label>
+          <label>Alto trim<input id="ev2-work-height" type="number" min="0.001" step="0.001"></label>
+          <label>Bleed<input id="ev2-work-bleed" type="number" min="0" step="0.1" value="0"></label>
+          <label>Cantidad<input id="ev2-work-quantity" type="number" min="1" step="1" value="1"></label>
+        </div>
+        <fieldset class="ev2-rotation-options">
+          <legend>Rotaciones permitidas</legend>
+          <label><input type="checkbox" name="ev2-work-rotation" value="0" checked>0°</label>
+          <label><input type="checkbox" name="ev2-work-rotation" value="90" checked>90°</label>
+          <label><input type="checkbox" name="ev2-work-rotation" value="180">180°</label>
+          <label><input type="checkbox" name="ev2-work-rotation" value="270">270°</label>
+        </fieldset>
+        <label class="ev2-back-source"><input id="ev2-work-back" type="checkbox"> Usar esta fuente también como dorso</label>
+        <button id="ev2-create-work" type="button" disabled>Crear work real</button>
+        <div class="ev2-slot-source-actions">
+          <select id="ev2-work-select"><option value="">Selecciona un work</option></select>
+          <button id="ev2-create-real-slot" type="button" disabled>Crear slot</button>
+          <button id="ev2-replace-source" type="button" disabled>Sustituir fuente</button>
+        </div>
+      </details>
+
+      <div class="ev2-panel-heading ev2-objects-heading">
+        <span class="ev2-region-label">Slots</span>
+        <small>Objetos de la cara activa</small>
       </div>
       <ul class="ev2-slots-list" id="ev2-slots-list">
         <li class="ev2-list-empty">No hay slots en esta cara.</li>
       </ul>
       <div class="ev2-development-note">
-        Los slots de prueba crean referencias placeholder válidas, pero no son exportables.
+        “Placeholder dev” permanece solo para pruebas y nunca representa un PDF exportable.
       </div>
     </aside>
 
@@ -84,7 +127,7 @@
     <aside class="ev2-inspector" aria-label="Inspector del slot">
       <div class="ev2-panel-heading">
         <span class="ev2-region-label">Inspector</span>
-        <small>Solo lectura · Fase 5</small>
+        <small>Solo lectura · Fase 6</small>
       </div>
       <dl class="ev2-inspector-list" id="ev2-inspector-values">
         <div><dt>Selección</dt><dd>Ninguna</dd></div>
@@ -121,6 +164,7 @@
   <script src="{{ url_for('static', filename='js/editor_offset_v2/autosave.js') }}" defer></script>
   <script src="{{ url_for('static', filename='js/editor_offset_v2/canvas_renderer.js') }}" defer></script>
   <script src="{{ url_for('static', filename='js/editor_offset_v2/interactions.js') }}" defer></script>
+  <script src="{{ url_for('static', filename='js/editor_offset_v2/assets_panel.js') }}" defer></script>
   <script src="{{ url_for('static', filename='js/editor_offset_v2/bootstrap.js') }}" defer></script>
   <script src="{{ url_for('static', filename='js/editor_offset_visual_v2.js') }}" defer></script>
 </body>

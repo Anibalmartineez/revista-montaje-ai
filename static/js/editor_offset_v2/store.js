@@ -17,6 +17,19 @@
       : JSON.parse(JSON.stringify(value));
   }
 
+  function suggestedPdfBox(page) {
+    if (page && page.boxes_mm) {
+      if (page.boxes_mm.trim) return "trim";
+      if (page.boxes_mm.crop) return "crop";
+      if (page.boxes_mm.media) return "media";
+    }
+    return null;
+  }
+
+  function isReadyAsset(asset) {
+    return Boolean(asset && asset.status === "ready" && asset.pages && asset.pages.length);
+  }
+
   class EditorStore {
     constructor(layout) {
       if (!layout || layout.layout_schema_version !== 2) {
@@ -37,6 +50,17 @@
         status: "clean",
         error: null,
         lastSavedAt: this.layout.job.updated_at,
+      };
+      const firstAsset = this.layout.assets.find(isReadyAsset) || null;
+      const firstPage = firstAsset ? firstAsset.pages[0] : null;
+      this.assetPanel = {
+        selectedAssetId: firstAsset ? firstAsset.id : null,
+        selectedPage: firstPage ? firstPage.number : null,
+        selectedPdfBox: suggestedPdfBox(firstPage),
+        selectedWorkId: this.layout.works[0]?.id || null,
+        uploadStatus: "idle",
+        message: null,
+        error: null,
       };
       this.undoStack = [];
       this.redoStack = [];
@@ -71,6 +95,7 @@
         pointerSession: this.pointerSession,
         previewPositions: this.previewPositions,
         saveState: { ...this.saveState },
+        assetPanel: { ...this.assetPanel },
         canUndo: this.undoStack.length > 0,
         canRedo: this.redoStack.length > 0,
         hasUnsavedChanges: this.hasUnsavedChanges(),
@@ -159,6 +184,93 @@
         this.hoverId = id;
         this.emit("hover");
       }
+    }
+
+    setAssetSelection(assetId, pageNumber, pdfBox) {
+      const asset = this.layout.assets.find((item) => item.id === assetId);
+      if (!isReadyAsset(asset)) {
+        throw new Error("Unknown asset selection");
+      }
+      const page = asset.pages.find((item) => item.number === pageNumber) || asset.pages[0];
+      if (!page) {
+        throw new Error("The selected asset has no pages");
+      }
+      const selectedBox = pdfBox || suggestedPdfBox(page);
+      if (!selectedBox || !page.boxes_mm[selectedBox]) {
+        throw new Error("The selected PDF box is absent");
+      }
+      this.assetPanel = {
+        ...this.assetPanel,
+        selectedAssetId: asset.id,
+        selectedPage: page.number,
+        selectedPdfBox: selectedBox,
+        message: null,
+        error: null,
+      };
+      this.emit("asset_selection");
+    }
+
+    setSelectedWork(workId) {
+      if (workId !== null && !this.layout.works.some((work) => work.id === workId)) {
+        throw new Error("Unknown work selection");
+      }
+      this.assetPanel = { ...this.assetPanel, selectedWorkId: workId };
+      this.emit("work_selection");
+    }
+
+    setUploadState(status, message, error) {
+      this.assetPanel = {
+        ...this.assetPanel,
+        uploadStatus: status,
+        message: message || null,
+        error: error || null,
+      };
+      this.emit("upload_state");
+    }
+
+    selectedAssetPage() {
+      const asset = this.layout.assets.find(
+        (item) => item.id === this.assetPanel.selectedAssetId,
+      );
+      const page = asset?.pages.find(
+        (item) => item.number === this.assetPanel.selectedPage,
+      );
+      return isReadyAsset(asset) && page ? { asset, page } : null;
+    }
+
+    applyServerLayout(canonicalLayout) {
+      if (!canonicalLayout || canonicalLayout.layout_schema_version !== 2) {
+        throw new Error("Server response is not Layout V2");
+      }
+      if (canonicalLayout.job.id !== this.layout.job.id) {
+        throw new Error("Server layout belongs to another job");
+      }
+      if (this.hasUnsavedChanges() || this.saveState.status === "saving" || this.pointerSession) {
+        throw new Error("Cannot apply a server layout while local changes are pending");
+      }
+      this.layout = clone(canonicalLayout);
+      this.revision = canonicalLayout.job.revision;
+      this.savedChangeVersion = this.changeVersion;
+      this.saveState = {
+        status: "clean",
+        error: null,
+        lastSavedAt: canonicalLayout.job.updated_at,
+      };
+      this.filterSelection();
+      const selectedAsset = this.layout.assets.find(
+        (item) => item.id === this.assetPanel.selectedAssetId && isReadyAsset(item),
+      );
+      const firstReadyAsset = this.layout.assets.find(isReadyAsset);
+      if (!selectedAsset && firstReadyAsset) {
+        const firstPage = firstReadyAsset.pages[0];
+        this.assetPanel = {
+          ...this.assetPanel,
+          selectedAssetId: firstReadyAsset.id,
+          selectedPage: firstPage.number,
+          selectedPdfBox: suggestedPdfBox(firstPage),
+        };
+      }
+      this.emit("external_update");
     }
 
     beginPointerSession(session) {
@@ -261,5 +373,5 @@
     }
   }
 
-  return Object.freeze({ EditorStore, SAVE_STATES });
+  return Object.freeze({ EditorStore, SAVE_STATES, suggestedPdfBox });
 });

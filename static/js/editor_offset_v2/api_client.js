@@ -59,6 +59,13 @@
         body: JSON.stringify({ base_revision: baseRevision, layout }),
       });
     }
+
+    async uploadAsset(url, baseRevision, file) {
+      const body = new FormData();
+      body.append("base_revision", String(baseRevision));
+      body.append("file", file);
+      return requestJson(url, { method: "POST", body });
+    }
   }
 
   return Object.freeze({ ApiError, EditorApiClient, requestJson });

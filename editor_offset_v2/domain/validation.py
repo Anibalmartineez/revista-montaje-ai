@@ -287,6 +287,11 @@ def _validate_assets(
                 "created_at",
                 "pages",
             },
+            optional={
+                "preflight_status",
+                "preflight_report_id",
+                "preflight_updated_at",
+            },
         )
         if asset is None:
             continue
@@ -309,6 +314,15 @@ def _validate_assets(
         page_count = validator.integer(asset.get("page_count"), f"{path}.page_count", minimum=1)
         validator.enum(asset.get("status"), f"{path}.status", VALID_ASSET_STATUSES)
         validator.string(asset.get("created_at"), f"{path}.created_at")
+        if "preflight_status" in asset:
+            validator.enum(
+                asset.get("preflight_status"),
+                f"{path}.preflight_status",
+                VALID_PREFLIGHT_STATUSES,
+            )
+        for nullable_field in ("preflight_report_id", "preflight_updated_at"):
+            if nullable_field in asset and asset.get(nullable_field) is not None:
+                validator.string(asset.get(nullable_field), f"{path}.{nullable_field}")
 
         pages = validator.array(asset.get("pages"), f"{path}.pages")
         known_pages: dict[int, set[str]] = {}

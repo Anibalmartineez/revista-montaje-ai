@@ -400,6 +400,29 @@
         "created_at": {
           "$ref": "#/$defs/nonEmptyString"
         },
+        "preflight_status": {
+          "enum": ["not_run", "pass", "warning", "error"]
+        },
+        "preflight_report_id": {
+          "oneOf": [
+            {
+              "$ref": "#/$defs/nonEmptyString"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "preflight_updated_at": {
+          "oneOf": [
+            {
+              "$ref": "#/$defs/nonEmptyString"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
         "pages": {
           "type": "array",
           "minItems": 1,
