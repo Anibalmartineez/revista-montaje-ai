@@ -22,6 +22,7 @@ from editor_offset_v2.application.asset_service import (
     AssetServiceError,
 )
 from editor_offset_v2.application.job_service import JobService, JobServiceError
+from editor_offset_v2.application.repeat_service import RepeatService, RepeatServiceError
 from editor_offset_v2.config import (
     EDITOR_OFFSET_V2_ENABLED,
     EDITOR_OFFSET_V2_JOBS_ROOT,
@@ -54,7 +55,11 @@ def _asset_service() -> AssetService:
     )
 
 
-def _error_payload(error: JobServiceError | AssetServiceError):
+def _repeat_service() -> RepeatService:
+    return RepeatService(_job_service())
+
+
+def _error_payload(error: JobServiceError | AssetServiceError | RepeatServiceError):
     payload: dict[str, Any] = {
         "ok": False,
         "error": {
@@ -98,6 +103,7 @@ def editor_shell():
         "job_api_url": None,
         "save_layout_url": None,
         "assets_api_url": None,
+        "repeat_api_url": None,
     }
     return render_template("editor_offset_visual_v2.html", editor_context=context)
 
@@ -124,6 +130,10 @@ def editor_with_job(job_id: str):
         ),
         "assets_api_url": url_for(
             "editor_offset_v2.upload_asset",
+            job_id=result.job_id,
+        ),
+        "repeat_api_url": url_for(
+            "editor_offset_v2.propose_repeat",
             job_id=result.job_id,
         ),
     }
@@ -245,6 +255,18 @@ def asset_thumbnail(job_id: str, asset_id: str, page: str):
         conditional=True,
         max_age=3600,
     )
+
+
+@editor_offset_v2_bp.post(
+    "/api/editor-offset-v2/jobs/<job_id>/imposition/repeat"
+)
+def propose_repeat(job_id: str):
+    payload = request.get_json(silent=True)
+    try:
+        result = _repeat_service().propose(job_id, payload)
+    except (RepeatServiceError, JobServiceError) as error:
+        return _error_payload(error)
+    return jsonify({"ok": True, "result": result.as_dict()})
 
 
 @editor_offset_v2_bp.put("/api/editor-offset-v2/jobs/<job_id>/layout")

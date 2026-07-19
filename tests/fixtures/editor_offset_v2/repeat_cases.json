@@ -1,0 +1,64 @@
+{
+  "cases": [
+    {
+      "id": "single_zero_bleed",
+      "sheet_mm": {"width": 200, "height": 140},
+      "margins_mm": {"left": 10, "right": 10, "bottom": 10, "top": 10},
+      "trim_mm": {"width": 40, "height": 20},
+      "bleed_mm": 0,
+      "requested": 6,
+      "allowed_rotations_deg": [0],
+      "gaps_mm": {"horizontal": 4, "vertical": 3}
+    },
+    {
+      "id": "cardinal_90_only",
+      "sheet_mm": {"width": 120, "height": 95},
+      "margins_mm": {"left": 10, "right": 10, "bottom": 10, "top": 10},
+      "trim_mm": {"width": 70, "height": 20},
+      "bleed_mm": 0,
+      "requested": 4,
+      "allowed_rotations_deg": [90],
+      "gaps_mm": {"horizontal": 2, "vertical": 2}
+    },
+    {
+      "id": "bleed_three",
+      "sheet_mm": {"width": 220, "height": 160},
+      "margins_mm": {"left": 12, "right": 12, "bottom": 15, "top": 15},
+      "trim_mm": {"width": 50, "height": 30},
+      "bleed_mm": 3,
+      "requested": 4,
+      "allowed_rotations_deg": [0, 90],
+      "gaps_mm": {"horizontal": 4, "vertical": 3}
+    },
+    {
+      "id": "partial_required",
+      "sheet_mm": {"width": 100, "height": 100},
+      "margins_mm": {"left": 5, "right": 5, "bottom": 5, "top": 5},
+      "trim_mm": {"width": 90, "height": 90},
+      "bleed_mm": 0,
+      "requested": 4,
+      "allowed_rotations_deg": [0],
+      "gaps_mm": {"horizontal": 0, "vertical": 0}
+    },
+    {
+      "id": "fill_capacity",
+      "sheet_mm": {"width": 100, "height": 100},
+      "margins_mm": {"left": 10, "right": 10, "bottom": 10, "top": 10},
+      "trim_mm": {"width": 20, "height": 20},
+      "bleed_mm": 0,
+      "requested": 2,
+      "allowed_rotations_deg": [0],
+      "gaps_mm": {"horizontal": 0, "vertical": 0}
+    },
+    {
+      "id": "realistic_offset_decimal",
+      "sheet_mm": {"width": 700, "height": 500},
+      "margins_mm": {"left": 12.5, "right": 12.5, "bottom": 15.25, "top": 18.75},
+      "trim_mm": {"width": 90.25, "height": 50.5},
+      "bleed_mm": 3,
+      "requested": 24,
+      "allowed_rotations_deg": [0, 90, 180, 270],
+      "gaps_mm": {"horizontal": 4.25, "vertical": 3.5}
+    }
+  ]
+}

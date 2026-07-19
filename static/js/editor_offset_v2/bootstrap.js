@@ -73,6 +73,14 @@
       context,
       modules.Commands,
     );
+    const repeatPanel = new modules.RepeatPanel.Panel(
+      store,
+      refs,
+      api,
+      saver,
+      context,
+      modules.Commands,
+    );
 
     refs.save.addEventListener("click", () => saver.manualSave());
     refs.undo.addEventListener("click", () => store.undo());
@@ -110,7 +118,15 @@
       event.returnValue = "";
     });
 
-    const instance = { context, store, renderer, saver, interactions, assetsPanel };
+    const instance = {
+      context,
+      store,
+      renderer,
+      saver,
+      interactions,
+      assetsPanel,
+      repeatPanel,
+    };
     root.__EDITOR_OFFSET_V2__ = instance;
     return instance;
   }

@@ -246,6 +246,92 @@
     }
   }
 
+  class ApplyRepeatCommand {
+    constructor(layout, result, options) {
+      if (!result || result.success !== true || !Array.isArray(result.slots)
+          || !result.slots.length) {
+        throw new Error("ApplyRepeatCommand requires a successful non-empty proposal");
+      }
+      const mode = options?.mode || "add";
+      if (!["add", "replace_work_face"].includes(mode)) {
+        throw new Error("Unknown Repeat apply mode");
+      }
+      const workIds = new Set(options?.workIds || []);
+      const face = options?.face;
+      if (!workIds.size || !["front", "back"].includes(face)) {
+        throw new Error("Repeat apply context is incomplete");
+      }
+      this.description = mode === "add"
+        ? "Añadir propuesta Repeat"
+        : "Reemplazar slots mediante Repeat";
+      this.mode = mode;
+      this.workIds = Object.freeze([...workIds]);
+      this.face = face;
+      this.proposed = clone(result.slots);
+      this.removed = mode === "replace_work_face"
+        ? layout.slots
+          .map((slot, index) => ({ slot: clone(slot), index }))
+          .filter((entry) => entry.slot.face === face && workIds.has(entry.slot.work_id))
+        : [];
+      const proposedIds = this.proposed.map((slot) => slot.id);
+      if (new Set(proposedIds).size !== proposedIds.length) {
+        throw new Error("Repeat proposal contains duplicate slot ids");
+      }
+      this.beforeImposition = clone(layout.imposition);
+      this.afterImposition = clone(layout.imposition);
+      this.afterImposition.engine = "repeat";
+      this.afterImposition.engine_version = "2.0.0-adapter";
+      this.afterImposition.settings = {
+        ...this.afterImposition.settings,
+        horizontal_gap_mm: Number(options.settings.horizontal_gap_mm),
+        vertical_gap_mm: Number(options.settings.vertical_gap_mm),
+        exact_quantity: Boolean(options.settings.exact_quantity),
+        fill_remaining_space: Boolean(options.settings.fill_remaining_space),
+      };
+      this.afterImposition.last_result = {
+        operation_id: result.operation_id,
+        status: result.unplaced > 0 ? "incomplete" : "complete",
+        requested: result.requested,
+        placed: result.placed,
+        unplaced: result.unplaced,
+        overproduced: result.overproduced,
+        generated_at: result.generated_at,
+        warnings: clone(result.warnings || []),
+      };
+      this.affectedIds = Object.freeze([
+        ...new Set([...proposedIds, ...this.removed.map((entry) => entry.slot.id)]),
+      ]);
+    }
+
+    execute(layout) {
+      const workIds = new Set(this.workIds);
+      if (this.mode === "replace_work_face") {
+        layout.slots = layout.slots.filter(
+          (slot) => !(slot.face === this.face && workIds.has(slot.work_id)),
+        );
+      }
+      const existingIds = new Set(layout.slots.map((slot) => slot.id));
+      if (this.proposed.some((slot) => existingIds.has(slot.id))) {
+        throw new Error("Repeat proposal collides with an existing slot id");
+      }
+      layout.slots.push(...clone(this.proposed));
+      layout.imposition = clone(this.afterImposition);
+    }
+
+    undo(layout) {
+      const proposedIds = new Set(this.proposed.map((slot) => slot.id));
+      layout.slots = layout.slots.filter((slot) => !proposedIds.has(slot.id));
+      for (const entry of [...this.removed].sort((a, b) => a.index - b.index)) {
+        layout.slots.splice(Math.min(entry.index, layout.slots.length), 0, clone(entry.slot));
+      }
+      layout.imposition = clone(this.beforeImposition);
+    }
+
+    redo(layout) {
+      this.execute(layout);
+    }
+  }
+
   function createWorkFromSource(layout, source, values, token) {
     const selected = sourcePage(layout, source);
     const width = Number(values.width);
@@ -418,6 +504,7 @@
     CreateWorkCommand,
     CreateSlotFromWorkCommand,
     ReplaceSlotSourceCommand,
+    ApplyRepeatCommand,
     createWorkFromSource,
     createSlotFromWork,
     sourcePage,

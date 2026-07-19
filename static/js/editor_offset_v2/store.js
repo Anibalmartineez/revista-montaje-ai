@@ -62,6 +62,11 @@
         message: null,
         error: null,
       };
+      this.repeatPanel = {
+        status: "idle",
+        proposal: null,
+        error: null,
+      };
       this.undoStack = [];
       this.redoStack = [];
       this.changeVersion = 0;
@@ -96,6 +101,7 @@
         previewPositions: this.previewPositions,
         saveState: { ...this.saveState },
         assetPanel: { ...this.assetPanel },
+        repeatPanel: clone(this.repeatPanel),
         canUndo: this.undoStack.length > 0,
         canRedo: this.redoStack.length > 0,
         hasUnsavedChanges: this.hasUnsavedChanges(),
@@ -226,6 +232,15 @@
         error: error || null,
       };
       this.emit("upload_state");
+    }
+
+    setRepeatState(status, proposal, error) {
+      this.repeatPanel = {
+        status,
+        proposal: proposal ? clone(proposal) : null,
+        error: error || null,
+      };
+      this.emit("repeat_state");
     }
 
     selectedAssetPage() {

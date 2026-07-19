@@ -127,7 +127,7 @@
     <aside class="ev2-inspector" aria-label="Inspector del slot">
       <div class="ev2-panel-heading">
         <span class="ev2-region-label">Inspector</span>
-        <small>Solo lectura · Fase 6</small>
+        <small>Geometría y Repeat · Fase 7</small>
       </div>
       <dl class="ev2-inspector-list" id="ev2-inspector-values">
         <div><dt>Selección</dt><dd>Ninguna</dd></div>
@@ -135,6 +135,48 @@
       <div class="ev2-inspector-help">
         Arrastra un slot para mover su centro trim. Pulsa Escape para cancelar.
       </div>
+      {% set repeat_settings = editor_context.layout.imposition.settings if editor_context.layout else {} %}
+      <details class="ev2-repeat-panel" open>
+        <summary>Imposición Repeat</summary>
+        <div id="ev2-repeat-works" class="ev2-repeat-works">
+          <p class="ev2-list-empty">Crea un work real antes de calcular Repeat.</p>
+        </div>
+        <div class="ev2-repeat-grid">
+          <label>Cara
+            <select id="ev2-repeat-face">
+              <option value="front">Frente</option>
+              <option value="back">Dorso</option>
+            </select>
+          </label>
+          <label>Gap horizontal
+            <input id="ev2-repeat-gap-x" type="number" min="0" step="0.1" value="{{ repeat_settings.get('horizontal_gap_mm', 4) }}">
+          </label>
+          <label>Gap vertical
+            <input id="ev2-repeat-gap-y" type="number" min="0" step="0.1" value="{{ repeat_settings.get('vertical_gap_mm', 3) }}">
+          </label>
+        </div>
+        <label><input id="ev2-repeat-exact" type="checkbox" checked> Cantidad exacta</label>
+        <label><input id="ev2-repeat-partial" type="checkbox"> Permitir parcial</label>
+        <label><input id="ev2-repeat-fill" type="checkbox"> Completar espacio</label>
+        <fieldset class="ev2-repeat-mode">
+          <legend>Aplicación</legend>
+          <label><input type="radio" name="ev2-repeat-mode" value="add" checked> Añadir a existentes</label>
+          <label><input type="radio" name="ev2-repeat-mode" value="replace_work_face"> Reemplazar slots del work y cara</label>
+        </fieldset>
+        <div class="ev2-repeat-actions">
+          <button id="ev2-repeat-calculate" type="button" {% if not editor_context.job_id %}disabled{% endif %}>Calcular</button>
+          <button id="ev2-repeat-apply" type="button" disabled>Aplicar</button>
+        </div>
+        <p id="ev2-repeat-status" class="ev2-inline-status" role="status" aria-live="polite"></p>
+        <dl id="ev2-repeat-summary" class="ev2-repeat-summary" hidden>
+          <div><dt>Solicitadas</dt><dd id="ev2-repeat-requested">0</dd></div>
+          <div><dt>Colocadas</dt><dd id="ev2-repeat-placed">0</dd></div>
+          <div><dt>No colocadas</dt><dd id="ev2-repeat-unplaced">0</dd></div>
+          <div><dt>Sobreproducción</dt><dd id="ev2-repeat-overproduced">0</dd></div>
+          <div><dt>Aprovechamiento</dt><dd id="ev2-repeat-utilization">0%</dd></div>
+        </dl>
+        <ul id="ev2-repeat-issues" class="ev2-repeat-issues"></ul>
+      </details>
     </aside>
 
     <footer class="ev2-statusbar">
@@ -165,6 +207,7 @@
   <script src="{{ url_for('static', filename='js/editor_offset_v2/canvas_renderer.js') }}" defer></script>
   <script src="{{ url_for('static', filename='js/editor_offset_v2/interactions.js') }}" defer></script>
   <script src="{{ url_for('static', filename='js/editor_offset_v2/assets_panel.js') }}" defer></script>
+  <script src="{{ url_for('static', filename='js/editor_offset_v2/repeat_panel.js') }}" defer></script>
   <script src="{{ url_for('static', filename='js/editor_offset_v2/bootstrap.js') }}" defer></script>
   <script src="{{ url_for('static', filename='js/editor_offset_visual_v2.js') }}" defer></script>
 </body>

@@ -102,6 +102,8 @@ def test_shell_without_job_has_v2_assets_and_never_loads_v1_script(app_factory):
     assert "/static/js/editor_offset_v2/store.js" in html
     assert "/static/js/editor_offset_v2/commands.js" in html
     assert "/static/js/editor_offset_v2/canvas_renderer.js" in html
+    assert "/static/js/editor_offset_v2/repeat_panel.js" in html
+    assert 'id="ev2-repeat-calculate"' in html
     assert "static/js/editor_offset_visual.js" not in html
     assert "data-editor-tab" not in html
 
@@ -334,6 +336,7 @@ def test_template_embeds_parseable_context_json(app_factory):
     assert context["job_api_url"] is None
     assert context["save_layout_url"] is None
     assert context["assets_api_url"] is None
+    assert context["repeat_api_url"] is None
 
 
 def test_template_context_has_canonical_get_and_save_urls(app_factory):
@@ -350,3 +353,6 @@ def test_template_context_has_canonical_get_and_save_urls(app_factory):
     assert context["job_api_url"] == f"/api/editor-offset-v2/jobs/{job_id}"
     assert context["save_layout_url"] == f"/api/editor-offset-v2/jobs/{job_id}/layout"
     assert context["assets_api_url"] == f"/api/editor-offset-v2/jobs/{job_id}/assets"
+    assert context["repeat_api_url"] == (
+        f"/api/editor-offset-v2/jobs/{job_id}/imposition/repeat"
+    )

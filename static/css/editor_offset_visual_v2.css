@@ -644,7 +644,125 @@ button:disabled {
 
 .ev2-inspector {
   grid-area: inspector;
+  overflow-y: auto;
   border-left: 1px solid var(--ev2-line);
+}
+
+.ev2-repeat-panel {
+  margin: 10px;
+  padding: 10px;
+  border: 1px solid var(--ev2-line);
+  border-radius: 7px;
+  background: #111923;
+  font-size: 10px;
+}
+
+.ev2-repeat-panel summary {
+  margin-bottom: 10px;
+  color: var(--ev2-text);
+  font-weight: 750;
+  cursor: pointer;
+}
+
+.ev2-repeat-works {
+  display: grid;
+  gap: 5px;
+  margin-bottom: 10px;
+}
+
+.ev2-repeat-works label,
+.ev2-repeat-panel > label,
+.ev2-repeat-mode label {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  color: var(--ev2-muted);
+}
+
+.ev2-repeat-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 7px;
+  margin-bottom: 9px;
+}
+
+.ev2-repeat-grid label:first-child {
+  grid-column: 1 / -1;
+}
+
+.ev2-repeat-grid label {
+  color: var(--ev2-muted);
+  font-size: 9px;
+}
+
+.ev2-repeat-grid input,
+.ev2-repeat-grid select {
+  width: 100%;
+  margin-top: 3px;
+}
+
+.ev2-repeat-mode {
+  display: grid;
+  gap: 5px;
+  margin: 9px 0;
+  padding: 8px;
+  border: 1px solid var(--ev2-line);
+}
+
+.ev2-repeat-mode legend {
+  color: var(--ev2-muted);
+  font-size: 9px;
+}
+
+.ev2-repeat-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 7px;
+  margin-top: 9px;
+}
+
+.ev2-repeat-summary {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 5px;
+  margin: 9px 0;
+}
+
+.ev2-repeat-summary[hidden] {
+  display: none;
+}
+
+.ev2-repeat-summary div {
+  padding: 6px;
+  border: 1px solid var(--ev2-line);
+  border-radius: 4px;
+}
+
+.ev2-repeat-summary dt {
+  color: var(--ev2-muted);
+  font-size: 8px;
+}
+
+.ev2-repeat-summary dd {
+  margin: 2px 0 0;
+  color: var(--ev2-text);
+  font-weight: 700;
+}
+
+.ev2-repeat-issues {
+  margin: 8px 0 0;
+  padding-left: 17px;
+  color: var(--ev2-warning);
+  font-size: 9px;
+}
+
+#ev2-repeat-status[data-state="error"] {
+  color: var(--ev2-danger);
+}
+
+#ev2-repeat-status[data-state="ready"],
+#ev2-repeat-status[data-state="applied"] {
+  color: var(--ev2-accent);
 }
 
 .ev2-inspector-list {

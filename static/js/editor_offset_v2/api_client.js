@@ -66,6 +66,14 @@
       body.append("file", file);
       return requestJson(url, { method: "POST", body });
     }
+
+    async proposeRepeat(url, payload) {
+      return requestJson(url, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+    }
   }
 
   return Object.freeze({ ApiError, EditorApiClient, requestJson });

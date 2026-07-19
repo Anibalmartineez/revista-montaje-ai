@@ -54,7 +54,7 @@ def _write_test_pdf(path: Path) -> None:
     document.close()
 
 
-def test_v2_visible_asset_work_slot_move_save_and_reload(v2_server, tmp_path):
+def test_v2_visible_repeat_calculate_apply_undo_redo_save_and_reload(v2_server, tmp_path):
     console_errors: list[str] = []
     page_errors: list[str] = []
     pdf_path = tmp_path / "diseño prueba.pdf"
@@ -92,42 +92,38 @@ def test_v2_visible_asset_work_slot_move_save_and_reload(v2_server, tmp_path):
                 "() => document.querySelector('.ev2-asset-pages img')?.naturalWidth > 0"
             )
 
+            page.locator("#ev2-work-quantity").fill("4")
             page.locator("#ev2-create-work").click()
             page.wait_for_function(
                 "() => window.__EDITOR_OFFSET_V2__.store.layout.works.length === 1"
             )
-            page.locator("#ev2-create-real-slot").click()
-            expect(page.locator(".ev2-svg-slot")).to_have_count(1)
-            expect(page.locator(".ev2-svg-artwork")).to_have_count(1)
-            original = page.evaluate(
-                "() => structuredClone(window.__EDITOR_OFFSET_V2__.store.layout.slots[0].geometry.position_mm)"
-            )
 
-            slot = page.locator(".ev2-svg-slot").first
-            box = slot.bounding_box()
-            assert box is not None
-            start_x = box["x"] + box["width"] / 2
-            start_y = box["y"] + box["height"] / 2
-            page.mouse.move(start_x, start_y)
-            page.mouse.down()
-            page.mouse.move(start_x + 70, start_y - 35, steps=8)
-            page.mouse.up()
+            page.locator("#ev2-repeat-gap-x").fill("4")
+            page.locator("#ev2-repeat-gap-y").fill("3")
+            with page.expect_response(
+                lambda response: response.request.method == "POST"
+                and "/imposition/repeat" in response.url,
+            ) as repeat_info:
+                page.locator("#ev2-repeat-calculate").click()
+            assert repeat_info.value.status == 200
             page.wait_for_function(
-                "(x) => window.__EDITOR_OFFSET_V2__.store.layout.slots[0].geometry.position_mm.x_mm !== x",
-                arg=original["x_mm"],
+                "() => window.__EDITOR_OFFSET_V2__.store.repeatPanel.status === 'ready'"
             )
-            moved = page.evaluate(
-                "() => structuredClone(window.__EDITOR_OFFSET_V2__.store.layout.slots[0].geometry.position_mm)"
-            )
+            expect(page.locator("#ev2-repeat-summary")).to_be_visible()
+            expect(page.locator("#ev2-repeat-requested")).to_have_text("4")
+            expect(page.locator("#ev2-repeat-placed")).to_have_text("4")
+
+            page.locator("#ev2-repeat-apply").click()
+            expect(page.locator(".ev2-svg-slot")).to_have_count(4)
+            expect(page.locator(".ev2-svg-artwork")).to_have_count(4)
+            assert page.evaluate(
+                "() => window.__EDITOR_OFFSET_V2__.store.layout.imposition.last_result.operation_id"
+            ).startswith("repeat_")
 
             page.locator("#ev2-undo").click()
-            assert page.evaluate(
-                "() => window.__EDITOR_OFFSET_V2__.store.layout.slots[0].geometry.position_mm"
-            ) == original
+            expect(page.locator(".ev2-svg-slot")).to_have_count(0)
             page.locator("#ev2-redo").click()
-            assert page.evaluate(
-                "() => window.__EDITOR_OFFSET_V2__.store.layout.slots[0].geometry.position_mm"
-            ) == moved
+            expect(page.locator(".ev2-svg-slot")).to_have_count(4)
 
             page.evaluate("() => window.__EDITOR_OFFSET_V2__.saver.manualSave()")
             page.wait_for_function(
@@ -135,22 +131,21 @@ def test_v2_visible_asset_work_slot_move_save_and_reload(v2_server, tmp_path):
                 timeout=10_000,
             )
             revision = int(page.locator("#ev2-revision").inner_text())
-            assert revision >= 2
+            assert revision >= 4
 
             page.reload(wait_until="domcontentloaded")
             expect(page.locator(".ev2-asset-card")).to_have_count(1)
-            expect(page.locator(".ev2-svg-slot")).to_have_count(1)
-            expect(page.locator(".ev2-svg-artwork")).to_have_count(1)
+            expect(page.locator(".ev2-svg-slot")).to_have_count(4)
+            expect(page.locator(".ev2-svg-artwork")).to_have_count(4)
             persisted_counts = page.evaluate(
                 "() => ({ assets: window.__EDITOR_OFFSET_V2__.store.layout.assets.length, "
                 "works: window.__EDITOR_OFFSET_V2__.store.layout.works.length, "
                 "slots: window.__EDITOR_OFFSET_V2__.store.layout.slots.length })"
             )
-            assert persisted_counts == {"assets": 1, "works": 1, "slots": 1}
-            persisted = page.evaluate(
-                "() => window.__EDITOR_OFFSET_V2__.store.layout.slots[0].geometry.position_mm"
-            )
-            assert persisted == moved
+            assert persisted_counts == {"assets": 1, "works": 1, "slots": 4}
+            assert page.evaluate(
+                "() => window.__EDITOR_OFFSET_V2__.store.layout.imposition.last_result.placed"
+            ) == 4
             assert not console_errors
             assert not page_errors
         finally:
