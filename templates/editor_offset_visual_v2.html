@@ -17,72 +17,111 @@
         </div>
       </div>
 
-      <div class="ev2-document-meta" aria-label="Estado del documento">
-        <span class="ev2-status-pill">Shell V2</span>
-        <span>Job <strong id="ev2-job-id">{{ editor_context.job_id or 'Sin crear' }}</strong></span>
-        <span>Revisión <strong id="ev2-revision">{{ editor_context.revision if editor_context.revision is not none else '—' }}</strong></span>
+      <div class="ev2-document-title">
+        <span id="ev2-job-name">{{ editor_context.job_name or 'Sin documento abierto' }}</span>
+        <small>Job <strong id="ev2-job-id">{{ editor_context.job_id or '—' }}</strong></small>
       </div>
 
-      <button class="ev2-primary-action" id="ev2-new-job" type="button">
-        Nuevo job
-      </button>
+      <nav class="ev2-document-actions" aria-label="Acciones del documento">
+        <button id="ev2-undo" type="button" title="Deshacer (Ctrl+Z)" disabled>Deshacer</button>
+        <button id="ev2-redo" type="button" title="Rehacer (Ctrl+Y)" disabled>Rehacer</button>
+        <button class="ev2-save-button" id="ev2-save" type="button" disabled>Guardar</button>
+        <span class="ev2-save-state" id="ev2-save-status" data-state="clean">
+          {{ 'Guardado' if editor_context.job_id else 'Sin job' }}
+        </span>
+        <span class="ev2-revision">Rev. <strong id="ev2-revision">{{ editor_context.revision if editor_context.revision is not none else '—' }}</strong></span>
+        <button id="ev2-reload-conflict" type="button" hidden>Recargar versión remota</button>
+        <button class="ev2-primary-action" id="ev2-new-job" type="button">Nuevo job</button>
+      </nav>
     </header>
 
-    <aside class="ev2-tools" aria-label="Herramientas futuras">
+    <aside class="ev2-tools" aria-label="Herramientas">
       <span class="ev2-region-label">Herramientas</span>
-      <div class="ev2-placeholder-icon" aria-hidden="true">+</div>
-      <p>Disponible en próximas fases.</p>
+      <button class="ev2-tool is-active" id="ev2-select-tool" type="button" aria-pressed="true" {% if not editor_context.job_id %}disabled{% endif %}>
+        <span aria-hidden="true">↖</span>
+        Selección
+      </button>
+      <button class="ev2-tool" id="ev2-create-slot" type="button" {% if not editor_context.job_id %}disabled{% endif %}>
+        <span aria-hidden="true">＋</span>
+        Slot prueba
+      </button>
+      <button class="ev2-tool" id="ev2-delete-slots" type="button" disabled>
+        <span aria-hidden="true">⌫</span>
+        Eliminar
+      </button>
     </aside>
 
-    <aside class="ev2-assets" aria-label="Panel de assets futuro">
-      <span class="ev2-region-label">Assets</span>
-      <div class="ev2-empty-state">
-        <span aria-hidden="true">PDF</span>
-        <p>Los assets se incorporarán después del shell.</p>
+    <aside class="ev2-objects" aria-label="Objetos del montaje">
+      <div class="ev2-panel-heading">
+        <span class="ev2-region-label">Objetos</span>
+        <small>Slots de la cara activa</small>
+      </div>
+      <ul class="ev2-slots-list" id="ev2-slots-list">
+        <li class="ev2-list-empty">No hay slots en esta cara.</li>
+      </ul>
+      <div class="ev2-development-note">
+        Los slots de prueba crean referencias placeholder válidas, pero no son exportables.
       </div>
     </aside>
 
-    <section class="ev2-workspace" aria-label="Área de trabajo futura">
-      <div class="ev2-canvas-placeholder">
-        <span class="ev2-canvas-kicker">Superficie reservada</span>
-        <h2>Canvas V2</h2>
-        <p>El canvas y las herramientas de edición se incorporarán en las siguientes fases.</p>
-        {% if editor_context.job_name %}
-          <div class="ev2-open-document">
-            <span>Documento abierto</span>
-            <strong>{{ editor_context.job_name }}</strong>
-          </div>
-        {% endif %}
-      </div>
+    <section class="ev2-workspace" aria-label="Canvas del montaje">
+      {% if not editor_context.job_id %}
+        <div class="ev2-no-job">
+          <span class="ev2-canvas-kicker">Editor V2</span>
+          <h2>Crea un job para comenzar</h2>
+          <p>El layout, el historial y el guardado permanecen aislados de Editor V1.</p>
+        </div>
+      {% endif %}
+      <svg
+        id="ev2-canvas"
+        class="ev2-canvas{% if not editor_context.job_id %} is-disabled{% endif %}"
+        role="application"
+        aria-label="Pliego offset V2"
+        preserveAspectRatio="xMidYMid meet"
+      ></svg>
     </section>
 
-    <aside class="ev2-inspector" aria-label="Inspector futuro">
-      <span class="ev2-region-label">Inspector</span>
-      <dl class="ev2-inspector-list">
-        <div>
-          <dt>Estado</dt>
-          <dd>Shell V2</dd>
-        </div>
-        <div>
-          <dt>Contrato</dt>
-          <dd>Layout V2</dd>
-        </div>
-        <div>
-          <dt>Persistencia</dt>
-          <dd id="ev2-save-status">{{ 'Guardado' if editor_context.job_id else 'Sin job' }}</dd>
-        </div>
+    <aside class="ev2-inspector" aria-label="Inspector del slot">
+      <div class="ev2-panel-heading">
+        <span class="ev2-region-label">Inspector</span>
+        <small>Solo lectura · Fase 5</small>
+      </div>
+      <dl class="ev2-inspector-list" id="ev2-inspector-values">
+        <div><dt>Selección</dt><dd>Ninguna</dd></div>
       </dl>
+      <div class="ev2-inspector-help">
+        Arrastra un slot para mover su centro trim. Pulsa Escape para cancelar.
+      </div>
     </aside>
 
     <footer class="ev2-statusbar">
-      <span>Canvas pendiente</span>
-      <span aria-hidden="true">•</span>
-      <span>Sin herramientas activas</span>
+      <span>Cara: <strong id="ev2-active-face">Frente</strong></span>
+      <span class="ev2-divider" aria-hidden="true"></span>
+      <span id="ev2-cursor">—</span>
+      <span class="ev2-divider" aria-hidden="true"></span>
+      <div class="ev2-zoom-controls" aria-label="Zoom del canvas">
+        <button id="ev2-zoom-out" type="button" aria-label="Alejar" {% if not editor_context.job_id %}disabled{% endif %}>−</button>
+        <strong id="ev2-zoom">100%</strong>
+        <button id="ev2-zoom-in" type="button" aria-label="Acercar" {% if not editor_context.job_id %}disabled{% endif %}>＋</button>
+        <button id="ev2-reset-view" type="button" {% if not editor_context.job_id %}disabled{% endif %}>Restablecer</button>
+      </div>
+      <span class="ev2-divider" aria-hidden="true"></span>
+      <span id="ev2-slot-count">0 slots</span>
+      <span class="ev2-version-state">Canvas SVG · Layout V2</span>
       <span class="ev2-status-message" id="ev2-status-message" role="status" aria-live="polite"></span>
     </footer>
   </main>
 
   <script id="editor-offset-v2-context" type="application/json">{{ editor_context | tojson }}</script>
+  <script src="{{ url_for('static', filename='js/editor_offset_v2/dom_refs.js') }}" defer></script>
+  <script src="{{ url_for('static', filename='js/editor_offset_v2/geometry_view.js') }}" defer></script>
+  <script src="{{ url_for('static', filename='js/editor_offset_v2/commands.js') }}" defer></script>
+  <script src="{{ url_for('static', filename='js/editor_offset_v2/store.js') }}" defer></script>
+  <script src="{{ url_for('static', filename='js/editor_offset_v2/api_client.js') }}" defer></script>
+  <script src="{{ url_for('static', filename='js/editor_offset_v2/autosave.js') }}" defer></script>
+  <script src="{{ url_for('static', filename='js/editor_offset_v2/canvas_renderer.js') }}" defer></script>
+  <script src="{{ url_for('static', filename='js/editor_offset_v2/interactions.js') }}" defer></script>
+  <script src="{{ url_for('static', filename='js/editor_offset_v2/bootstrap.js') }}" defer></script>
   <script src="{{ url_for('static', filename='js/editor_offset_visual_v2.js') }}" defer></script>
 </body>
 </html>

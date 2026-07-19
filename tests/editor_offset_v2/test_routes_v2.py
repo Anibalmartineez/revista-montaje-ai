@@ -16,6 +16,9 @@ from editor_offset_v2.domain.validation import validate_layout_v2
 
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
+COMPLETE_FIXTURE = (
+    REPO_ROOT / "tests" / "fixtures" / "editor_offset_v2" / "layout_v2_complete.json"
+)
 
 
 @pytest.fixture
@@ -52,6 +55,15 @@ def create_job(client, name="Job desde API") -> dict:
     return response.get_json()
 
 
+def with_fixture_slot(layout: dict) -> dict:
+    complete = json.loads(COMPLETE_FIXTURE.read_text(encoding="utf-8"))
+    result = copy.deepcopy(layout)
+    result["assets"] = copy.deepcopy(complete["assets"])
+    result["works"] = copy.deepcopy(complete["works"])
+    result["slots"] = [copy.deepcopy(complete["slots"][0])]
+    return result
+
+
 def test_feature_flag_disabled_returns_404_without_affecting_v1(app_factory):
     app = app_factory(enabled=False)
     client = app.test_client()
@@ -83,10 +95,13 @@ def test_shell_without_job_has_v2_assets_and_never_loads_v1_script(app_factory):
 
     assert response.status_code == 200
     assert "Editor Offset Visual V2" in html
-    assert "Shell V2" in html
-    assert "Sin crear" in html
+    assert "Crea un job para comenzar" in html
+    assert "Sin documento abierto" in html
     assert "/static/css/editor_offset_visual_v2.css" in html
     assert "/static/js/editor_offset_visual_v2.js" in html
+    assert "/static/js/editor_offset_v2/store.js" in html
+    assert "/static/js/editor_offset_v2/commands.js" in html
+    assert "/static/js/editor_offset_v2/canvas_renderer.js" in html
     assert "static/js/editor_offset_visual.js" not in html
     assert "data-editor-tab" not in html
 
@@ -137,7 +152,47 @@ def test_get_existing_job_and_shell_context(app_factory):
     assert shell_response.status_code == 200
     assert job_id in html
     assert "Documento abierto" in html
-    assert "Revisión <strong id=\"ev2-revision\">1</strong>" in html
+    assert '<strong id="ev2-revision">1</strong>' in html
+    assert 'id="ev2-canvas"' in html
+    assert 'id="ev2-save"' in html
+
+
+def test_canvas_placeholder_can_be_saved_moved_and_conflict_preserves_it(app_factory):
+    client = app_factory().test_client()
+    created = create_job(client)
+    layout = with_fixture_slot(created["layout"])
+    slot_id = layout["slots"][0]["id"]
+
+    first = client.put(
+        f"/api/editor-offset-v2/jobs/{created['job_id']}/layout",
+        json={"base_revision": 1, "layout": layout},
+    )
+    assert first.status_code == 200
+    assert first.get_json()["revision"] == 2
+
+    moved = copy.deepcopy(first.get_json()["layout"])
+    moved["slots"][0]["geometry"]["position_mm"]["x_mm"] = 144.25
+    moved["slots"][0]["geometry"]["position_mm"]["y_mm"] = 98.75
+    second = client.put(
+        f"/api/editor-offset-v2/jobs/{created['job_id']}/layout",
+        json={"base_revision": 2, "layout": moved},
+    )
+    assert second.status_code == 200
+    assert second.get_json()["revision"] == 3
+    assert second.get_json()["layout"]["slots"][0]["id"] == slot_id
+
+    stale = copy.deepcopy(second.get_json()["layout"])
+    stale["slots"][0]["geometry"]["position_mm"]["x_mm"] = 999.0
+    conflict = client.put(
+        f"/api/editor-offset-v2/jobs/{created['job_id']}/layout",
+        json={"base_revision": 2, "layout": stale},
+    )
+    persisted = client.get(
+        f"/api/editor-offset-v2/jobs/{created['job_id']}"
+    ).get_json()["layout"]
+
+    assert conflict.status_code == 409
+    assert persisted == second.get_json()["layout"]
 
 
 def test_get_missing_invalid_and_traversal_ids_are_controlled(app_factory):
@@ -276,3 +331,20 @@ def test_template_embeds_parseable_context_json(app_factory):
     assert context["job_id"] is None
     assert context["revision"] is None
     assert context["create_job_url"] == "/api/editor-offset-v2/jobs"
+    assert context["job_api_url"] is None
+    assert context["save_layout_url"] is None
+
+
+def test_template_context_has_canonical_get_and_save_urls(app_factory):
+    client = app_factory().test_client()
+    created = create_job(client)
+    response = client.get(created["open_url"])
+    html = response.get_data(as_text=True)
+    start = html.index('<script id="editor-offset-v2-context" type="application/json">')
+    start = html.index(">", start) + 1
+    end = html.index("</script>", start)
+    context = json.loads(html[start:end])
+
+    job_id = created["job_id"]
+    assert context["job_api_url"] == f"/api/editor-offset-v2/jobs/{job_id}"
+    assert context["save_layout_url"] == f"/api/editor-offset-v2/jobs/{job_id}/layout"

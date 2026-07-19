@@ -78,6 +78,8 @@ def editor_shell():
         "job_name": None,
         "layout": None,
         "create_job_url": url_for("editor_offset_v2.create_job"),
+        "job_api_url": None,
+        "save_layout_url": None,
     }
     return render_template("editor_offset_visual_v2.html", editor_context=context)
 
@@ -94,6 +96,14 @@ def editor_with_job(job_id: str):
         "job_name": result.layout["job"]["name"],
         "layout": result.layout,
         "create_job_url": url_for("editor_offset_v2.create_job"),
+        "job_api_url": url_for(
+            "editor_offset_v2.get_job",
+            job_id=result.job_id,
+        ),
+        "save_layout_url": url_for(
+            "editor_offset_v2.save_job_layout",
+            job_id=result.job_id,
+        ),
     }
     return render_template("editor_offset_visual_v2.html", editor_context=context)
 
