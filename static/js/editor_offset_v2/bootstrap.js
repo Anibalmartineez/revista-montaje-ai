@@ -52,19 +52,79 @@
     }
 
     const store = new modules.Store.EditorStore(context.layout);
-    const renderer = new modules.CanvasRenderer.Renderer(
+    const saver = new modules.Autosave.SaveCoordinator(store, api, context.save_layout_url);
+    const actionRegistry = new modules.CommandRegistry.ActionRegistry();
+    modules.CommandRegistry.registerEditorActions(actionRegistry);
+    let renderer = null;
+    let interactions = null;
+    let positionInspector = null;
+    let nudgeController = null;
+    let shortcutHelp = null;
+    let shortcutManager = null;
+    const contextProvider = () => ({
+      store,
+      layout: store.layout,
+      selectedSlotIds: [...store.selection],
+      selectedSlots: store.layout.slots.filter((slot) => store.selection.has(slot.id)),
+      activeFace: store.activeFace,
+      history: store,
+      saveCoordinator: saver,
+      pointerSession: store.pointerSession,
+      focusedElement: document.activeElement,
+      isSaving: store.saveState.status === "saving",
+      dirty: store.hasUnsavedChanges(),
+      commands: modules.Commands,
+      positioning: modules.PositionInspector,
+      editPolicy: modules.EditPolicy,
+      renderer,
+      interactions,
+      positionInspector,
+      nudgeController,
+      shortcutHelp,
+    });
+    nudgeController = new modules.NudgeController.Controller(
+      store,
+      modules.Commands,
+      modules.EditPolicy,
+    );
+    positionInspector = new modules.PositionInspector.Controller(
       store,
       refs,
-      modules.GeometryView,
-      context.assets_api_url,
+      actionRegistry,
+      contextProvider,
+      modules.EditPolicy,
+      modules.CommandRegistry.ACTION_IDS,
     );
-    const saver = new modules.Autosave.SaveCoordinator(store, api, context.save_layout_url);
-    const interactions = new modules.Interactions.CanvasInteractions(
+    shortcutHelp = new modules.ShortcutManager.ShortcutHelp(refs, actionRegistry);
+    interactions = new modules.Interactions.CanvasInteractions(
       store,
       refs,
       modules.GeometryView,
       modules.Commands,
       modules.EditPolicy,
+      { beforePointerAction: () => nudgeController.finish() },
+    );
+    renderer = new modules.CanvasRenderer.Renderer(
+      store,
+      refs,
+      modules.GeometryView,
+      context.assets_api_url,
+      {
+        registry: actionRegistry,
+        actionIds: modules.CommandRegistry.ACTION_IDS,
+        contextProvider,
+      },
+    );
+    shortcutManager = new modules.ShortcutManager.Manager(
+      actionRegistry,
+      contextProvider,
+      {
+        setSpacePressed: (pressed) => interactions.setSpacePressed(pressed),
+        deleteSelection: () => interactions.deleteSelection(),
+        onBlur: () => {
+          if (interactions.hasPanSession()) interactions.cancelPointer();
+        },
+      },
     );
     const assetsPanel = new modules.AssetsPanel.AssetsPanel(
       store,
@@ -92,9 +152,25 @@
       context,
     );
 
-    refs.save.addEventListener("click", () => saver.manualSave());
-    refs.undo.addEventListener("click", () => store.undo());
-    refs.redo.addEventListener("click", () => store.redo());
+    function runAction(actionId, payload) {
+      try {
+        const result = actionRegistry.execute(actionId, contextProvider(), payload);
+        if (result && typeof result.catch === "function") {
+          result.catch((error) => store.setFeedback(error.message || String(error)));
+        }
+        return result;
+      } catch (error) {
+        store.setFeedback(error.message || String(error));
+        return false;
+      }
+    }
+
+    refs.save.addEventListener("click", () => runAction(modules.CommandRegistry.ACTION_IDS.SAVE));
+    refs.undo.addEventListener("click", () => runAction(modules.CommandRegistry.ACTION_IDS.UNDO));
+    refs.redo.addEventListener("click", () => runAction(modules.CommandRegistry.ACTION_IDS.REDO));
+    refs.shortcutsHelpButton.addEventListener("click", () => (
+      runAction(modules.CommandRegistry.ACTION_IDS.HELP_TOGGLE)
+    ));
     if (refs.createSlot && context.dev_tools_enabled === true) {
       refs.createSlot.addEventListener("click", () => {
         const bundle = modules.Commands.createDevelopmentPlaceholderBundle(
@@ -106,16 +182,7 @@
       });
     }
     refs.deleteSlots.addEventListener("click", () => {
-      if (!store.selection.size) {
-        return;
-      }
-      try {
-        store.executeCommand(
-          new modules.Commands.DeleteSlotsCommand(store.layout, [...store.selection]),
-        );
-      } catch (error) {
-        store.setFeedback(error.message);
-      }
+      interactions.deleteSelection();
     });
     refs.zoomIn.addEventListener("click", () => {
       store.setZoom(modules.GeometryView.clampZoom(store.zoom * 1.2));
@@ -146,6 +213,12 @@
       assetsPanel,
       repeatPanel,
       outputPanel,
+      actionRegistry,
+      shortcutManager,
+      shortcutHelp,
+      positionInspector,
+      nudgeController,
+      runAction,
     };
     root.__EDITOR_OFFSET_V2__ = instance;
     return instance;

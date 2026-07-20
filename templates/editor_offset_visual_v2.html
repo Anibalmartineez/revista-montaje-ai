@@ -26,6 +26,7 @@
         <button id="ev2-undo" type="button" title="Deshacer (Ctrl+Z)" disabled>Deshacer</button>
         <button id="ev2-redo" type="button" title="Rehacer (Ctrl+Y)" disabled>Rehacer</button>
         <button class="ev2-save-button" id="ev2-save" type="button" disabled>Guardar</button>
+        <button id="ev2-shortcuts-help-button" type="button" title="Ayuda de atajos (?)" aria-haspopup="dialog">Atajos</button>
         <span class="ev2-save-state" id="ev2-save-status" data-state="clean">
           {{ 'Guardado' if editor_context.job_id else 'Sin job' }}
         </span>
@@ -123,6 +124,7 @@
         id="ev2-canvas"
         class="ev2-canvas{% if not editor_context.job_id %} is-disabled{% endif %}"
         role="application"
+        tabindex="0"
         aria-label="Pliego offset V2"
         preserveAspectRatio="xMidYMid meet"
       ></svg>
@@ -133,11 +135,33 @@
         <span class="ev2-region-label">Inspector</span>
         <small>Geometría, procedencia y salida temporal</small>
       </div>
+      <section class="ev2-position-panel" aria-labelledby="ev2-position-heading">
+        <h2 id="ev2-position-heading">Posición precisa</h2>
+        <p id="ev2-position-empty" class="ev2-position-empty">Selecciona un slot.</p>
+        <form id="ev2-position-form" hidden novalidate>
+          <p id="ev2-position-selection-count" class="ev2-position-selection-count"></p>
+          <div class="ev2-position-grid">
+            <label for="ev2-position-x" id="ev2-position-x-label">Centro X</label>
+            <span class="ev2-position-input">
+              <input id="ev2-position-x" type="text" inputmode="decimal" autocomplete="off" aria-describedby="ev2-position-error ev2-position-lock">
+              <span aria-hidden="true">mm</span>
+            </span>
+            <label for="ev2-position-y" id="ev2-position-y-label">Centro Y</label>
+            <span class="ev2-position-input">
+              <input id="ev2-position-y" type="text" inputmode="decimal" autocomplete="off" aria-describedby="ev2-position-error ev2-position-lock">
+              <span aria-hidden="true">mm</span>
+            </span>
+          </div>
+          <button id="ev2-position-apply" type="submit">Aplicar posición</button>
+          <p id="ev2-position-error" class="ev2-position-feedback" role="alert" aria-live="assertive"></p>
+          <p id="ev2-position-lock" class="ev2-position-feedback" data-state="ready" role="status" aria-live="polite">Posición canónica: centro trim, milímetros.</p>
+        </form>
+      </section>
       <dl class="ev2-inspector-list" id="ev2-inspector-values">
         <div><dt>Selección</dt><dd>Ninguna</dd></div>
       </dl>
       <div class="ev2-inspector-help">
-        Arrastra un slot para mover su centro trim. Pulsa Escape para cancelar.
+        Flechas: 0,1 mm · Shift: 1 mm · Ctrl/Cmd+Shift: 10 mm. Enter confirma y Escape cancela.
       </div>
       {% set repeat_settings = editor_context.layout.imposition.settings if editor_context.layout else {} %}
       <details class="ev2-repeat-panel" open>
@@ -219,10 +243,26 @@
     </footer>
   </main>
 
+  <dialog id="ev2-shortcuts-help" class="ev2-shortcuts-dialog" aria-labelledby="ev2-shortcuts-help-title">
+    <div class="ev2-shortcuts-dialog-header">
+      <div>
+        <p class="ev2-eyebrow">Editor V2</p>
+        <h2 id="ev2-shortcuts-help-title">Atajos disponibles</h2>
+      </div>
+      <button id="ev2-shortcuts-help-close" type="button" aria-label="Cerrar ayuda de atajos">Cerrar</button>
+    </div>
+    <dl id="ev2-shortcuts-help-list" class="ev2-shortcuts-list"></dl>
+    <p class="ev2-shortcuts-note">Los atajos de edición no se ejecutan mientras escribes en un campo.</p>
+  </dialog>
+
   <script id="editor-offset-v2-context" type="application/json">{{ editor_context | tojson }}</script>
   <script src="{{ url_for('static', filename='js/editor_offset_v2/dom_refs.js') }}" defer></script>
   <script src="{{ url_for('static', filename='js/editor_offset_v2/geometry_view.js') }}" defer></script>
   <script src="{{ url_for('static', filename='js/editor_offset_v2/edit_policy.js') }}" defer></script>
+  <script src="{{ url_for('static', filename='js/editor_offset_v2/position_inspector.js') }}" defer></script>
+  <script src="{{ url_for('static', filename='js/editor_offset_v2/nudge_controller.js') }}" defer></script>
+  <script src="{{ url_for('static', filename='js/editor_offset_v2/command_registry.js') }}" defer></script>
+  <script src="{{ url_for('static', filename='js/editor_offset_v2/shortcut_manager.js') }}" defer></script>
   <script src="{{ url_for('static', filename='js/editor_offset_v2/source_semantics.js') }}" defer></script>
   <script src="{{ url_for('static', filename='js/editor_offset_v2/layout_metrics.js') }}" defer></script>
   <script src="{{ url_for('static', filename='js/editor_offset_v2/commands.js') }}" defer></script>

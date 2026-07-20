@@ -74,6 +74,7 @@
       this.changeVersion = 0;
       this.savedChangeVersion = 0;
       this.listeners = new Set();
+      this.beforeCommandHooks = new Set();
     }
 
     subscribe(listener) {
@@ -112,7 +113,16 @@
       };
     }
 
+    addBeforeCommandHook(listener) {
+      if (typeof listener !== "function") {
+        throw new TypeError("Before-command hook must be a function");
+      }
+      this.beforeCommandHooks.add(listener);
+      return () => this.beforeCommandHooks.delete(listener);
+    }
+
     executeCommand(command) {
+      for (const hook of [...this.beforeCommandHooks]) hook(command);
       command.execute(this.layout);
       this.undoStack.push(command);
       this.redoStack = [];

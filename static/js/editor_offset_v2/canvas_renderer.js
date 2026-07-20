@@ -123,11 +123,12 @@
   }
 
   class Renderer {
-    constructor(store, refs, geometry, assetsApiUrl) {
+    constructor(store, refs, geometry, assetsApiUrl, actionSystem) {
       this.store = store;
       this.refs = refs;
       this.geometry = geometry;
       this.assetsApiUrl = assetsApiUrl;
+      this.actionSystem = actionSystem || null;
       this.unsubscribe = store.subscribe(() => this.render());
       this.render();
     }
@@ -335,8 +336,6 @@
         ? [
           ["ID", selected[0].id],
           ["Cara", selected[0].face],
-          ["Centro X", `${selected[0].geometry.position_mm.x_mm.toFixed(2)} mm`],
-          ["Centro Y", `${selected[0].geometry.position_mm.y_mm.toFixed(2)} mm`],
           ["Trim", `${selected[0].geometry.trim_size_mm.width} × ${selected[0].geometry.trim_size_mm.height} mm`],
           ["Bleed", `${selected[0].geometry.bleed_mm} mm`],
           ["Rotación", `${selected[0].geometry.rotation_deg}°`],
@@ -379,11 +378,27 @@
       this.refs.saveStatus.textContent = labels[state.saveState.status];
       this.refs.saveStatus.dataset.state = state.saveState.status;
       this.refs.statusMessage.textContent = state.saveState.error || state.feedback || "";
-      this.refs.save.disabled = !state.hasUnsavedChanges
-        || state.saveState.status === "saving"
-        || state.saveState.status === "conflict";
-      this.refs.undo.disabled = !state.canUndo;
-      this.refs.redo.disabled = !state.canRedo;
+      if (this.actionSystem) {
+        const context = this.actionSystem.contextProvider();
+        this.refs.save.disabled = !this.actionSystem.registry.isEnabled(
+          this.actionSystem.actionIds.SAVE,
+          context,
+        );
+        this.refs.undo.disabled = !this.actionSystem.registry.isEnabled(
+          this.actionSystem.actionIds.UNDO,
+          context,
+        );
+        this.refs.redo.disabled = !this.actionSystem.registry.isEnabled(
+          this.actionSystem.actionIds.REDO,
+          context,
+        );
+      } else {
+        this.refs.save.disabled = !state.hasUnsavedChanges
+          || state.saveState.status === "saving"
+          || state.saveState.status === "conflict";
+        this.refs.undo.disabled = !state.canUndo;
+        this.refs.redo.disabled = !state.canRedo;
+      }
       this.refs.deleteSlots.disabled = state.selection.length === 0
         || !EditPolicy.can(state.layout, state.selection, "delete");
       this.refs.reloadConflict.hidden = state.saveState.status !== "conflict";

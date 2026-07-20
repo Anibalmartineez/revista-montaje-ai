@@ -478,3 +478,266 @@ def test_v2_many_slot_labels_grouped_issues_zoom_drag_and_temporary_visibility(
             )
         finally:
             browser.close()
+
+
+def test_v2_precise_positioning_shortcuts_batching_persistence_and_locks(
+    v2_server, tmp_path
+):
+    pdf_path = tmp_path / "posicionamiento-8a.pdf"
+    _write_test_pdf(pdf_path)
+
+    with sync_playwright() as playwright:
+        browser = playwright.chromium.launch(headless=True)
+        page = browser.new_page(viewport={"width": 1440, "height": 900})
+        save_requests: list[str] = []
+        page.on(
+            "request",
+            lambda request: save_requests.append(request.url)
+            if request.method == "PUT" and request.url.endswith("/layout")
+            else None,
+        )
+        try:
+            _open_job_with_repeat(page, v2_server, pdf_path, quantity=4)
+            page.wait_for_function(
+                "() => window.__EDITOR_OFFSET_V2__.store.saveState.status === 'clean'",
+                timeout=10_000,
+            )
+            slot_ids = page.evaluate(
+                "() => window.__EDITOR_OFFSET_V2__.store.layout.slots.map(slot => slot.id)"
+            )
+            page.evaluate(
+                "slotId => window.__EDITOR_OFFSET_V2__.store.setSelection([slotId], 'replace')",
+                slot_ids[0],
+            )
+            expect(page.locator("#ev2-position-form")).to_be_visible()
+            expect(page.locator("#ev2-position-x")).to_be_enabled()
+            assert page.evaluate(
+                "() => window.__EDITOR_OFFSET_V2__.store.layout.slots[0].generated_by.engine"
+            ) == "repeat"
+
+            absolute_before = page.evaluate(
+                "() => ({ ...window.__EDITOR_OFFSET_V2__.store.layout.slots[0].geometry.position_mm })"
+            )
+            page.locator("#ev2-position-x").fill("123,456")
+            page.locator("#ev2-position-y").fill("210.125")
+            page.locator("#ev2-position-apply").click()
+            absolute_after = page.evaluate(
+                "() => ({ ...window.__EDITOR_OFFSET_V2__.store.layout.slots[0].geometry.position_mm })"
+            )
+            assert absolute_after["x_mm"] == pytest.approx(123.456)
+            assert absolute_after["y_mm"] == pytest.approx(210.125)
+            transform = page.locator(
+                f".ev2-svg-slot[data-slot-id='{slot_ids[0]}']"
+            ).get_attribute("transform")
+            assert "translate(123.456 " in transform
+
+            page.keyboard.press("Control+Z")
+            restored = page.evaluate(
+                "() => ({ ...window.__EDITOR_OFFSET_V2__.store.layout.slots[0].geometry.position_mm })"
+            )
+            assert restored["x_mm"] == pytest.approx(absolute_before["x_mm"])
+            assert restored["y_mm"] == pytest.approx(absolute_before["y_mm"])
+            page.keyboard.press("Control+Shift+Z")
+            assert page.evaluate(
+                "() => window.__EDITOR_OFFSET_V2__.store.layout.slots[0].geometry.position_mm.x_mm"
+            ) == pytest.approx(123.456)
+
+            page.evaluate(
+                "ids => window.__EDITOR_OFFSET_V2__.store.setSelection(ids, 'replace')",
+                slot_ids[:2],
+            )
+            expect(page.locator("#ev2-position-selection-count")).to_have_text(
+                "2 slots seleccionados"
+            )
+            multi_before = page.evaluate(
+                "ids => ids.map(id => ({ ...window.__EDITOR_OFFSET_V2__.store.layout.slots.find(slot => slot.id === id).geometry.position_mm }))",
+                slot_ids[:2],
+            )
+            relative_before = (
+                multi_before[1]["x_mm"] - multi_before[0]["x_mm"],
+                multi_before[1]["y_mm"] - multi_before[0]["y_mm"],
+            )
+            page.locator("#ev2-position-x").fill("1,25")
+            page.locator("#ev2-position-y").fill("-0.75")
+            page.locator("#ev2-position-apply").click()
+            multi_after = page.evaluate(
+                "ids => ids.map(id => ({ ...window.__EDITOR_OFFSET_V2__.store.layout.slots.find(slot => slot.id === id).geometry.position_mm }))",
+                slot_ids[:2],
+            )
+            assert multi_after[0]["x_mm"] == pytest.approx(multi_before[0]["x_mm"] + 1.25)
+            assert multi_after[1]["y_mm"] == pytest.approx(multi_before[1]["y_mm"] - 0.75)
+            assert multi_after[1]["x_mm"] - multi_after[0]["x_mm"] == pytest.approx(
+                relative_before[0]
+            )
+            assert multi_after[1]["y_mm"] - multi_after[0]["y_mm"] == pytest.approx(
+                relative_before[1]
+            )
+
+            page.locator("#ev2-canvas").focus()
+            page.keyboard.press("ArrowRight")
+            page.keyboard.press("Shift+ArrowUp")
+            page.keyboard.press("Control+Shift+ArrowLeft")
+            stepped = page.evaluate(
+                "ids => ids.map(id => ({ ...window.__EDITOR_OFFSET_V2__.store.layout.slots.find(slot => slot.id === id).geometry.position_mm }))",
+                slot_ids[:2],
+            )
+            assert stepped[0]["x_mm"] == pytest.approx(multi_after[0]["x_mm"] - 9.9)
+            assert stepped[0]["y_mm"] == pytest.approx(multi_after[0]["y_mm"] + 1)
+
+            batch_before = page.evaluate(
+                "ids => ids.map(id => ({ ...window.__EDITOR_OFFSET_V2__.store.layout.slots.find(slot => slot.id === id).geometry.position_mm }))",
+                slot_ids[:2],
+            )
+            history_before = page.evaluate(
+                "() => window.__EDITOR_OFFSET_V2__.store.undoStack.length"
+            )
+            page.keyboard.down("ArrowRight")
+            page.evaluate(
+                "() => { for (let index = 0; index < 3; index += 1) { "
+                "window.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', code: 'ArrowRight', repeat: true, bubbles: true })); "
+                "} }"
+            )
+            page.keyboard.up("ArrowRight")
+            assert page.evaluate(
+                "() => window.__EDITOR_OFFSET_V2__.store.undoStack.length"
+            ) == history_before + 1
+            batch_after = page.evaluate(
+                "ids => ids.map(id => ({ ...window.__EDITOR_OFFSET_V2__.store.layout.slots.find(slot => slot.id === id).geometry.position_mm }))",
+                slot_ids[:2],
+            )
+            assert batch_after[0]["x_mm"] == pytest.approx(batch_before[0]["x_mm"] + 0.4)
+            page.keyboard.press("Control+Z")
+            after_one_undo = page.evaluate(
+                "ids => ids.map(id => ({ ...window.__EDITOR_OFFSET_V2__.store.layout.slots.find(slot => slot.id === id).geometry.position_mm }))",
+                slot_ids[:2],
+            )
+            assert after_one_undo == batch_before
+            page.keyboard.press("Control+Shift+Z")
+
+            with page.expect_response(
+                lambda response: response.request.method == "PUT"
+                and response.url.endswith("/layout")
+            ) as save_info:
+                page.keyboard.press("Control+S")
+            assert save_info.value.status == 200
+            page.wait_for_function(
+                "() => window.__EDITOR_OFFSET_V2__.store.saveState.status === 'clean'",
+                timeout=10_000,
+            )
+            persisted = page.evaluate(
+                "ids => ids.map(id => ({ ...window.__EDITOR_OFFSET_V2__.store.layout.slots.find(slot => slot.id === id).geometry.position_mm }))",
+                slot_ids[:2],
+            )
+            page.reload(wait_until="domcontentloaded")
+            reloaded = page.evaluate(
+                "ids => ids.map(id => ({ ...window.__EDITOR_OFFSET_V2__.store.layout.slots.find(slot => slot.id === id).geometry.position_mm }))",
+                slot_ids[:2],
+            )
+            assert reloaded == persisted
+
+            page.evaluate(
+                "slotId => window.__EDITOR_OFFSET_V2__.store.setSelection([slotId], 'replace')",
+                slot_ids[0],
+            )
+            focus_before = page.evaluate(
+                "() => ({ ...window.__EDITOR_OFFSET_V2__.store.layout.slots[0].geometry.position_mm })"
+            )
+            page.locator("#ev2-position-x").focus()
+            page.keyboard.press("ArrowRight")
+            assert page.evaluate(
+                "() => ({ ...window.__EDITOR_OFFSET_V2__.store.layout.slots[0].geometry.position_mm })"
+            ) == focus_before
+
+            page.locator("#ev2-position-x").fill("130,75")
+            save_count_before_comma = len(save_requests)
+            with page.expect_response(
+                lambda response: response.request.method == "PUT"
+                and response.url.endswith("/layout")
+            ):
+                page.keyboard.press("Control+S")
+            page.wait_for_function(
+                "() => window.__EDITOR_OFFSET_V2__.store.saveState.status === 'clean'",
+                timeout=10_000,
+            )
+            assert len(save_requests) == save_count_before_comma + 1
+            assert page.evaluate(
+                "() => window.__EDITOR_OFFSET_V2__.store.layout.slots[0].geometry.position_mm.x_mm"
+            ) == pytest.approx(130.75)
+
+            revision_before_invalid = page.evaluate(
+                "() => window.__EDITOR_OFFSET_V2__.store.revision"
+            )
+            save_count_before_invalid = len(save_requests)
+            page.locator("#ev2-position-x").fill("valor-invalido")
+            page.keyboard.press("Control+S")
+            page.wait_for_timeout(350)
+            expect(page.locator("#ev2-position-error")).to_contain_text("números finitos")
+            assert len(save_requests) == save_count_before_invalid
+            assert page.evaluate(
+                "() => window.__EDITOR_OFFSET_V2__.store.revision"
+            ) == revision_before_invalid
+            page.keyboard.press("Escape")
+
+            help_version = page.evaluate(
+                "() => ({ change: window.__EDITOR_OFFSET_V2__.store.changeVersion, revision: window.__EDITOR_OFFSET_V2__.store.revision })"
+            )
+            page.locator("#ev2-canvas").focus()
+            page.keyboard.press("Shift+/")
+            expect(page.locator("#ev2-shortcuts-help")).to_be_visible()
+            expect(page.locator("#ev2-shortcuts-help-list")).to_contain_text("Guardar")
+            expect(page.locator("#ev2-shortcuts-help-list")).to_contain_text("Mover 10 mm")
+            expect(page.locator("#ev2-shortcuts-help-list")).not_to_contain_text("Duplicar")
+            page.keyboard.press("Escape")
+            expect(page.locator("#ev2-shortcuts-help")).not_to_be_visible()
+            assert page.evaluate(
+                "() => ({ change: window.__EDITOR_OFFSET_V2__.store.changeVersion, revision: window.__EDITOR_OFFSET_V2__.store.revision })"
+            ) == help_version
+
+            page.evaluate(
+                "slotId => { const store = window.__EDITOR_OFFSET_V2__.store; "
+                "const slot = store.layout.slots.find(item => item.id === slotId); "
+                "slot.locks.geometry = ['system']; store.setSelection([slotId], 'replace'); "
+                "store.emit('lock_fixture'); }",
+                slot_ids[0],
+            )
+            expect(page.locator("#ev2-position-x")).to_be_disabled()
+            expect(page.locator("#ev2-position-lock")).to_contain_text(slot_ids[0])
+            locked_before = page.evaluate(
+                "slotId => ({ ...window.__EDITOR_OFFSET_V2__.store.layout.slots.find(slot => slot.id === slotId).geometry.position_mm })",
+                slot_ids[0],
+            )
+            first_slot = page.locator(f".ev2-svg-slot[data-slot-id='{slot_ids[0]}']")
+            box = first_slot.bounding_box()
+            assert box is not None
+            page.mouse.move(box["x"] + box["width"] / 2, box["y"] + box["height"] / 2)
+            page.mouse.down()
+            page.mouse.move(box["x"] + box["width"] / 2 + 24, box["y"] + box["height"] / 2)
+            page.mouse.up()
+            page.locator("#ev2-canvas").focus()
+            page.keyboard.press("ArrowRight")
+            page.evaluate(
+                "() => { const x = document.querySelector('#ev2-position-x'); "
+                "x.disabled = false; x.value = '200'; "
+                "x.dispatchEvent(new Event('input', { bubbles: true })); "
+                "document.querySelector('#ev2-position-form').requestSubmit(); }"
+            )
+            assert page.evaluate(
+                "slotId => ({ ...window.__EDITOR_OFFSET_V2__.store.layout.slots.find(slot => slot.id === slotId).geometry.position_mm })",
+                slot_ids[0],
+            ) == locked_before
+            expect(page.locator("#ev2-status-message")).to_contain_text(slot_ids[0])
+
+            page.locator("#ev2-toggle-labels").click()
+            expect(page.locator("#ev2-toggle-labels")).to_have_attribute("aria-pressed", "false")
+            page.locator("#ev2-toggle-labels").click()
+            with page.expect_response(
+                lambda response: response.request.method == "GET"
+                and "/output-capabilities" in response.url
+            ):
+                page.locator("#ev2-output-check").click()
+            expect(page.locator("#ev2-output-status")).to_contain_text("salida temporal")
+            expect(page.get_by_text("Duplicar", exact=True)).to_have_count(0)
+            expect(page.get_by_text("Copiar", exact=True)).to_have_count(0)
+            expect(page.get_by_text("Rotar", exact=True)).to_have_count(0)
+        finally:
+            browser.close()

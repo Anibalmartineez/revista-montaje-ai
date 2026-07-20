@@ -174,3 +174,18 @@ Fase 8A incorpora posicionamiento manual preciso: inspector X/Y, delta multisele
 ## 18. Corrección posterior de medida y etiquetas
 
 La corrección documentada en `12_CORRECCION_COMPATIBILIDAD_DE_MEDIDA_Y_ETIQUETAS_V2.md` añade una tolerancia PDF/trim explícita de `0.01 mm`, tratamiento de orientación intrínseca, agrupación visual de issues repetidos y etiquetas ordinales temporales adaptadas al zoom. No cambia Layout V2 ni conecta salida productiva.
+
+## 19. Continuación implementada — Fase 8A
+
+Fase 8A quedó implementada y se documenta en `13_POSICIONAMIENTO_Y_COMANDOS_V2.md`. Añade registro central de acciones, resolución de atajos con scopes seguros, inspector de centro X/Y, delta multiselección, nudge `0.1/1/10 mm`, batching de autorepeat, Ctrl/Cmd+S, undo/redo por teclado y ayuda derivada del registro.
+
+La fase reutiliza sin alterar las decisiones de 8P:
+
+- una sola política `edit_policy.js` para capacidad `move`;
+- atomicidad ante locks y defensa en UI/comando;
+- un único `EditorStore`, historial y `SaveCoordinator`;
+- dirty/autosave únicamente después de una mutación confirmada;
+- coordenadas canónicas en mm con Y hacia arriba;
+- diagnóstico de output y etiquetas visuales sin cambios productivos.
+
+La siguiente fase es 8B. No debe reimplementar el sistema de atajos ni abrir otro historial; debe registrar sus nuevas intenciones y producir comandos reversibles solo cuando muten Layout V2.

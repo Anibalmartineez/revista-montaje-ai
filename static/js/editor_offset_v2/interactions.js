@@ -29,12 +29,13 @@
   }
 
   class CanvasInteractions {
-    constructor(store, refs, geometry, commands, editPolicy) {
+    constructor(store, refs, geometry, commands, editPolicy, gestureLifecycle) {
       this.store = store;
       this.refs = refs;
       this.geometry = geometry;
       this.commands = commands;
       this.editPolicy = editPolicy;
+      this.gestureLifecycle = gestureLifecycle || {};
       this.spacePressed = false;
       this.panSession = null;
       this.bound = {
@@ -43,8 +44,6 @@
         pointerUp: (event) => this.onPointerUp(event),
         pointerCancel: (event) => this.cancelPointer(event),
         wheel: (event) => this.onWheel(event),
-        keyDown: (event) => this.onKeyDown(event),
-        keyUp: (event) => this.onKeyUp(event),
         listClick: (event) => this.onListClick(event),
       };
       refs.canvas.addEventListener("pointerdown", this.bound.pointerDown);
@@ -53,8 +52,6 @@
       refs.canvas.addEventListener("pointercancel", this.bound.pointerCancel);
       refs.canvas.addEventListener("wheel", this.bound.wheel, { passive: false });
       refs.slotsList.addEventListener("click", this.bound.listClick);
-      window.addEventListener("keydown", this.bound.keyDown);
-      window.addEventListener("keyup", this.bound.keyUp);
     }
 
     domainPoint(event) {
@@ -67,6 +64,7 @@
     }
 
     onPointerDown(event) {
+      this.gestureLifecycle.beforePointerAction?.();
       if (event.button === 1 || this.spacePressed) {
         event.preventDefault();
         this.panSession = {
@@ -232,53 +230,30 @@
       this.store.setSelection([button.dataset.slotId], mode);
     }
 
-    onKeyDown(event) {
-      const editable = event.target instanceof HTMLElement
-        && ["INPUT", "TEXTAREA", "SELECT"].includes(event.target.tagName);
-      if (editable) {
-        return;
-      }
-      if (event.code === "Space") {
-        this.spacePressed = true;
-        this.refs.canvas.classList.add("is-pan-ready");
-        event.preventDefault();
-        return;
-      }
-      if (event.key === "Escape") {
-        this.cancelPointer();
-        return;
-      }
-      if (this.store.pointerSession || this.panSession) {
-        return;
-      }
-      const commandKey = event.ctrlKey || event.metaKey;
-      if (commandKey && event.key.toLowerCase() === "z") {
-        event.preventDefault();
-        event.shiftKey ? this.store.redo() : this.store.undo();
-        return;
-      }
-      if (commandKey && event.key.toLowerCase() === "y") {
-        event.preventDefault();
-        this.store.redo();
-        return;
-      }
-      if ((event.key === "Delete" || event.key === "Backspace") && this.store.selection.size) {
-        event.preventDefault();
-        try {
-          this.store.executeCommand(
-            new this.commands.DeleteSlotsCommand(this.store.layout, [...this.store.selection]),
-          );
-        } catch (error) {
-          this.store.setFeedback(error.message);
-        }
+    setSpacePressed(pressed) {
+      this.spacePressed = Boolean(pressed);
+      this.refs.canvas.classList.toggle("is-pan-ready", this.spacePressed);
+    }
+
+    deleteSelection() {
+      if (!this.store.selection.size) return false;
+      try {
+        this.store.executeCommand(
+          new this.commands.DeleteSlotsCommand(this.store.layout, [...this.store.selection]),
+        );
+        return true;
+      } catch (error) {
+        this.store.setFeedback(error.message);
+        return true;
       }
     }
 
-    onKeyUp(event) {
-      if (event.code === "Space") {
-        this.spacePressed = false;
-        this.refs.canvas.classList.remove("is-pan-ready");
-      }
+    hasPanSession() {
+      return Boolean(this.panSession);
+    }
+
+    hasPointerActivity() {
+      return Boolean(this.panSession || this.store.pointerSession);
     }
 
     dispose() {
@@ -288,8 +263,6 @@
       this.refs.canvas.removeEventListener("pointercancel", this.bound.pointerCancel);
       this.refs.canvas.removeEventListener("wheel", this.bound.wheel);
       this.refs.slotsList.removeEventListener("click", this.bound.listClick);
-      window.removeEventListener("keydown", this.bound.keyDown);
-      window.removeEventListener("keyup", this.bound.keyUp);
     }
   }
 
