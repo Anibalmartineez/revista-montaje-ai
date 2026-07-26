@@ -15,6 +15,18 @@
     MOVE_ABSOLUTE: "selection.move.absolute",
     MOVE_DELTA: "selection.move.delta",
     NUDGE: "selection.nudge",
+    ROTATE_CLOCKWISE: "selection.rotate.clockwise",
+    ROTATE_COUNTERCLOCKWISE: "selection.rotate.counterclockwise",
+    ROTATE_SET: "selection.rotate.set",
+    DUPLICATE: "selection.duplicate",
+    DELETE: "selection.delete",
+    COPY: "clipboard.copy",
+    CUT: "clipboard.cut",
+    PASTE: "clipboard.paste",
+    SELECT_ALL_FACE: "selection.select_all_face",
+    SELECT_SAME_WORK: "selection.select_same_work",
+    SELECT_SAME_ASSET: "selection.select_same_asset",
+    USER_LOCKS_SET: "selection.user_locks.set",
     HELP_TOGGLE: "shortcuts.help.toggle",
   });
 
@@ -116,6 +128,26 @@
       selectedIds(context),
       "move",
     );
+  }
+
+  function blockedIds(context, capability) {
+    return context.editPolicy.blockedSlotIds(
+      context.store.layout,
+      selectedIds(context),
+      capability,
+    );
+  }
+
+  function objectActionReady(context) {
+    return !context.store.pointerSession && !context.interactions?.hasPanSession();
+  }
+
+  function objectDisabledReason(context, capability, verb) {
+    const blocked = capability ? blockedIds(context, capability) : [];
+    if (blocked.length) return `No se puede ${verb}: slots bloqueados ${blocked.join(", ")}.`;
+    if (context.interactions?.hasPanSession()) return `No se puede ${verb} durante pan.`;
+    if (context.store.pointerSession) return `No se puede ${verb} durante otra interacción.`;
+    return "La selección actual no permite esta acción.";
   }
 
   function hasIncompatiblePointerSession(context) {
@@ -292,6 +324,311 @@
     });
 
     registry.register({
+      id: ACTION_IDS.ROTATE_CLOCKWISE,
+      label: "Rotar +90°",
+      category: "objects",
+      description: "Suma 90° cardinales a la geometría seleccionada.",
+      shortcuts: ["R"],
+      help: [{ keys: "R", label: "Rotar +90°" }],
+      modifiesLayout: true,
+      requiresSelection: true,
+      enabled: (context) => selectedIds(context).length > 0
+        && blockedIds(context, "rotate").length === 0
+        && objectActionReady(context),
+      disabledReason: (context) => objectDisabledReason(context, "rotate", "rotar"),
+      execute: (context) => {
+        context.nudgeController?.finish();
+        const command = new context.commands.RotateSlotsCommand(
+          context.store.layout,
+          selectedIds(context),
+          (rotation) => rotation + 90,
+        );
+        context.store.executeCommand(command);
+        context.store.setFeedback(`Rotación aplicada a ${command.affectedIds.length} slot(s).`);
+        return command;
+      },
+    });
+
+    registry.register({
+      id: ACTION_IDS.ROTATE_COUNTERCLOCKWISE,
+      label: "Rotar -90°",
+      category: "objects",
+      description: "Resta 90° cardinales a la geometría seleccionada.",
+      shortcuts: ["Shift+R"],
+      help: [{ keys: "Shift+R", label: "Rotar -90°" }],
+      modifiesLayout: true,
+      requiresSelection: true,
+      enabled: (context) => selectedIds(context).length > 0
+        && blockedIds(context, "rotate").length === 0
+        && objectActionReady(context),
+      disabledReason: (context) => objectDisabledReason(context, "rotate", "rotar"),
+      execute: (context) => {
+        context.nudgeController?.finish();
+        const command = new context.commands.RotateSlotsCommand(
+          context.store.layout,
+          selectedIds(context),
+          (rotation) => rotation - 90,
+        );
+        context.store.executeCommand(command);
+        context.store.setFeedback(`Rotación aplicada a ${command.affectedIds.length} slot(s).`);
+        return command;
+      },
+    });
+
+    registry.register({
+      id: ACTION_IDS.ROTATE_SET,
+      label: "Establecer rotación cardinal",
+      category: "objects",
+      description: "Establece 0°, 90°, 180° o 270° sin cambiar centro ni trim.",
+      modifiesLayout: true,
+      requiresSelection: true,
+      enabled: (context) => selectedIds(context).length > 0
+        && blockedIds(context, "rotate").length === 0
+        && objectActionReady(context),
+      disabledReason: (context) => objectDisabledReason(context, "rotate", "rotar"),
+      execute: (context, payload) => {
+        context.nudgeController?.finish();
+        const target = context.commands.normalizeCardinalRotation(Number(payload?.rotation));
+        const slots = selectedSlots(context);
+        if (slots.every((slot) => slot.geometry.rotation_deg === target)) {
+          return Object.freeze({ changed: false, affectedIds: [] });
+        }
+        const command = new context.commands.RotateSlotsCommand(
+          context.store.layout,
+          selectedIds(context),
+          target,
+        );
+        context.store.executeCommand(command);
+        context.store.setFeedback(`Rotación establecida en ${target}°.`);
+        return Object.freeze({ changed: true, affectedIds: command.affectedIds });
+      },
+    });
+
+    registry.register({
+      id: ACTION_IDS.DUPLICATE,
+      label: "Duplicar",
+      category: "objects",
+      description: "Duplica la selección con offset de 5 mm sin modificar originales.",
+      shortcuts: ["Mod+D"],
+      help: [{ keys: "Ctrl/Cmd+D", label: "Duplicar selección" }],
+      modifiesLayout: true,
+      requiresSelection: true,
+      enabled: (context) => selectedIds(context).length > 0 && objectActionReady(context),
+      disabledReason: (context) => objectDisabledReason(context, null, "duplicar"),
+      execute: (context) => {
+        context.nudgeController?.finish();
+        const command = new context.commands.DuplicateSlotsCommand(
+          context.store.layout,
+          selectedIds(context),
+          {
+            offset: context.objectOperations.DUPLICATE_OFFSET_MM,
+            selectionBefore: selectedIds(context),
+          },
+        );
+        context.store.executeCommand(command);
+        context.store.setFeedback(`Copias creadas: ${command.affectedIds.join(", ")}.`);
+        return command;
+      },
+    });
+
+    registry.register({
+      id: ACTION_IDS.COPY,
+      label: "Copiar",
+      category: "clipboard",
+      description: "Copia profundamente slots al clipboard interno del job.",
+      shortcuts: ["Mod+C"],
+      help: [{ keys: "Ctrl/Cmd+C", label: "Copiar selección" }],
+      requiresSelection: true,
+      enabled: (context) => selectedIds(context).length > 0 && objectActionReady(context),
+      disabledReason: (context) => objectDisabledReason(context, null, "copiar"),
+      execute: (context) => {
+        const clipboard = context.objectOperations.copySelection(context.store);
+        context.store.setFeedback(`${clipboard.slots.length} slot(s) copiado(s) al clipboard interno.`);
+        return clipboard;
+      },
+    });
+
+    registry.register({
+      id: ACTION_IDS.CUT,
+      label: "Cortar",
+      category: "clipboard",
+      description: "Copia y elimina atómicamente la selección respetando locks delete.",
+      shortcuts: ["Mod+X"],
+      help: [{ keys: "Ctrl/Cmd+X", label: "Cortar selección" }],
+      modifiesLayout: true,
+      requiresSelection: true,
+      enabled: (context) => selectedIds(context).length > 0
+        && blockedIds(context, "delete").length === 0
+        && objectActionReady(context),
+      disabledReason: (context) => objectDisabledReason(context, "delete", "cortar"),
+      execute: (context) => {
+        context.nudgeController?.finish();
+        const command = new context.commands.DeleteSlotsCommand(
+          context.store.layout,
+          selectedIds(context),
+        );
+        const clipboard = context.objectOperations.clipboardPayload(context.store);
+        context.store.setClipboard(clipboard);
+        context.store.executeCommand(command);
+        context.store.setFeedback(`${clipboard.slots.length} slot(s) cortado(s).`);
+        return command;
+      },
+    });
+
+    registry.register({
+      id: ACTION_IDS.PASTE,
+      label: "Pegar",
+      category: "clipboard",
+      description: "Pega copias del clipboard interno únicamente en el mismo job y cara.",
+      shortcuts: ["Mod+V"],
+      help: [{ keys: "Ctrl/Cmd+V", label: "Pegar desde clipboard interno" }],
+      modifiesLayout: true,
+      enabled: (context) => context.objectOperations.validateClipboard(
+        context.store.layout,
+        context.store.clipboard,
+        context.store.activeFace,
+      ).ok && objectActionReady(context),
+      disabledReason: (context) => context.objectOperations.validateClipboard(
+        context.store.layout,
+        context.store.clipboard,
+        context.store.activeFace,
+      ).reason || objectDisabledReason(context, null, "pegar"),
+      execute: (context) => {
+        context.nudgeController?.finish();
+        const prepared = context.objectOperations.createPasteCommand(
+          context.store,
+          context.commands,
+        );
+        context.store.executeCommand(prepared.command);
+        context.store.setClipboardPasteCount(prepared.pasteCount);
+        context.store.setFeedback(
+          `Pegado ${prepared.pasteCount}: ${prepared.command.affectedIds.join(", ")}.`,
+        );
+        return prepared.command;
+      },
+    });
+
+    registry.register({
+      id: ACTION_IDS.DELETE,
+      label: "Eliminar",
+      category: "objects",
+      description: "Elimina la selección como un comando reversible y atómico.",
+      shortcuts: ["Delete"],
+      help: [{ keys: "Delete", label: "Eliminar selección" }],
+      modifiesLayout: true,
+      requiresSelection: true,
+      enabled: (context) => selectedIds(context).length > 0
+        && blockedIds(context, "delete").length === 0
+        && objectActionReady(context),
+      disabledReason: (context) => objectDisabledReason(context, "delete", "eliminar"),
+      execute: (context) => {
+        context.nudgeController?.finish();
+        const command = new context.commands.DeleteSlotsCommand(
+          context.store.layout,
+          selectedIds(context),
+        );
+        context.store.executeCommand(command);
+        context.store.setFeedback(`${command.affectedIds.length} slot(s) eliminado(s).`);
+        return command;
+      },
+    });
+
+    registry.register({
+      id: ACTION_IDS.SELECT_ALL_FACE,
+      label: "Seleccionar todos en la cara",
+      category: "selection",
+      description: "Selecciona todos los slots de la cara activa.",
+      shortcuts: ["Mod+A"],
+      help: [{ keys: "Ctrl/Cmd+A", label: "Seleccionar todos en la cara activa" }],
+      enabled: (context) => context.store.layout.slots.some(
+        (slot) => slot.face === context.store.activeFace,
+      ) && objectActionReady(context),
+      execute: (context) => {
+        const ids = context.objectOperations.selectAllFace(
+          context.store.layout,
+          context.store.activeFace,
+        );
+        context.store.setSelection(ids, "replace");
+        context.store.setFeedback(`${ids.length} slot(s) seleccionados en la cara activa.`);
+        return ids;
+      },
+    });
+
+    registry.register({
+      id: ACTION_IDS.SELECT_SAME_WORK,
+      label: "Seleccionar mismo work",
+      category: "selection",
+      description: "Selecciona la unión de works de la selección en la cara activa.",
+      requiresSelection: true,
+      enabled: (context) => selectedIds(context).length > 0 && objectActionReady(context),
+      execute: (context) => {
+        const ids = context.objectOperations.selectSameWork(
+          context.store.layout,
+          selectedIds(context),
+          context.store.activeFace,
+        );
+        context.store.setSelection(ids, "replace");
+        context.store.setFeedback(`${ids.length} slot(s) del mismo work seleccionados.`);
+        return ids;
+      },
+    });
+
+    registry.register({
+      id: ACTION_IDS.SELECT_SAME_ASSET,
+      label: "Seleccionar mismo asset",
+      category: "selection",
+      description: "Selecciona por asset efectivo del slot en la cara activa.",
+      requiresSelection: true,
+      enabled: (context) => selectedIds(context).length > 0 && objectActionReady(context),
+      execute: (context) => {
+        const ids = context.objectOperations.selectSameAsset(
+          context.store.layout,
+          selectedIds(context),
+          context.store.activeFace,
+        );
+        context.store.setSelection(ids, "replace");
+        context.store.setFeedback(`${ids.length} slot(s) del mismo asset efectivo seleccionados.`);
+        return ids;
+      },
+    });
+
+    registry.register({
+      id: ACTION_IDS.USER_LOCKS_SET,
+      label: "Cambiar locks de usuario",
+      category: "objects",
+      description: "Agrega o retira solamente la fuente user de una superficie.",
+      modifiesLayout: true,
+      requiresSelection: true,
+      enabled: (context) => selectedIds(context).length > 0 && objectActionReady(context),
+      execute: (context, payload) => {
+        context.nudgeController?.finish();
+        const surface = String(payload?.surface || "");
+        const locked = Boolean(payload?.locked);
+        const slots = selectedSlots(context);
+        const state = context.objectOperations.userLockState(slots, surface);
+        if ((locked && state === "all") || (!locked && state === "none")) {
+          return Object.freeze({ changed: false, affectedIds: [] });
+        }
+        const command = new context.commands.SetSlotUserLocksCommand(
+          context.store.layout,
+          selectedIds(context),
+          surface,
+          locked,
+        );
+        context.store.executeCommand(command);
+        const remaining = !locked
+          ? context.objectOperations.remainingLockSources(selectedSlots(context), surface)
+          : [];
+        context.store.setFeedback(
+          remaining.length
+            ? `Lock user retirado; permanecen: ${remaining.join(", ")}.`
+            : `${locked ? "Bloqueados" : "Desbloqueados"} ${command.affectedIds.length} slot(s) en ${surface}.`,
+        );
+        return Object.freeze({ changed: true, affectedIds: command.affectedIds });
+      },
+    });
+
+    registry.register({
       id: ACTION_IDS.HELP_TOGGLE,
       label: "Ayuda de atajos",
       category: "help",
@@ -321,13 +658,13 @@
       enabled: () => true,
       execute: (context) => {
         if (context.shortcutHelp?.isOpen()) return context.shortcutHelp.close();
-        if (context.nudgeController?.isActive()) return context.nudgeController.cancel();
-        if (context.positionInspector?.hasPendingDraft()) {
-          return context.positionInspector.cancelPending(true);
-        }
         if (context.interactions?.hasPointerActivity()) {
           context.interactions.cancelPointer();
           return true;
+        }
+        if (context.nudgeController?.isActive()) return context.nudgeController.cancel();
+        if (context.positionInspector?.hasPendingDraft()) {
+          return context.positionInspector.cancelPending(true);
         }
         return false;
       },

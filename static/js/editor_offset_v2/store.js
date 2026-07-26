@@ -17,6 +17,17 @@
       : JSON.parse(JSON.stringify(value));
   }
 
+  function deepFreeze(value) {
+    if (!value || typeof value !== "object" || Object.isFrozen(value)) return value;
+    Object.freeze(value);
+    for (const nested of Object.values(value)) deepFreeze(nested);
+    return value;
+  }
+
+  function sameSet(left, right) {
+    return left.size === right.size && [...left].every((value) => right.has(value));
+  }
+
   function suggestedPdfBox(page) {
     if (page && page.boxes_mm) {
       if (page.boxes_mm.trim) return "trim";
@@ -47,6 +58,8 @@
       this.cursorMm = { x: null, y: null };
       this.pointerSession = null;
       this.previewPositions = {};
+      this.previewSlots = [];
+      this.clipboard = null;
       this.saveState = {
         status: "clean",
         error: null,
@@ -103,6 +116,8 @@
         cursorMm: { ...this.cursorMm },
         pointerSession: this.pointerSession,
         previewPositions: this.previewPositions,
+        previewSlots: this.previewSlots,
+        clipboard: this.clipboard ? clone(this.clipboard) : null,
         saveState: { ...this.saveState },
         assetPanel: { ...this.assetPanel },
         repeatPanel: clone(this.repeatPanel),
@@ -124,6 +139,7 @@
     executeCommand(command) {
       for (const hook of [...this.beforeCommandHooks]) hook(command);
       command.execute(this.layout);
+      this.applyCommandSelection(command, "after");
       this.undoStack.push(command);
       this.redoStack = [];
       this.markChanged();
@@ -137,6 +153,7 @@
         return false;
       }
       command.undo(this.layout);
+      this.applyCommandSelection(command, "before");
       this.redoStack.push(command);
       this.markChanged();
       this.filterSelection();
@@ -150,11 +167,19 @@
         return false;
       }
       command.redo(this.layout);
+      this.applyCommandSelection(command, "after");
       this.undoStack.push(command);
       this.markChanged();
       this.filterSelection();
       this.emit("redo", command);
       return true;
+    }
+
+    applyCommandSelection(command, phase) {
+      const key = phase === "before" ? "selectionBefore" : "selectionAfter";
+      if (!Array.isArray(command?.[key])) return;
+      const validIds = new Set(this.layout.slots.map((slot) => slot.id));
+      this.selection = new Set(command[key].filter((id) => validIds.has(id)));
     }
 
     markChanged() {
@@ -172,6 +197,7 @@
     setSelection(ids, mode) {
       const validIds = new Set(this.layout.slots.map((slot) => slot.id));
       const incoming = [...ids].filter((id) => validIds.has(id));
+      const previous = new Set(this.selection);
       if (mode === "toggle") {
         for (const id of incoming) {
           if (this.selection.has(id)) {
@@ -185,7 +211,7 @@
       } else {
         this.selection = new Set(incoming);
       }
-      this.emit("selection");
+      if (!sameSet(previous, this.selection)) this.emit("selection");
     }
 
     clearSelection() {
@@ -271,6 +297,21 @@
       this.emit("feedback");
     }
 
+    setClipboard(payload) {
+      this.clipboard = payload ? deepFreeze(clone(payload)) : null;
+      this.emit("clipboard");
+    }
+
+    setClipboardPasteCount(count) {
+      if (!this.clipboard) return false;
+      if (!Number.isInteger(count) || count < 0) {
+        throw new TypeError("Clipboard paste count must be a non-negative integer");
+      }
+      this.clipboard = deepFreeze({ ...clone(this.clipboard), pasteCount: count });
+      this.emit("clipboard");
+      return true;
+    }
+
     selectedAssetPage() {
       const asset = this.layout.assets.find(
         (item) => item.id === this.assetPanel.selectedAssetId,
@@ -319,6 +360,7 @@
     beginPointerSession(session) {
       this.pointerSession = clone(session);
       this.previewPositions = {};
+      this.previewSlots = clone(session?.previewSlots || []);
       this.emit("pointer_start");
     }
 
@@ -327,9 +369,15 @@
       this.emit("pointer_preview");
     }
 
+    updatePointerPreviewSlots(slots) {
+      this.previewSlots = clone(slots || []);
+      this.emit("pointer_preview");
+    }
+
     endPointerSession() {
       this.pointerSession = null;
       this.previewPositions = {};
+      this.previewSlots = [];
       this.emit("pointer_end");
     }
 
@@ -416,5 +464,11 @@
     }
   }
 
-  return Object.freeze({ EditorStore, SAVE_STATES, suggestedPdfBox });
+  return Object.freeze({
+    EditorStore,
+    SAVE_STATES,
+    deepFreeze,
+    sameSet,
+    suggestedPdfBox,
+  });
 });

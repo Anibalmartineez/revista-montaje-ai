@@ -61,6 +61,7 @@
     let nudgeController = null;
     let shortcutHelp = null;
     let shortcutManager = null;
+    let objectsPanel = null;
     const contextProvider = () => ({
       store,
       layout: store.layout,
@@ -74,6 +75,7 @@
       isSaving: store.saveState.status === "saving",
       dirty: store.hasUnsavedChanges(),
       commands: modules.Commands,
+      objectOperations: modules.ObjectOperations,
       positioning: modules.PositionInspector,
       editPolicy: modules.EditPolicy,
       renderer,
@@ -81,7 +83,20 @@
       positionInspector,
       nudgeController,
       shortcutHelp,
+      objectsPanel,
     });
+    function runAction(actionId, payload) {
+      try {
+        const result = actionRegistry.execute(actionId, contextProvider(), payload);
+        if (result && typeof result.catch === "function") {
+          result.catch((error) => store.setFeedback(error.message || String(error)));
+        }
+        return result;
+      } catch (error) {
+        store.setFeedback(error.message || String(error));
+        return false;
+      }
+    }
     nudgeController = new modules.NudgeController.Controller(
       store,
       modules.Commands,
@@ -120,9 +135,8 @@
       contextProvider,
       {
         setSpacePressed: (pressed) => interactions.setSpacePressed(pressed),
-        deleteSelection: () => interactions.deleteSelection(),
         onBlur: () => {
-          if (interactions.hasPanSession()) interactions.cancelPointer();
+          if (interactions.hasPointerActivity()) interactions.cancelPointer();
         },
       },
     );
@@ -151,19 +165,15 @@
       saver,
       context,
     );
-
-    function runAction(actionId, payload) {
-      try {
-        const result = actionRegistry.execute(actionId, contextProvider(), payload);
-        if (result && typeof result.catch === "function") {
-          result.catch((error) => store.setFeedback(error.message || String(error)));
-        }
-        return result;
-      } catch (error) {
-        store.setFeedback(error.message || String(error));
-        return false;
-      }
-    }
+    objectsPanel = new modules.ObjectsPanel.Panel(
+      store,
+      refs,
+      actionRegistry,
+      contextProvider,
+      modules.CommandRegistry.ACTION_IDS,
+      modules.ObjectOperations,
+      runAction,
+    );
 
     refs.save.addEventListener("click", () => runAction(modules.CommandRegistry.ACTION_IDS.SAVE));
     refs.undo.addEventListener("click", () => runAction(modules.CommandRegistry.ACTION_IDS.UNDO));
@@ -182,7 +192,7 @@
       });
     }
     refs.deleteSlots.addEventListener("click", () => {
-      interactions.deleteSelection();
+      runAction(modules.CommandRegistry.ACTION_IDS.DELETE);
     });
     refs.zoomIn.addEventListener("click", () => {
       store.setZoom(modules.GeometryView.clampZoom(store.zoom * 1.2));
@@ -213,6 +223,7 @@
       assetsPanel,
       repeatPanel,
       outputPanel,
+      objectsPanel,
       actionRegistry,
       shortcutManager,
       shortcutHelp,

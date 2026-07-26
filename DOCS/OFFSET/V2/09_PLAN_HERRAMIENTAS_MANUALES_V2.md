@@ -4,9 +4,9 @@
 
 Este plan parte del código auditado después de las fases 1–7. No propone reconstruir el editor ni introducir un framework. Extiende la arquitectura que ya funciona:
 
-> ACTUALIZACIÓN VIGENTE — 8P, CORRECCIÓN DE MEDIDA/ETIQUETAS Y 8A COMPLETADAS
+> ACTUALIZACIÓN VIGENTE — 8P, CORRECCIÓN DE MEDIDA/ETIQUETAS, 8A Y 8B COMPLETADAS
 >
-> La estabilización semántica está en `10_ESTABILIZACION_SEMANTICA_V2.md`; la corrección de tolerancia/etiquetas en `12_CORRECCION_COMPATIBILIDAD_DE_MEDIDA_Y_ETIQUETAS_V2.md`; y el cierre de posicionamiento/acciones en `13_POSICIONAMIENTO_Y_COMANDOS_V2.md`. Ya existen política base de locks, slots Repeat editables, área imprimible visible, source override, historial/conteos Repeat, métricas propuesta/total, output capabilities, etiquetas adaptativas, inspector X/Y, nudge y registro central de acciones/atajos. Las fases futuras no deben reimplementar estas piezas.
+> La estabilización semántica está en `10_ESTABILIZACION_SEMANTICA_V2.md`; la corrección de tolerancia/etiquetas en `12_CORRECCION_COMPATIBILIDAD_DE_MEDIDA_Y_ETIQUETAS_V2.md`; el cierre de posicionamiento/acciones en `13_POSICIONAMIENTO_Y_COMANDOS_V2.md`; y las operaciones de objeto en `14_OPERACIONES_DE_OBJETO_Y_CLIPBOARD_V2.md`. Ya existen política y UI de locks, slots Repeat editables, área imprimible visible, source override, historial/conteos Repeat, métricas propuesta/total, output capabilities, etiquetas adaptativas, inspector X/Y, nudge, rotación cardinal, duplicado, clipboard interno, selecciones básicas, Alt+drag y registro central de acciones/atajos. Las fases futuras no deben reimplementar estas piezas.
 
 ```text
 EditorStore
@@ -21,17 +21,18 @@ Base disponible:
 
 - selección simple y múltiple;
 - drag por centro trim con preview temporal;
-- `MoveSlotsCommand` y `DeleteSlotsCommand`;
+- comandos de move, rotate, duplicate, delete y locks de usuario;
 - undo/redo, dirty state, autosave y conflicto 409;
 - geometría cardinal de vista con fixtures compartidos;
 - assets, works, slots reales y Repeat;
 - contrato de locks y `generated_by.type = duplicate`;
+- clipboard interno same-job y selección por cara/work/asset efectivo;
 - kernel Python con polígonos, bounds, SAT y distancias.
 
-Deudas que condicionan el orden después de 8P:
+Deudas que condicionan el orden después de 8B:
 
-- la UI todavía no permite crear ni retirar locks de usuario, aunque `edit_policy.js` y el enforcement atómico ya existen;
-- el inspector solo edita posición X/Y; rotación, tamaño y contenido siguen fuera de alcance;
+- el inspector de posición solo edita X/Y; la rotación cardinal vive en el panel
+  de objetos y tamaño/contenido siguen fuera de alcance;
 - el kernel JS solo cubre bounds cardinales;
 - no hay navegación de cara;
 - el renderer no aplica `content_transform`;
@@ -101,21 +102,21 @@ Reglas comunes:
 
 | Herramienta | Estado actual y beneficio | Implementación requerida | Historial, autosave y salida | Tests, riesgos y aceptación |
 | --- | --- | --- | --- | --- |
-| Inspector editable | **Implementada en 8A para posición.** Formulario accesible con Centro X/Y absoluto o Delta X/Y multi. | Extensiones futuras deben añadir controles sin mezclar geometría de slot y `content_transform`. | Confirmar crea un `MoveSlotsCommand`; Escape descarta borrador; dirty/autosave solo tras confirmar. | Node y Playwright cubren parsing, no-op, multi delta, locks, undo/redo, guardado y recarga. Rotación/tamaño siguen pendientes. |
+| Inspector editable | **Implementada en 8A para posición; rotación cardinal disponible en el panel 8B.** Formulario accesible con Centro X/Y absoluto o Delta X/Y multi. | Extensiones futuras deben añadir tamaño sin mezclar geometría de slot y `content_transform`. | Confirmar crea un `MoveSlotsCommand`; Escape descarta borrador; dirty/autosave solo tras confirmar. | Node y Playwright cubren parsing, no-op, multi delta, locks, undo/redo, guardado y recarga. Tamaño sigue pendiente. |
 | Movimiento numérico | **Implementado en 8A.** Punto/coma, un eje o ambos, absoluto y delta explícito. | Reutilizar el registro `selection.move.*`, `MoveSlotsCommand` y política `move`; no crear un segundo camino. | Una confirmación atómica; no-op no ensucia. No cambia contrato ni salida. | Cubierto en Node/Playwright. Riesgo futuro: mantener centro trim y precisión al añadir alineación/resize. |
-| Rotación cardinal | **Latente:** contrato, renderer, kernel y output la admiten; no hay comando/UI. | Nuevo `RotateSlotsCommand` o `SetSlotGeometryCommand`; UI 0/90/180/270; geometría JS valida. Mantener trim sin intercambiar. Respetar locks de geometría. | Un comando por acción; dirty/autosave. OutputAdapter admite rotación geométrica cardinal. | Node con las cuatro rotaciones, centro conservado, undo/redo; paridad fixture; Playwright 90° + reload. Riesgo: invertir signo SVG o intercambiar trim. Aceptación: centro/trim persistido idénticos salvo `rotation_deg`. |
-| Duplicar | **Latente:** `generated_by.type=duplicate` existe. Acelera repetición manual. | `DuplicateSlotsCommand`; IDs seguros en cliente, copia de slot, offset explícito, `source_slot_id`, selección de copias. Puede usar Geometría JS para evitar colocar exactamente encima. | Una operación para todas las copias; undo las elimina juntas; autosave. Mismo asset/work es exportable si original lo era. | Node para múltiples, IDs, fuentes, locks y undo; Playwright duplicar/guardar. Riesgo: IDs colisionados y referencias de origen. Aceptación: copia exacta salvo ID/posición/procedencia. |
-| Copiar y pegar | **No implementada.** Facilita reutilización dentro del job. | Clipboard temporal en Store con slots serializados y contexto del job; `PasteSlotsCommand`. Inicialmente solo mismo job y assets/works existentes. UI/atajos Ctrl/Cmd+C/V. | Copiar no ensucia; pegar sí, como un comando. No copiar assets físicos. Salida igual que duplicar. | Node para clipboard inmutable, IDs, paste repetido y job mismatch; Playwright atajos. Riesgo: referencias inexistentes o pegar entre jobs. Aceptación: nunca crea referencias rotas ni usa clipboard del sistema como contrato principal. |
-| Seleccionar todo | **No implementada.** Reduce operaciones repetitivas. | Atajo Ctrl/Cmd+A y acción UI. Store usa `setSelection`; alcance por defecto = slots visibles de `activeFace`. | Temporal, sin historial/autosave/salida. | Node para filtro de cara; Playwright selección visible. Riesgo: seleccionar slots ocultos/otra cara. Aceptación: alcance se muestra y es determinista. |
-| Seleccionar por work | **No implementada.** Útil tras Repeat. | Acción desde work/tree; filtro Store por `work_id` y cara, con replace/add. | Temporal. | Node por cara/modo; Playwright desde panel. Riesgo: work con slots en ambas caras. Aceptación: el usuario elige cara activa o todas. |
-| Seleccionar por asset | **No implementada.** Permite sustituir/revisar una fuente. | Filtro por `slot.source.asset_id`, no por asset del work. Integración assets/tree. | Temporal. | Node con work compartido y fuentes sustituidas; Playwright. Riesgo: confundir fuente del slot con work. Aceptación: usa la referencia efectiva del slot. |
+| Rotación cardinal | **Implementada y probada en 8B.** `RotateSlotsCommand`, `+90/-90`, selector 0/90/180/270, `R/Shift+R` y lock de geometría. | Reutilizar la misma acción/comando en futuras superficies; no introducir rotación libre. | Un comando por acción; dirty/autosave. OutputAdapter admite rotación geométrica cardinal. | Node y Playwright cubren cardinales, conservación de centro/trim/bleed/source, no-op, locks, undo/redo y reload. |
+| Duplicar | **Implementada y probada en 8B.** Acción, Ctrl/Cmd+D y Alt+drag crean IDs nuevos, offset explícito y `source_slot_id`. | Matriz pertenece a 8C; no reutilizar Repeat como duplicado manual. | Una operación para todas las copias; undo las elimina juntas; redo reutiliza IDs; autosave. | Node y Playwright cubren datos preservados, procedencia, offset, locks, Alt+drag, cancelación y persistencia. |
+| Copiar, cortar y pegar | **Implementada y probada en 8B.** Clipboard profundo interno, same-job, referencias validadas y paste acumulativo. | Cruce entre jobs/pestañas requeriría una decisión posterior y transferencia explícita de assets. | Copiar no ensucia; cut/delete y paste son comandos. Clipboard y contador son temporales. | Node y Playwright cubren inmutabilidad, referencias, job mismatch, paste repetido, cut atómico y scopes de inputs. |
+| Seleccionar todo | **Implementada en 8B.** Ctrl/Cmd+A y acción UI seleccionan slots de `activeFace`. | Ampliar a ocultos/árbol únicamente cuando 8D defina visibilidad. | Temporal, sin historial/autosave/salida. | Node y Playwright cubren filtro de cara y alcance determinista. |
+| Seleccionar por work | **Implementada en 8B.** Unión de works presentes en la selección, limitada a cara activa. | Modos add/toggle desde árbol pertenecen a 8D. | Temporal. | Node y Playwright cubren unión y cara activa. |
+| Seleccionar por asset | **Implementada en 8B.** Usa `slot.source.asset_id`, no el default del work. | Integración jerárquica con assets/tree pertenece a 8D. | Temporal. | Node cubre source override; Playwright cubre la acción visible. |
 | Seleccionar por cara | **No implementada en UI.** Necesaria para dúplex. | Requiere navegación de cara o acción “todas las caras”. Store debe ofrecer setter de `activeFace` en fase de caras. | Temporal. | Node para filtros; Playwright front/back. Riesgo: editar objetos invisibles. Aceptación: selección y canvas indican claramente la cara. |
-| Bloquear/desbloquear | **Enforcement implementado; UI de usuario pendiente.** `edit_policy.js` aplica fuentes `user/engine/ctp/system` a move/delete/content/Repeat replace. | 8B debe añadir `SetSlotUserLocksCommand` e iconos/motivo. Solo alternar fuente `user`; nunca retirar otras fuentes implícitamente. | Persistente, reversible y autosave. Locks gobiernan acciones productivas. | Atomicidad y defensa UI/comando ya tienen Node/Playwright; 8B debe cubrir creación/retiro de lock `user`. |
+| Bloquear/desbloquear | **Implementado y probado en 8B.** `SetSlotUserLocksCommand` y UI explícita para geometry/content/delete; estados none/all/mixed. | Futuras superficies deben consumir la misma política. Solo alternar `user`; nunca retirar otras fuentes implícitamente. | Persistente, reversible y autosave. Locks gobiernan acciones productivas. | Node/Playwright cubren creación/retiro, mezcla, otras fuentes, no-op, atomicidad y undo/redo. |
 | Ocultar/mostrar | **No implementada y sin campo contractual.** Despeja el canvas. | Primera versión recomendada: visibilidad temporal `hiddenSlotIds` en Store, árbol y Renderer. Una exclusión productiva sería otra función y exigiría contrato. | Visibilidad temporal: sin undo/autosave/salida; puede tener historial de UI separado, no el de documento. | Node de filtro y selección; Playwright ocultar/mostrar. Riesgo: que “oculto” parezca “no exportar”. Aceptación: etiqueta “solo vista” y exportación no cambia. |
-| Eliminar | **Implementada y probada con locks.** Botón y teclado delegan en una ruta; `DeleteSlotsCommand` vuelve a validar `locks.delete`. | Mantener atomicidad y feedback de IDs bloqueados; 8B puede registrar la acción sin cambiar semántica. | Reversible/dirty/autosave. Elimina de futura salida. | Node/Playwright existentes prueban política base; futuras operaciones no deben evadirla. |
+| Eliminar | **Implementada y centralizada en 8B.** Botones, Delete y cut delegan en `ActionRegistry`; `DeleteSlotsCommand` vuelve a validar `locks.delete`. | Mantener atomicidad y feedback de IDs bloqueados; no crear rutas paralelas. | Reversible/dirty/autosave. Elimina de futura salida. | Node/Playwright prueban política, teclado, foco editable, cut y undo. |
 | Centrar en pliego | **No implementada.** Posiciona con precisión. | `MoveSlotsCommand`; para uno usa centro del sheet/área imprimible elegida. Para grupo traslada bounds completos conservando distancias. UI debe distinguir pliego vs área imprimible. Kernel bounds. | Un comando, autosave; output compatible. | Node para rotación/bleed/grupo; Playwright. Riesgo: centrar por trim o bleed sin indicarlo. Aceptación: referencia seleccionada y resultado exacto. |
 | Nudge de teclado | **Implementado en 8A.** Flechas `0.1 mm`, Shift `1 mm`, Ctrl/Cmd+Shift `10 mm`, multi y locks. | El paso configurable queda para 8I. Mantener batching y coordenada Y canónica. | Una ráfaga = un comando; autosave tras finalizar por keyup/timeout/cambio/blur. | Node y Playwright cubren pasos, grupo, un undo e inputs protegidos. |
-| Atajos | **Sistema central implementado en 8A.** Registro, normalización Ctrl/Meta/Shift, scopes, conflictos y ayuda. | 8B registrará A/C/V/D y acciones de objeto; 8I añadirá paleta. No devolver listeners globales a módulos de interacción. | Botones y teclado delegan a la misma acción; solo comandos persistentes ensucian. | Node/Playwright cubren save, undo/redo, nudge, `?`, Escape y foco editable. |
+| Atajos | **Sistema central ampliado en 8B.** R/Shift+R, A/C/X/V/D, Delete y acciones de objeto comparten registro, scopes y ayuda. | 8I añadirá paleta. No devolver listeners globales a módulos de interacción. | Botones y teclado delegan a la misma acción; solo comandos persistentes ensucian. | Node/Playwright cubren operaciones, `?`, Escape, Alt+drag y foco editable. |
 
 ## 5. Selección avanzada
 
@@ -125,7 +126,7 @@ Reglas comunes:
 | Selección múltiple | **Implementada y probada en Store.** Necesita endurecimiento visible. | Conservar Shift/Ctrl/Cmd; añadir feedback para slots bloqueados/ocultos y selección desde tree/box. | Temporal. | Ampliar Playwright multi y bounds. Riesgo bajo. Aceptación: modos replace/add/toggle consistentes en todas las superficies. |
 | Por solapamiento o inclusión | **No implementada.** Permite selección CAD. | Toggle “tocar” vs “contenido”. Requiere polígono de ventana y SAT/point-in-polygon paritario en JS. | Temporal. | Node contra fixtures Python y casos de borde. Riesgo: usar solo AABB para futuros ángulos. Aceptación: política visible y contacto de borde documentado. |
 | Ciclar objetos superpuestos | **No implementada.** Hace accesibles slots coincidentes. | Hit-test geométrico ordenado y tecla/click repetido; Store guarda ciclo temporal por punto/cara. | Temporal. | Node para orden estable; Playwright clicks repetidos. Riesgo: depender del orden DOM cambiante. Aceptación: ciclo determinista y se reinicia al mover cursor. |
-| Árbol de objetos | **Parcial:** lista plana de slots de cara activa. | Nuevo módulo `objects_panel.js`; jerarquía cara > work > slots, estado lock/visibility/asset y selección unificada. | Expansión/scroll temporal; acciones persistentes delegan comandos. | DOM/Playwright para selección, filtros y grandes listas. Riesgo: rerender costoso y dos fuentes de selección. Aceptación: Store sigue siendo única fuente. |
+| Árbol de objetos | **Parcial:** lista plana de slots y panel compacto `objects_panel.js` de operaciones. | 8D debe ampliar a jerarquía cara > work > slots, estado lock/visibility/asset y selección unificada, sin reimplementar acciones 8B. | Expansión/scroll temporal; acciones persistentes delegan comandos. | DOM/Playwright para selección, filtros y grandes listas. Riesgo: rerender costoso y dos fuentes de selección. Aceptación: Store sigue siendo única fuente. |
 | Agrupación | **No implementada ni contratada.** Beneficio limitado mientras ya existe multiselección. | Recomendación: comenzar con “grupo temporal de selección” sin persistir. Un grupo productivo persistente requeriría `group_id`/árbol en schema y semántica de duplicado/cara/locks. | Temporal: sin autosave. Persistente: comando/contrato/migración V2. | Tests según opción. Riesgo alto de complejidad prematura. Aceptación inicial: no introducir grupo persistente hasta existir caso operativo concreto. |
 
 ## 6. Alineación, distribución y duplicación matricial
@@ -236,13 +237,20 @@ Una marca roja de bounds no reemplaza un preflight. Una transformación visual n
 
 ### Fase 8B — Rotación cardinal, duplicado, clipboard y locks de usuario
 
-- **Rama:** `feat/editor-offset-v2-object-operations`
-- **Alcance:** rotación 0/90/180/270, duplicar, copiar/pegar dentro del job, select all/work/asset y UI/comandos de lock/unlock `user`; reutilizar enforcement delete/content ya creado en 8P.
-- **Archivos:** comandos/store/interactions/panel assets/objects/renderer/UI; posiblemente `objects_panel.js` inicial.
-- **Tests:** IDs, generated_by, cuatro rotaciones, locks por superficie, clipboard, criterios, undo/redo/autosave y Playwright.
-- **Riesgo:** moderado por política de locks y referencias.
+- **Estado:** completada y validada.
+- **Rama de implementación:** `feat/editor-offset-v2-object-operations`.
+- **Alcance completado:** rotación 0/90/180/270, duplicar, clipboard
+  copy/cut/paste same-job, offset acumulado, select all/work/asset efectivo,
+  lock/unlock `user`, Delete central y Alt+drag.
+- **Arquitectura:** acciones únicas para botones/teclado, comandos reversibles,
+  clipboard/previews temporales y política atómica con defensa en comandos.
+- **Tests:** Node y Playwright cubren IDs, procedencia, cuatro rotaciones, locks
+  por superficie, referencias, criterios, undo/redo/autosave, inputs,
+  cancelación y persistencia.
+- **Riesgo residual:** bajo-moderado; clipboard no cruza jobs y las copias
+  preservan locks deliberadamente.
 - **No tocar:** resize, grupos persistentes, output capabilities, cara back manual.
-- **Finalización:** ninguna operación evade locks; copias son Layout V2 válido y exportables si la fuente lo era.
+- **Evidencia:** `14_OPERACIONES_DE_OBJETO_Y_CLIPBOARD_V2.md`.
 
 ### Fase 8C — Alineación, centrado, distribución y matriz
 
@@ -314,7 +322,22 @@ Una marca roja de bounds no reemplaza un preflight. Una transformación visual n
 - **No tocar:** IA con escritura autónoma, acciones no registradas ni bypass del historial.
 - **Finalización:** toda productividad avanzada se resuelve a acciones conocidas y comandos auditables.
 
-### Fase 8J — Preflight y utilidades PDF
+### Fase 8J — Modos operativos y recetas
+
+- **Rama:** `feat/editor-offset-v2-operating-modes-recipes`.
+- **Alcance:** modos de trabajo explícitos, recetas deterministas de operaciones
+  registradas, parámetros visibles, preview de intención, confirmación y
+  trazabilidad de la secuencia aplicada.
+- **Arquitectura:** una receta compone acciones/comandos conocidos; no escribe el
+  layout por fuera del registro ni incorpora IA autónoma.
+- **Tests:** resolución de receta, parámetros, disponibilidad contextual,
+  confirmación, rollback atómico y accesibilidad.
+- **Riesgo:** moderado-alto por composición y expectativas operativas.
+- **No tocar:** preflight PDF, planificación de producción, renderer final.
+- **Finalización:** cada receta se puede explicar, previsualizar, confirmar,
+  deshacer y auditar.
+
+### Fase 8K — Preflight y utilidades PDF
 
 - **Rama:** `feat/editor-offset-v2-pdf-preflight`.
 - **Alcance:** RGB/CMYK, negros compuestos, tintas, fuentes, resolución, transparencias, sobreimpresión, cajas, páginas, rotaciones intrínsecas, normalización, reportes canónicos y assets derivados.
@@ -323,6 +346,20 @@ Una marca roja de bounds no reemplaza un preflight. Una transformación visual n
 - **Riesgo:** alto por interpretación PDF y trazabilidad de producción.
 - **No tocar:** render final del pliego; corresponde a Fase 9.
 - **Finalización:** preflight reproducible y correcciones nunca destructivas.
+
+### Fase 8L — Planificación productiva
+
+- **Rama:** `feat/editor-offset-v2-production-planning`.
+- **Alcance:** alternativas de montaje, cantidades, desperdicio, caras, pasadas,
+  pliegos, placas y resumen productivo trazable antes de salida.
+- **Arquitectura:** cálculos derivados y propuestas explícitas; cualquier cambio
+  de layout pasa por comandos. No sustituye el presupuesto económico.
+- **Tests:** determinismo, cantidades, parciales, frente/dorso, locks, unidades y
+  escenarios de imprenta.
+- **Riesgo:** alto por semántica industrial y datos incompletos.
+- **No tocar:** generación PDF ni costos/precios.
+- **Finalización:** el operador puede elegir un plan productivo validado y
+  reproducible antes de exportar.
 
 ### Fase 9 — Motor de salida PDF nativo V2
 
@@ -333,13 +370,25 @@ Una marca roja de bounds no reemplaza un preflight. Una transformación visual n
 - **Riesgo:** crítico; requiere caracterización visual/productiva y no debe depender permanentemente de `montaje_offset_inteligente.py`.
 - **Finalización:** canvas, preview y PDF comparten semántica verificada y trazable.
 
+### Fase 10 — Presupuesto
+
+- **Prerequisito:** planificación productiva y salida V2 estables.
+- **Alcance:** consumo planificado, materiales, placas, pasadas, merma, tiempos,
+  costos y precios mediante una integración explícita con presupuesto.
+- **Riesgo:** crítico por impacto comercial y necesidad de contratos económicos
+  separados del layout gráfico.
+- **No tocar antes:** no incrustar costos, precios ni reglas comerciales dentro
+  de Layout V2.
+- **Finalización:** presupuesto reproducible, versionado y trazable desde un plan
+  productivo aprobado, sin acoplar el editor al motor económico.
+
 ## 11. Orden recomendado
 
 ```text
 8P Estabilización semántica (completada)
   -> Corrección de medida/etiquetas (completada)
   -> 8A Posición precisa + acciones/atajos centrales (completada)
-  -> 8B Operaciones de objeto y rotación cardinal
+  -> 8B Operaciones de objeto y rotación cardinal (completada)
   -> 8C Alinear/distribuir/matriz
   -> 8D Selección avanzada y árbol
   -> 8E Paridad completa, snap y medición
@@ -347,28 +396,34 @@ Una marca roja de bounds no reemplaza un preflight. Una transformación visual n
   -> 8G Transformación de artwork + canvas exacto
   -> 8H Frente/dorso y mesa de luz
   -> 8I Productividad inteligente
-  -> 8J Preflight y utilidades PDF
+  -> 8J Modos operativos y recetas
+  -> 8K Preflight y utilidades PDF
+  -> 8L Planificación productiva
   -> 9 Motor de salida PDF nativo V2
+  -> 10 Presupuesto
 ```
 
-8D y 8C pueden intercambiarse si el volumen de slots hace urgente el árbol. 8F no debe adelantarse a la señal de exportabilidad. 8G debe conseguir un canvas exacto, pero no incorporar el motor PDF; la salida nativa comienza en Fase 9 después de 8J.
+8D y 8C pueden intercambiarse si el volumen de slots hace urgente el árbol. 8F no debe adelantarse a la señal de exportabilidad. 8G debe conseguir un canvas exacto, pero no incorporar el motor PDF; la salida nativa comienza en Fase 9 después de 8K y 8L. Presupuesto permanece separado hasta Fase 10.
 
 ## 12. Siguiente fase recomendada
 
-Fase 8A está completada. La siguiente fase segura es **Fase 8B — Operaciones de objetos, rotación cardinal y locks de usuario**. Debe aprovechar el registro central, `edit_policy.js`, Store, historial y SaveCoordinator existentes; no cambia schema/backend salvo que el análisis previo demuestre una necesidad contractual explícita.
+Fases 8A y 8B están completadas. La siguiente fase segura es **Fase 8C —
+Alineación, centrado, distribución y matriz**. Debe aprovechar el registro
+central, `edit_policy.js`, Store, historial y SaveCoordinator existentes.
 
-Alcance recomendado de 8B:
+Alcance recomendado de 8C:
 
-- rotación cardinal del slot mediante comando reversible y `locks.geometry`;
-- duplicar y copiar/pegar dentro del mismo job con IDs/referencias válidos;
-- seleccionar todo/por work/por asset respetando cara y fuente efectiva;
-- crear o retirar únicamente locks de fuente `user`;
-- registrar todas las intenciones y reutilizar los scopes de teclado;
-- no modificar resize, `content_transform`, cara back ni salida.
+- alinear izquierda/derecha/arriba/abajo y centros H/V;
+- centrar en pliego o área imprimible de forma explícita;
+- distribuir horizontal/vertical;
+- separación exacta con referencia trim o footprint declarada;
+- duplicación matricial con preview y resumen;
+- un único comando atómico por operación;
+- no modificar snap, resize, `content_transform`, cara back ni salida.
 
 ## 13. Especificación histórica de implementación 8A
 
-> El bloque siguiente se conserva como trazabilidad de la planificación original. Fase 8A ya está completada; su estado vigente está en el apartado 10 y en `13_POSICIONAMIENTO_Y_COMANDOS_V2.md`. El bloque no autoriza trabajo nuevo ni sustituye el roadmap 8B–8J/Fase 9.
+> El bloque siguiente se conserva como trazabilidad de la planificación original. Fases 8A y 8B ya están completadas; su estado vigente está en el apartado 10 y en `13_POSICIONAMIENTO_Y_COMANDOS_V2.md` / `14_OPERACIONES_DE_OBJETO_Y_CLIPBOARD_V2.md`. El bloque no autoriza trabajo nuevo ni sustituye el roadmap 8C–8L/Fases 9–10.
 
 ```text
 Quiero continuar con el Editor Offset Visual V2.

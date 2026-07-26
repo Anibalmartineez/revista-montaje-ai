@@ -45,6 +45,7 @@
     const key = event?.key === "/" && event?.shiftKey
       ? "?"
       : normalizedKey(event?.key, event?.code);
+    if (key === "Escape") return "Escape";
     const modifiers = new Set();
     if (event?.ctrlKey) modifiers.add("Ctrl");
     if (event?.metaKey) modifiers.add("Meta");
@@ -175,14 +176,6 @@
         this.hooks.setSpacePressed?.(true);
         return true;
       }
-      if (["Delete", "Backspace"].includes(event.key) && noModifiers && !editable
-          && !context.shortcutHelp?.isOpen() && !context.store.pointerSession
-          && !context.interactions?.hasPanSession()) {
-        const handled = this.hooks.deleteSelection?.();
-        if (handled) event.preventDefault?.();
-        return Boolean(handled);
-      }
-
       const match = this.resolve(event, context);
       if (!match) return false;
       event.preventDefault?.();

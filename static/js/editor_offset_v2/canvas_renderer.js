@@ -187,21 +187,27 @@
       });
       svg.append(workspace, sheetRect, printableRect);
 
-      const visibleSlots = state.layout.slots
+      const persistedVisibleSlots = state.layout.slots
         .filter((slot) => slot.face === state.activeFace)
         .map((slot) => withPreview(slot, this.store));
+      const previewSlots = (state.previewSlots || [])
+        .filter((slot) => slot.face === state.activeFace);
+      const previewIds = new Set(previewSlots.map((slot) => slot.id));
+      const visibleSlots = [...persistedVisibleSlots, ...previewSlots];
 
       for (const [slotIndex, slot] of visibleSlots.entries()) {
         const center = slot.geometry.position_mm;
         const trim = slot.geometry.trim_size_mm;
         const bleed = slot.geometry.bleed_mm;
-        const selected = state.selection.includes(slot.id);
+        const isPreview = previewIds.has(slot.id);
+        const selected = isPreview || state.selection.includes(slot.id);
         const placement = slotPlacementClasses(slot, state.layout.sheet, this.geometry);
         const approximate = artworkIsApproximate(slot, state.layout, this.assetsApiUrl);
         const group = svgElement("g", {
           class: [
             "ev2-svg-slot",
             selected && "is-selected",
+            isPreview && "is-duplicate-preview",
             placement.className,
             approximate && "has-approximate-artwork",
           ]
@@ -209,6 +215,7 @@
             .join(" "),
           transform: `translate(${this.geometry.mmToSvgX(center.x_mm)} ${this.geometry.mmToSvgY(center.y_mm, sheet.height)}) rotate(${-slot.geometry.rotation_deg})`,
           "data-slot-id": slot.id,
+          "data-preview-slot": String(isPreview),
           tabindex: "0",
         });
         if (slot.id || placement.message || approximate) {
@@ -262,7 +269,7 @@
           slot,
           slotIndex + 1,
           state.zoom,
-          state.showSlotLabels,
+          state.showSlotLabels && !isPreview,
         );
         if (label.visible) {
           svg.append(svgElement("text", {
@@ -275,7 +282,9 @@
         }
       }
 
-      const selectedSlots = visibleSlots.filter((slot) => state.selection.includes(slot.id));
+      const selectedSlots = previewSlots.length
+        ? previewSlots
+        : visibleSlots.filter((slot) => state.selection.includes(slot.id));
       const selectionBounds = this.geometry.boundsUnion(
         selectedSlots.map((slot) => this.geometry.bleedBounds(slot)),
       );
@@ -392,15 +401,19 @@
           this.actionSystem.actionIds.REDO,
           context,
         );
+        this.refs.deleteSlots.disabled = !this.actionSystem.registry.isEnabled(
+          this.actionSystem.actionIds.DELETE,
+          context,
+        );
       } else {
         this.refs.save.disabled = !state.hasUnsavedChanges
           || state.saveState.status === "saving"
           || state.saveState.status === "conflict";
         this.refs.undo.disabled = !state.canUndo;
         this.refs.redo.disabled = !state.canRedo;
+        this.refs.deleteSlots.disabled = state.selection.length === 0
+          || !EditPolicy.can(state.layout, state.selection, "delete");
       }
-      this.refs.deleteSlots.disabled = state.selection.length === 0
-        || !EditPolicy.can(state.layout, state.selection, "delete");
       this.refs.reloadConflict.hidden = state.saveState.status !== "conflict";
       this.refs.activeFace.textContent = state.activeFace === "front" ? "Frente" : "Dorso";
       this.refs.cursor.textContent = state.cursorMm.x === null

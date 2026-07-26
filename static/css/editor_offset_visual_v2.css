@@ -208,6 +208,114 @@ button:disabled {
   background: #111923;
 }
 
+.ev2-object-operations {
+  margin: 10px;
+  padding: 10px;
+  border: 1px solid var(--ev2-line);
+  border-radius: 7px;
+  background: #111923;
+}
+
+.ev2-object-operations-heading {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.ev2-object-operations h2 {
+  margin: 0;
+  font-size: 11px;
+}
+
+.ev2-object-operations-heading span,
+.ev2-object-clipboard,
+.ev2-object-note,
+.ev2-object-lock-row span {
+  color: var(--ev2-muted);
+  font-size: 9px;
+  line-height: 1.4;
+}
+
+.ev2-object-rotation {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: end;
+  gap: 6px;
+}
+
+.ev2-object-rotation label {
+  display: grid;
+  gap: 3px;
+  color: var(--ev2-muted);
+  font-size: 9px;
+}
+
+.ev2-object-rotation select,
+.ev2-object-rotation button,
+.ev2-object-action-grid button,
+.ev2-object-selection-grid button,
+.ev2-object-lock-row button {
+  min-width: 0;
+  padding: 6px;
+  font-size: 9px;
+}
+
+.ev2-object-action-grid,
+.ev2-object-selection-grid {
+  display: grid;
+  gap: 5px;
+  margin-top: 7px;
+}
+
+.ev2-object-action-grid {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.ev2-object-selection-grid {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.ev2-object-clipboard,
+.ev2-object-note {
+  margin: 7px 0 0;
+}
+
+.ev2-object-clipboard[data-state="warning"] {
+  color: var(--ev2-warning);
+}
+
+.ev2-object-locks {
+  display: grid;
+  gap: 6px;
+  margin: 9px 0 0;
+  padding: 8px;
+  border: 1px solid var(--ev2-line);
+  border-radius: 6px;
+}
+
+.ev2-object-locks legend {
+  padding: 0 4px;
+  color: var(--ev2-muted);
+  font-size: 9px;
+}
+
+.ev2-object-lock-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: 5px;
+}
+
+.ev2-object-lock-row span[data-state="mixed"] {
+  color: var(--ev2-warning);
+}
+
+.ev2-object-lock-row span[data-state="all"] {
+  color: var(--ev2-accent);
+}
+
 .ev2-position-panel h2 {
   margin: 0 0 8px;
   font-size: 11px;
@@ -798,6 +906,21 @@ button:disabled {
   fill: rgba(98, 219, 170, .23);
   stroke: #23b77d;
   stroke-width: 1.1;
+}
+
+.ev2-svg-slot.is-duplicate-preview {
+  opacity: .72;
+  pointer-events: none;
+}
+
+.ev2-svg-slot.is-duplicate-preview .ev2-svg-trim {
+  fill: rgba(98, 219, 170, .18);
+  stroke: #74e8bb;
+  stroke-dasharray: 3 1.5;
+}
+
+.ev2-canvas.is-duplicating {
+  cursor: copy;
 }
 
 .ev2-svg-slot.is-outside-sheet .ev2-svg-trim {

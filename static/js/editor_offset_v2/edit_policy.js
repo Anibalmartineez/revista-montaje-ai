@@ -9,6 +9,7 @@
 
   const CAPABILITY_LOCK = Object.freeze({
     move: "geometry",
+    rotate: "geometry",
     delete: "delete",
     replace_content: "content",
     replace_by_repeat: "delete",
@@ -16,6 +17,7 @@
 
   const CAPABILITY_LABEL = Object.freeze({
     move: "mover",
+    rotate: "rotar",
     delete: "eliminar",
     replace_content: "sustituir la fuente de",
     replace_by_repeat: "reemplazar mediante Repeat",

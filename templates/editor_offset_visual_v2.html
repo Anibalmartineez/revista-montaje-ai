@@ -135,6 +135,49 @@
         <span class="ev2-region-label">Inspector</span>
         <small>Geometría, procedencia y salida temporal</small>
       </div>
+      <section class="ev2-object-operations" aria-labelledby="ev2-object-operations-heading">
+        <div class="ev2-object-operations-heading">
+          <h2 id="ev2-object-operations-heading">Operaciones de objeto</h2>
+          <span id="ev2-object-selection">Sin selección</span>
+        </div>
+        <div class="ev2-object-rotation">
+          <button id="ev2-object-rotate-negative" type="button" aria-label="Rotar menos 90 grados" disabled>−90°</button>
+          <label for="ev2-object-rotation">Rotación
+            <select id="ev2-object-rotation" aria-label="Rotación cardinal" disabled>
+              <option value="">Mixta</option>
+              <option value="0">0°</option>
+              <option value="90">90°</option>
+              <option value="180">180°</option>
+              <option value="270">270°</option>
+            </select>
+          </label>
+          <button id="ev2-object-rotate-positive" type="button" aria-label="Rotar más 90 grados" disabled>+90°</button>
+        </div>
+        <div class="ev2-object-action-grid">
+          <button id="ev2-object-duplicate" type="button" disabled>Duplicar</button>
+          <button id="ev2-object-copy" type="button" disabled>Copiar</button>
+          <button id="ev2-object-cut" type="button" disabled>Cortar</button>
+          <button id="ev2-object-paste" type="button" disabled>Pegar</button>
+          <button id="ev2-object-delete" type="button" disabled>Eliminar</button>
+        </div>
+        <div class="ev2-object-selection-grid" aria-label="Selecciones básicas">
+          <button id="ev2-object-select-all" type="button" disabled>Todos · cara</button>
+          <button id="ev2-object-select-work" type="button" disabled>Mismo work</button>
+          <button id="ev2-object-select-asset" type="button" disabled>Mismo asset</button>
+        </div>
+        <p id="ev2-object-clipboard" class="ev2-object-clipboard" role="status" aria-live="polite">Clipboard interno vacío.</p>
+        <fieldset class="ev2-object-locks">
+          <legend>Locks de usuario</legend>
+          {% for surface, label in [('geometry', 'Geometría'), ('content', 'Contenido'), ('delete', 'Eliminación')] %}
+          <div class="ev2-object-lock-row">
+            <span data-lock-status="{{ surface }}" data-state="none" role="status" aria-live="polite">{{ label }}: ninguno</span>
+            <button type="button" data-lock-surface="{{ surface }}" data-lock-action="lock" aria-label="Bloquear {{ label|lower }} de los slots seleccionados" disabled>Bloquear</button>
+            <button type="button" data-lock-surface="{{ surface }}" data-lock-action="unlock" aria-label="Desbloquear {{ label|lower }} de los slots seleccionados" disabled>Desbloquear</button>
+          </div>
+          {% endfor %}
+        </fieldset>
+        <p class="ev2-object-note">Alt+arrastrar duplica. Los locks engine, CTP y system nunca se retiran desde este panel.</p>
+      </section>
       <section class="ev2-position-panel" aria-labelledby="ev2-position-heading">
         <h2 id="ev2-position-heading">Posición precisa</h2>
         <p id="ev2-position-empty" class="ev2-position-empty">Selecciona un slot.</p>
@@ -261,6 +304,7 @@
   <script src="{{ url_for('static', filename='js/editor_offset_v2/edit_policy.js') }}" defer></script>
   <script src="{{ url_for('static', filename='js/editor_offset_v2/position_inspector.js') }}" defer></script>
   <script src="{{ url_for('static', filename='js/editor_offset_v2/nudge_controller.js') }}" defer></script>
+  <script src="{{ url_for('static', filename='js/editor_offset_v2/object_operations.js') }}" defer></script>
   <script src="{{ url_for('static', filename='js/editor_offset_v2/command_registry.js') }}" defer></script>
   <script src="{{ url_for('static', filename='js/editor_offset_v2/shortcut_manager.js') }}" defer></script>
   <script src="{{ url_for('static', filename='js/editor_offset_v2/source_semantics.js') }}" defer></script>
@@ -274,6 +318,7 @@
   <script src="{{ url_for('static', filename='js/editor_offset_v2/assets_panel.js') }}" defer></script>
   <script src="{{ url_for('static', filename='js/editor_offset_v2/repeat_panel.js') }}" defer></script>
   <script src="{{ url_for('static', filename='js/editor_offset_v2/output_panel.js') }}" defer></script>
+  <script src="{{ url_for('static', filename='js/editor_offset_v2/objects_panel.js') }}" defer></script>
   <script src="{{ url_for('static', filename='js/editor_offset_v2/bootstrap.js') }}" defer></script>
   <script src="{{ url_for('static', filename='js/editor_offset_visual_v2.js') }}" defer></script>
 </body>

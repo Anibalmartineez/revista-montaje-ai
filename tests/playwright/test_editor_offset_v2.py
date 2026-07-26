@@ -686,7 +686,7 @@ def test_v2_precise_positioning_shortcuts_batching_persistence_and_locks(
             expect(page.locator("#ev2-shortcuts-help")).to_be_visible()
             expect(page.locator("#ev2-shortcuts-help-list")).to_contain_text("Guardar")
             expect(page.locator("#ev2-shortcuts-help-list")).to_contain_text("Mover 10 mm")
-            expect(page.locator("#ev2-shortcuts-help-list")).not_to_contain_text("Duplicar")
+            expect(page.locator("#ev2-shortcuts-help-list")).to_contain_text("Duplicar")
             page.keyboard.press("Escape")
             expect(page.locator("#ev2-shortcuts-help")).not_to_be_visible()
             assert page.evaluate(
@@ -736,8 +736,293 @@ def test_v2_precise_positioning_shortcuts_batching_persistence_and_locks(
             ):
                 page.locator("#ev2-output-check").click()
             expect(page.locator("#ev2-output-status")).to_contain_text("salida temporal")
-            expect(page.get_by_text("Duplicar", exact=True)).to_have_count(0)
-            expect(page.get_by_text("Copiar", exact=True)).to_have_count(0)
-            expect(page.get_by_text("Rotar", exact=True)).to_have_count(0)
+            expect(page.locator("#ev2-object-duplicate")).to_be_visible()
+            expect(page.locator("#ev2-object-copy")).to_be_visible()
+            expect(page.locator("#ev2-object-rotation")).to_be_visible()
+        finally:
+            browser.close()
+
+
+def test_v2_object_operations_clipboard_locks_alt_drag_and_persistence(
+    v2_server, tmp_path
+):
+    pdf_path = tmp_path / "operaciones-objetos-8b.pdf"
+    _write_test_pdf(pdf_path)
+
+    with sync_playwright() as playwright:
+        browser = playwright.chromium.launch(headless=True)
+        page = browser.new_page(viewport={"width": 1440, "height": 900})
+        try:
+            _open_job_with_repeat(page, v2_server, pdf_path, quantity=2)
+            page.wait_for_function(
+                "() => window.__EDITOR_OFFSET_V2__.store.saveState.status === 'clean'",
+                timeout=10_000,
+            )
+            original_ids = page.evaluate(
+                "() => window.__EDITOR_OFFSET_V2__.store.layout.slots.map(slot => slot.id)"
+            )
+            page.evaluate(
+                "slotId => window.__EDITOR_OFFSET_V2__.store.setSelection([slotId], 'replace')",
+                original_ids[0],
+            )
+
+            before_rotation = page.evaluate(
+                "slotId => { const slot = window.__EDITOR_OFFSET_V2__.store.layout.slots.find(item => item.id === slotId); "
+                "return { position: { ...slot.geometry.position_mm }, trim: { ...slot.geometry.trim_size_mm }, "
+                "bleed: { ...slot.geometry.bleed_mm }, source: structuredClone(slot.source), rotation: slot.geometry.rotation_deg }; }",
+                original_ids[0],
+            )
+            page.locator("#ev2-object-rotate-positive").click()
+            after_rotation = page.evaluate(
+                "slotId => { const slot = window.__EDITOR_OFFSET_V2__.store.layout.slots.find(item => item.id === slotId); "
+                "return { position: { ...slot.geometry.position_mm }, trim: { ...slot.geometry.trim_size_mm }, "
+                "bleed: { ...slot.geometry.bleed_mm }, source: structuredClone(slot.source), rotation: slot.geometry.rotation_deg }; }",
+                original_ids[0],
+            )
+            assert after_rotation["rotation"] == (before_rotation["rotation"] + 90) % 360
+            assert after_rotation["position"] == before_rotation["position"]
+            assert after_rotation["trim"] == before_rotation["trim"]
+            assert after_rotation["bleed"] == before_rotation["bleed"]
+            assert after_rotation["source"] == before_rotation["source"]
+            page.keyboard.press("Control+Z")
+            assert page.evaluate(
+                "slotId => window.__EDITOR_OFFSET_V2__.store.layout.slots.find(item => item.id === slotId).geometry.rotation_deg",
+                original_ids[0],
+            ) == before_rotation["rotation"]
+            page.keyboard.press("Control+Shift+Z")
+            page.locator("#ev2-object-rotation").select_option("180")
+            expect(page.locator("#ev2-object-rotation")).to_have_value("180")
+
+            duplicate_origin = page.evaluate(
+                "slotId => ({ ...window.__EDITOR_OFFSET_V2__.store.layout.slots.find(item => item.id === slotId).geometry.position_mm })",
+                original_ids[0],
+            )
+            page.keyboard.press("Control+D")
+            duplicate = page.evaluate(
+                "() => { const store = window.__EDITOR_OFFSET_V2__.store; const id = [...store.selection][0]; "
+                "return structuredClone(store.layout.slots.find(slot => slot.id === id)); }"
+            )
+            assert duplicate["id"] not in original_ids
+            assert duplicate["geometry"]["position_mm"]["x_mm"] == pytest.approx(
+                duplicate_origin["x_mm"] + 5
+            )
+            assert duplicate["geometry"]["position_mm"]["y_mm"] == pytest.approx(
+                duplicate_origin["y_mm"] - 5
+            )
+            assert duplicate["generated_by"] == {
+                "type": "duplicate",
+                "source_slot_id": original_ids[0],
+            }
+            duplicate_id = duplicate["id"]
+
+            page.keyboard.press("Control+C")
+            expect(page.locator("#ev2-object-clipboard")).to_contain_text("1 slot")
+            page.keyboard.press("Control+V")
+            first_paste = page.evaluate(
+                "() => { const store = window.__EDITOR_OFFSET_V2__.store; const id = [...store.selection][0]; "
+                "return structuredClone(store.layout.slots.find(slot => slot.id === id)); }"
+            )
+            page.keyboard.press("Control+V")
+            second_paste = page.evaluate(
+                "() => { const store = window.__EDITOR_OFFSET_V2__.store; const id = [...store.selection][0]; "
+                "return structuredClone(store.layout.slots.find(slot => slot.id === id)); }"
+            )
+            assert first_paste["geometry"]["position_mm"]["x_mm"] == pytest.approx(
+                duplicate["geometry"]["position_mm"]["x_mm"] + 5
+            )
+            assert second_paste["geometry"]["position_mm"]["x_mm"] == pytest.approx(
+                duplicate["geometry"]["position_mm"]["x_mm"] + 10
+            )
+            assert first_paste["id"] != second_paste["id"]
+            expect(page.locator("#ev2-object-clipboard")).to_contain_text("2 pegado")
+
+            page.keyboard.press("Control+X")
+            assert page.evaluate(
+                "slotId => !window.__EDITOR_OFFSET_V2__.store.layout.slots.some(slot => slot.id === slotId)",
+                second_paste["id"],
+            )
+            page.keyboard.press("Control+Z")
+            assert page.evaluate(
+                "slotId => window.__EDITOR_OFFSET_V2__.store.layout.slots.some(slot => slot.id === slotId)",
+                second_paste["id"],
+            )
+            page.keyboard.press("Delete")
+            assert page.evaluate(
+                "slotId => !window.__EDITOR_OFFSET_V2__.store.layout.slots.some(slot => slot.id === slotId)",
+                second_paste["id"],
+            )
+            page.keyboard.press("Control+Z")
+
+            page.keyboard.press("Control+A")
+            assert page.evaluate(
+                "() => window.__EDITOR_OFFSET_V2__.store.selection.size"
+            ) == page.evaluate(
+                "() => window.__EDITOR_OFFSET_V2__.store.layout.slots.filter(slot => slot.face === 'front').length"
+            )
+            page.evaluate(
+                "slotId => window.__EDITOR_OFFSET_V2__.store.setSelection([slotId], 'replace')",
+                original_ids[0],
+            )
+            page.locator("#ev2-object-select-work").click()
+            assert page.evaluate(
+                "() => window.__EDITOR_OFFSET_V2__.store.selection.size"
+            ) == page.evaluate(
+                "() => window.__EDITOR_OFFSET_V2__.store.layout.slots.filter(slot => slot.face === 'front').length"
+            )
+            page.evaluate(
+                "slotId => window.__EDITOR_OFFSET_V2__.store.setSelection([slotId], 'replace')",
+                original_ids[0],
+            )
+            page.locator("#ev2-object-select-asset").click()
+            assert page.evaluate(
+                "() => window.__EDITOR_OFFSET_V2__.store.selection.size"
+            ) == page.evaluate(
+                "() => window.__EDITOR_OFFSET_V2__.store.layout.slots.filter(slot => slot.face === 'front').length"
+            )
+
+            page.evaluate(
+                "slotId => window.__EDITOR_OFFSET_V2__.store.setSelection([slotId], 'replace')",
+                original_ids[0],
+            )
+            geometry_lock = page.locator(
+                "[data-lock-surface='geometry'][data-lock-action='lock']"
+            )
+            geometry_unlock = page.locator(
+                "[data-lock-surface='geometry'][data-lock-action='unlock']"
+            )
+            geometry_lock.click()
+            expect(page.locator("[data-lock-status='geometry']")).to_contain_text("todos")
+            locked_rotation = page.evaluate(
+                "slotId => window.__EDITOR_OFFSET_V2__.store.layout.slots.find(slot => slot.id === slotId).geometry.rotation_deg",
+                original_ids[0],
+            )
+            expect(page.locator("#ev2-object-rotate-positive")).to_be_disabled()
+            page.keyboard.press("R")
+            assert page.evaluate(
+                "slotId => window.__EDITOR_OFFSET_V2__.store.layout.slots.find(slot => slot.id === slotId).geometry.rotation_deg",
+                original_ids[0],
+            ) == locked_rotation
+            geometry_unlock.click()
+            expect(page.locator("[data-lock-status='geometry']")).to_contain_text("ninguno")
+
+            delete_lock = page.locator(
+                "[data-lock-surface='delete'][data-lock-action='lock']"
+            )
+            delete_unlock = page.locator(
+                "[data-lock-surface='delete'][data-lock-action='unlock']"
+            )
+            delete_lock.click()
+            expect(page.locator("#ev2-object-delete")).to_be_disabled()
+            count_locked = page.evaluate(
+                "() => window.__EDITOR_OFFSET_V2__.store.layout.slots.length"
+            )
+            page.keyboard.press("Delete")
+            page.keyboard.press("Control+X")
+            assert page.evaluate(
+                "() => window.__EDITOR_OFFSET_V2__.store.layout.slots.length"
+            ) == count_locked
+            delete_unlock.click()
+
+            input_before = page.evaluate(
+                "() => ({ count: window.__EDITOR_OFFSET_V2__.store.layout.slots.length, "
+                "rotation: window.__EDITOR_OFFSET_V2__.store.layout.slots[0].geometry.rotation_deg, "
+                "selection: [...window.__EDITOR_OFFSET_V2__.store.selection] })"
+            )
+            page.locator("#ev2-position-x").focus()
+            for shortcut in ["R", "Control+A", "Control+C", "Control+X", "Control+V", "Delete"]:
+                page.keyboard.press(shortcut)
+            input_after = page.evaluate(
+                "() => ({ count: window.__EDITOR_OFFSET_V2__.store.layout.slots.length, "
+                "rotation: window.__EDITOR_OFFSET_V2__.store.layout.slots[0].geometry.rotation_deg, "
+                "selection: [...window.__EDITOR_OFFSET_V2__.store.selection] })"
+            )
+            assert input_after == input_before
+
+            alt_source_id = original_ids[1]
+            page.evaluate(
+                "slotId => window.__EDITOR_OFFSET_V2__.store.setSelection([slotId], 'replace')",
+                alt_source_id,
+            )
+            original = page.locator(f".ev2-svg-slot[data-slot-id='{alt_source_id}']")
+            box = original.bounding_box()
+            assert box is not None
+            count_before_alt = page.evaluate(
+                "() => window.__EDITOR_OFFSET_V2__.store.layout.slots.length"
+            )
+            page.keyboard.down("Alt")
+            page.mouse.move(box["x"] + box["width"] / 2, box["y"] + box["height"] / 2)
+            page.mouse.down()
+            page.mouse.move(
+                box["x"] + box["width"] / 2 + 32,
+                box["y"] + box["height"] / 2 + 18,
+                steps=4,
+            )
+            expect(page.locator(".ev2-svg-slot.is-duplicate-preview")).to_have_count(1)
+            page.mouse.up()
+            page.keyboard.up("Alt")
+            assert page.evaluate(
+                "() => window.__EDITOR_OFFSET_V2__.store.layout.slots.length"
+            ) == count_before_alt + 1
+            alt_copy = page.evaluate(
+                "() => { const store = window.__EDITOR_OFFSET_V2__.store; "
+                "return structuredClone(store.layout.slots.find(slot => store.selection.has(slot.id))); }"
+            )
+            assert alt_copy["generated_by"] == {
+                "type": "duplicate",
+                "source_slot_id": alt_source_id,
+            }
+
+            cancel_target = page.locator(
+                f".ev2-svg-slot[data-slot-id='{alt_copy['id']}']"
+            )
+            cancel_box = cancel_target.bounding_box()
+            assert cancel_box is not None
+            count_before_cancel = page.evaluate(
+                "() => window.__EDITOR_OFFSET_V2__.store.layout.slots.length"
+            )
+            history_before_cancel = page.evaluate(
+                "() => window.__EDITOR_OFFSET_V2__.store.undoStack.length"
+            )
+            page.keyboard.down("Alt")
+            page.mouse.move(
+                cancel_box["x"] + cancel_box["width"] / 2,
+                cancel_box["y"] + cancel_box["height"] / 2,
+            )
+            page.mouse.down()
+            page.mouse.move(
+                cancel_box["x"] + cancel_box["width"] / 2 + 24,
+                cancel_box["y"] + cancel_box["height"] / 2 + 12,
+                steps=3,
+            )
+            expect(page.locator(".ev2-svg-slot.is-duplicate-preview")).to_have_count(1)
+            page.keyboard.press("Escape")
+            expect(page.locator(".ev2-svg-slot.is-duplicate-preview")).to_have_count(0)
+            page.mouse.up()
+            page.keyboard.up("Alt")
+            assert page.evaluate(
+                "() => window.__EDITOR_OFFSET_V2__.store.layout.slots.length"
+            ) == count_before_cancel
+            assert page.evaluate(
+                "() => window.__EDITOR_OFFSET_V2__.store.undoStack.length"
+            ) == history_before_cancel
+
+            page.keyboard.press("Control+S")
+            page.wait_for_function(
+                "() => window.__EDITOR_OFFSET_V2__.store.saveState.status === 'clean'",
+                timeout=10_000,
+            )
+            persisted_ids = page.evaluate(
+                "() => window.__EDITOR_OFFSET_V2__.store.layout.slots.map(slot => slot.id)"
+            )
+            page.reload(wait_until="domcontentloaded")
+            assert page.evaluate(
+                "() => window.__EDITOR_OFFSET_V2__.store.layout.slots.map(slot => slot.id)"
+            ) == persisted_ids
+            assert duplicate_id in persisted_ids
+
+            page.locator("#ev2-shortcuts-help-button").click()
+            expect(page.locator("#ev2-shortcuts-help-list")).to_contain_text("Rotar +90")
+            expect(page.locator("#ev2-shortcuts-help-list")).to_contain_text("Copiar")
+            expect(page.locator("#ev2-shortcuts-help-list")).to_contain_text("Pegar")
         finally:
             browser.close()

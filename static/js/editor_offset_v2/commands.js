@@ -26,6 +26,80 @@
       && Number.isFinite(position.y_mm);
   }
 
+  const CARDINAL_ROTATIONS = Object.freeze([0, 90, 180, 270]);
+  const USER_LOCK_SURFACES = Object.freeze(["geometry", "content", "delete"]);
+
+  function normalizeCardinalRotation(value) {
+    if (!Number.isFinite(value) || value % 90 !== 0) {
+      throw new RangeError("Rotation must be a cardinal multiple of 90 degrees");
+    }
+    const normalized = ((value % 360) + 360) % 360;
+    if (!CARDINAL_ROTATIONS.includes(normalized)) {
+      throw new RangeError("Rotation must normalize to 0, 90, 180 or 270");
+    }
+    return normalized;
+  }
+
+  function defaultSlotIdFactory() {
+    const uuid = globalThis.crypto?.randomUUID?.().replace(/-/g, "");
+    const fallback = `${Date.now().toString(36)}${Math.random().toString(36).slice(2)}`;
+    return `slot_duplicate_${(uuid || fallback).slice(0, 24)}`;
+  }
+
+  function uniqueSlotId(layout, reservedIds, idFactory, sourceSlot, index) {
+    const occupied = new Set((layout?.slots || []).map((slot) => slot.id));
+    for (const id of reservedIds || []) occupied.add(id);
+    const factory = typeof idFactory === "function" ? idFactory : defaultSlotIdFactory;
+    for (let attempt = 0; attempt < 100; attempt += 1) {
+      const candidate = String(factory(sourceSlot, index, attempt) || "").trim();
+      if (candidate && !occupied.has(candidate)) return candidate;
+    }
+    throw new Error("No se pudo generar un ID de slot único.");
+  }
+
+  function assertSlotReferences(layout, slot) {
+    if (!layout.works.some((work) => work.id === slot.work_id)) {
+      throw new Error(`El slot ${slot.id} referencia un work inexistente.`);
+    }
+    sourcePage(layout, slot.source);
+    if (!["front", "back"].includes(slot.face)
+        || !layout.faces.enabled.includes(slot.face)) {
+      throw new Error(`El slot ${slot.id} referencia una cara no disponible.`);
+    }
+  }
+
+  function prepareDuplicateSlotsFromSlots(layout, sourceSlots, offset, options) {
+    const originals = clone(sourceSlots || []);
+    if (!originals.length) throw new Error("La duplicación requiere slots existentes.");
+    const dx = Number(offset?.x_mm ?? 0);
+    const dy = Number(offset?.y_mm ?? 0);
+    if (!Number.isFinite(dx) || !Number.isFinite(dy)) {
+      throw new TypeError("El offset de duplicación debe ser finito.");
+    }
+    const reserved = new Set();
+    return originals.map((original, index) => {
+      const copy = clone(original);
+      copy.id = uniqueSlotId(layout, reserved, options?.idFactory, original, index);
+      reserved.add(copy.id);
+      copy.geometry.position_mm.x_mm = original.geometry.position_mm.x_mm + dx;
+      copy.geometry.position_mm.y_mm = original.geometry.position_mm.y_mm + dy;
+      copy.generated_by = {
+        type: "duplicate",
+        source_slot_id: original.id,
+      };
+      return copy;
+    });
+  }
+
+  function prepareDuplicateSlots(layout, slotIds, offset, options) {
+    const ids = new Set(slotIds || []);
+    const originals = layout.slots.filter((slot) => ids.has(slot.id));
+    if (!originals.length || originals.length !== ids.size) {
+      throw new Error("La duplicación requiere slots existentes.");
+    }
+    return prepareDuplicateSlotsFromSlots(layout, originals, offset, options);
+  }
+
   class CreateSlotCommand {
     constructor(bundle) {
       this.description = "Crear slot de prueba";
@@ -108,6 +182,103 @@
     }
   }
 
+  class RotateSlotsCommand {
+    constructor(layout, slotIds, target) {
+      this.description = "Rotar slots";
+      const requested = new Set(slotIds || []);
+      const slots = layout.slots.filter((slot) => requested.has(slot.id));
+      if (!slots.length || slots.length !== requested.size) {
+        throw new Error("RotateSlotsCommand requires existing slots");
+      }
+      this.beforeRotations = Object.fromEntries(
+        slots.map((slot) => [slot.id, slot.geometry.rotation_deg]),
+      );
+      this.afterRotations = {};
+      for (const slot of slots) {
+        const value = typeof target === "function"
+          ? target(slot.geometry.rotation_deg, slot)
+          : target;
+        this.afterRotations[slot.id] = normalizeCardinalRotation(value);
+      }
+      this.affectedIds = Object.freeze(slots.map((slot) => slot.id));
+      this.selectionBefore = Object.freeze([...this.affectedIds]);
+      this.selectionAfter = Object.freeze([...this.affectedIds]);
+      if (!this.affectedIds.some(
+        (id) => this.beforeRotations[id] !== this.afterRotations[id],
+      )) {
+        throw new Error("RotateSlotsCommand requires a rotation change");
+      }
+      EditPolicy.assertCan(layout, this.affectedIds, "rotate");
+    }
+
+    apply(layout, rotations) {
+      const slotsById = new Map(layout.slots.map((slot) => [slot.id, slot]));
+      for (const id of this.affectedIds) {
+        const slot = slotsById.get(id);
+        if (!slot) throw new Error(`The slot ${id} no longer exists`);
+        slot.geometry.rotation_deg = normalizeCardinalRotation(rotations[id]);
+      }
+    }
+
+    execute(layout) {
+      EditPolicy.assertCan(layout, this.affectedIds, "rotate");
+      this.apply(layout, this.afterRotations);
+    }
+
+    undo(layout) {
+      this.apply(layout, this.beforeRotations);
+    }
+
+    redo(layout) {
+      this.execute(layout);
+    }
+  }
+
+  class DuplicateSlotsCommand {
+    constructor(layout, slotIds, options) {
+      this.description = options?.description || "Duplicar slots";
+      const selectionBefore = options?.selectionBefore || slotIds || [];
+      this.selectionBefore = Object.freeze([...new Set(selectionBefore)]);
+      this.copies = options?.preparedSlots
+        ? clone(options.preparedSlots)
+        : prepareDuplicateSlots(
+          layout,
+          slotIds,
+          options?.offset || { x_mm: 5, y_mm: -5 },
+          options,
+        );
+      this.affectedIds = Object.freeze(this.copies.map((slot) => slot.id));
+      this.selectionAfter = Object.freeze([...this.affectedIds]);
+      if (!this.affectedIds.length
+          || new Set(this.affectedIds).size !== this.affectedIds.length) {
+        throw new Error("DuplicateSlotsCommand requires unique prepared copies");
+      }
+      const existing = new Set(layout.slots.map((slot) => slot.id));
+      if (this.affectedIds.some((id) => existing.has(id))) {
+        throw new Error("Duplicate slot IDs collide with the layout");
+      }
+      for (const slot of this.copies) assertSlotReferences(layout, slot);
+    }
+
+    execute(layout) {
+      const existing = new Set(layout.slots.map((slot) => slot.id));
+      if (this.copies.some((slot) => existing.has(slot.id))) {
+        throw new Error("Duplicate slot IDs collide with the layout");
+      }
+      for (const slot of this.copies) assertSlotReferences(layout, slot);
+      layout.slots.push(...clone(this.copies));
+    }
+
+    undo(layout) {
+      const ids = new Set(this.affectedIds);
+      layout.slots = layout.slots.filter((slot) => !ids.has(slot.id));
+    }
+
+    redo(layout) {
+      this.execute(layout);
+    }
+  }
+
   class DeleteSlotsCommand {
     constructor(layout, slotIds) {
       this.description = "Eliminar slots";
@@ -116,6 +287,8 @@
         .map((slot, index) => ({ slot: clone(slot), index }))
         .filter((entry) => ids.has(entry.slot.id));
       this.affectedIds = Object.freeze(this.deleted.map((entry) => entry.slot.id));
+      this.selectionBefore = Object.freeze([...this.affectedIds]);
+      this.selectionAfter = Object.freeze([]);
       if (!this.affectedIds.length) {
         throw new Error("DeleteSlotsCommand requires existing slots");
       }
@@ -132,6 +305,58 @@
       for (const entry of [...this.deleted].sort((a, b) => a.index - b.index)) {
         layout.slots.splice(entry.index, 0, clone(entry.slot));
       }
+    }
+
+    redo(layout) {
+      this.execute(layout);
+    }
+  }
+
+  class SetSlotUserLocksCommand {
+    constructor(layout, slotIds, surface, locked) {
+      if (!USER_LOCK_SURFACES.includes(surface)) {
+        throw new Error(`Unsupported user lock surface: ${surface}`);
+      }
+      this.description = `${locked ? "Bloquear" : "Desbloquear"} ${surface}`;
+      this.surface = surface;
+      this.locked = Boolean(locked);
+      const requested = new Set(slotIds || []);
+      const slots = layout.slots.filter((slot) => requested.has(slot.id));
+      if (!slots.length || slots.length !== requested.size) {
+        throw new Error("SetSlotUserLocksCommand requires existing slots");
+      }
+      this.affectedIds = Object.freeze(slots.map((slot) => slot.id));
+      this.selectionBefore = Object.freeze([...this.affectedIds]);
+      this.selectionAfter = Object.freeze([...this.affectedIds]);
+      this.beforeLocks = Object.fromEntries(
+        slots.map((slot) => [slot.id, clone(slot.locks[surface])]),
+      );
+      this.afterLocks = Object.fromEntries(slots.map((slot) => {
+        const withoutUser = slot.locks[surface].filter((source) => source !== "user");
+        return [slot.id, this.locked ? [...withoutUser, "user"] : withoutUser];
+      }));
+      if (!this.affectedIds.some(
+        (id) => this.beforeLocks[id].join("\0") !== this.afterLocks[id].join("\0"),
+      )) {
+        throw new Error("SetSlotUserLocksCommand requires a lock change");
+      }
+    }
+
+    apply(layout, locks) {
+      const slotsById = new Map(layout.slots.map((slot) => [slot.id, slot]));
+      for (const id of this.affectedIds) {
+        const slot = slotsById.get(id);
+        if (!slot) throw new Error(`The slot ${id} no longer exists`);
+        slot.locks[this.surface] = clone(locks[id]);
+      }
+    }
+
+    execute(layout) {
+      this.apply(layout, this.afterLocks);
+    }
+
+    undo(layout) {
+      this.apply(layout, this.beforeLocks);
     }
 
     redo(layout) {
@@ -522,7 +747,10 @@
   return Object.freeze({
     CreateSlotCommand,
     MoveSlotsCommand,
+    RotateSlotsCommand,
+    DuplicateSlotsCommand,
     DeleteSlotsCommand,
+    SetSlotUserLocksCommand,
     CreateWorkCommand,
     CreateSlotFromWorkCommand,
     ReplaceSlotSourceCommand,
@@ -531,5 +759,11 @@
     createSlotFromWork,
     sourcePage,
     createDevelopmentPlaceholderBundle,
+    defaultSlotIdFactory,
+    normalizeCardinalRotation,
+    prepareDuplicateSlots,
+    prepareDuplicateSlotsFromSlots,
+    uniqueSlotId,
+    USER_LOCK_SURFACES,
   });
 });

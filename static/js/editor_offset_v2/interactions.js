@@ -95,34 +95,49 @@
       if (!this.store.selection.has(slotId)) {
         return;
       }
-      try {
-        this.editPolicy.assertCan(
-          this.store.layout,
-          [...this.store.selection],
-          "move",
-        );
-      } catch (error) {
-        this.store.setFeedback(error.message);
-        return;
+      const duplicateMove = Boolean(event.altKey);
+      if (!duplicateMove) {
+        try {
+          this.editPolicy.assertCan(
+            this.store.layout,
+            [...this.store.selection],
+            "move",
+          );
+        } catch (error) {
+          this.store.setFeedback(error.message);
+          return;
+        }
       }
       const point = this.domainPoint(event);
       if (!point) {
         return;
       }
-      const beforePositions = {};
-      for (const slot of this.store.layout.slots) {
-        if (this.store.selection.has(slot.id)) {
-          beforePositions[slot.id] = { ...slot.geometry.position_mm };
-        }
-      }
+      const selectionBefore = [...this.store.selection];
+      const previewSlots = duplicateMove
+        ? this.commands.prepareDuplicateSlots(
+          this.store.layout,
+          selectionBefore,
+          { x_mm: 0, y_mm: 0 },
+        )
+        : [];
+      const positionSlots = duplicateMove
+        ? previewSlots
+        : this.store.layout.slots.filter((slot) => this.store.selection.has(slot.id));
+      const beforePositions = Object.fromEntries(
+        positionSlots.map((slot) => [slot.id, { ...slot.geometry.position_mm }]),
+      );
       this.store.beginPointerSession({
-        type: "move",
+        type: duplicateMove ? "duplicate_move" : "move",
         pointerId: event.pointerId,
         startMm: point,
         beforePositions,
+        selectionBefore,
+        previewSlots,
       });
       this.refs.canvas.setPointerCapture(event.pointerId);
-      this.refs.canvas.classList.add("is-dragging");
+      this.refs.canvas.classList.add(
+        duplicateMove ? "is-duplicating" : "is-dragging",
+      );
     }
 
     onPointerMove(event) {
@@ -160,7 +175,21 @@
           y_mm: position.y_mm + dy,
         };
       }
-      this.store.updatePointerPreview(preview);
+      if (session.type === "duplicate_move") {
+        const previewSlots = session.previewSlots.map((slot) => ({
+          ...slot,
+          geometry: {
+            ...slot.geometry,
+            position_mm: {
+              ...slot.geometry.position_mm,
+              ...preview[slot.id],
+            },
+          },
+        }));
+        this.store.updatePointerPreviewSlots(previewSlots);
+      } else {
+        this.store.updatePointerPreview(preview);
+      }
     }
 
     onPointerUp(event) {
@@ -174,21 +203,44 @@
       if (!session || session.pointerId !== event.pointerId) {
         return;
       }
-      const afterPositions = { ...this.store.previewPositions };
+      const afterPositions = session.type === "duplicate_move"
+        ? Object.fromEntries(this.store.previewSlots.map((slot) => [
+          slot.id,
+          {
+            x_mm: slot.geometry.position_mm.x_mm,
+            y_mm: slot.geometry.position_mm.y_mm,
+          },
+        ]))
+        : { ...this.store.previewPositions };
       const moved = Object.keys(afterPositions).some((slotId) => {
         const before = session.beforePositions[slotId];
         const after = afterPositions[slotId];
         return before && after
           && (before.x_mm !== after.x_mm || before.y_mm !== after.y_mm);
       });
+      const preparedSlots = session.type === "duplicate_move"
+        ? structuredClone(this.store.previewSlots)
+        : null;
       this.store.endPointerSession();
-      this.refs.canvas.classList.remove("is-dragging");
+      this.refs.canvas.classList.remove("is-dragging", "is-duplicating");
       this.releasePointer(event.pointerId);
       if (moved) {
         try {
-          this.store.executeCommand(
-            new this.commands.MoveSlotsCommand(session.beforePositions, afterPositions),
-          );
+          const command = session.type === "duplicate_move"
+            ? new this.commands.DuplicateSlotsCommand(
+              this.store.layout,
+              session.selectionBefore,
+              {
+                description: "Duplicar mediante Alt+drag",
+                preparedSlots,
+                selectionBefore: session.selectionBefore,
+              },
+            )
+            : new this.commands.MoveSlotsCommand(session.beforePositions, afterPositions);
+          this.store.executeCommand(command);
+          if (session.type === "duplicate_move") {
+            this.store.setFeedback(`Copias creadas por Alt+drag: ${command.affectedIds.join(", ")}.`);
+          }
         } catch (error) {
           this.store.setFeedback(error.message);
         }
@@ -196,16 +248,26 @@
     }
 
     cancelPointer(event) {
+      const capturedPointerIds = [];
       if (this.panSession) {
+        capturedPointerIds.push(this.panSession.pointerId);
         this.panSession = null;
         this.refs.canvas.classList.remove("is-panning");
       }
       if (this.store.pointerSession) {
+        capturedPointerIds.push(this.store.pointerSession.pointerId);
+        const cancelledDuplicate = this.store.pointerSession.type === "duplicate_move";
         this.store.endPointerSession();
-        this.refs.canvas.classList.remove("is-dragging");
+        this.refs.canvas.classList.remove("is-dragging", "is-duplicating");
+        if (cancelledDuplicate) {
+          this.store.setFeedback("Duplicación por Alt+drag cancelada.");
+        }
       }
       if (event && event.pointerId !== undefined) {
-        this.releasePointer(event.pointerId);
+        capturedPointerIds.push(event.pointerId);
+      }
+      for (const pointerId of new Set(capturedPointerIds)) {
+        this.releasePointer(pointerId);
       }
     }
 
@@ -233,19 +295,6 @@
     setSpacePressed(pressed) {
       this.spacePressed = Boolean(pressed);
       this.refs.canvas.classList.toggle("is-pan-ready", this.spacePressed);
-    }
-
-    deleteSelection() {
-      if (!this.store.selection.size) return false;
-      try {
-        this.store.executeCommand(
-          new this.commands.DeleteSlotsCommand(this.store.layout, [...this.store.selection]),
-        );
-        return true;
-      } catch (error) {
-        this.store.setFeedback(error.message);
-        return true;
-      }
     }
 
     hasPanSession() {

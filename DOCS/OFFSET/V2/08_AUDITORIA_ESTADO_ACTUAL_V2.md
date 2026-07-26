@@ -51,13 +51,32 @@ La Fase 8A posterior a esta auditoría también fue implementada y validada. El 
 - inspector, nudge y drag reutilizan la política atómica `move` y la defensa del comando;
 - borradores, previews y ayuda son temporales; solo una confirmación válida activa dirty/autosave.
 
+### 1.3 Actualización operativa — Fase 8B
+
+La Fase 8B posterior a esta auditoría también fue implementada y validada. Su
+estado vigente y decisiones se documentan en
+`14_OPERACIONES_DE_OBJETO_Y_CLIPBOARD_V2.md`:
+
+- rotación manual cardinal, sin cambiar centro trim, trim, bleed ni contenido;
+- duplicado con IDs estables para redo y procedencia `type=duplicate`;
+- clipboard profundo, temporal, same-job y con paste acumulativo;
+- cortar y eliminar atómicos sobre la misma acción/política;
+- Alt+arrastrar con preview temporal y un comando al confirmar;
+- selección por cara activa, work y asset efectivo del slot;
+- locks de usuario explícitos para geometry/content/delete, preservando
+  `engine`, `ctp` y `system`;
+- botones y teclado comparten `ActionRegistry`;
+- selección, clipboard y previews no activan dirty/autosave;
+- Node y Playwright cubren historial, locks, referencias, accesibilidad,
+  persistencia y cancelación.
+
 ## 2. Resumen ejecutivo
 
 Editor V2 ya es una aplicación aislada y accesible, no un prototipo documental. Puede crear y abrir jobs, persistir Layout V2 con control de revisión, subir PDFs, inspeccionar páginas y cajas, generar miniaturas, crear works y slots reales, mover y seleccionar slots en SVG, deshacer/rehacer, guardar automáticamente y calcular/aplicar Repeat como una operación reversible.
 
 La base más estable está en Python: contrato estricto, persistencia atómica, almacenamiento seguro de assets, kernel geométrico puro y adaptadores aislados. La base frontend también está modularizada, pero continúa en JavaScript estándar con un kernel de vista reducido y duplicado. Esa duplicación está caracterizada para bounds cardinales mediante fixtures compartidos, no para toda la API geométrica Python.
 
-La Fase 8P resolvió las contradicciones de locks, procedencia, fuentes, historial y estado visible; Fase 8A añadió precisión manual y una frontera central de acciones/atajos sin cambiar contrato ni backend. Permanecen como deudas para fases posteriores:
+La Fase 8P resolvió las contradicciones de locks, procedencia, fuentes, historial y estado visible; Fase 8A añadió precisión manual y una frontera central de acciones/atajos; Fase 8B completó las operaciones cardinales de objeto, clipboard interno, selecciones básicas y locks de usuario sin cambiar contrato ni backend. Permanecen como deudas para fases posteriores:
 
 1. `activeFace`, `activeTool` y `hoverId` existen en el store, pero no tienen flujo funcional completo;
 2. el artwork SVG no aplica `content_transform`: representa una miniatura completa con `meet` y clip trim, ahora advertida explícitamente como aproximada;
@@ -237,6 +256,10 @@ El frontend usa módulos JavaScript estándar cargados como scripts diferidos ba
 | `source_semantics.js` | Fuente predeterminada del work y override efectivo del slot. |
 | `layout_metrics.js` | Conteos actuales derivados e historial de operación. |
 | `output_panel.js` | Consulta y presentación del diagnóstico de salida temporal. |
+| `object_operations.js` | Clipboard, filtros de selección, estado de locks y preparación de paste. |
+| `objects_panel.js` | UI accesible de rotación, clipboard, selección y locks de usuario. |
+| `command_registry.js` | Frontera central de acciones, disponibilidad, atajos y ayuda. |
+| `shortcut_manager.js` | Normalización y scopes de teclado; no contiene rutas paralelas de mutación. |
 | `dom_refs.js` | Resolución estricta de elementos del shell. |
 | `bootstrap.js` | Composición de módulos y listeners de alto nivel. |
 
@@ -253,6 +276,8 @@ Permanece fuera del layout:
 - herramienta activa;
 - zoom, pan y cursor;
 - pointer session y preview positions;
+- previews de slots duplicados;
+- clipboard interno y contador de pegados;
 - estado de guardado;
 - selección/estado del panel de assets;
 - propuesta/estado Repeat;
@@ -266,7 +291,10 @@ Comandos actuales:
 
 - `CreateSlotCommand` para bundle placeholder;
 - `MoveSlotsCommand`;
+- `RotateSlotsCommand`;
+- `DuplicateSlotsCommand`;
 - `DeleteSlotsCommand`;
+- `SetSlotUserLocksCommand`;
 - `CreateWorkCommand`;
 - `CreateSlotFromWorkCommand`;
 - `ReplaceSlotSourceCommand`;
@@ -292,7 +320,7 @@ Un 409 conserva layout/revisión local, cambia a `conflict`, detiene autosave y 
 
 ### 9.4 Política de locks estabilizada
 
-`edit_policy.js` resuelve `move`, `delete`, `replace_content` y `replace_by_repeat`. Cualquier fuente válida (`user`, `engine`, `ctp`, `system`) bloquea cuando realmente está presente. Drag consulta la política; los comandos vuelven a defenderla; y una operación múltiple con un bloqueado rechaza el conjunto completo con IDs visibles. Repeat normal ya no crea un lock de geometría: su procedencia permanece exclusivamente en `generated_by`.
+`edit_policy.js` resuelve `move`, `rotate`, `delete`, `replace_content` y `replace_by_repeat`. Cualquier fuente válida (`user`, `engine`, `ctp`, `system`) bloquea cuando realmente está presente. Drag, inspector, nudge, rotación, cut/delete y sustitución consultan la política; los comandos vuelven a defenderla; y una operación múltiple con un bloqueado rechaza el conjunto completo con IDs visibles. La UI 8B solo agrega o retira `user` y preserva las otras fuentes. Repeat normal ya no crea un lock de geometría: su procedencia permanece exclusivamente en `generated_by`.
 
 ## 10. Canvas SVG
 
@@ -426,19 +454,28 @@ Existen 149 funciones `test_*` en `tests/editor_offset_v2/`, varias parametrizad
 
 ### 13.2 Node
 
-La cobertura vigente suma 51 casos Node: 33 casos previos de geometría, store, assets y Repeat, y 18 casos específicos de Fase 8A. Estos últimos cubren:
+La cobertura vigente suma 66 casos Node: 51 casos hasta Fase 8A y 15 casos
+específicos de Fase 8B. La cobertura acumulada incluye:
 
 - registro de acciones, IDs únicos, disponibilidad y conflictos de atajos;
 - normalización Ctrl/Meta/Shift, `?` y protección de inputs/roles editables;
 - parseo punto/coma, absoluto, delta, no-op y atomicidad de locks;
 - nudge de tres pasos, batching, timeout, cambio de selección, blur y otro comando;
 - integración con save, undo/redo, dirty, autosave y ayuda temporal.
+- rotación cardinal, no-op, conservación de centro/trim/bleed/source y locks;
+- duplicado, IDs, procedencia, offsets, selección y redo estable;
+- clipboard profundo, same-job, referencias y paste acumulativo;
+- cut/delete atómicos, selecciones por cara/work/asset efectivo;
+- locks de usuario mixtos y preservación de otras fuentes;
+- scopes de atajos de objeto y separación entre preview/clipboard y autosave.
 
 No hay entorno DOM unitario: renderer, interactions, assets panel y Repeat panel se prueban principalmente a través de helpers puros o Playwright.
 
 ### 13.3 Playwright
 
-La suite aislada vigente contiene cinco recorridos Playwright. Además del flujo productivo original, Fase 8A prueba un job real con PDF, work y slots Repeat para:
+La suite aislada vigente contiene seis recorridos Playwright. Además del flujo
+productivo original y la precisión 8A, Fase 8B prueba un job real con PDF, work y
+slots Repeat para:
 
 1. posición absoluta con punto/coma y reflejo en SVG;
 2. delta multiselección conservando distancias;
@@ -448,7 +485,10 @@ La suite aislada vigente contiene cinco recorridos Playwright. Además del flujo
 6. lock geométrico contra drag, inspector y nudge con feedback;
 7. ayuda `?`/Escape sin dirty ni revisión;
 8. continuidad de etiquetas visuales y output capabilities;
-9. ausencia de controles adelantados de 8B.
+9. rotación cardinal, selector, undo/redo, duplicado y persistencia;
+10. clipboard, cut/delete, selecciones básicas y locks de usuario;
+11. protección de inputs, Alt+drag, preview y cancelación con Escape;
+12. ayuda central actualizada.
 
 Continúa sin cubrir en Playwright:
 
@@ -499,9 +539,12 @@ Continúa sin cubrir en Playwright:
 | Preflight PDF profundo | No implementada | Solo estructura y campos `not_run`. |
 | Inspector editable X/Y | Implementada y probada | Absoluto para uno, delta para varios, punto/coma, Enter/Escape, no-op y locks. |
 | Nudge | Implementada y probada | `0.1/1/10 mm`, Y canónica, multiselección y autorepeat agrupado en un comando. |
-| Rotación manual/duplicar/copiar | No implementada | Reservada para 8B; sin comandos ni UI. |
-| Locks operativos base | Implementada y probada | Move/delete/content/Repeat replace atómicos; UI de lock/unlock aún pendiente. |
-| Box select/árbol/criterios | No implementada | Solo lista plana y selección múltiple directa. |
+| Rotación manual cardinal | Implementada y probada | Acción/UI/atajos, locks, undo/redo y persistencia sin alterar centro trim. |
+| Duplicar/clipboard/cut/delete | Implementada y probada | IDs nuevos, procedencia duplicate, paste acumulativo y política atómica. |
+| Locks operativos y UI de usuario | Implementada y probada | Geometry/content/delete; solo alterna `user` y preserva otras fuentes. |
+| Selección por cara/work/asset | Implementada y probada | Temporal, sobre cara activa y fuente efectiva del slot. |
+| Alt+drag duplicado | Implementada y probada | Preview temporal, un comando, Escape/blur/pointercancel sin dirty. |
+| Box select/árbol avanzado | No implementada | Solo lista plana, multiselección y criterios básicos 8B. |
 | Alinear/distribuir/snap/guías/medir | No implementada | Kernel Python tiene primitivas parciales; frontend no. |
 | Resize | No implementada | Sin handles/comando/política de artwork. |
 | Transformación interna del artwork | Bloqueada por otra fase | Contrato amplio; canvas no aplica y output bloquea. |
@@ -523,7 +566,7 @@ No se modificó ninguno de estos documentos durante la auditoría.
 
 ## 16. Deuda y riesgos prioritarios
 
-### Alta prioridad después de Fase 8A
+### Alta prioridad después de Fase 8B
 
 1. **Paridad geométrica frontend incompleta.** Bounds cardinales y área imprimible bastan para movimiento inicial, pero no para box select poligonal, overlap, snap avanzado o resize.
 2. **Dos geometrías distintas por concepto.** La UI futura debe separar slot productivo y transformación interna del artwork; mezclarlas produciría diferencias con output.
@@ -538,6 +581,13 @@ No se modificó ninguno de estos documentos durante la auditoría.
 
 ## 17. Conclusión
 
-Tras 8A, V2 dispone de posicionamiento manual exacto, un registro de acciones reutilizable, scopes seguros y batching de gestos de teclado sobre el único Store/historial. No está listo para habilitar resize, transformación interna del PDF, ocultación productiva, grupos persistentes o herramientas basadas en colisiones avanzadas sin decisiones de contrato y paridad geométrica adicionales.
+Tras 8B, V2 dispone de posicionamiento manual exacto, acciones centrales,
+rotación cardinal, duplicado, clipboard interno, selecciones básicas, locks de
+usuario y Alt+drag sobre un único Store/historial. No está listo para habilitar
+resize, transformación interna del PDF, ocultación productiva, grupos
+persistentes o herramientas basadas en colisiones avanzadas sin decisiones de
+contrato y paridad geométrica adicionales.
 
-La siguiente fase recomendada es 8B: operaciones de objeto, rotación cardinal y locks de usuario. Debe extender el registro y la política central sin editar trim/bleed libremente, transformar artwork ni conectar salida productiva.
+La siguiente fase recomendada es 8C: alineación, centrado, distribución y
+matriz. Debe reutilizar el registro y la política central sin incorporar snap,
+resize, artwork ni salida productiva.
