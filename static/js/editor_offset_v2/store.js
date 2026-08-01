@@ -65,6 +65,18 @@
         target: "selection",
         keySlotId: null,
       };
+      this.advancedSelection = {
+        marqueeMode: "contain",
+        marqueeRect: null,
+        hiddenSlotIds: new Set(),
+        previousHiddenSlotIds: null,
+        visibilityVersion: 0,
+        expandedFaceIds: new Set([this.activeFace]),
+        expandedWorkIds: new Set(this.layout.works.map((work) => work.id)),
+        knownWorkIds: new Set(this.layout.works.map((work) => work.id)),
+        treeAnchorSlotId: null,
+        cycle: null,
+      };
       this.saveState = {
         status: "clean",
         error: null,
@@ -124,6 +136,21 @@
         previewSlots: this.previewSlots,
         clipboard: this.clipboard ? clone(this.clipboard) : null,
         arrangement: { ...this.arrangement },
+        advancedSelection: {
+          marqueeMode: this.advancedSelection.marqueeMode,
+          marqueeRect: this.advancedSelection.marqueeRect
+            ? { ...this.advancedSelection.marqueeRect }
+            : null,
+          hiddenSlotIds: [...this.advancedSelection.hiddenSlotIds],
+          previousHiddenSlotIds: this.advancedSelection.previousHiddenSlotIds
+            ? [...this.advancedSelection.previousHiddenSlotIds]
+            : null,
+          visibilityVersion: this.advancedSelection.visibilityVersion,
+          expandedFaceIds: [...this.advancedSelection.expandedFaceIds],
+          expandedWorkIds: [...this.advancedSelection.expandedWorkIds],
+          treeAnchorSlotId: this.advancedSelection.treeAnchorSlotId,
+          cycle: this.advancedSelection.cycle ? clone(this.advancedSelection.cycle) : null,
+        },
         saveState: { ...this.saveState },
         assetPanel: { ...this.assetPanel },
         repeatPanel: clone(this.repeatPanel),
@@ -189,7 +216,9 @@
     }
 
     markChanged() {
+      this.syncNewTreeWorks();
       this.changeVersion += 1;
+      this.clearSelectionCycle(false);
       this.feedback = null;
       if (this.saveState.status !== "saving" && this.saveState.status !== "conflict") {
         this.saveState = { ...this.saveState, status: "dirty", error: null };
@@ -201,7 +230,10 @@
     }
 
     setSelection(ids, mode) {
-      const validIds = new Set(this.layout.slots.map((slot) => slot.id));
+      const hidden = this.advancedSelection.hiddenSlotIds;
+      const validIds = new Set(this.layout.slots
+        .filter((slot) => !hidden.has(slot.id))
+        .map((slot) => slot.id));
       const incoming = [...ids].filter((id) => validIds.has(id));
       const previous = new Set(this.selection);
       if (mode === "toggle") {
@@ -232,16 +264,36 @@
     }
 
     filterSelection() {
-      const validIds = new Set(this.layout.slots.map((slot) => slot.id));
+      const validIds = new Set(this.layout.slots
+        .filter((slot) => !this.advancedSelection.hiddenSlotIds.has(slot.id))
+        .map((slot) => slot.id));
       this.selection = new Set([...this.selection].filter((id) => validIds.has(id)));
+      const existingIds = new Set(this.layout.slots.map((slot) => slot.id));
+      this.advancedSelection.hiddenSlotIds = new Set(
+        [...this.advancedSelection.hiddenSlotIds].filter((id) => existingIds.has(id)),
+      );
+      if (this.advancedSelection.treeAnchorSlotId
+          && !existingIds.has(this.advancedSelection.treeAnchorSlotId)) {
+        this.advancedSelection.treeAnchorSlotId = null;
+      }
       this.reconcileKeySlot();
+    }
+
+    syncNewTreeWorks() {
+      const state = this.advancedSelection;
+      for (const work of this.layout.works) {
+        if (state.knownWorkIds.has(work.id)) continue;
+        state.knownWorkIds.add(work.id);
+        state.expandedWorkIds.add(work.id);
+      }
     }
 
     reconcileKeySlot() {
       const keySlotId = this.arrangement?.keySlotId;
       if (!keySlotId) return false;
       const keySlot = this.layout.slots.find((slot) => slot.id === keySlotId);
-      if (!keySlot || keySlot.face !== this.activeFace || !this.selection.has(keySlotId)) {
+      if (!keySlot || keySlot.face !== this.activeFace || !this.selection.has(keySlotId)
+          || this.advancedSelection.hiddenSlotIds.has(keySlotId)) {
         this.arrangement = { ...this.arrangement, keySlotId: null };
         return true;
       }
@@ -277,13 +329,115 @@
         return;
       }
       const slot = this.layout.slots.find((item) => item.id === slotId);
-      if (!slot || slot.face !== this.activeFace || !this.selection.has(slotId)) {
+      if (!slot || slot.face !== this.activeFace || !this.selection.has(slotId)
+          || this.advancedSelection.hiddenSlotIds.has(slotId)) {
         throw new Error("El slot clave debe pertenecer a la selección y a la cara activa.");
       }
       if (this.arrangement.keySlotId !== slotId) {
         this.arrangement = { ...this.arrangement, keySlotId: slotId };
         this.emit("arrangement");
       }
+    }
+
+    setMarqueeMode(mode) {
+      if (!["contain", "intersect"].includes(mode)) {
+        throw new Error(`Unknown marquee mode: ${mode}`);
+      }
+      if (this.advancedSelection.marqueeMode !== mode) {
+        this.advancedSelection.marqueeMode = mode;
+        this.clearSelectionCycle(false);
+        this.emit("selection_ui");
+      }
+    }
+
+    setMarqueeRect(rectangle) {
+      const next = rectangle ? clone(rectangle) : null;
+      this.advancedSelection.marqueeRect = next;
+      this.emit("marquee_preview");
+    }
+
+    clearMarqueeRect(emitEvent) {
+      if (!this.advancedSelection.marqueeRect) return false;
+      this.advancedSelection.marqueeRect = null;
+      if (emitEvent !== false) this.emit("marquee_preview");
+      return true;
+    }
+
+    setSelectionCycle(cycle) {
+      this.advancedSelection.cycle = cycle ? clone(cycle) : null;
+      this.emit("selection_cycle");
+    }
+
+    clearSelectionCycle(emitEvent) {
+      if (!this.advancedSelection.cycle) return false;
+      this.advancedSelection.cycle = null;
+      if (emitEvent !== false) this.emit("selection_cycle");
+      return true;
+    }
+
+    setTreeAnchor(slotId) {
+      const valid = slotId === null || this.layout.slots.some((slot) => slot.id === slotId);
+      if (!valid) throw new Error("Unknown tree selection anchor");
+      if (this.advancedSelection.treeAnchorSlotId !== slotId) {
+        this.advancedSelection.treeAnchorSlotId = slotId;
+        this.emit("tree_state");
+      }
+    }
+
+    setTreeExpanded(kind, id, expanded) {
+      const target = kind === "face"
+        ? this.advancedSelection.expandedFaceIds
+        : kind === "work" ? this.advancedSelection.expandedWorkIds : null;
+      if (!target) throw new Error(`Unknown tree node kind: ${kind}`);
+      const before = target.has(id);
+      if (expanded) target.add(id);
+      else target.delete(id);
+      if (before !== target.has(id)) this.emit("tree_state");
+    }
+
+    isSlotHidden(slotId) {
+      return this.advancedSelection.hiddenSlotIds.has(slotId);
+    }
+
+    setHiddenSlotIds(ids, options) {
+      const validIds = new Set(this.layout.slots.map((slot) => slot.id));
+      const next = new Set([...ids].filter((id) => validIds.has(id)));
+      if (sameSet(next, this.advancedSelection.hiddenSlotIds)) return false;
+      if (options?.capturePrevious) {
+        this.advancedSelection.previousHiddenSlotIds = new Set(
+          this.advancedSelection.hiddenSlotIds,
+        );
+      }
+      this.advancedSelection.hiddenSlotIds = next;
+      this.advancedSelection.visibilityVersion += 1;
+      this.advancedSelection.cycle = null;
+      this.advancedSelection.marqueeRect = null;
+      this.selection = new Set([...this.selection].filter((id) => !next.has(id)));
+      this.reconcileKeySlot();
+      this.emit("visibility");
+      return true;
+    }
+
+    hideSlots(ids, options) {
+      const next = new Set(this.advancedSelection.hiddenSlotIds);
+      for (const id of ids || []) next.add(id);
+      return this.setHiddenSlotIds(next, options);
+    }
+
+    showSlots(ids, options) {
+      const next = new Set(this.advancedSelection.hiddenSlotIds);
+      for (const id of ids || []) next.delete(id);
+      return this.setHiddenSlotIds(next, options);
+    }
+
+    restorePreviousVisibility() {
+      const previous = this.advancedSelection.previousHiddenSlotIds;
+      if (!previous) return false;
+      const current = new Set(this.advancedSelection.hiddenSlotIds);
+      const changed = this.setHiddenSlotIds(previous, { capturePrevious: false });
+      this.advancedSelection.previousHiddenSlotIds = changed ? current : null;
+      this.emit("visibility_snapshot");
+      return changed;
     }
 
     setHover(id) {
@@ -393,6 +547,7 @@
         throw new Error("Cannot apply a server layout while local changes are pending");
       }
       this.layout = clone(canonicalLayout);
+      this.syncNewTreeWorks();
       this.revision = canonicalLayout.job.revision;
       this.savedChangeVersion = this.changeVersion;
       this.saveState = {

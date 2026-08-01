@@ -26,6 +26,26 @@
     SELECT_ALL_FACE: "selection.select_all_face",
     SELECT_SAME_WORK: "selection.select_same_work",
     SELECT_SAME_ASSET: "selection.select_same_asset",
+    SELECT_SAME_SIZE: "selection.select_same_size",
+    SELECT_SAME_ROTATION: "selection.select_same_rotation",
+    SELECT_SAME_PROVENANCE: "selection.select_same_provenance",
+    SELECT_LOCKED_GEOMETRY: "selection.select_locked_geometry",
+    SELECT_LOCKED_CONTENT: "selection.select_locked_content",
+    SELECT_LOCKED_DELETE: "selection.select_locked_delete",
+    SELECT_OUTSIDE_SHEET: "selection.select_outside_sheet",
+    SELECT_OUTSIDE_PRINTABLE: "selection.select_outside_printable",
+    SELECT_OVERLAPS: "selection.select_overlaps",
+    SELECT_GEOMETRY_ISSUES: "selection.select_geometry_issues",
+    SELECT_FACE_VISIBLE: "selection.select_face_visible",
+    SELECT_WORK_VISIBLE: "selection.select_work_visible",
+    MARQUEE_MODE_SET: "selection.marquee.mode.set",
+    CYCLE_AT_POINT: "selection.cycle_at_point",
+    VISIBILITY_HIDE_SELECTION: "visibility.hide_selection",
+    VISIBILITY_ISOLATE_SELECTION: "visibility.hide_unselected",
+    VISIBILITY_SHOW_ALL: "visibility.show_all",
+    VISIBILITY_RESTORE_PREVIOUS: "visibility.restore_previous",
+    VISIBILITY_SLOT_TOGGLE: "visibility.slot.toggle",
+    VISIBILITY_WORK_TOGGLE: "visibility.work.toggle",
     USER_LOCKS_SET: "selection.user_locks.set",
     KEY_SLOT_SET: "selection.key_slot.set",
     KEY_SLOT_CLEAR: "selection.key_slot.clear",
@@ -194,6 +214,48 @@
   }
 
   function registerEditorActions(registry) {
+    function hiddenIds(context) {
+      return context.store.advancedSelection.hiddenSlotIds;
+    }
+
+    function visibleFaceIds(context) {
+      if (context.advancedSelection) {
+        return context.advancedSelection.visibleSlots(
+          context.store.layout,
+          context.store.activeFace,
+          hiddenIds(context),
+        ).map((slot) => slot.id);
+      }
+      return context.objectOperations.selectAllFace(
+        context.store.layout,
+        context.store.activeFace,
+        hiddenIds(context),
+      );
+    }
+
+    function replaceSelection(context, ids, label) {
+      context.store.setSelection(ids, "replace");
+      context.store.setFeedback(`${label}: ${ids.length} slot(s).`);
+      return ids;
+    }
+
+    function geometryIssueIds(context, issue) {
+      const index = context.advancedSelection.geometryIssueIndex(
+        context.store.layout,
+        context.store.activeFace,
+        hiddenIds(context),
+        context.geometry,
+        context.store.arrangement.geometryReference,
+      );
+      return context.advancedSelection.selectGeometryIssues(index, issue);
+    }
+
+    function cancelVisibilityDependentSession(context) {
+      if (context.interactions?.hasPointerActivity()) context.interactions.cancelPointer();
+      context.nudgeController?.cancel();
+      context.store.clearSelectionCycle(false);
+    }
+
     function arrangementOptions(context, extra) {
       return {
         geometryReference: context.store.arrangement.geometryReference,
@@ -656,13 +718,12 @@
       description: "Selecciona todos los slots de la cara activa.",
       shortcuts: ["Mod+A"],
       help: [{ keys: "Ctrl/Cmd+A", label: "Seleccionar todos en la cara activa" }],
-      enabled: (context) => context.store.layout.slots.some(
-        (slot) => slot.face === context.store.activeFace,
-      ) && objectActionReady(context),
+      enabled: (context) => visibleFaceIds(context).length > 0 && objectActionReady(context),
       execute: (context) => {
         const ids = context.objectOperations.selectAllFace(
           context.store.layout,
           context.store.activeFace,
+          hiddenIds(context),
         );
         context.store.setSelection(ids, "replace");
         context.store.setFeedback(`${ids.length} slot(s) seleccionados en la cara activa.`);
@@ -682,6 +743,7 @@
           context.store.layout,
           selectedIds(context),
           context.store.activeFace,
+          hiddenIds(context),
         );
         context.store.setSelection(ids, "replace");
         context.store.setFeedback(`${ids.length} slot(s) del mismo work seleccionados.`);
@@ -701,10 +763,259 @@
           context.store.layout,
           selectedIds(context),
           context.store.activeFace,
+          hiddenIds(context),
         );
         context.store.setSelection(ids, "replace");
         context.store.setFeedback(`${ids.length} slot(s) del mismo asset efectivo seleccionados.`);
         return ids;
+      },
+    });
+
+    for (const [id, criterion, label] of [
+      [ACTION_IDS.SELECT_SAME_SIZE, "size", "Mismo tamaño trim"],
+      [ACTION_IDS.SELECT_SAME_ROTATION, "rotation", "Misma rotación"],
+      [ACTION_IDS.SELECT_SAME_PROVENANCE, "provenance", "Misma procedencia"],
+    ]) {
+      registry.register({
+        id,
+        label,
+        category: "selection",
+        description: `${label} en los slots visibles de la cara activa.`,
+        requiresSelection: true,
+        enabled: (context) => selectedIds(context).length > 0 && objectActionReady(context),
+        execute: (context) => replaceSelection(
+          context,
+          context.advancedSelection.selectSimilar(
+            context.store.layout,
+            selectedIds(context),
+            context.store.activeFace,
+            hiddenIds(context),
+            criterion,
+          ),
+          label,
+        ),
+      });
+    }
+
+    for (const [id, surface, label] of [
+      [ACTION_IDS.SELECT_LOCKED_GEOMETRY, "geometry", "Locks efectivos de geometría"],
+      [ACTION_IDS.SELECT_LOCKED_CONTENT, "content", "Locks efectivos de contenido"],
+      [ACTION_IDS.SELECT_LOCKED_DELETE, "delete", "Locks efectivos de eliminación"],
+    ]) {
+      registry.register({
+        id,
+        label,
+        category: "selection",
+        description: `${label}, con cualquier fuente válida.`,
+        enabled: (context) => objectActionReady(context),
+        execute: (context) => replaceSelection(
+          context,
+          context.advancedSelection.selectLocked(
+            context.store.layout,
+            context.store.activeFace,
+            hiddenIds(context),
+            surface,
+          ),
+          label,
+        ),
+      });
+    }
+
+    for (const [id, issue, label] of [
+      [ACTION_IDS.SELECT_OUTSIDE_SHEET, "outside_sheet", "Fuera del pliego"],
+      [ACTION_IDS.SELECT_OUTSIDE_PRINTABLE, "outside_printable", "Fuera del área imprimible"],
+      [ACTION_IDS.SELECT_OVERLAPS, "overlap", "Participantes de overlap"],
+      [ACTION_IDS.SELECT_GEOMETRY_ISSUES, "any", "Cualquier problema geométrico"],
+    ]) {
+      registry.register({
+        id,
+        label,
+        category: "selection",
+        description: `${label} según la geometría vigente y visible.`,
+        enabled: (context) => objectActionReady(context),
+        execute: (context) => replaceSelection(context, geometryIssueIds(context, issue), label),
+      });
+    }
+
+    registry.register({
+      id: ACTION_IDS.SELECT_FACE_VISIBLE,
+      label: "Seleccionar cara visible",
+      category: "selection",
+      description: "Selecciona los slots visibles de la cara activa.",
+      enabled: (context) => visibleFaceIds(context).length > 0 && objectActionReady(context),
+      execute: (context) => replaceSelection(context, visibleFaceIds(context), "Cara activa"),
+    });
+
+    registry.register({
+      id: ACTION_IDS.SELECT_WORK_VISIBLE,
+      label: "Seleccionar work visible",
+      category: "selection",
+      description: "Selecciona los slots visibles de un work en la cara activa.",
+      enabled: (context) => objectActionReady(context),
+      execute: (context, payload) => {
+        const workId = String(payload?.workId || "");
+        const ids = context.advancedSelection.visibleSlots(
+          context.store.layout,
+          context.store.activeFace,
+          hiddenIds(context),
+        ).filter((slot) => slot.work_id === workId).map((slot) => slot.id);
+        return replaceSelection(context, ids, `Work ${workId}`);
+      },
+    });
+
+    registry.register({
+      id: ACTION_IDS.MARQUEE_MODE_SET,
+      label: "Cambiar modo marquee",
+      category: "selection",
+      description: "Cambia entre inclusión completa e intersección sin persistirlo.",
+      enabled: (context) => objectActionReady(context),
+      execute: (context, payload) => {
+        context.store.setMarqueeMode(payload?.mode);
+        context.store.setFeedback(
+          payload?.mode === "contain" ? "Marquee: dentro completamente." : "Marquee: tocar/intersectar.",
+        );
+        return payload?.mode;
+      },
+    });
+
+    registry.register({
+      id: ACTION_IDS.CYCLE_AT_POINT,
+      label: "Ciclar objetos bajo el punto",
+      category: "selection",
+      description: "Selecciona el siguiente slot visible según el orden real de render.",
+      enabled: (context) => Boolean(context.advancedSelection && context.geometry)
+        && objectActionReady(context),
+      execute: (context, payload) => {
+        const result = context.advancedSelection.cycleAtPoint({
+          layout: context.store.layout,
+          activeFace: context.store.activeFace,
+          hiddenSlotIds: hiddenIds(context),
+          geometry: context.geometry,
+          reference: context.store.arrangement.geometryReference,
+          point: payload?.point,
+          currentSlotId: payload?.currentSlotId,
+          previousCycle: context.store.advancedSelection.cycle,
+          layoutVersion: context.store.changeVersion,
+          visibilityVersion: context.store.advancedSelection.visibilityVersion,
+        });
+        context.store.setSelectionCycle(result.cycle);
+        if (!result.selectedId) {
+          context.store.setFeedback("No hay slots visibles bajo el punto.");
+          return result;
+        }
+        context.store.setSelection([result.selectedId], payload?.additive ? "add" : "replace");
+        const ordinal = context.store.layout.slots.findIndex((slot) => slot.id === result.selectedId) + 1;
+        context.store.setFeedback(
+          `Ciclo ${result.position}/${result.total}: #${ordinal} · ${result.selectedId}.`,
+        );
+        return result;
+      },
+    });
+
+    registry.register({
+      id: ACTION_IDS.VISIBILITY_HIDE_SELECTION,
+      label: "Ocultar seleccionados",
+      category: "visibility",
+      description: "Oculta temporalmente la selección solo en vista.",
+      requiresSelection: true,
+      enabled: (context) => selectedIds(context).length > 0,
+      execute: (context) => {
+        cancelVisibilityDependentSession(context);
+        const ids = selectedIds(context);
+        context.store.hideSlots(ids, { capturePrevious: true });
+        context.store.setFeedback(`${ids.length} slot(s) ocultos solo en vista.`);
+        return ids;
+      },
+    });
+
+    registry.register({
+      id: ACTION_IDS.VISIBILITY_ISOLATE_SELECTION,
+      label: "Aislar selección",
+      category: "visibility",
+      description: "Oculta temporalmente los demás slots visibles de la cara activa.",
+      requiresSelection: true,
+      enabled: (context) => selectedIds(context).length > 0,
+      execute: (context) => {
+        cancelVisibilityDependentSession(context);
+        const selected = new Set(selectedIds(context));
+        const next = new Set(hiddenIds(context));
+        for (const slot of context.store.layout.slots) {
+          if (slot.face === context.store.activeFace && !selected.has(slot.id)) next.add(slot.id);
+        }
+        context.store.setHiddenSlotIds(next, { capturePrevious: true });
+        context.store.setFeedback(`Selección aislada: ${selected.size} slot(s) visibles.`);
+        return [...selected];
+      },
+    });
+
+    registry.register({
+      id: ACTION_IDS.VISIBILITY_SHOW_ALL,
+      label: "Mostrar todos",
+      category: "visibility",
+      description: "Muestra todos los slots de la cara activa.",
+      enabled: (context) => context.store.layout.slots.some(
+        (slot) => slot.face === context.store.activeFace && hiddenIds(context).has(slot.id),
+      ),
+      execute: (context) => {
+        cancelVisibilityDependentSession(context);
+        const next = new Set(hiddenIds(context));
+        for (const slot of context.store.layout.slots) {
+          if (slot.face === context.store.activeFace) next.delete(slot.id);
+        }
+        context.store.setHiddenSlotIds(next, { capturePrevious: true });
+        context.store.setFeedback("Todos los slots de la cara activa están visibles.");
+        return true;
+      },
+    });
+
+    registry.register({
+      id: ACTION_IDS.VISIBILITY_RESTORE_PREVIOUS,
+      label: "Restaurar visibilidad anterior",
+      category: "visibility",
+      description: "Restaura la única instantánea temporal de visibilidad.",
+      enabled: (context) => Boolean(context.store.advancedSelection.previousHiddenSlotIds),
+      execute: (context) => {
+        cancelVisibilityDependentSession(context);
+        const changed = context.store.restorePreviousVisibility();
+        context.store.setFeedback(changed ? "Visibilidad anterior restaurada." : "No hay visibilidad anterior distinta.");
+        return changed;
+      },
+    });
+
+    registry.register({
+      id: ACTION_IDS.VISIBILITY_SLOT_TOGGLE,
+      label: "Alternar visibilidad de slot",
+      category: "visibility",
+      description: "Muestra u oculta temporalmente un slot desde el árbol.",
+      enabled: (context) => Boolean(context.store.layout.slots.length),
+      execute: (context, payload) => {
+        cancelVisibilityDependentSession(context);
+        const slotId = String(payload?.slotId || "");
+        const hidden = hiddenIds(context).has(slotId);
+        if (hidden) context.store.showSlots([slotId]);
+        else context.store.hideSlots([slotId]);
+        context.store.setFeedback(`Slot ${slotId} ${hidden ? "visible" : "oculto solo en vista"}.`);
+        return !hidden;
+      },
+    });
+
+    registry.register({
+      id: ACTION_IDS.VISIBILITY_WORK_TOGGLE,
+      label: "Alternar visibilidad de work",
+      category: "visibility",
+      description: "Deriva y alterna la visibilidad temporal de un work.",
+      enabled: (context) => Boolean(context.store.layout.slots.length),
+      execute: (context, payload) => {
+        cancelVisibilityDependentSession(context);
+        const workId = String(payload?.workId || "");
+        const ids = context.store.layout.slots
+          .filter((slot) => slot.face === context.store.activeFace && slot.work_id === workId)
+          .map((slot) => slot.id);
+        const allHidden = ids.length > 0 && ids.every((id) => hiddenIds(context).has(id));
+        if (allHidden) context.store.showSlots(ids, { capturePrevious: true });
+        else context.store.hideSlots(ids, { capturePrevious: true });
+        context.store.setFeedback(`Work ${workId}: ${allHidden ? "visible" : "oculto solo en vista"}.`);
+        return !allHidden;
       },
     });
 

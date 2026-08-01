@@ -293,6 +293,61 @@
         </form>
         <p id="ev2-arrangement-feedback" class="ev2-arrangement-feedback" role="status" aria-live="polite">Estado temporal: no modifica el layout.</p>
       </section>
+      <section class="ev2-advanced-selection-panel" aria-labelledby="ev2-advanced-selection-heading">
+        <div class="ev2-advanced-selection-heading">
+          <h2 id="ev2-advanced-selection-heading">Objetos y selección</h2>
+          <span>Solo vista</span>
+        </div>
+        <fieldset>
+          <legend>Marquee</legend>
+          <label for="ev2-marquee-mode">Criterio geométrico</label>
+          <select id="ev2-marquee-mode">
+            <option value="contain">Dentro completamente</option>
+            <option value="intersect">Tocar/intersectar</option>
+          </select>
+          <p>Arrastra desde fondo vacío. Shift agrega · Ctrl/Cmd alterna · Alt retira.</p>
+        </fieldset>
+        <fieldset>
+          <legend>Seleccionar similares</legend>
+          <div class="ev2-advanced-action-grid">
+            <button type="button" data-selection-action="selection.select_same_work" disabled>Mismo work</button>
+            <button type="button" data-selection-action="selection.select_same_asset" disabled>Mismo asset</button>
+            <button type="button" data-selection-action="selection.select_same_size" disabled>Mismo trim</button>
+            <button type="button" data-selection-action="selection.select_same_rotation" disabled>Misma rotación</button>
+            <button type="button" data-selection-action="selection.select_same_provenance" disabled>Misma procedencia</button>
+          </div>
+        </fieldset>
+        <fieldset>
+          <legend>Seleccionar por estado</legend>
+          <div class="ev2-advanced-action-grid">
+            <button type="button" data-selection-action="selection.select_locked_geometry" disabled>Lock geometría</button>
+            <button type="button" data-selection-action="selection.select_locked_content" disabled>Lock contenido</button>
+            <button type="button" data-selection-action="selection.select_locked_delete" disabled>Lock eliminación</button>
+            <button type="button" data-selection-action="selection.select_outside_sheet" disabled>Fuera del pliego</button>
+            <button type="button" data-selection-action="selection.select_outside_printable" disabled>Fuera imprimible</button>
+            <button type="button" data-selection-action="selection.select_overlaps" disabled>Overlaps</button>
+            <button type="button" data-selection-action="selection.select_geometry_issues" disabled>Cualquier problema</button>
+          </div>
+        </fieldset>
+        <fieldset>
+          <legend>Visibilidad temporal</legend>
+          <div class="ev2-advanced-action-grid">
+            <button id="ev2-visibility-hide-selection" type="button" disabled>Ocultar selección</button>
+            <button id="ev2-visibility-isolate-selection" type="button" disabled>Aislar selección</button>
+            <button id="ev2-visibility-show-all" type="button" disabled>Mostrar todos</button>
+            <button id="ev2-visibility-restore" type="button" disabled>Restaurar anterior</button>
+          </div>
+          <p id="ev2-visibility-count" role="status" aria-live="polite">0 visibles · 0 ocultos.</p>
+        </fieldset>
+        <div
+          id="ev2-object-tree"
+          class="ev2-object-tree"
+          role="tree"
+          aria-label="Árbol de objetos por cara, work y slot"
+          data-editor-captures-keyboard="true"
+        ></div>
+        <p id="ev2-advanced-selection-feedback" class="ev2-advanced-selection-feedback" role="status" aria-live="polite">Selección y visibilidad son temporales; la salida no cambia.</p>
+      </section>
       <dl class="ev2-inspector-list" id="ev2-inspector-values">
         <div><dt>Selección</dt><dd>Ninguna</dd></div>
       </dl>
@@ -399,6 +454,8 @@
   <script src="{{ url_for('static', filename='js/editor_offset_v2/nudge_controller.js') }}" defer></script>
   <script src="{{ url_for('static', filename='js/editor_offset_v2/object_operations.js') }}" defer></script>
   <script src="{{ url_for('static', filename='js/editor_offset_v2/alignment_operations.js') }}" defer></script>
+  <script src="{{ url_for('static', filename='js/editor_offset_v2/advanced_selection.js') }}" defer></script>
+  <script src="{{ url_for('static', filename='js/editor_offset_v2/object_tree.js') }}" defer></script>
   <script src="{{ url_for('static', filename='js/editor_offset_v2/command_registry.js') }}" defer></script>
   <script src="{{ url_for('static', filename='js/editor_offset_v2/shortcut_manager.js') }}" defer></script>
   <script src="{{ url_for('static', filename='js/editor_offset_v2/source_semantics.js') }}" defer></script>

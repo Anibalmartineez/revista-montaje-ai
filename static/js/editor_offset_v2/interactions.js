@@ -36,8 +36,13 @@
       this.commands = commands;
       this.editPolicy = editPolicy;
       this.gestureLifecycle = gestureLifecycle || {};
+      this.advancedSelection = this.gestureLifecycle.advancedSelection || null;
+      this.actionIds = this.gestureLifecycle.actionIds || null;
+      this.runAction = this.gestureLifecycle.runAction || null;
       this.spacePressed = false;
       this.panSession = null;
+      this.marqueeFrame = null;
+      this.pendingMarqueeRect = null;
       this.bound = {
         pointerDown: (event) => this.onPointerDown(event),
         pointerMove: (event) => this.onPointerMove(event),
@@ -82,12 +87,40 @@
       }
       const slotId = slotIdFromTarget(event.target);
       if (!slotId) {
-        this.store.clearSelection();
+        if (!this.advancedSelection) {
+          this.store.clearSelection();
+          return;
+        }
+        const point = this.domainPoint(event);
+        if (!point) return;
+        event.preventDefault();
+        this.store.beginPointerSession({
+          type: "marquee",
+          pointerId: event.pointerId,
+          startMm: point,
+          startClient: { x: event.clientX, y: event.clientY },
+          selectionBefore: [...this.store.selection],
+          selectionMode: this.advancedSelection.selectionModeFromModifiers(event, false),
+          marqueeMode: this.store.advancedSelection.marqueeMode,
+          geometryReference: this.store.arrangement.geometryReference,
+          candidates: this.advancedSelection.captureMarqueeCandidates(
+            this.store.layout,
+            this.store.activeFace,
+            this.store.advancedSelection.hiddenSlotIds,
+            this.geometry,
+            this.store.arrangement.geometryReference,
+          ),
+          thresholdExceeded: false,
+        });
+        this.refs.canvas.setPointerCapture(event.pointerId);
+        this.refs.canvas.classList.add("is-marquee-selecting");
         return;
       }
       event.preventDefault();
       const modified = event.shiftKey || event.ctrlKey || event.metaKey;
-      if (modified) {
+      if (event.altKey && event.shiftKey) {
+        if (!this.store.selection.has(slotId)) this.store.setSelection([slotId], "add");
+      } else if (modified) {
         this.store.setSelection([slotId], "toggle");
       } else if (!this.store.selection.has(slotId)) {
         this.store.setSelection([slotId], "replace");
@@ -130,9 +163,12 @@
         type: duplicateMove ? "duplicate_move" : "move",
         pointerId: event.pointerId,
         startMm: point,
+        startClient: { x: event.clientX, y: event.clientY },
         beforePositions,
         selectionBefore,
         previewSlots,
+        targetSlotId: slotId,
+        cycleAdditive: Boolean(event.shiftKey),
       });
       this.refs.canvas.setPointerCapture(event.pointerId);
       this.refs.canvas.classList.add(
@@ -143,6 +179,11 @@
     onPointerMove(event) {
       const point = this.domainPoint(event);
       this.store.setCursor(point);
+      const cyclePoint = this.store.advancedSelection?.cycle?.point;
+      if (point && cyclePoint && Math.hypot(point.x - cyclePoint.x, point.y - cyclePoint.y)
+          > (this.advancedSelection?.CYCLE_POINT_TOLERANCE_MM || 0.75)) {
+        this.store.clearSelectionCycle();
+      }
       if (this.panSession && this.panSession.pointerId === event.pointerId) {
         const rect = this.refs.canvas.getBoundingClientRect();
         if (!rect.width || !rect.height) {
@@ -161,6 +202,18 @@
       }
       const session = this.store.pointerSession;
       if (!session || session.pointerId !== event.pointerId || !point) {
+        return;
+      }
+      if (session.type === "marquee") {
+        const distance = Math.hypot(
+          event.clientX - session.startClient.x,
+          event.clientY - session.startClient.y,
+        );
+        if (distance < this.advancedSelection.MARQUEE_DRAG_THRESHOLD_PX) return;
+        session.thresholdExceeded = true;
+        this.scheduleMarqueeRect(
+          this.advancedSelection.rectangleFromPoints(session.startMm, point),
+        );
         return;
       }
       const dx = point.x - session.startMm.x;
@@ -203,6 +256,42 @@
       if (!session || session.pointerId !== event.pointerId) {
         return;
       }
+      if (session.type === "marquee") {
+        const point = this.domainPoint(event);
+        const distance = Math.hypot(
+          event.clientX - session.startClient.x,
+          event.clientY - session.startClient.y,
+        );
+        const dragged = Boolean(point)
+          && distance >= this.advancedSelection.MARQUEE_DRAG_THRESHOLD_PX;
+        const rectangle = dragged
+          ? this.advancedSelection.rectangleFromPoints(session.startMm, point)
+          : null;
+        this.cancelMarqueeFrame();
+        this.store.clearMarqueeRect(false);
+        this.store.endPointerSession();
+        this.refs.canvas.classList.remove("is-marquee-selecting");
+        this.releasePointer(event.pointerId);
+        if (rectangle) {
+          const matched = this.advancedSelection.matchingMarqueeIds(
+            session.candidates,
+            rectangle,
+            session.marqueeMode,
+          );
+          const finalIds = this.advancedSelection.applySelectionMode(
+            session.selectionBefore,
+            matched,
+            session.selectionMode,
+          );
+          this.store.setSelection(finalIds, "replace");
+          this.store.setFeedback(
+            `Marquee ${session.marqueeMode === "contain" ? "dentro completamente" : "tocar/intersectar"}: ${matched.length} coincidencia(s), ${finalIds.length} seleccionada(s).`,
+          );
+        } else if (session.selectionMode === "replace") {
+          this.store.clearSelection();
+        }
+        return;
+      }
       const afterPositions = session.type === "duplicate_move"
         ? Object.fromEntries(this.store.previewSlots.map((slot) => [
           slot.id,
@@ -212,12 +301,18 @@
           },
         ]))
         : { ...this.store.previewPositions };
-      const moved = Object.keys(afterPositions).some((slotId) => {
+      const movedGeometry = Object.keys(afterPositions).some((slotId) => {
         const before = session.beforePositions[slotId];
         const after = afterPositions[slotId];
         return before && after
           && (before.x_mm !== after.x_mm || before.y_mm !== after.y_mm);
       });
+      const moved = session.type === "duplicate_move"
+        ? movedGeometry && Math.hypot(
+          event.clientX - session.startClient.x,
+          event.clientY - session.startClient.y,
+        ) >= (this.advancedSelection?.MARQUEE_DRAG_THRESHOLD_PX || 4)
+        : movedGeometry;
       const preparedSlots = session.type === "duplicate_move"
         ? structuredClone(this.store.previewSlots)
         : null;
@@ -244,7 +339,39 @@
         } catch (error) {
           this.store.setFeedback(error.message);
         }
+      } else if (session.type === "duplicate_move" && this.runAction && this.actionIds) {
+        const point = this.domainPoint(event) || session.startMm;
+        this.runAction(this.actionIds.CYCLE_AT_POINT, {
+          point,
+          currentSlotId: session.targetSlotId,
+          additive: session.cycleAdditive,
+        });
       }
+    }
+
+    scheduleMarqueeRect(rectangle) {
+      this.pendingMarqueeRect = rectangle;
+      if (this.marqueeFrame !== null) return;
+      const requestFrame = typeof requestAnimationFrame === "function"
+        ? requestAnimationFrame
+        : (callback) => setTimeout(callback, 0);
+      this.marqueeFrame = requestFrame(() => {
+        this.marqueeFrame = null;
+        const next = this.pendingMarqueeRect;
+        this.pendingMarqueeRect = null;
+        if (next && this.store.pointerSession?.type === "marquee") {
+          this.store.setMarqueeRect(next);
+        }
+      });
+    }
+
+    cancelMarqueeFrame() {
+      if (this.marqueeFrame !== null) {
+        if (typeof cancelAnimationFrame === "function") cancelAnimationFrame(this.marqueeFrame);
+        else clearTimeout(this.marqueeFrame);
+      }
+      this.marqueeFrame = null;
+      this.pendingMarqueeRect = null;
     }
 
     cancelPointer(event) {
@@ -257,10 +384,15 @@
       if (this.store.pointerSession) {
         capturedPointerIds.push(this.store.pointerSession.pointerId);
         const cancelledDuplicate = this.store.pointerSession.type === "duplicate_move";
+        const cancelledMarquee = this.store.pointerSession.type === "marquee";
+        this.cancelMarqueeFrame();
+        this.store.clearMarqueeRect(false);
         this.store.endPointerSession();
-        this.refs.canvas.classList.remove("is-dragging", "is-duplicating");
+        this.refs.canvas.classList.remove("is-dragging", "is-duplicating", "is-marquee-selecting");
         if (cancelledDuplicate) {
           this.store.setFeedback("Duplicación por Alt+drag cancelada.");
+        } else if (cancelledMarquee) {
+          this.store.setFeedback("Selección rectangular cancelada.");
         }
       }
       if (event && event.pointerId !== undefined) {
@@ -306,6 +438,7 @@
     }
 
     dispose() {
+      this.cancelMarqueeFrame();
       this.refs.canvas.removeEventListener("pointerdown", this.bound.pointerDown);
       this.refs.canvas.removeEventListener("pointermove", this.bound.pointerMove);
       this.refs.canvas.removeEventListener("pointerup", this.bound.pointerUp);

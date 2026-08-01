@@ -110,21 +110,29 @@
     };
   }
 
-  function selectAllFace(layout, activeFace) {
-    return layout.slots.filter((slot) => slot.face === activeFace).map((slot) => slot.id);
+  function visibleSlot(slot, activeFace, hiddenSlotIds) {
+    const hidden = hiddenSlotIds instanceof Set ? hiddenSlotIds : new Set(hiddenSlotIds || []);
+    return slot.face === activeFace && !hidden.has(slot.id);
   }
 
-  function selectSameWork(layout, selectedIds, activeFace) {
+  function selectAllFace(layout, activeFace, hiddenSlotIds) {
+    return layout.slots
+      .filter((slot) => visibleSlot(slot, activeFace, hiddenSlotIds))
+      .map((slot) => slot.id);
+  }
+
+  function selectSameWork(layout, selectedIds, activeFace, hiddenSlotIds) {
     const requested = new Set(selectedIds || []);
     const workIds = new Set(
       layout.slots.filter((slot) => requested.has(slot.id)).map((slot) => slot.work_id),
     );
     return layout.slots
-      .filter((slot) => slot.face === activeFace && workIds.has(slot.work_id))
+      .filter((slot) => visibleSlot(slot, activeFace, hiddenSlotIds)
+        && workIds.has(slot.work_id))
       .map((slot) => slot.id);
   }
 
-  function selectSameAsset(layout, selectedIds, activeFace) {
+  function selectSameAsset(layout, selectedIds, activeFace, hiddenSlotIds) {
     const requested = new Set(selectedIds || []);
     const assetIds = new Set(
       layout.slots
@@ -132,7 +140,8 @@
         .map((slot) => slot.source.asset_id),
     );
     return layout.slots
-      .filter((slot) => slot.face === activeFace && assetIds.has(slot.source.asset_id))
+      .filter((slot) => visibleSlot(slot, activeFace, hiddenSlotIds)
+        && assetIds.has(slot.source.asset_id))
       .map((slot) => slot.id);
   }
 
@@ -179,5 +188,6 @@
     sourceExists,
     userLockState,
     validateClipboard,
+    visibleSlot,
   });
 });

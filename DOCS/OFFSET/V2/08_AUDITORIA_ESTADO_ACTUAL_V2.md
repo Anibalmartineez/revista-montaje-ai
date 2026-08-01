@@ -84,13 +84,29 @@ La Fase 8C está implementada y validada. Su contrato operativo se documenta en
 - acciones 8C sobre comandos, locks, undo/redo, dirty y autosave existentes;
 - panel accesible y cobertura Node/Playwright sin cambios de backend/schema.
 
+### 1.5 Actualización operativa — Fase 8D
+
+La Fase 8D está implementada y validada. Su contrato operativo se documenta en
+`16_SELECCION_AVANZADA_Y_ARBOL_V2.md`:
+
+- marquee por inclusión o intersección con referencia trim/footprint;
+- Shift agrega, Ctrl/Cmd alterna y Alt desde fondo sustrae;
+- Alt+click cicla superpuestos en orden visual sin interferir con Alt+drag;
+- selección por propiedades, locks e issues geométricos actuales;
+- árbol accesible cara/work/slot sincronizado con la selección canónica;
+- rango limitado al work, expansión temporal y teclado de árbol;
+- ocultar, aislar, mostrar, restaurar y visibilidad derivada por work;
+- ocultos fuera de canvas, hit testing y selección, pero presentes en layout y árbol;
+- todo el estado 8D queda fuera de dirty, historial, autosave y revisión;
+- cobertura acumulada de 85 casos Node y ocho recorridos Playwright.
+
 ## 2. Resumen ejecutivo
 
 Editor V2 ya es una aplicación aislada y accesible, no un prototipo documental. Puede crear y abrir jobs, persistir Layout V2 con control de revisión, subir PDFs, inspeccionar páginas y cajas, generar miniaturas, crear works y slots reales, mover y seleccionar slots en SVG, deshacer/rehacer, guardar automáticamente y calcular/aplicar Repeat como una operación reversible.
 
 La base más estable está en Python: contrato estricto, persistencia atómica, almacenamiento seguro de assets, kernel geométrico puro y adaptadores aislados. La base frontend también está modularizada, pero continúa en JavaScript estándar con un kernel de vista reducido y duplicado. Esa duplicación está caracterizada para bounds cardinales mediante fixtures compartidos, no para toda la API geométrica Python.
 
-La Fase 8P resolvió las contradicciones de locks, procedencia, fuentes, historial y estado visible; Fase 8A añadió precisión manual y una frontera central de acciones/atajos; Fase 8B completó las operaciones cardinales de objeto, clipboard interno, selecciones básicas y locks de usuario sin cambiar contrato ni backend. Permanecen como deudas para fases posteriores:
+La Fase 8P resolvió las contradicciones de locks, procedencia, fuentes, historial y estado visible; 8A añadió precisión manual y una frontera central de acciones/atajos; 8B completó las operaciones cardinales de objeto, clipboard interno, selecciones básicas y locks de usuario; 8C incorporó alineación, distribución, gap y matriz; 8D añadió selección espacial, árbol jerárquico y visibilidad temporal sin cambiar contrato ni backend. Permanecen como deudas para fases posteriores:
 
 1. `activeFace`, `activeTool` y `hoverId` existen en el store, pero no tienen flujo funcional completo;
 2. el artwork SVG no aplica `content_transform`: representa una miniatura completa con `meet` y clip trim, ahora advertida explícitamente como aproximada;
@@ -274,6 +290,8 @@ El frontend usa módulos JavaScript estándar cargados como scripts diferidos ba
 | `objects_panel.js` | UI accesible de rotación, clipboard, selección y locks de usuario. |
 | `alignment_operations.js` | Planes puros de bounds, alineación, distribución, gap y matriz. |
 | `arrangement_panel.js` | UI accesible y borradores temporales de la Fase 8C. |
+| `advanced_selection.js` | Marquee, hit testing, ciclo, similitud, locks e issues actuales. |
+| `object_tree.js` | Árbol accesible cara/work/slot, rango y visibilidad derivada. |
 | `command_registry.js` | Frontera central de acciones, disponibilidad, atajos y ayuda. |
 | `shortcut_manager.js` | Normalización y scopes de teclado; no contiene rutas paralelas de mutación. |
 | `dom_refs.js` | Resolución estricta de elementos del shell. |
@@ -297,6 +315,8 @@ Permanece fuera del layout:
 - estado de guardado;
 - selección/estado del panel de assets;
 - propuesta/estado Repeat;
+- modo/preview de marquee, ciclo y ancla de rango;
+- expansión de cara/work y `hiddenSlotIds` con su instantánea anterior;
 - undo/redo y contadores de cambio.
 
 `activeFace` se inicializa con la primera cara habilitada, pero no existe setter ni navegación de cara en el shell. `activeTool` queda en `select`; el botón de selección no tiene comportamiento de cambio de herramienta. `hoverId` y `setHover()` no se conectan a interacciones o renderer. Son estados latentes.
@@ -470,8 +490,8 @@ Existen 149 funciones `test_*` en `tests/editor_offset_v2/`, varias parametrizad
 
 ### 13.2 Node
 
-La cobertura vigente suma 75 casos Node: 66 casos hasta Fase 8B y 9 casos
-específicos de Fase 8C. La cobertura acumulada incluye:
+La cobertura vigente suma 85 casos Node: 66 casos hasta Fase 8B, 9 casos
+específicos de Fase 8C y 10 casos amplios de Fase 8D. La cobertura acumulada incluye:
 
 - registro de acciones, IDs únicos, disponibilidad y conflictos de atajos;
 - normalización Ctrl/Meta/Shift, `?` y protección de inputs/roles editables;
@@ -486,12 +506,14 @@ específicos de Fase 8C. La cobertura acumulada incluye:
 - scopes de atajos de objeto y separación entre preview/clipboard y autosave.
 - trim/footprint cardinal, clave temporal, cuatro destinos, seis alineaciones,
   centrado, distribución, gap exacto, matriz, locks, no-op e IDs estables.
+- estado temporal 8D, marquee/modificadores, ciclo, propiedades, locks, issues,
+  árbol/rango, visibilidad y un conjunto determinista de 500 slots.
 
 No hay entorno DOM unitario: renderer, interactions, assets panel y Repeat panel se prueban principalmente a través de helpers puros o Playwright.
 
 ### 13.3 Playwright
 
-La suite aislada vigente contiene siete recorridos Playwright. Además del flujo
+La suite aislada vigente contiene ocho recorridos Playwright. Además del flujo
 productivo original y la precisión 8A, Fase 8B prueba un job real con PDF, work y
 slots Repeat para:
 
@@ -509,6 +531,8 @@ slots Repeat para:
 12. ayuda central actualizada.
 13. flujo real 8C con PDF/Repeat, clave, pliego/imprimible, distribución, gaps,
     lock atómico, matriz 2×3, persistencia y continuidad 8B.
+14. flujo real 8D con marquee, pan/drag/Alt+drag, ciclo, filtros, árbol/teclado,
+    slot clave, visibilidad temporal, guardado/recarga y continuidad 8B/8C.
 
 Continúa sin cubrir en Playwright:
 
@@ -565,7 +589,9 @@ Continúa sin cubrir en Playwright:
 | Selección por cara/work/asset | Implementada y probada | Temporal, sobre cara activa y fuente efectiva del slot. |
 | Alt+drag duplicado | Implementada y probada | Preview temporal, un comando, Escape/blur/pointercancel sin dirty. |
 | Alinear/centrar/distribuir/gap/matriz | Implementada y probada | Trim/footprint, clave/pliego/imprimible, locks, comandos atómicos y Playwright real. |
-| Box select/árbol avanzado | No implementada | Solo lista plana, multiselección y criterios básicos 8B. |
+| Marquee/ciclo/selección avanzada | Implementada y probada | Inclusión/intersección, modificadores, trim/footprint, orden visual y filtros actuales. |
+| Árbol cara/work/slot | Implementada y probada | Selección canónica, rango por work, ARIA, teclado y sin reorder. |
+| Visibilidad temporal | Implementada y probada | Ocultar/aislar/mostrar/restaurar; no persiste ni activa dirty/autosave. |
 | Snap/guías/reglas/medición | No implementada | Corresponde a 8E; 8C no anticipa estas ayudas. |
 | Resize | No implementada | Sin handles/comando/política de artwork. |
 | Transformación interna del artwork | Bloqueada por otra fase | Contrato amplio; canvas no aplica y output bloquea. |
@@ -587,29 +613,31 @@ No se modificó ninguno de estos documentos durante la auditoría.
 
 ## 16. Deuda y riesgos prioritarios
 
-### Alta prioridad después de Fase 8C
+### Alta prioridad después de Fase 8D
 
-1. **Paridad geométrica frontend incompleta.** Bounds cardinales y área imprimible bastan para movimiento inicial, pero no para box select poligonal, overlap, snap avanzado o resize.
+1. **Paridad geométrica frontend incompleta.** Bounds cardinales y área imprimible bastan para 8D, pero overlap poligonal/SAT, snap avanzado y resize requieren ampliar la paridad.
 2. **Dos geometrías distintas por concepto.** La UI futura debe separar slot productivo y transformación interna del artwork; mezclarlas produciría diferencias con output.
 3. **Salida productiva desconectada.** El diagnóstico informa compatibilidad, pero no debe confundirse con preview/PDF ni ejecutar el puente legacy.
 
 ### Prioridad media
 
 4. No hay navegación activa frente/dorso; la UI bloquea back para evitar objetos invisibles.
-5. El tree actual es una lista plana de slots de la cara activa.
-6. Pan no tiene prueba de precisión y su cálculo por píxel no deriva directamente del viewBox real.
+5. El diagnóstico de overlaps 8D es cuadrático sobre slots visibles y usa bounds cardinales.
+6. Pan ya tiene continuidad Playwright en 8D, pero su cálculo por píxel no deriva directamente del viewBox real.
 7. Preflight profundo, corrección PDF y motor de salida nativo siguen pendientes.
 
 ## 17. Conclusión
 
-Tras 8C, V2 dispone de posicionamiento manual exacto, acciones centrales,
+Tras 8D, V2 dispone de posicionamiento manual exacto, acciones centrales,
 rotación cardinal, duplicado, clipboard interno, selecciones básicas, locks de
 usuario, Alt+drag, alineación, distribución, gap exacto y matriz sobre un único
-Store/historial. No está listo para habilitar
-resize, transformación interna del PDF, ocultación productiva, grupos
+Store/historial, más marquee, ciclo, selección por propiedades, árbol accesible
+y visibilidad temporal. No está listo para habilitar resize, transformación
+interna del PDF, ocultación productiva, grupos
 persistentes o herramientas basadas en colisiones avanzadas sin decisiones de
 contrato y paridad geométrica adicionales.
 
-La siguiente fase recomendada es 8D: selección avanzada y árbol de objetos.
-Debe reutilizar el registro y la política central sin incorporar snap, resize,
-artwork ni salida productiva.
+La siguiente fase recomendada es 8E: reglas, guías, snap y medición. Debe
+reutilizar selección, referencia geométrica, visibilidad y sesiones de puntero,
+completando la paridad necesaria sin incorporar resize, artwork ni salida
+productiva.

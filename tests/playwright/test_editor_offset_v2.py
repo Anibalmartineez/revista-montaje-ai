@@ -1259,3 +1259,350 @@ def test_v2_alignment_distribution_gap_matrix_and_persistence(v2_server, tmp_pat
             assert not page_errors
         finally:
             browser.close()
+
+
+def test_v2_advanced_selection_tree_and_temporary_visibility(v2_server, tmp_path):
+    pdf_path = tmp_path / "fase-8d.pdf"
+    _write_test_pdf(pdf_path)
+
+    with sync_playwright() as playwright:
+        browser = playwright.chromium.launch(headless=True)
+        page = browser.new_page(viewport={"width": 1680, "height": 1050})
+        console_errors: list[str] = []
+        page_errors: list[str] = []
+        page.on(
+            "console",
+            lambda message: console_errors.append(message.text)
+            if message.type == "error" and "favicon" not in message.text.lower()
+            else None,
+        )
+        page.on("pageerror", lambda error: page_errors.append(str(error)))
+
+        def domain_to_client(point: dict[str, float]) -> dict[str, float]:
+            return page.evaluate(
+                """point => {
+                  const app = window.__EDITOR_OFFSET_V2__;
+                  const svg = app.renderer.refs.canvas;
+                  const svgPoint = svg.createSVGPoint();
+                  svgPoint.x = point.x;
+                  svgPoint.y = app.store.layout.sheet.size_mm.height - point.y;
+                  const client = svgPoint.matrixTransform(svg.getScreenCTM());
+                  return {x: client.x, y: client.y};
+                }""",
+                point,
+            )
+
+        def drag_domain(
+            start: dict[str, float],
+            end: dict[str, float],
+            modifier: str | None = None,
+        ) -> None:
+            start_client = domain_to_client(start)
+            end_client = domain_to_client(end)
+            if modifier:
+                page.keyboard.down(modifier)
+            page.mouse.move(start_client["x"], start_client["y"])
+            page.mouse.down()
+            page.mouse.move(end_client["x"], end_client["y"], steps=4)
+            page.mouse.up()
+            if modifier:
+                page.keyboard.up(modifier)
+
+        try:
+            _open_job_with_repeat(page, v2_server, pdf_path, quantity=8)
+            expect(page.locator("#ev2-advanced-selection-heading")).to_be_visible()
+            expect(page.locator("#ev2-object-tree")).to_have_attribute("role", "tree")
+            expect(page.locator("#ev2-marquee-mode")).to_have_value("contain")
+
+            initial = page.evaluate(
+                """() => {
+                  const app = window.__EDITOR_OFFSET_V2__;
+                  return {
+                    layout: JSON.stringify(app.store.layout),
+                    revision: app.store.revision,
+                    changeVersion: app.store.changeVersion,
+                    undo: app.store.undoStack.length,
+                    ids: app.store.layout.slots.map(slot => slot.id),
+                    bounds: app.store.layout.slots.map(slot => window.EditorOffsetV2.GeometryView.trimBounds(slot)),
+                  };
+                }"""
+            )
+            first_id, second_id, third_id = initial["ids"][:3]
+            first_bounds, second_bounds = initial["bounds"][:2]
+
+            drag_domain(
+                {"x": first_bounds["left"] - 1, "y": first_bounds["bottom"] - 1},
+                {"x": first_bounds["right"] + 1, "y": first_bounds["top"] + 1},
+            )
+            assert page.evaluate("() => [...window.__EDITOR_OFFSET_V2__.store.selection]") == [first_id]
+
+            page.locator("#ev2-marquee-mode").select_option("intersect")
+            drag_domain(
+                {"x": first_bounds["left"] - 1, "y": first_bounds["bottom"] - 1},
+                {"x": second_bounds["right"] + 1, "y": second_bounds["top"] + 1},
+                "Shift",
+            )
+            shift_selection = page.evaluate(
+                """() => ({
+                  ids: [...window.__EDITOR_OFFSET_V2__.store.selection],
+                  feedback: window.__EDITOR_OFFSET_V2__.store.feedback,
+                  pointer: window.__EDITOR_OFFSET_V2__.store.pointerSession,
+                })"""
+            )
+            assert {
+                first_id,
+                second_id,
+            }.issubset(set(shift_selection["ids"])), shift_selection
+            drag_domain(
+                {"x": first_bounds["left"] - 1, "y": first_bounds["bottom"] - 1},
+                {"x": second_bounds["right"] + 1, "y": second_bounds["top"] + 1},
+                "Control",
+            )
+            toggled = set(page.evaluate("() => [...window.__EDITOR_OFFSET_V2__.store.selection]"))
+            assert first_id not in toggled and second_id not in toggled
+            page.evaluate(
+                "ids => window.__EDITOR_OFFSET_V2__.store.setSelection(ids, 'replace')",
+                [first_id, second_id],
+            )
+            drag_domain(
+                {"x": first_bounds["left"] - 1, "y": first_bounds["bottom"] - 1},
+                {"x": second_bounds["right"] + 1, "y": second_bounds["top"] + 1},
+                "Alt",
+            )
+            assert page.evaluate("() => window.__EDITOR_OFFSET_V2__.store.selection.size") == 0
+
+            start_client = domain_to_client({"x": first_bounds["left"] - 4, "y": first_bounds["bottom"] - 4})
+            end_client = domain_to_client({"x": first_bounds["right"] + 4, "y": first_bounds["top"] + 4})
+            page.mouse.move(start_client["x"], start_client["y"])
+            page.mouse.down()
+            page.mouse.move(end_client["x"], end_client["y"], steps=3)
+            expect(page.locator("[data-selection-marquee]")).to_have_count(1)
+            page.keyboard.press("Escape")
+            page.mouse.up()
+            expect(page.locator("[data-selection-marquee]")).to_have_count(0)
+
+            pan_before = page.evaluate("() => ({...window.__EDITOR_OFFSET_V2__.store.pan})")
+            page.keyboard.down("Space")
+            page.mouse.move(start_client["x"], start_client["y"])
+            page.mouse.down()
+            page.mouse.move(start_client["x"] + 30, start_client["y"] + 20)
+            page.mouse.up()
+            page.keyboard.up("Space")
+            assert page.evaluate("() => window.__EDITOR_OFFSET_V2__.store.pan") != pan_before
+            page.locator("#ev2-reset-view").click()
+
+            first_center = page.evaluate(
+                "id => window.__EDITOR_OFFSET_V2__.store.layout.slots.find(slot => slot.id === id).geometry.position_mm",
+                first_id,
+            )
+            center_client = domain_to_client({"x": first_center["x_mm"], "y": first_center["y_mm"]})
+            page.mouse.move(center_client["x"], center_client["y"])
+            page.mouse.down()
+            page.mouse.move(center_client["x"] + 18, center_client["y"], steps=3)
+            page.mouse.up()
+            assert page.evaluate(
+                "id => window.__EDITOR_OFFSET_V2__.store.layout.slots.find(slot => slot.id === id).geometry.position_mm.x_mm",
+                first_id,
+            ) != first_center["x_mm"]
+            page.locator("#ev2-undo").click()
+
+            page.evaluate(
+                """ids => {
+                  const app = window.__EDITOR_OFFSET_V2__;
+                  app.store.setSelection(ids, 'replace');
+                  app.runAction(window.EditorOffsetV2.CommandRegistry.ACTION_IDS.ALIGN_LEFT);
+                  app.runAction(window.EditorOffsetV2.CommandRegistry.ACTION_IDS.ALIGN_TOP);
+                }""",
+                [first_id, second_id],
+            )
+            overlap_center = page.evaluate(
+                """id => {
+                  const slot = window.__EDITOR_OFFSET_V2__.store.layout.slots.find(item => item.id === id);
+                  return {x: slot.geometry.position_mm.x_mm, y: slot.geometry.position_mm.y_mm};
+                }""",
+                first_id,
+            )
+            overlap_client = domain_to_client(overlap_center)
+            page.keyboard.down("Alt")
+            page.mouse.click(overlap_client["x"], overlap_client["y"])
+            page.keyboard.up("Alt")
+            cycled_once = page.evaluate("() => [...window.__EDITOR_OFFSET_V2__.store.selection][0]")
+            page.keyboard.down("Alt")
+            page.mouse.click(overlap_client["x"], overlap_client["y"])
+            page.keyboard.up("Alt")
+            cycled_twice = page.evaluate("() => [...window.__EDITOR_OFFSET_V2__.store.selection][0]")
+            assert cycled_once != cycled_twice
+            expect(page.locator("#ev2-status-message")).to_contain_text("Ciclo")
+
+            count_before_alt_drag = page.evaluate("() => window.__EDITOR_OFFSET_V2__.store.layout.slots.length")
+            page.keyboard.down("Alt")
+            page.mouse.move(overlap_client["x"], overlap_client["y"])
+            page.mouse.down()
+            page.mouse.move(overlap_client["x"] + 25, overlap_client["y"] + 15, steps=4)
+            page.mouse.up()
+            page.keyboard.up("Alt")
+            assert page.evaluate("() => window.__EDITOR_OFFSET_V2__.store.layout.slots.length") > count_before_alt_drag
+            page.locator("#ev2-undo").click()
+
+            page.evaluate(
+                "id => window.__EDITOR_OFFSET_V2__.store.setSelection([id], 'replace')",
+                first_id,
+            )
+            for selector in [
+                '[data-selection-action="selection.select_same_size"]',
+                '[data-selection-action="selection.select_same_rotation"]',
+                '[data-selection-action="selection.select_same_provenance"]',
+            ]:
+                page.locator(selector).click()
+                assert page.evaluate("() => window.__EDITOR_OFFSET_V2__.store.selection.size") >= 2
+                page.evaluate(
+                    "id => window.__EDITOR_OFFSET_V2__.store.setSelection([id], 'replace')",
+                    first_id,
+                )
+
+            page.locator('[data-lock-surface="geometry"][data-lock-action="lock"]').click()
+            page.locator('[data-selection-action="selection.select_locked_geometry"]').click()
+            assert first_id in page.evaluate("() => [...window.__EDITOR_OFFSET_V2__.store.selection]")
+            page.locator('[data-lock-surface="geometry"][data-lock-action="unlock"]').click()
+
+            page.evaluate(
+                """id => {
+                  const app = window.__EDITOR_OFFSET_V2__;
+                  const slot = app.store.layout.slots.find(item => item.id === id);
+                  const geometry = window.EditorOffsetV2.GeometryView;
+                  const reference = app.store.arrangement.geometryReference;
+                  app.store.layout.sheet.printable_margins_mm.left = 20;
+                  app.store.markChanged();
+                  const printable = geometry.printableBounds(app.store.layout.sheet);
+                  const bounds = window.EditorOffsetV2.AdvancedSelection.geometryBounds(
+                    slot, geometry, reference
+                  );
+                  app.store.setSelection([id], 'replace');
+                  app.runAction(window.EditorOffsetV2.CommandRegistry.ACTION_IDS.MOVE_ABSOLUTE, {
+                    x_mm: slot.geometry.position_mm.x_mm + printable.left - 1 - bounds.left,
+                    y_mm: slot.geometry.position_mm.y_mm,
+                  });
+                }""",
+                third_id,
+            )
+            page.locator('[data-selection-action="selection.select_outside_printable"]').click()
+            assert third_id in page.evaluate("() => [...window.__EDITOR_OFFSET_V2__.store.selection]")
+            page.locator('[data-selection-action="selection.select_overlaps"]').click()
+            assert {first_id, second_id}.issubset(
+                set(page.evaluate("() => [...window.__EDITOR_OFFSET_V2__.store.selection]"))
+            )
+
+            first_tree = page.locator(f'[data-tree-node-type="slot"][data-tree-node-id="{first_id}"]')
+            second_tree = page.locator(f'[data-tree-node-type="slot"][data-tree-node-id="{second_id}"]')
+            first_tree.click()
+            expect(first_tree).to_have_attribute("aria-selected", "true")
+            second_tree.click(modifiers=["Control"])
+            assert set(page.evaluate("() => [...window.__EDITOR_OFFSET_V2__.store.selection]")) == {
+                first_id,
+                second_id,
+            }
+            page.locator(f'[data-tree-node-type="slot"][data-tree-node-id="{third_id}"]').click(
+                modifiers=["Shift"]
+            )
+            page.locator("#ev2-object-tree [role=treeitem]").first.focus()
+            page.keyboard.press("End")
+            page.keyboard.press("Home")
+            page.keyboard.press("ArrowDown")
+            page.keyboard.press("ArrowRight")
+            page.keyboard.press("ArrowLeft")
+            page.keyboard.press("ArrowRight")
+            page.keyboard.press("Enter")
+
+            page.evaluate(
+                "ids => window.__EDITOR_OFFSET_V2__.store.setSelection(ids, 'replace')",
+                [first_id, second_id],
+            )
+            page.locator("#ev2-arrangement-key-candidate").select_option(first_id)
+            page.locator("#ev2-arrangement-key-set").click()
+            expect(page.locator(f'[data-key-slot-badge="{first_id}"]')).to_have_count(1)
+            expect(first_tree.locator(".ev2-tree-badge.is-key")).to_have_text("K")
+
+            page.evaluate("() => window.__EDITOR_OFFSET_V2__.saver.manualSave()")
+            page.wait_for_function(
+                "() => window.__EDITOR_OFFSET_V2__.store.saveState.status === 'clean'"
+            )
+            temporary_before = page.evaluate(
+                """() => {
+                  const app = window.__EDITOR_OFFSET_V2__;
+                  return {
+                    layout: JSON.stringify(app.store.layout), revision: app.store.revision,
+                    changeVersion: app.store.changeVersion, undo: app.store.undoStack.length,
+                  };
+                }"""
+            )
+            page.locator(f'[data-tree-visibility-slot="{first_id}"]').click()
+            assert page.evaluate("() => window.__EDITOR_OFFSET_V2__.store.arrangement.keySlotId") is None
+            expect(page.locator(f'.ev2-svg-slot[data-slot-id="{first_id}"]')).to_have_count(0)
+            expect(first_tree).to_have_attribute("aria-disabled", "true")
+            expect(page.locator('[data-tree-visibility-work]').first).to_have_attribute(
+                "data-state", "mixed"
+            )
+
+            page.evaluate(
+                "id => window.__EDITOR_OFFSET_V2__.store.setSelection([id], 'replace')",
+                second_id,
+            )
+            page.locator("#ev2-visibility-hide-selection").click()
+            expect(page.locator(f'.ev2-svg-slot[data-slot-id="{second_id}"]')).to_have_count(0)
+            expect(second_tree).to_have_count(1)
+            page.keyboard.press("Control+A")
+            assert first_id not in page.evaluate("() => [...window.__EDITOR_OFFSET_V2__.store.selection]")
+            assert second_id not in page.evaluate("() => [...window.__EDITOR_OFFSET_V2__.store.selection]")
+
+            page.locator("#ev2-visibility-show-all").click()
+            page.evaluate(
+                "id => window.__EDITOR_OFFSET_V2__.store.setSelection([id], 'replace')",
+                third_id,
+            )
+            page.locator("#ev2-visibility-isolate-selection").click()
+            assert page.evaluate("() => window.__EDITOR_OFFSET_V2__.store.advancedSelection.hiddenSlotIds.size") >= 2
+            page.locator("#ev2-visibility-restore").click()
+            page.locator('[data-tree-visibility-work]').first.click()
+            expect(page.locator('[data-tree-visibility-work]').first).to_have_attribute("data-state", "hidden")
+            page.locator("#ev2-visibility-show-all").click()
+            assert page.evaluate("() => window.__EDITOR_OFFSET_V2__.store.advancedSelection.hiddenSlotIds.size") == 0
+
+            temporary_after = page.evaluate(
+                """() => {
+                  const app = window.__EDITOR_OFFSET_V2__;
+                  return {
+                    layout: JSON.stringify(app.store.layout), revision: app.store.revision,
+                    changeVersion: app.store.changeVersion, undo: app.store.undoStack.length,
+                  };
+                }"""
+            )
+            assert temporary_after == temporary_before
+
+            page.evaluate("() => window.__EDITOR_OFFSET_V2__.saver.manualSave()")
+            page.wait_for_function(
+                "() => window.__EDITOR_OFFSET_V2__.store.saveState.status === 'clean'"
+            )
+            persisted_layout = page.evaluate(
+                "() => JSON.stringify(window.__EDITOR_OFFSET_V2__.store.layout)"
+            )
+            page.reload(wait_until="domcontentloaded")
+            assert page.evaluate(
+                "() => window.__EDITOR_OFFSET_V2__.store.advancedSelection.hiddenSlotIds.size"
+            ) == 0
+            assert page.evaluate(
+                "() => JSON.stringify(window.__EDITOR_OFFSET_V2__.store.layout)"
+            ) == persisted_layout
+            expect(page.locator("#ev2-arrangement-heading")).to_be_visible()
+            expect(page.locator("#ev2-object-operations-heading")).to_be_visible()
+            with page.expect_response(
+                lambda response: response.request.method == "GET"
+                and response.url.endswith("/output-capabilities")
+            ):
+                page.locator("#ev2-output-check").click()
+            expect(page.locator("#ev2-output-status")).to_be_visible()
+            expect(page.locator(".ev2-svg-slot-label").first).to_have_text("#1")
+            expect(page.locator("text=Reglas y guías")).to_have_count(0)
+            assert not console_errors
+            assert not page_errors
+        finally:
+            browser.close()

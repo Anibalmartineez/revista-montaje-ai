@@ -188,7 +188,8 @@
       svg.append(workspace, sheetRect, printableRect);
 
       const persistedVisibleSlots = state.layout.slots
-        .filter((slot) => slot.face === state.activeFace)
+        .filter((slot) => slot.face === state.activeFace
+          && !state.advancedSelection.hiddenSlotIds.includes(slot.id))
         .map((slot) => withPreview(slot, this.store));
       const previewSlots = (state.previewSlots || [])
         .filter((slot) => slot.face === state.activeFace);
@@ -323,11 +324,24 @@
           "data-selection-bounds": "true",
         }));
       }
+      const marquee = state.advancedSelection.marqueeRect;
+      if (marquee) {
+        svg.append(svgElement("rect", {
+          x: marquee.left,
+          y: this.geometry.mmToSvgY(marquee.top, sheet.height),
+          width: marquee.width,
+          height: marquee.height,
+          class: "ev2-svg-marquee",
+          "data-selection-marquee": state.advancedSelection.marqueeMode,
+          "aria-hidden": "true",
+        }));
+      }
     }
 
     renderSlotsList(state) {
       this.refs.slotsList.replaceChildren();
-      const slots = state.layout.slots.filter((slot) => slot.face === state.activeFace);
+      const slots = state.layout.slots.filter((slot) => slot.face === state.activeFace
+        && !state.advancedSelection.hiddenSlotIds.includes(slot.id));
       if (!slots.length) {
         const empty = document.createElement("li");
         empty.className = "ev2-list-empty";

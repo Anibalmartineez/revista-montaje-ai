@@ -63,6 +63,7 @@
     let shortcutManager = null;
     let objectsPanel = null;
     let arrangementPanel = null;
+    let objectTree = null;
     const contextProvider = () => ({
       store,
       layout: store.layout,
@@ -77,6 +78,7 @@
       dirty: store.hasUnsavedChanges(),
       commands: modules.Commands,
       objectOperations: modules.ObjectOperations,
+      advancedSelection: modules.AdvancedSelection,
       alignmentOperations: modules.AlignmentOperations,
       geometry: modules.GeometryView,
       positioning: modules.PositionInspector,
@@ -88,6 +90,7 @@
       shortcutHelp,
       objectsPanel,
       arrangementPanel,
+      objectTree,
     });
     function runAction(actionId, payload) {
       try {
@@ -121,7 +124,12 @@
       modules.GeometryView,
       modules.Commands,
       modules.EditPolicy,
-      { beforePointerAction: () => nudgeController.finish() },
+      {
+        beforePointerAction: () => nudgeController.finish(),
+        advancedSelection: modules.AdvancedSelection,
+        actionIds: modules.CommandRegistry.ACTION_IDS,
+        runAction,
+      },
     );
     renderer = new modules.CanvasRenderer.Renderer(
       store,
@@ -187,6 +195,15 @@
       modules.AlignmentOperations,
       runAction,
     );
+    objectTree = new modules.ObjectTree.Panel(
+      store,
+      refs,
+      actionRegistry,
+      contextProvider,
+      modules.CommandRegistry.ACTION_IDS,
+      modules.AdvancedSelection,
+      runAction,
+    );
 
     refs.save.addEventListener("click", () => runAction(modules.CommandRegistry.ACTION_IDS.SAVE));
     refs.undo.addEventListener("click", () => runAction(modules.CommandRegistry.ACTION_IDS.UNDO));
@@ -238,6 +255,7 @@
       outputPanel,
       objectsPanel,
       arrangementPanel,
+      objectTree,
       actionRegistry,
       shortcutManager,
       shortcutHelp,
