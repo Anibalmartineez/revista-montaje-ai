@@ -201,12 +201,14 @@
         const bleed = slot.geometry.bleed_mm;
         const isPreview = previewIds.has(slot.id);
         const selected = isPreview || state.selection.includes(slot.id);
+        const keySlot = !isPreview && state.arrangement?.keySlotId === slot.id;
         const placement = slotPlacementClasses(slot, state.layout.sheet, this.geometry);
         const approximate = artworkIsApproximate(slot, state.layout, this.assetsApiUrl);
         const group = svgElement("g", {
           class: [
             "ev2-svg-slot",
             selected && "is-selected",
+            keySlot && "is-key-slot",
             isPreview && "is-duplicate-preview",
             placement.className,
             approximate && "has-approximate-artwork",
@@ -218,11 +220,11 @@
           "data-preview-slot": String(isPreview),
           tabindex: "0",
         });
-        if (slot.id || placement.message || approximate) {
+        if (slot.id || placement.message || approximate || keySlot) {
           group.append(svgElement(
             "title",
             {},
-            [slot.id, placement.message, approximate && "Vista aproximada del PDF"]
+            [slot.id, keySlot && "Slot clave", placement.message, approximate && "Vista aproximada del PDF"]
               .filter(Boolean)
               .join(" · "),
           ));
@@ -264,6 +266,29 @@
             "data-slot-id": slot.id,
           }),
         );
+        if (keySlot) {
+          const badge = svgElement("g", {
+            class: "ev2-svg-key-slot-badge",
+            "data-key-slot-badge": slot.id,
+            "aria-label": `Slot clave ${slot.id}`,
+            "pointer-events": "none",
+          });
+          badge.append(
+            svgElement("circle", {
+              cx: trim.width / 2,
+              cy: -trim.height / 2,
+              r: 5 / state.zoom,
+            }),
+            svgElement("text", {
+              x: trim.width / 2,
+              y: -trim.height / 2,
+              "font-size": 5 / state.zoom,
+              "text-anchor": "middle",
+              "dominant-baseline": "central",
+            }, "K"),
+          );
+          group.append(badge);
+        }
         svg.append(group);
         const label = slotLabelPresentation(
           slot,

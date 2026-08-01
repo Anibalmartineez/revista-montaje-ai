@@ -200,6 +200,99 @@
           <p id="ev2-position-lock" class="ev2-position-feedback" data-state="ready" role="status" aria-live="polite">Posición canónica: centro trim, milímetros.</p>
         </form>
       </section>
+      <section class="ev2-arrangement-panel" aria-labelledby="ev2-arrangement-heading">
+        <div class="ev2-arrangement-heading">
+          <h2 id="ev2-arrangement-heading">Alineación y distribución</h2>
+          <span id="ev2-arrangement-selection">0 slots seleccionados</span>
+        </div>
+        <div class="ev2-arrangement-options">
+          <label for="ev2-arrangement-geometry">Referencia geométrica
+            <select id="ev2-arrangement-geometry">
+              <option value="trim">Trim</option>
+              <option value="productive">Footprint productivo</option>
+            </select>
+          </label>
+          <label for="ev2-arrangement-target">Destino
+            <select id="ev2-arrangement-target">
+              <option value="selection">Selección</option>
+              <option value="key" disabled>Slot clave</option>
+              <option value="sheet">Pliego</option>
+              <option value="printable">Área imprimible</option>
+            </select>
+          </label>
+        </div>
+        <fieldset class="ev2-arrangement-key">
+          <legend>Slot clave temporal</legend>
+          <label for="ev2-arrangement-key-candidate">Slot de la selección</label>
+          <select id="ev2-arrangement-key-candidate" aria-describedby="ev2-arrangement-key-status" disabled></select>
+          <div class="ev2-arrangement-inline-actions">
+            <button id="ev2-arrangement-key-set" type="button" disabled>Definir clave</button>
+            <button id="ev2-arrangement-key-clear" type="button" disabled>Retirar clave</button>
+          </div>
+          <p id="ev2-arrangement-key-status" role="status" aria-live="polite">Sin slot clave.</p>
+        </fieldset>
+        <fieldset>
+          <legend>Alinear</legend>
+          <div class="ev2-arrangement-action-grid">
+            <button type="button" data-arrangement-action="selection.align.left" aria-label="Alinear a la izquierda" disabled>Izquierda</button>
+            <button type="button" data-arrangement-action="selection.align.horizontal_center" aria-label="Alinear centros horizontales" disabled>Centro H</button>
+            <button type="button" data-arrangement-action="selection.align.right" aria-label="Alinear a la derecha" disabled>Derecha</button>
+            <button type="button" data-arrangement-action="selection.align.top" aria-label="Alinear arriba" disabled>Arriba</button>
+            <button type="button" data-arrangement-action="selection.align.vertical_center" aria-label="Alinear centros verticales" disabled>Centro V</button>
+            <button type="button" data-arrangement-action="selection.align.bottom" aria-label="Alinear abajo" disabled>Abajo</button>
+          </div>
+        </fieldset>
+        <fieldset>
+          <legend>Centrar grupo o selección</legend>
+          <div class="ev2-arrangement-action-grid">
+            <button type="button" data-arrangement-action="selection.center.horizontal" disabled>Horizontal</button>
+            <button type="button" data-arrangement-action="selection.center.vertical" disabled>Vertical</button>
+            <button type="button" data-arrangement-action="selection.center.both" disabled>Ambos</button>
+          </div>
+        </fieldset>
+        <fieldset>
+          <legend>Distribuir</legend>
+          <div class="ev2-arrangement-inline-actions">
+            <button type="button" data-arrangement-action="selection.distribute.horizontal" disabled>Horizontal</button>
+            <button type="button" data-arrangement-action="selection.distribute.vertical" disabled>Vertical</button>
+          </div>
+        </fieldset>
+        <form id="ev2-arrangement-gap-horizontal-form" class="ev2-arrangement-form" novalidate>
+          <h3>Gap horizontal exacto</h3>
+          <div class="ev2-arrangement-form-grid">
+            <label for="ev2-arrangement-gap-horizontal">Gap</label>
+            <span class="ev2-position-input"><input id="ev2-arrangement-gap-horizontal" value="0" inputmode="decimal" autocomplete="off" aria-describedby="ev2-arrangement-gap-horizontal-error"><span aria-hidden="true">mm</span></span>
+            <label for="ev2-arrangement-gap-horizontal-anchor">Anclaje</label>
+            <select id="ev2-arrangement-gap-horizontal-anchor"><option value="start">Inicio</option><option value="end">Final</option><option value="key">Slot clave</option></select>
+          </div>
+          <button id="ev2-arrangement-gap-horizontal-apply" type="submit" disabled>Aplicar gap H</button>
+          <p id="ev2-arrangement-gap-horizontal-error" class="ev2-position-feedback" role="alert" aria-live="assertive"></p>
+        </form>
+        <form id="ev2-arrangement-gap-vertical-form" class="ev2-arrangement-form" novalidate>
+          <h3>Gap vertical exacto</h3>
+          <div class="ev2-arrangement-form-grid">
+            <label for="ev2-arrangement-gap-vertical">Gap</label>
+            <span class="ev2-position-input"><input id="ev2-arrangement-gap-vertical" value="0" inputmode="decimal" autocomplete="off" aria-describedby="ev2-arrangement-gap-vertical-error"><span aria-hidden="true">mm</span></span>
+            <label for="ev2-arrangement-gap-vertical-anchor">Anclaje</label>
+            <select id="ev2-arrangement-gap-vertical-anchor"><option value="start">Inicio</option><option value="end">Final</option><option value="key">Slot clave</option></select>
+          </div>
+          <button id="ev2-arrangement-gap-vertical-apply" type="submit" disabled>Aplicar gap V</button>
+          <p id="ev2-arrangement-gap-vertical-error" class="ev2-position-feedback" role="alert" aria-live="assertive"></p>
+        </form>
+        <form id="ev2-arrangement-matrix-form" class="ev2-arrangement-form" novalidate>
+          <h3>Matriz</h3>
+          <div class="ev2-arrangement-matrix-grid">
+            <label for="ev2-arrangement-matrix-rows">Filas</label><input id="ev2-arrangement-matrix-rows" value="1" inputmode="numeric" autocomplete="off" aria-describedby="ev2-arrangement-matrix-error">
+            <label for="ev2-arrangement-matrix-columns">Columnas</label><input id="ev2-arrangement-matrix-columns" value="2" inputmode="numeric" autocomplete="off" aria-describedby="ev2-arrangement-matrix-error">
+            <label for="ev2-arrangement-matrix-gap-x">Gap X</label><span class="ev2-position-input"><input id="ev2-arrangement-matrix-gap-x" value="0" inputmode="decimal" autocomplete="off" aria-describedby="ev2-arrangement-matrix-error"><span aria-hidden="true">mm</span></span>
+            <label for="ev2-arrangement-matrix-gap-y">Gap Y</label><span class="ev2-position-input"><input id="ev2-arrangement-matrix-gap-y" value="0" inputmode="decimal" autocomplete="off" aria-describedby="ev2-arrangement-matrix-error"><span aria-hidden="true">mm</span></span>
+          </div>
+          <p id="ev2-arrangement-matrix-summary" role="status" aria-live="polite">Completa una matriz válida para ver el total.</p>
+          <button id="ev2-arrangement-matrix-apply" type="submit" disabled>Crear matriz</button>
+          <p id="ev2-arrangement-matrix-error" class="ev2-position-feedback" role="alert" aria-live="assertive"></p>
+        </form>
+        <p id="ev2-arrangement-feedback" class="ev2-arrangement-feedback" role="status" aria-live="polite">Estado temporal: no modifica el layout.</p>
+      </section>
       <dl class="ev2-inspector-list" id="ev2-inspector-values">
         <div><dt>Selección</dt><dd>Ninguna</dd></div>
       </dl>
@@ -305,6 +398,7 @@
   <script src="{{ url_for('static', filename='js/editor_offset_v2/position_inspector.js') }}" defer></script>
   <script src="{{ url_for('static', filename='js/editor_offset_v2/nudge_controller.js') }}" defer></script>
   <script src="{{ url_for('static', filename='js/editor_offset_v2/object_operations.js') }}" defer></script>
+  <script src="{{ url_for('static', filename='js/editor_offset_v2/alignment_operations.js') }}" defer></script>
   <script src="{{ url_for('static', filename='js/editor_offset_v2/command_registry.js') }}" defer></script>
   <script src="{{ url_for('static', filename='js/editor_offset_v2/shortcut_manager.js') }}" defer></script>
   <script src="{{ url_for('static', filename='js/editor_offset_v2/source_semantics.js') }}" defer></script>
@@ -319,6 +413,7 @@
   <script src="{{ url_for('static', filename='js/editor_offset_v2/repeat_panel.js') }}" defer></script>
   <script src="{{ url_for('static', filename='js/editor_offset_v2/output_panel.js') }}" defer></script>
   <script src="{{ url_for('static', filename='js/editor_offset_v2/objects_panel.js') }}" defer></script>
+  <script src="{{ url_for('static', filename='js/editor_offset_v2/arrangement_panel.js') }}" defer></script>
   <script src="{{ url_for('static', filename='js/editor_offset_v2/bootstrap.js') }}" defer></script>
   <script src="{{ url_for('static', filename='js/editor_offset_visual_v2.js') }}" defer></script>
 </body>

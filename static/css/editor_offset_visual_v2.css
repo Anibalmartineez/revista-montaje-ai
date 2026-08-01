@@ -14,6 +14,123 @@
   --ev2-canvas: #202936;
 }
 
+.ev2-arrangement-panel {
+  display: grid;
+  gap: 0.75rem;
+  padding: 0.9rem;
+  border-top: 1px solid var(--ev2-line);
+}
+
+.ev2-arrangement-heading,
+.ev2-arrangement-inline-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.55rem;
+}
+
+.ev2-arrangement-heading h2,
+.ev2-arrangement-form h3 {
+  margin: 0;
+  font-size: 0.92rem;
+}
+
+.ev2-arrangement-heading span,
+.ev2-arrangement-key p,
+.ev2-arrangement-feedback,
+#ev2-arrangement-matrix-summary {
+  margin: 0;
+  color: var(--ev2-muted);
+  font-size: 0.76rem;
+}
+
+.ev2-arrangement-options,
+.ev2-arrangement-form-grid,
+.ev2-arrangement-matrix-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 0.5rem;
+}
+
+.ev2-arrangement-options label,
+.ev2-arrangement-form-grid label,
+.ev2-arrangement-matrix-grid label {
+  display: grid;
+  align-content: center;
+  gap: 0.28rem;
+  font-size: 0.74rem;
+  color: var(--ev2-muted);
+}
+
+.ev2-arrangement-panel fieldset,
+.ev2-arrangement-form {
+  display: grid;
+  gap: 0.5rem;
+  margin: 0;
+  padding: 0.65rem;
+  border: 1px solid var(--ev2-line);
+  border-radius: 0.55rem;
+}
+
+.ev2-arrangement-panel legend {
+  padding: 0 0.25rem;
+  font-size: 0.74rem;
+  color: var(--ev2-muted);
+}
+
+.ev2-arrangement-action-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.4rem;
+}
+
+.ev2-arrangement-action-grid button,
+.ev2-arrangement-inline-actions button,
+.ev2-arrangement-form button {
+  min-height: 2rem;
+  font-size: 0.74rem;
+}
+
+.ev2-arrangement-form input,
+.ev2-arrangement-form select,
+.ev2-arrangement-panel select {
+  min-width: 0;
+  width: 100%;
+}
+
+.ev2-arrangement-form [aria-invalid="true"] {
+  border-color: var(--ev2-danger);
+}
+
+.ev2-svg-slot.is-key-slot .ev2-svg-trim {
+  stroke-width: 1.15;
+  stroke-dasharray: 4 2;
+}
+
+.ev2-svg-key-slot-badge {
+  pointer-events: none;
+}
+
+.ev2-svg-key-slot-badge circle {
+  fill: #111827;
+  stroke: #ffffff;
+  stroke-width: 0.8;
+}
+
+.ev2-svg-key-slot-badge text {
+  fill: #ffffff;
+  font-weight: 800;
+  pointer-events: none;
+}
+
+@media (max-width: 1180px) {
+  .ev2-arrangement-options,
+  .ev2-arrangement-form-grid,
+  .ev2-arrangement-matrix-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
 * {
   box-sizing: border-box;
 }

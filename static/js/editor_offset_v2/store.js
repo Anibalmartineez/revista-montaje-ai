@@ -60,6 +60,11 @@
       this.previewPositions = {};
       this.previewSlots = [];
       this.clipboard = null;
+      this.arrangement = {
+        geometryReference: "trim",
+        target: "selection",
+        keySlotId: null,
+      };
       this.saveState = {
         status: "clean",
         error: null,
@@ -118,6 +123,7 @@
         previewPositions: this.previewPositions,
         previewSlots: this.previewSlots,
         clipboard: this.clipboard ? clone(this.clipboard) : null,
+        arrangement: { ...this.arrangement },
         saveState: { ...this.saveState },
         assetPanel: { ...this.assetPanel },
         repeatPanel: clone(this.repeatPanel),
@@ -211,12 +217,16 @@
       } else {
         this.selection = new Set(incoming);
       }
-      if (!sameSet(previous, this.selection)) this.emit("selection");
+      if (!sameSet(previous, this.selection)) {
+        this.reconcileKeySlot();
+        this.emit("selection");
+      }
     }
 
     clearSelection() {
       if (this.selection.size) {
         this.selection.clear();
+        this.reconcileKeySlot();
         this.emit("selection");
       }
     }
@@ -224,6 +234,56 @@
     filterSelection() {
       const validIds = new Set(this.layout.slots.map((slot) => slot.id));
       this.selection = new Set([...this.selection].filter((id) => validIds.has(id)));
+      this.reconcileKeySlot();
+    }
+
+    reconcileKeySlot() {
+      const keySlotId = this.arrangement?.keySlotId;
+      if (!keySlotId) return false;
+      const keySlot = this.layout.slots.find((slot) => slot.id === keySlotId);
+      if (!keySlot || keySlot.face !== this.activeFace || !this.selection.has(keySlotId)) {
+        this.arrangement = { ...this.arrangement, keySlotId: null };
+        return true;
+      }
+      return false;
+    }
+
+    setArrangementGeometryReference(reference) {
+      if (!["trim", "productive"].includes(reference)) {
+        throw new Error(`Unknown arrangement geometry reference: ${reference}`);
+      }
+      if (this.arrangement.geometryReference !== reference) {
+        this.arrangement = { ...this.arrangement, geometryReference: reference };
+        this.emit("arrangement");
+      }
+    }
+
+    setArrangementTarget(target) {
+      if (!["selection", "key", "sheet", "printable"].includes(target)) {
+        throw new Error(`Unknown arrangement target: ${target}`);
+      }
+      if (this.arrangement.target !== target) {
+        this.arrangement = { ...this.arrangement, target };
+        this.emit("arrangement");
+      }
+    }
+
+    setKeySlot(slotId) {
+      if (slotId === null) {
+        if (this.arrangement.keySlotId !== null) {
+          this.arrangement = { ...this.arrangement, keySlotId: null };
+          this.emit("arrangement");
+        }
+        return;
+      }
+      const slot = this.layout.slots.find((item) => item.id === slotId);
+      if (!slot || slot.face !== this.activeFace || !this.selection.has(slotId)) {
+        throw new Error("El slot clave debe pertenecer a la selección y a la cara activa.");
+      }
+      if (this.arrangement.keySlotId !== slotId) {
+        this.arrangement = { ...this.arrangement, keySlotId: slotId };
+        this.emit("arrangement");
+      }
     }
 
     setHover(id) {

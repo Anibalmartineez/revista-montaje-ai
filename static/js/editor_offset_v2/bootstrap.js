@@ -62,6 +62,7 @@
     let shortcutHelp = null;
     let shortcutManager = null;
     let objectsPanel = null;
+    let arrangementPanel = null;
     const contextProvider = () => ({
       store,
       layout: store.layout,
@@ -76,6 +77,8 @@
       dirty: store.hasUnsavedChanges(),
       commands: modules.Commands,
       objectOperations: modules.ObjectOperations,
+      alignmentOperations: modules.AlignmentOperations,
+      geometry: modules.GeometryView,
       positioning: modules.PositionInspector,
       editPolicy: modules.EditPolicy,
       renderer,
@@ -84,6 +87,7 @@
       nudgeController,
       shortcutHelp,
       objectsPanel,
+      arrangementPanel,
     });
     function runAction(actionId, payload) {
       try {
@@ -174,6 +178,15 @@
       modules.ObjectOperations,
       runAction,
     );
+    arrangementPanel = new modules.ArrangementPanel.Panel(
+      store,
+      refs,
+      actionRegistry,
+      contextProvider,
+      modules.CommandRegistry.ACTION_IDS,
+      modules.AlignmentOperations,
+      runAction,
+    );
 
     refs.save.addEventListener("click", () => runAction(modules.CommandRegistry.ACTION_IDS.SAVE));
     refs.undo.addEventListener("click", () => runAction(modules.CommandRegistry.ACTION_IDS.UNDO));
@@ -224,6 +237,7 @@
       repeatPanel,
       outputPanel,
       objectsPanel,
+      arrangementPanel,
       actionRegistry,
       shortcutManager,
       shortcutHelp,

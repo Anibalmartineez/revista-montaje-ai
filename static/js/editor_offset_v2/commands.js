@@ -76,7 +76,7 @@
     if (!Number.isFinite(dx) || !Number.isFinite(dy)) {
       throw new TypeError("El offset de duplicación debe ser finito.");
     }
-    const reserved = new Set();
+    const reserved = options?.reservedIds instanceof Set ? options.reservedIds : new Set();
     return originals.map((original, index) => {
       const copy = clone(original);
       copy.id = uniqueSlotId(layout, reserved, options?.idFactory, original, index);
@@ -136,13 +136,19 @@
   }
 
   class MoveSlotsCommand {
-    constructor(beforePositions, afterPositions) {
-      this.description = "Mover slots";
+    constructor(beforePositions, afterPositions, options) {
+      this.description = options?.description || "Mover slots";
       this.beforePositions = clone(beforePositions);
       this.afterPositions = clone(afterPositions);
       this.affectedIds = Object.freeze(Object.keys(this.afterPositions));
       if (!this.affectedIds.length) {
         throw new Error("MoveSlotsCommand requires at least one slot");
+      }
+      if (Array.isArray(options?.selectionBefore)) {
+        this.selectionBefore = Object.freeze([...new Set(options.selectionBefore)]);
+        this.selectionAfter = Object.freeze([
+          ...new Set(options.selectionAfter || options.selectionBefore),
+        ]);
       }
       if (Object.keys(this.beforePositions).sort().join("\0")
           !== [...this.affectedIds].sort().join("\0")) {

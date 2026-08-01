@@ -27,6 +27,22 @@
     SELECT_SAME_WORK: "selection.select_same_work",
     SELECT_SAME_ASSET: "selection.select_same_asset",
     USER_LOCKS_SET: "selection.user_locks.set",
+    KEY_SLOT_SET: "selection.key_slot.set",
+    KEY_SLOT_CLEAR: "selection.key_slot.clear",
+    ALIGN_LEFT: "selection.align.left",
+    ALIGN_RIGHT: "selection.align.right",
+    ALIGN_TOP: "selection.align.top",
+    ALIGN_BOTTOM: "selection.align.bottom",
+    ALIGN_HORIZONTAL_CENTER: "selection.align.horizontal_center",
+    ALIGN_VERTICAL_CENTER: "selection.align.vertical_center",
+    CENTER_HORIZONTAL: "selection.center.horizontal",
+    CENTER_VERTICAL: "selection.center.vertical",
+    CENTER_BOTH: "selection.center.both",
+    DISTRIBUTE_HORIZONTAL: "selection.distribute.horizontal",
+    DISTRIBUTE_VERTICAL: "selection.distribute.vertical",
+    GAP_HORIZONTAL: "selection.gap.horizontal",
+    GAP_VERTICAL: "selection.gap.vertical",
+    MATRIX_CREATE: "selection.matrix.create",
     HELP_TOGGLE: "shortcuts.help.toggle",
   });
 
@@ -178,6 +194,106 @@
   }
 
   function registerEditorActions(registry) {
+    function arrangementOptions(context, extra) {
+      return {
+        geometryReference: context.store.arrangement.geometryReference,
+        target: context.store.arrangement.target,
+        keySlotId: context.store.arrangement.keySlotId,
+        activeFace: context.store.activeFace,
+        ...extra,
+      };
+    }
+
+    function arrangementReady(context) {
+      return objectActionReady(context) && Boolean(context.alignmentOperations && context.geometry);
+    }
+
+    function alignmentPlan(context, alignment) {
+      return context.alignmentOperations.buildAlignmentPlan(
+        context.store.layout,
+        selectedIds(context),
+        context.geometry,
+        arrangementOptions(context, { alignment }),
+      );
+    }
+
+    function distributionPlan(context, axis) {
+      return context.alignmentOperations.buildDistributionPlan(
+        context.store.layout,
+        selectedIds(context),
+        context.geometry,
+        arrangementOptions(context, { axis }),
+      );
+    }
+
+    function planEnabled(context, factory) {
+      if (!arrangementReady(context)) return false;
+      try {
+        const plan = factory();
+        return context.editPolicy.can(context.store.layout, plan.affectedIds, "move");
+      } catch (_error) {
+        return false;
+      }
+    }
+
+    function planDisabledReason(context, factory, fallback) {
+      try {
+        const plan = factory();
+        const blocked = context.editPolicy.blockedSlotDetails(
+          context.store.layout,
+          plan.affectedIds,
+          "move",
+        );
+        if (blocked.length) {
+          return `Movimiento bloqueado: ${blocked.map(
+            (item) => `${item.id} [${item.sources.join(", ")}]`,
+          ).join("; ")}.`;
+        }
+      } catch (error) {
+        return error.message || fallback;
+      }
+      return fallback;
+    }
+
+    function executeMovePlan(context, plan, description, feedback) {
+      context.nudgeController?.finish();
+      if (!plan.changed) {
+        context.store.setFeedback("La operación no produjo cambios.");
+        return Object.freeze({ changed: false, affectedIds: [] });
+      }
+      const selection = selectedIds(context);
+      const command = new context.commands.MoveSlotsCommand(
+        plan.beforePositions,
+        plan.afterPositions,
+        { description, selectionBefore: selection, selectionAfter: selection },
+      );
+      context.store.executeCommand(command);
+      context.store.setFeedback(feedback || `${description}: ${command.affectedIds.length} slot(s).`);
+      return Object.freeze({ changed: true, affectedIds: command.affectedIds, plan });
+    }
+
+    function registerAlignmentAction(id, label, alignment) {
+      registry.register({
+        id,
+        label,
+        category: "arrangement",
+        description: `${label} usando la referencia geométrica y el destino activos.`,
+        modifiesLayout: true,
+        requiresSelection: true,
+        enabled: (context) => planEnabled(context, () => alignmentPlan(context, alignment)),
+        disabledReason: (context) => planDisabledReason(
+          context,
+          () => alignmentPlan(context, alignment),
+          "La selección, el destino o los locks no permiten esta alineación.",
+        ),
+        execute: (context) => executeMovePlan(
+          context,
+          alignmentPlan(context, alignment),
+          label,
+        ),
+      });
+    }
+
     registry.register({
       id: ACTION_IDS.SAVE,
       label: "Guardar",
@@ -629,6 +745,138 @@
     });
 
     registry.register({
+      id: ACTION_IDS.KEY_SLOT_SET,
+      label: "Definir slot clave",
+      category: "arrangement",
+      description: "Define una referencia temporal dentro de la selección.",
+      requiresSelection: true,
+      enabled: (context) => selectedIds(context).length > 0 && objectActionReady(context),
+      execute: (context, payload) => {
+        const slotId = String(payload?.slotId || "");
+        context.store.setKeySlot(slotId);
+        context.store.setFeedback(`Slot clave definido: ${slotId}.`);
+        return slotId;
+      },
+    });
+
+    registry.register({
+      id: ACTION_IDS.KEY_SLOT_CLEAR,
+      label: "Retirar slot clave",
+      category: "arrangement",
+      description: "Retira la referencia temporal sin modificar el layout.",
+      enabled: (context) => Boolean(context.store.arrangement.keySlotId),
+      execute: (context) => {
+        context.store.setKeySlot(null);
+        context.store.setFeedback("Slot clave retirado.");
+        return true;
+      },
+    });
+
+    registerAlignmentAction(ACTION_IDS.ALIGN_LEFT, "Alinear a la izquierda", "left");
+    registerAlignmentAction(ACTION_IDS.ALIGN_HORIZONTAL_CENTER, "Alinear centros horizontales", "horizontal_center");
+    registerAlignmentAction(ACTION_IDS.ALIGN_RIGHT, "Alinear a la derecha", "right");
+    registerAlignmentAction(ACTION_IDS.ALIGN_TOP, "Alinear arriba", "top");
+    registerAlignmentAction(ACTION_IDS.ALIGN_VERTICAL_CENTER, "Alinear centros verticales", "vertical_center");
+    registerAlignmentAction(ACTION_IDS.ALIGN_BOTTOM, "Alinear abajo", "bottom");
+    registerAlignmentAction(ACTION_IDS.CENTER_HORIZONTAL, "Centrar horizontalmente", "horizontal_center");
+    registerAlignmentAction(ACTION_IDS.CENTER_VERTICAL, "Centrar verticalmente", "vertical_center");
+    registerAlignmentAction(ACTION_IDS.CENTER_BOTH, "Centrar en ambos ejes", "both");
+
+    for (const [id, label, axis] of [
+      [ACTION_IDS.DISTRIBUTE_HORIZONTAL, "Distribuir horizontalmente", "horizontal"],
+      [ACTION_IDS.DISTRIBUTE_VERTICAL, "Distribuir verticalmente", "vertical"],
+    ]) {
+      registry.register({
+        id,
+        label,
+        category: "arrangement",
+        description: `${label} con gap uniforme y orden geométrico estable.`,
+        modifiesLayout: true,
+        requiresSelection: true,
+        enabled: (context) => planEnabled(context, () => distributionPlan(context, axis)),
+        disabledReason: (context) => planDisabledReason(
+          context,
+          () => distributionPlan(context, axis),
+          "Distribuir requiere al menos tres slots, un destino compatible y geometría editable.",
+        ),
+        execute: (context) => {
+          const plan = distributionPlan(context, axis);
+          const overlap = plan.overlap ? " Se obtuvo un gap negativo determinista." : "";
+          return executeMovePlan(
+            context,
+            plan,
+            label,
+            `${label}: gap ${plan.gapMm.toFixed(3)} mm.${overlap}`,
+          );
+        },
+      });
+    }
+
+    for (const [id, label, axis] of [
+      [ACTION_IDS.GAP_HORIZONTAL, "Aplicar gap horizontal", "horizontal"],
+      [ACTION_IDS.GAP_VERTICAL, "Aplicar gap vertical", "vertical"],
+    ]) {
+      registry.register({
+        id,
+        label,
+        category: "arrangement",
+        description: `${label} con anclaje explícito.`,
+        modifiesLayout: true,
+        requiresSelection: true,
+        enabled: (context) => selectedIds(context).length >= 2 && arrangementReady(context),
+        disabledReason: () => "El gap exacto requiere al menos dos slots y una interacción libre.",
+        execute: (context, payload) => {
+          const plan = context.alignmentOperations.buildExactGapPlan(
+            context.store.layout,
+            selectedIds(context),
+            context.geometry,
+            arrangementOptions(context, {
+              axis,
+              anchor: payload?.anchor,
+              gapMm: payload?.gapMm,
+            }),
+          );
+          return executeMovePlan(context, plan, label, `${label}: ${plan.gapMm} mm.`);
+        },
+      });
+    }
+
+    registry.register({
+      id: ACTION_IDS.MATRIX_CREATE,
+      label: "Crear matriz",
+      category: "arrangement",
+      description: "Duplica la selección como celda fuente en una matriz determinista.",
+      modifiesLayout: true,
+      requiresSelection: true,
+      enabled: (context) => selectedIds(context).length > 0 && arrangementReady(context),
+      disabledReason: () => "La matriz requiere una selección y una interacción libre.",
+      execute: (context, payload) => {
+        context.nudgeController?.finish();
+        const prepared = context.alignmentOperations.prepareMatrixCopies(
+          context.store.layout,
+          selectedIds(context),
+          context.geometry,
+          context.commands,
+          arrangementOptions(context, payload),
+        );
+        const command = new context.commands.DuplicateSlotsCommand(
+          context.store.layout,
+          prepared.sourceIds,
+          {
+            description: `Crear matriz ${prepared.rows}×${prepared.columns}`,
+            preparedSlots: prepared.copies,
+            selectionBefore: selectedIds(context),
+          },
+        );
+        context.store.executeCommand(command);
+        context.store.setFeedback(
+          `Matriz ${prepared.rows}×${prepared.columns}: ${prepared.newSlots} slots nuevos.`,
+        );
+        return Object.freeze({ changed: true, affectedIds: command.affectedIds, prepared });
+      },
+    });
+
+    registry.register({
       id: ACTION_IDS.HELP_TOGGLE,
       label: "Ayuda de atajos",
       category: "help",
@@ -654,7 +902,7 @@
       allowDuringPointer: true,
       allowDuringPan: true,
       allowInEditable: (context, event) => Boolean(context.shortcutHelp?.isOpen())
-        || Boolean(event.target?.closest?.("#ev2-position-form")),
+        || Boolean(event.target?.closest?.("#ev2-position-form, .ev2-arrangement-form")),
       enabled: () => true,
       execute: (context) => {
         if (context.shortcutHelp?.isOpen()) return context.shortcutHelp.close();
@@ -665,6 +913,9 @@
         if (context.nudgeController?.isActive()) return context.nudgeController.cancel();
         if (context.positionInspector?.hasPendingDraft()) {
           return context.positionInspector.cancelPending(true);
+        }
+        if (context.arrangementPanel?.hasPendingDraft()) {
+          return context.arrangementPanel.cancelDraft(true);
         }
         return false;
       },

@@ -1026,3 +1026,236 @@ def test_v2_object_operations_clipboard_locks_alt_drag_and_persistence(
             expect(page.locator("#ev2-shortcuts-help-list")).to_contain_text("Pegar")
         finally:
             browser.close()
+
+
+def test_v2_alignment_distribution_gap_matrix_and_persistence(v2_server, tmp_path):
+    pdf_path = tmp_path / "fase-8c.pdf"
+    _write_test_pdf(pdf_path)
+
+    with sync_playwright() as playwright:
+        browser = playwright.chromium.launch(headless=True)
+        page = browser.new_page(viewport={"width": 1600, "height": 1000})
+        page_errors: list[str] = []
+        page.on("pageerror", lambda error: page_errors.append(str(error)))
+        try:
+            _open_job_with_repeat(page, v2_server, pdf_path, quantity=6)
+            expect(page.locator("#ev2-arrangement-heading")).to_be_visible()
+            expect(page.locator("#ev2-object-operations-heading")).to_be_visible()
+            expect(page.locator("#ev2-arrangement-geometry")).to_have_value("trim")
+
+            slot_ids = page.evaluate(
+                "() => window.__EDITOR_OFFSET_V2__.store.layout.slots.map(slot => slot.id)"
+            )
+            page.evaluate(
+                "ids => window.__EDITOR_OFFSET_V2__.store.setSelection(ids, 'replace')",
+                slot_ids,
+            )
+            page.locator("#ev2-arrangement-geometry").select_option("trim")
+            before_align = page.evaluate(
+                "() => structuredClone(window.__EDITOR_OFFSET_V2__.store.layout.slots.map(slot => slot.geometry.position_mm))"
+            )
+            page.locator('[data-arrangement-action="selection.align.left"]').click()
+            left_edges = page.evaluate(
+                """() => {
+                  const app = window.__EDITOR_OFFSET_V2__;
+                  return app.store.layout.slots.map(slot =>
+                    window.EditorOffsetV2.GeometryView.trimBounds(slot).left);
+                }"""
+            )
+            assert max(left_edges) - min(left_edges) < 1e-8
+            page.locator("#ev2-undo").click()
+            assert page.evaluate(
+                "() => window.__EDITOR_OFFSET_V2__.store.layout.slots.map(slot => slot.geometry.position_mm)"
+            ) == before_align
+            page.locator("#ev2-redo").click()
+
+            key_id = slot_ids[0]
+            page.locator("#ev2-arrangement-key-candidate").select_option(key_id)
+            page.locator("#ev2-arrangement-key-set").click()
+            expect(page.locator("#ev2-arrangement-key-status")).to_contain_text(key_id)
+            expect(page.locator(f'[data-key-slot-badge="{key_id}"]')).to_have_count(1)
+            key_before = page.evaluate(
+                "id => structuredClone(window.__EDITOR_OFFSET_V2__.store.layout.slots.find(slot => slot.id === id).geometry.position_mm)",
+                key_id,
+            )
+            page.locator("#ev2-arrangement-target").select_option("key")
+            page.locator('[data-arrangement-action="selection.align.top"]').click()
+            assert page.evaluate(
+                "id => window.__EDITOR_OFFSET_V2__.store.layout.slots.find(slot => slot.id === id).geometry.position_mm",
+                key_id,
+            ) == key_before
+
+            page.locator("#ev2-arrangement-target").select_option("sheet")
+            page.locator('[data-arrangement-action="selection.center.horizontal"]').click()
+            sheet_centers = page.evaluate(
+                """() => {
+                  const app = window.__EDITOR_OFFSET_V2__;
+                  const bounds = window.EditorOffsetV2.GeometryView.boundsUnion(
+                    app.store.layout.slots.map(slot => window.EditorOffsetV2.GeometryView.trimBounds(slot)));
+                  return [bounds.left + bounds.width / 2, app.store.layout.sheet.size_mm.width / 2];
+                }"""
+            )
+            assert abs(sheet_centers[0] - sheet_centers[1]) < 1e-8
+
+            page.locator("#ev2-arrangement-target").select_option("printable")
+            page.locator('[data-arrangement-action="selection.center.both"]').click()
+            printable_centers = page.evaluate(
+                """() => {
+                  const app = window.__EDITOR_OFFSET_V2__;
+                  const geometry = window.EditorOffsetV2.GeometryView;
+                  const selected = app.store.layout.slots.filter(slot => app.store.selection.has(slot.id));
+                  const bounds = geometry.boundsUnion(selected.map(slot => geometry.trimBounds(slot)));
+                  const printable = geometry.printableBounds(app.store.layout.sheet);
+                  return [
+                    bounds.left + bounds.width / 2,
+                    bounds.bottom + bounds.height / 2,
+                    printable.left + printable.width / 2,
+                    printable.bottom + printable.height / 2,
+                  ];
+                }"""
+            )
+            assert abs(printable_centers[0] - printable_centers[2]) < 1e-8
+            assert abs(printable_centers[1] - printable_centers[3]) < 1e-8
+
+            page.locator('[data-arrangement-action="selection.distribute.horizontal"]').click()
+            expect(page.locator("#ev2-arrangement-feedback")).to_contain_text("gap")
+            page.locator('[data-arrangement-action="selection.distribute.vertical"]').click()
+
+            page.locator("#ev2-arrangement-gap-horizontal").fill("4")
+            page.locator("#ev2-arrangement-gap-horizontal-anchor").select_option("start")
+            page.locator("#ev2-arrangement-gap-horizontal-apply").click()
+            page.locator("#ev2-arrangement-gap-vertical").fill("2,5")
+            page.locator("#ev2-arrangement-gap-vertical-anchor").select_option("key")
+            page.locator("#ev2-arrangement-gap-vertical-apply").click()
+            expect(page.locator("#ev2-arrangement-feedback")).to_contain_text("2.5 mm")
+            layout_before_invalid = page.evaluate(
+                "() => JSON.stringify(window.__EDITOR_OFFSET_V2__.store.layout)"
+            )
+            page.locator("#ev2-arrangement-gap-horizontal").fill("-3")
+            expect(page.locator("#ev2-arrangement-gap-horizontal-apply")).to_be_disabled()
+            page.locator("#ev2-arrangement-gap-horizontal-form").press("Enter")
+            assert page.evaluate(
+                "() => JSON.stringify(window.__EDITOR_OFFSET_V2__.store.layout)"
+            ) == layout_before_invalid
+            expect(page.locator("#ev2-arrangement-gap-horizontal-error")).to_contain_text(
+                "mayor o igual a 0"
+            )
+            page.locator("#ev2-arrangement-gap-horizontal").press("Escape")
+
+            moving_id = slot_ids[1]
+            page.evaluate(
+                "id => window.__EDITOR_OFFSET_V2__.store.setSelection([id], 'replace')",
+                moving_id,
+            )
+            page.locator('[data-lock-surface="geometry"][data-lock-action="lock"]').click()
+            expect(page.locator("[data-lock-status='geometry']")).to_contain_text("todos")
+            page.evaluate(
+                "ids => window.__EDITOR_OFFSET_V2__.store.setSelection(ids, 'replace')",
+                slot_ids,
+            )
+            locked_before = page.evaluate(
+                "() => JSON.stringify(window.__EDITOR_OFFSET_V2__.store.layout.slots.map(slot => slot.geometry.position_mm))"
+            )
+            page.locator("#ev2-arrangement-target").select_option("selection")
+            expect(
+                page.locator('[data-arrangement-action="selection.align.right"]')
+            ).to_be_disabled()
+            page.evaluate(
+                "() => window.__EDITOR_OFFSET_V2__.runAction(window.EditorOffsetV2.CommandRegistry.ACTION_IDS.ALIGN_RIGHT)"
+            )
+            assert page.evaluate(
+                "() => JSON.stringify(window.__EDITOR_OFFSET_V2__.store.layout.slots.map(slot => slot.geometry.position_mm))"
+            ) == locked_before
+            expect(page.locator("#ev2-status-message")).to_contain_text(moving_id)
+            page.evaluate(
+                "id => window.__EDITOR_OFFSET_V2__.store.setSelection([id], 'replace')",
+                moving_id,
+            )
+            page.locator('[data-lock-surface="geometry"][data-lock-action="unlock"]').click()
+
+            source_id = slot_ids[0]
+            page.evaluate(
+                "id => window.__EDITOR_OFFSET_V2__.store.setSelection([id], 'replace')",
+                source_id,
+            )
+            count_before_matrix = page.evaluate(
+                "() => window.__EDITOR_OFFSET_V2__.store.layout.slots.length"
+            )
+            page.locator("#ev2-arrangement-matrix-rows").fill("2")
+            page.locator("#ev2-arrangement-matrix-columns").fill("3")
+            page.locator("#ev2-arrangement-matrix-gap-x").fill("3")
+            page.locator("#ev2-arrangement-matrix-gap-y").fill("4")
+            expect(page.locator("#ev2-arrangement-matrix-summary")).to_contain_text(
+                "5 slots nuevos"
+            )
+            page.locator("#ev2-arrangement-matrix-apply").click()
+            page.wait_for_function(
+                "count => window.__EDITOR_OFFSET_V2__.store.layout.slots.length === count + 5",
+                arg=count_before_matrix,
+            )
+            matrix_ids = page.evaluate(
+                "() => [...window.__EDITOR_OFFSET_V2__.store.selection]"
+            )
+            assert len(matrix_ids) == 5
+            assert len(set(matrix_ids)) == 5
+            matrix_positions = page.evaluate(
+                """ids => ids.map(id => {
+                  const slot = window.__EDITOR_OFFSET_V2__.store.layout.slots.find(item => item.id === id);
+                  return [slot.geometry.position_mm.x_mm, slot.geometry.position_mm.y_mm, slot.generated_by];
+                })""",
+                matrix_ids,
+            )
+            assert all(item[2]["type"] == "duplicate" for item in matrix_positions)
+            assert all(item[2]["source_slot_id"] == source_id for item in matrix_positions)
+            source_position = page.evaluate(
+                "id => window.__EDITOR_OFFSET_V2__.store.layout.slots.find(slot => slot.id === id).geometry.position_mm",
+                source_id,
+            )
+            assert any(item[0] > source_position["x_mm"] for item in matrix_positions)
+            assert any(item[1] < source_position["y_mm"] for item in matrix_positions)
+            page.locator("#ev2-undo").click()
+            assert page.evaluate(
+                "() => window.__EDITOR_OFFSET_V2__.store.layout.slots.length"
+            ) == count_before_matrix
+            page.locator("#ev2-redo").click()
+            assert page.evaluate(
+                "() => [...window.__EDITOR_OFFSET_V2__.store.selection]"
+            ) == matrix_ids
+
+            page.evaluate("() => window.__EDITOR_OFFSET_V2__.saver.manualSave()")
+            page.wait_for_function(
+                "() => window.__EDITOR_OFFSET_V2__.store.saveState.status === 'clean'"
+            )
+            persisted_ids = page.evaluate(
+                "() => window.__EDITOR_OFFSET_V2__.store.layout.slots.map(slot => slot.id)"
+            )
+            page.reload(wait_until="domcontentloaded")
+            assert page.evaluate(
+                "() => window.__EDITOR_OFFSET_V2__.store.layout.slots.map(slot => slot.id)"
+            ) == persisted_ids
+            assert page.evaluate(
+                "() => window.__EDITOR_OFFSET_V2__.store.arrangement.keySlotId"
+            ) is None
+
+            page.locator("#ev2-arrangement-gap-horizontal").fill("12,5")
+            page.locator("#ev2-arrangement-gap-horizontal").press("ArrowLeft")
+            expect(page.locator("#ev2-arrangement-gap-horizontal")).to_have_value("12,5")
+            page.locator("#ev2-shortcuts-help-button").click()
+            expect(page.locator("#ev2-shortcuts-help-list")).to_contain_text("Duplicar")
+            expect(page.locator("#ev2-shortcuts-help-list")).not_to_contain_text(
+                "Alinear a la izquierda"
+            )
+            page.locator("#ev2-shortcuts-help-close").click()
+            with page.expect_response(
+                lambda response: response.request.method == "GET"
+                and response.url.endswith("/output-capabilities")
+            ):
+                page.locator("#ev2-output-check").click()
+            expect(page.locator("#ev2-output-status")).to_be_visible()
+            expect(page.locator(".ev2-svg-slot-label").first).to_have_text("#1")
+            expect(page.locator("#ev2-object-duplicate")).to_be_visible()
+            expect(page.locator("#ev2-object-copy")).to_be_visible()
+            expect(page.locator("#ev2-objects-tree")).to_have_count(0)
+            assert not page_errors
+        finally:
+            browser.close()

@@ -4,9 +4,9 @@
 
 Este plan parte del código auditado después de las fases 1–7. No propone reconstruir el editor ni introducir un framework. Extiende la arquitectura que ya funciona:
 
-> ACTUALIZACIÓN VIGENTE — 8P, CORRECCIÓN DE MEDIDA/ETIQUETAS, 8A Y 8B COMPLETADAS
+> ACTUALIZACIÓN VIGENTE — 8P, CORRECCIÓN DE MEDIDA/ETIQUETAS, 8A, 8B Y 8C COMPLETADAS
 >
-> La estabilización semántica está en `10_ESTABILIZACION_SEMANTICA_V2.md`; la corrección de tolerancia/etiquetas en `12_CORRECCION_COMPATIBILIDAD_DE_MEDIDA_Y_ETIQUETAS_V2.md`; el cierre de posicionamiento/acciones en `13_POSICIONAMIENTO_Y_COMANDOS_V2.md`; y las operaciones de objeto en `14_OPERACIONES_DE_OBJETO_Y_CLIPBOARD_V2.md`. Ya existen política y UI de locks, slots Repeat editables, área imprimible visible, source override, historial/conteos Repeat, métricas propuesta/total, output capabilities, etiquetas adaptativas, inspector X/Y, nudge, rotación cardinal, duplicado, clipboard interno, selecciones básicas, Alt+drag y registro central de acciones/atajos. Las fases futuras no deben reimplementar estas piezas.
+> La estabilización semántica está en `10_ESTABILIZACION_SEMANTICA_V2.md`; la corrección de tolerancia/etiquetas en `12_CORRECCION_COMPATIBILIDAD_DE_MEDIDA_Y_ETIQUETAS_V2.md`; el cierre de posicionamiento/acciones en `13_POSICIONAMIENTO_Y_COMANDOS_V2.md`; las operaciones de objeto en `14_OPERACIONES_DE_OBJETO_Y_CLIPBOARD_V2.md`; y alineación/distribución/matriz en `15_ALINEACION_DISTRIBUCION_Y_MATRIZ_V2.md`. Ya existen política y UI de locks, slots Repeat editables, área imprimible visible, source override, historial/conteos Repeat, métricas propuesta/total, output capabilities, etiquetas adaptativas, inspector X/Y, nudge, rotación cardinal, duplicado, clipboard interno, selecciones básicas, Alt+drag, slot clave temporal, alineación, centrado, distribución, gap exacto, matriz y registro central de acciones. Las fases futuras no deben reimplementar estas piezas.
 
 ```text
 EditorStore
@@ -254,13 +254,15 @@ Una marca roja de bounds no reemplaza un preflight. Una transformación visual n
 
 ### Fase 8C — Alineación, centrado, distribución y matriz
 
-- **Rama:** `feat/editor-offset-v2-align-distribute`
-- **Alcance:** alinear seis variantes, centrar sheet/printable, distribuir H/V, gap exacto y matriz con preview/resumen.
-- **Archivos:** nuevo módulo puro de operaciones geométricas, comandos, geometry JS, inspector/toolbar, tests.
-- **Tests:** trim/productive, rotaciones, tamaños distintos, locks, determinismo, undo/redo y Playwright.
-- **Riesgo:** moderado por referencia trim/bleed.
+- **Estado:** completada y validada.
+- **Rama:** `feat/editor-offset-v2-alignment-distribution-matrix`.
+- **Alcance completado:** seis alineaciones, centrado, selección/clave/pliego/área imprimible, distribución H/V, gap exacto, matriz, resumen y badge de clave.
+- **Arquitectura:** planes puros, acciones centrales, `MoveSlotsCommand` y `DuplicateSlotsCommand`; referencia, destino, clave y borradores temporales.
+- **Tests:** trim/productive, rotaciones, tamaños distintos, locks, determinismo, no-op, undo/redo, IDs, persistencia y Playwright real.
+- **Riesgo residual:** bajo-moderado; no hay auto-fit ni prevención automática de salida de pliego.
 - **No tocar:** snap durante drag, resize, artwork.
 - **Finalización:** todas las operaciones declaran caja/referencia y producen un único comando.
+- **Evidencia:** `15_ALINEACION_DISTRIBUCION_Y_MATRIZ_V2.md`.
 
 ### Fase 8D — Box select y árbol de objetos
 
@@ -389,7 +391,7 @@ Una marca roja de bounds no reemplaza un preflight. Una transformación visual n
   -> Corrección de medida/etiquetas (completada)
   -> 8A Posición precisa + acciones/atajos centrales (completada)
   -> 8B Operaciones de objeto y rotación cardinal (completada)
-  -> 8C Alinear/distribuir/matriz
+  -> 8C Alinear/distribuir/matriz (completada)
   -> 8D Selección avanzada y árbol
   -> 8E Paridad completa, snap y medición
   -> 8F Resize productivo
@@ -403,23 +405,13 @@ Una marca roja de bounds no reemplaza un preflight. Una transformación visual n
   -> 10 Presupuesto
 ```
 
-8D y 8C pueden intercambiarse si el volumen de slots hace urgente el árbol. 8F no debe adelantarse a la señal de exportabilidad. 8G debe conseguir un canvas exacto, pero no incorporar el motor PDF; la salida nativa comienza en Fase 9 después de 8K y 8L. Presupuesto permanece separado hasta Fase 10.
+8C está completada. 8F no debe adelantarse a la señal de exportabilidad. 8G debe conseguir un canvas exacto, pero no incorporar el motor PDF; la salida nativa comienza en Fase 9 después de 8K y 8L. Presupuesto permanece separado hasta Fase 10.
 
 ## 12. Siguiente fase recomendada
 
-Fases 8A y 8B están completadas. La siguiente fase segura es **Fase 8C —
-Alineación, centrado, distribución y matriz**. Debe aprovechar el registro
-central, `edit_policy.js`, Store, historial y SaveCoordinator existentes.
-
-Alcance recomendado de 8C:
-
-- alinear izquierda/derecha/arriba/abajo y centros H/V;
-- centrar en pliego o área imprimible de forma explícita;
-- distribuir horizontal/vertical;
-- separación exacta con referencia trim o footprint declarada;
-- duplicación matricial con preview y resumen;
-- un único comando atómico por operación;
-- no modificar snap, resize, `content_transform`, cara back ni salida.
+Fases 8A, 8B y 8C están completadas. La siguiente fase segura es **Fase 8D —
+Box select y árbol de objetos**. Debe consumir la selección, acciones y
+geometría existentes sin crear grupos persistentes ni adelantar snap 8E.
 
 ## 13. Especificación histórica de implementación 8A
 

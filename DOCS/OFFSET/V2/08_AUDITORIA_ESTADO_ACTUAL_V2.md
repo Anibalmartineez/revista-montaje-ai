@@ -70,6 +70,20 @@ estado vigente y decisiones se documentan en
 - Node y Playwright cubren historial, locks, referencias, accesibilidad,
   persistencia y cancelación.
 
+### 1.4 Actualización operativa — Fase 8C
+
+La Fase 8C está implementada y validada. Su contrato operativo se documenta en
+`15_ALINEACION_DISTRIBUCION_Y_MATRIZ_V2.md`:
+
+- referencia explícita trim o footprint productivo;
+- slot clave temporal visible y no persistido;
+- seis alineaciones y centrado contra selección, clave, pliego o área imprimible;
+- distribución H/V con endpoints y gap firmado determinista;
+- gap exacto H/V con anclaje inicio, final o clave;
+- matriz atómica con celda multiselección, IDs estables y límite de 500 copias;
+- acciones 8C sobre comandos, locks, undo/redo, dirty y autosave existentes;
+- panel accesible y cobertura Node/Playwright sin cambios de backend/schema.
+
 ## 2. Resumen ejecutivo
 
 Editor V2 ya es una aplicación aislada y accesible, no un prototipo documental. Puede crear y abrir jobs, persistir Layout V2 con control de revisión, subir PDFs, inspeccionar páginas y cajas, generar miniaturas, crear works y slots reales, mover y seleccionar slots en SVG, deshacer/rehacer, guardar automáticamente y calcular/aplicar Repeat como una operación reversible.
@@ -258,6 +272,8 @@ El frontend usa módulos JavaScript estándar cargados como scripts diferidos ba
 | `output_panel.js` | Consulta y presentación del diagnóstico de salida temporal. |
 | `object_operations.js` | Clipboard, filtros de selección, estado de locks y preparación de paste. |
 | `objects_panel.js` | UI accesible de rotación, clipboard, selección y locks de usuario. |
+| `alignment_operations.js` | Planes puros de bounds, alineación, distribución, gap y matriz. |
+| `arrangement_panel.js` | UI accesible y borradores temporales de la Fase 8C. |
 | `command_registry.js` | Frontera central de acciones, disponibilidad, atajos y ayuda. |
 | `shortcut_manager.js` | Normalización y scopes de teclado; no contiene rutas paralelas de mutación. |
 | `dom_refs.js` | Resolución estricta de elementos del shell. |
@@ -454,8 +470,8 @@ Existen 149 funciones `test_*` en `tests/editor_offset_v2/`, varias parametrizad
 
 ### 13.2 Node
 
-La cobertura vigente suma 66 casos Node: 51 casos hasta Fase 8A y 15 casos
-específicos de Fase 8B. La cobertura acumulada incluye:
+La cobertura vigente suma 75 casos Node: 66 casos hasta Fase 8B y 9 casos
+específicos de Fase 8C. La cobertura acumulada incluye:
 
 - registro de acciones, IDs únicos, disponibilidad y conflictos de atajos;
 - normalización Ctrl/Meta/Shift, `?` y protección de inputs/roles editables;
@@ -468,12 +484,14 @@ específicos de Fase 8B. La cobertura acumulada incluye:
 - cut/delete atómicos, selecciones por cara/work/asset efectivo;
 - locks de usuario mixtos y preservación de otras fuentes;
 - scopes de atajos de objeto y separación entre preview/clipboard y autosave.
+- trim/footprint cardinal, clave temporal, cuatro destinos, seis alineaciones,
+  centrado, distribución, gap exacto, matriz, locks, no-op e IDs estables.
 
 No hay entorno DOM unitario: renderer, interactions, assets panel y Repeat panel se prueban principalmente a través de helpers puros o Playwright.
 
 ### 13.3 Playwright
 
-La suite aislada vigente contiene seis recorridos Playwright. Además del flujo
+La suite aislada vigente contiene siete recorridos Playwright. Además del flujo
 productivo original y la precisión 8A, Fase 8B prueba un job real con PDF, work y
 slots Repeat para:
 
@@ -489,6 +507,8 @@ slots Repeat para:
 10. clipboard, cut/delete, selecciones básicas y locks de usuario;
 11. protección de inputs, Alt+drag, preview y cancelación con Escape;
 12. ayuda central actualizada.
+13. flujo real 8C con PDF/Repeat, clave, pliego/imprimible, distribución, gaps,
+    lock atómico, matriz 2×3, persistencia y continuidad 8B.
 
 Continúa sin cubrir en Playwright:
 
@@ -544,8 +564,9 @@ Continúa sin cubrir en Playwright:
 | Locks operativos y UI de usuario | Implementada y probada | Geometry/content/delete; solo alterna `user` y preserva otras fuentes. |
 | Selección por cara/work/asset | Implementada y probada | Temporal, sobre cara activa y fuente efectiva del slot. |
 | Alt+drag duplicado | Implementada y probada | Preview temporal, un comando, Escape/blur/pointercancel sin dirty. |
+| Alinear/centrar/distribuir/gap/matriz | Implementada y probada | Trim/footprint, clave/pliego/imprimible, locks, comandos atómicos y Playwright real. |
 | Box select/árbol avanzado | No implementada | Solo lista plana, multiselección y criterios básicos 8B. |
-| Alinear/distribuir/snap/guías/medir | No implementada | Kernel Python tiene primitivas parciales; frontend no. |
+| Snap/guías/reglas/medición | No implementada | Corresponde a 8E; 8C no anticipa estas ayudas. |
 | Resize | No implementada | Sin handles/comando/política de artwork. |
 | Transformación interna del artwork | Bloqueada por otra fase | Contrato amplio; canvas no aplica y output bloquea. |
 | Frente/dorso y mesa de luz | Implementada parcialmente | Contrato/Repeat soportan caras; UI no cambia cara ni superpone. |
@@ -566,7 +587,7 @@ No se modificó ninguno de estos documentos durante la auditoría.
 
 ## 16. Deuda y riesgos prioritarios
 
-### Alta prioridad después de Fase 8B
+### Alta prioridad después de Fase 8C
 
 1. **Paridad geométrica frontend incompleta.** Bounds cardinales y área imprimible bastan para movimiento inicial, pero no para box select poligonal, overlap, snap avanzado o resize.
 2. **Dos geometrías distintas por concepto.** La UI futura debe separar slot productivo y transformación interna del artwork; mezclarlas produciría diferencias con output.
@@ -581,13 +602,14 @@ No se modificó ninguno de estos documentos durante la auditoría.
 
 ## 17. Conclusión
 
-Tras 8B, V2 dispone de posicionamiento manual exacto, acciones centrales,
+Tras 8C, V2 dispone de posicionamiento manual exacto, acciones centrales,
 rotación cardinal, duplicado, clipboard interno, selecciones básicas, locks de
-usuario y Alt+drag sobre un único Store/historial. No está listo para habilitar
+usuario, Alt+drag, alineación, distribución, gap exacto y matriz sobre un único
+Store/historial. No está listo para habilitar
 resize, transformación interna del PDF, ocultación productiva, grupos
 persistentes o herramientas basadas en colisiones avanzadas sin decisiones de
 contrato y paridad geométrica adicionales.
 
-La siguiente fase recomendada es 8C: alineación, centrado, distribución y
-matriz. Debe reutilizar el registro y la política central sin incorporar snap,
-resize, artwork ni salida productiva.
+La siguiente fase recomendada es 8D: selección avanzada y árbol de objetos.
+Debe reutilizar el registro y la política central sin incorporar snap, resize,
+artwork ni salida productiva.
