@@ -63,6 +63,19 @@
     GAP_HORIZONTAL: "selection.gap.horizontal",
     GAP_VERTICAL: "selection.gap.vertical",
     MATRIX_CREATE: "selection.matrix.create",
+    PRECISION_RULERS_TOGGLE: "precision.rulers.toggle",
+    PRECISION_GUIDES_TOGGLE: "precision.guides.toggle",
+    PRECISION_SMART_GUIDES_TOGGLE: "precision.smart_guides.toggle",
+    PRECISION_SNAP_TOGGLE: "precision.snap.toggle",
+    PRECISION_SNAP_SOURCE_SET: "precision.snap.source.set",
+    PRECISION_SNAP_REFERENCE_SET: "precision.snap.reference.set",
+    PRECISION_SNAP_THRESHOLD_SET: "precision.snap.threshold.set",
+    PRECISION_GUIDE_CREATE: "precision.guide.create",
+    PRECISION_GUIDE_UPDATE: "precision.guide.update",
+    PRECISION_GUIDE_DELETE: "precision.guide.delete",
+    PRECISION_GUIDES_CLEAR: "precision.guides.clear",
+    PRECISION_MEASURE_TOGGLE: "precision.measure.toggle",
+    PRECISION_MEASURE_CLEAR: "precision.measure.clear",
     HELP_TOGGLE: "shortcuts.help.toggle",
   });
 
@@ -131,15 +144,15 @@
       return [...this.actions.values()];
     }
 
-    isEnabled(actionId, context) {
+    isEnabled(actionId, context, payload) {
       const action = this.get(actionId);
-      return Boolean(action && action.enabled(context));
+      return Boolean(action && action.enabled(context, payload));
     }
 
     execute(actionId, context, payload) {
       const action = this.get(actionId);
       if (!action) throw new UnknownActionError(actionId);
-      if (!action.enabled(context)) {
+      if (!action.enabled(context, payload)) {
         const reason = typeof action.disabledReason === "function"
           ? action.disabledReason(context, payload)
           : null;
@@ -1187,6 +1200,134 @@
       },
     });
 
+    for (const [id, option, label] of [
+      [ACTION_IDS.PRECISION_RULERS_TOGGLE, "rulersVisible", "Mostrar reglas"],
+      [ACTION_IDS.PRECISION_GUIDES_TOGGLE, "guidesVisible", "Mostrar guías"],
+      [ACTION_IDS.PRECISION_SMART_GUIDES_TOGGLE, "smartGuidesVisible", "Mostrar smart guides"],
+      [ACTION_IDS.PRECISION_SNAP_TOGGLE, "snapEnabled", "Activar snap"],
+    ]) {
+      registry.register({
+        id,
+        label,
+        category: "precision",
+        description: `${label} como estado editorial temporal.`,
+        enabled: () => true,
+        execute: (context, payload) => context.store.setPrecisionOption(
+          option,
+          payload?.enabled ?? !context.store.precisionTools[option],
+        ),
+      });
+    }
+
+    registry.register({
+      id: ACTION_IDS.PRECISION_SNAP_SOURCE_SET,
+      label: "Configurar fuente de snap",
+      category: "precision",
+      description: "Activa o desactiva una fuente de snap temporal.",
+      enabled: () => true,
+      execute: (context, payload) => {
+        const options = {
+          guides: "snapToGuides",
+          slots: "snapToSlots",
+          sheet: "snapToSheet",
+          printable: "snapToPrintable",
+        };
+        const option = options[payload?.source];
+        if (!option) throw new Error(`Fuente de snap no válida: ${payload?.source}.`);
+        return context.store.setPrecisionOption(option, payload?.enabled);
+      },
+    });
+
+    registry.register({
+      id: ACTION_IDS.PRECISION_SNAP_REFERENCE_SET,
+      label: "Referencia de snap",
+      category: "precision",
+      description: "Reutiliza la referencia Trim/Footprint transversal.",
+      enabled: () => true,
+      execute: (context, payload) => context.store.setArrangementGeometryReference(
+        payload?.reference,
+      ),
+    });
+
+    registry.register({
+      id: ACTION_IDS.PRECISION_SNAP_THRESHOLD_SET,
+      label: "Umbral de snap",
+      category: "precision",
+      description: "Define el umbral temporal en píxeles de pantalla.",
+      enabled: () => true,
+      execute: (context, payload) => context.store.setSnapThresholdPx(payload?.pixels),
+    });
+
+    registry.register({
+      id: ACTION_IDS.PRECISION_GUIDE_CREATE,
+      label: "Crear guía",
+      category: "precision",
+      description: "Crea una guía temporal en milímetros.",
+      enabled: () => true,
+      execute: (context, payload) => {
+        const ids = context.store.precisionTools.guides.map((item) => item.id);
+        const id = payload?.id || context.precisionTools.nextGuideId(ids, payload?.token);
+        const item = context.precisionTools.guide(payload?.axis, payload?.position_mm, id);
+        context.store.createGuide(item);
+        context.store.setFeedback(`Guía ${item.axis === "x" ? "vertical" : "horizontal"} en ${item.position_mm} mm.`);
+        return item;
+      },
+    });
+
+    registry.register({
+      id: ACTION_IDS.PRECISION_GUIDE_UPDATE,
+      label: "Mover guía",
+      category: "precision",
+      description: "Actualiza una guía temporal sin historial documental.",
+      enabled: (context, payload) => context.store.precisionTools.guides.some(
+        (item) => item.id === payload?.id,
+      ),
+      execute: (context, payload) => context.store.updateGuide(payload?.id, payload?.position_mm),
+    });
+
+    registry.register({
+      id: ACTION_IDS.PRECISION_GUIDE_DELETE,
+      label: "Eliminar guía",
+      category: "precision",
+      description: "Elimina una guía temporal.",
+      enabled: (context, payload) => context.store.precisionTools.guides.some(
+        (item) => item.id === payload?.id,
+      ),
+      execute: (context, payload) => context.store.deleteGuide(payload?.id),
+    });
+
+    registry.register({
+      id: ACTION_IDS.PRECISION_GUIDES_CLEAR,
+      label: "Eliminar todas las guías",
+      category: "precision",
+      description: "Vacía todas las guías temporales.",
+      enabled: (context) => context.store.precisionTools.guides.length > 0,
+      execute: (context) => context.store.clearGuides(),
+    });
+
+    registry.register({
+      id: ACTION_IDS.PRECISION_MEASURE_TOGGLE,
+      label: "Herramienta de medición",
+      category: "precision",
+      description: "Activa o desactiva medición punto a punto temporal.",
+      enabled: () => true,
+      execute: (context, payload) => context.store.setMeasurementMode(
+        payload?.enabled ?? !context.store.precisionTools.measurementMode,
+      ),
+    });
+
+    registry.register({
+      id: ACTION_IDS.PRECISION_MEASURE_CLEAR,
+      label: "Limpiar medición",
+      category: "precision",
+      description: "Limpia el resultado temporal de medición.",
+      enabled: (context) => Boolean(
+        context.store.precisionTools.measurementDraft
+        || context.store.precisionTools.lastMeasurement,
+      ),
+      execute: (context) => context.store.clearMeasurement(),
+    });
+
     registry.register({
       id: ACTION_IDS.HELP_TOGGLE,
       label: "Ayuda de atajos",
@@ -1213,7 +1354,7 @@
       allowDuringPointer: true,
       allowDuringPan: true,
       allowInEditable: (context, event) => Boolean(context.shortcutHelp?.isOpen())
-        || Boolean(event.target?.closest?.("#ev2-position-form, .ev2-arrangement-form")),
+        || Boolean(event.target?.closest?.("#ev2-position-form, .ev2-arrangement-form, .ev2-precision-form")),
       enabled: () => true,
       execute: (context) => {
         if (context.shortcutHelp?.isOpen()) return context.shortcutHelp.close();
@@ -1221,6 +1362,10 @@
           context.interactions.cancelPointer();
           return true;
         }
+        if (context.store.precisionTools.measurementDraft) {
+          return context.store.cancelMeasurementDraft();
+        }
+        if (context.precisionPanel?.cancelActiveDraft()) return true;
         if (context.nudgeController?.isActive()) return context.nudgeController.cancel();
         if (context.positionInspector?.hasPendingDraft()) {
           return context.positionInspector.cancelPending(true);

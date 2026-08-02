@@ -63,6 +63,7 @@
     let shortcutManager = null;
     let objectsPanel = null;
     let arrangementPanel = null;
+    let precisionPanel = null;
     let objectTree = null;
     const contextProvider = () => ({
       store,
@@ -80,6 +81,8 @@
       objectOperations: modules.ObjectOperations,
       advancedSelection: modules.AdvancedSelection,
       alignmentOperations: modules.AlignmentOperations,
+      precisionTools: modules.PrecisionTools,
+      snapEngine: modules.SnapEngine,
       geometry: modules.GeometryView,
       positioning: modules.PositionInspector,
       editPolicy: modules.EditPolicy,
@@ -90,6 +93,7 @@
       shortcutHelp,
       objectsPanel,
       arrangementPanel,
+      precisionPanel,
       objectTree,
     });
     function runAction(actionId, payload) {
@@ -127,6 +131,8 @@
       {
         beforePointerAction: () => nudgeController.finish(),
         advancedSelection: modules.AdvancedSelection,
+        snapEngine: modules.SnapEngine,
+        precisionTools: modules.PrecisionTools,
         actionIds: modules.CommandRegistry.ACTION_IDS,
         runAction,
       },
@@ -141,6 +147,7 @@
         actionIds: modules.CommandRegistry.ACTION_IDS,
         contextProvider,
       },
+      modules.PrecisionTools,
     );
     shortcutManager = new modules.ShortcutManager.Manager(
       actionRegistry,
@@ -193,6 +200,16 @@
       contextProvider,
       modules.CommandRegistry.ACTION_IDS,
       modules.AlignmentOperations,
+      runAction,
+    );
+    precisionPanel = new modules.PrecisionPanel.Panel(
+      store,
+      refs,
+      actionRegistry,
+      contextProvider,
+      modules.CommandRegistry.ACTION_IDS,
+      modules.PrecisionTools,
+      modules.GeometryView,
       runAction,
     );
     objectTree = new modules.ObjectTree.Panel(
@@ -255,6 +272,7 @@
       outputPanel,
       objectsPanel,
       arrangementPanel,
+      precisionPanel,
       objectTree,
       actionRegistry,
       shortcutManager,

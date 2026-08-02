@@ -14,6 +14,217 @@
   --ev2-canvas: #202936;
 }
 
+.ev2-precision-panel {
+  display: grid;
+  gap: 0.7rem;
+  padding: 0.9rem;
+  border-top: 1px solid var(--ev2-line);
+}
+
+.ev2-precision-heading,
+.ev2-precision-check-grid,
+.ev2-precision-form {
+  display: grid;
+  gap: 0.5rem;
+}
+
+.ev2-precision-heading {
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+}
+
+.ev2-precision-heading h2 {
+  margin: 0;
+  font-size: 0.92rem;
+}
+
+.ev2-precision-heading span,
+.ev2-precision-panel p,
+.ev2-precision-live {
+  margin: 0;
+  color: var(--ev2-muted);
+  font-size: 0.74rem;
+}
+
+.ev2-precision-panel fieldset {
+  display: grid;
+  gap: 0.5rem;
+  margin: 0;
+  padding: 0.65rem;
+  border: 1px solid var(--ev2-line);
+  border-radius: 0.55rem;
+}
+
+.ev2-precision-panel legend,
+.ev2-precision-panel label {
+  color: var(--ev2-muted);
+  font-size: 0.74rem;
+}
+
+.ev2-precision-panel label {
+  display: grid;
+  gap: 0.25rem;
+}
+
+.ev2-precision-panel label:has(> input[type="checkbox"]),
+.ev2-precision-check-grid label {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.ev2-precision-check-grid {
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+}
+
+.ev2-precision-panel input,
+.ev2-precision-panel select,
+.ev2-precision-panel button {
+  min-width: 0;
+}
+
+.ev2-precision-panel select,
+.ev2-precision-form > label,
+.ev2-precision-form > button {
+  width: 100%;
+}
+
+.ev2-precision-panel [aria-invalid="true"] {
+  border-color: var(--ev2-danger);
+}
+
+.ev2-precision-guides-list {
+  display: grid;
+  gap: 0.35rem;
+  max-height: 12rem;
+  margin: 0;
+  padding: 0;
+  overflow: auto;
+  list-style: none;
+}
+
+.ev2-precision-guides-list li {
+  display: grid;
+  grid-template-columns: minmax(4.5rem, 1fr) minmax(3.5rem, 0.7fr) auto auto auto;
+  align-items: center;
+  gap: 0.3rem;
+  padding: 0.35rem;
+  border: 1px solid var(--ev2-line);
+  border-radius: 0.35rem;
+  font-size: 0.68rem;
+}
+
+.ev2-precision-guides-list li.is-active {
+  border-color: var(--ev2-accent);
+  box-shadow: inset 3px 0 0 var(--ev2-accent);
+}
+
+.ev2-precision-guides-list li.is-empty {
+  display: block;
+  color: var(--ev2-muted);
+}
+
+.ev2-precision-guides-list input,
+.ev2-precision-guides-list button {
+  width: 100%;
+  padding: 0.3rem;
+  font-size: 0.66rem;
+}
+
+.ev2-precision-output {
+  display: block;
+  min-height: 2.8rem;
+  padding: 0.5rem;
+  border: 1px solid var(--ev2-line);
+  border-radius: 0.35rem;
+  background: #0f151d;
+  color: var(--ev2-text);
+  font-size: 0.7rem;
+  line-height: 1.45;
+  white-space: pre-line;
+}
+
+.ev2-precision-live {
+  min-height: 1.1rem;
+}
+
+.ev2-precision-panel :focus-visible,
+.ev2-precision-guides-list li:focus-visible {
+  outline: 2px solid var(--ev2-accent);
+  outline-offset: 2px;
+}
+
+.ev2-svg-guide {
+  stroke: #61dafb;
+  stroke-width: 1;
+  vector-effect: non-scaling-stroke;
+  cursor: move;
+}
+
+.ev2-svg-guide.is-active {
+  stroke: #fff;
+  stroke-width: 2;
+}
+
+.ev2-svg-guide.is-draft {
+  stroke-dasharray: 5 3;
+}
+
+.ev2-svg-smart-guide {
+  stroke: #f6c453;
+  stroke-width: 1.5;
+  stroke-dasharray: 6 3;
+  vector-effect: non-scaling-stroke;
+}
+
+.ev2-svg-smart-guide-label,
+.ev2-svg-measurement-label {
+  paint-order: stroke;
+  stroke: #10151d;
+  stroke-width: 3px;
+  stroke-linejoin: round;
+  fill: #fff;
+  font-weight: 700;
+}
+
+.ev2-svg-measurement {
+  stroke: #ef7dff;
+  stroke-width: 1.5;
+  stroke-dasharray: 4 3;
+  vector-effect: non-scaling-stroke;
+}
+
+.ev2-svg-measurement-point {
+  fill: #ef7dff;
+  stroke: #fff;
+  stroke-width: 1;
+  vector-effect: non-scaling-stroke;
+}
+
+.ev2-svg-ruler rect,
+.ev2-svg-ruler-corner {
+  fill: #101722;
+  stroke: var(--ev2-line-strong);
+  stroke-width: 1;
+  vector-effect: non-scaling-stroke;
+}
+
+.ev2-svg-ruler line {
+  stroke: #8d9aac;
+  stroke-width: 1;
+  vector-effect: non-scaling-stroke;
+}
+
+.ev2-svg-ruler text {
+  fill: #d9e1ea;
+  pointer-events: none;
+  user-select: none;
+}
+
+.ev2-canvas.is-guide-dragging {
+  cursor: crosshair;
+}
+
 .ev2-arrangement-panel {
   display: grid;
   gap: 0.75rem;

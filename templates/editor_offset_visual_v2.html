@@ -293,6 +293,70 @@
         </form>
         <p id="ev2-arrangement-feedback" class="ev2-arrangement-feedback" role="status" aria-live="polite">Estado temporal: no modifica el layout.</p>
       </section>
+      <section class="ev2-precision-panel" aria-labelledby="ev2-precision-heading">
+        <div class="ev2-precision-heading">
+          <h2 id="ev2-precision-heading">Herramientas de precisión</h2>
+          <span>Estado temporal</span>
+        </div>
+        <fieldset>
+          <legend>Visualización</legend>
+          <label><input id="ev2-precision-rulers" type="checkbox"> Mostrar reglas</label>
+          <label><input id="ev2-precision-guides-visible" type="checkbox" checked> Mostrar guías</label>
+          <label><input id="ev2-precision-smart-guides" type="checkbox" checked> Mostrar smart guides</label>
+        </fieldset>
+        <fieldset>
+          <legend>Snap durante arrastre</legend>
+          <label><input id="ev2-precision-snap-enabled" type="checkbox"> Activar snap</label>
+          <label for="ev2-precision-snap-reference">Referencia
+            <select id="ev2-precision-snap-reference">
+              <option value="trim">Trim</option>
+              <option value="productive">Footprint productivo</option>
+            </select>
+          </label>
+          <div class="ev2-precision-check-grid">
+            <label><input id="ev2-precision-snap-guides" type="checkbox" checked> Guías</label>
+            <label><input id="ev2-precision-snap-slots" type="checkbox" checked> Slots visibles</label>
+            <label><input id="ev2-precision-snap-sheet" type="checkbox" checked> Pliego</label>
+            <label><input id="ev2-precision-snap-printable" type="checkbox" checked> Área imprimible</label>
+          </div>
+          <label for="ev2-precision-snap-threshold">Umbral de pantalla
+            <span class="ev2-position-input"><input id="ev2-precision-snap-threshold" type="number" min="1" max="24" step="1" value="6"><span aria-hidden="true">px</span></span>
+          </label>
+          <p>Snap se aplica al arrastre y Alt+arrastre, no a nudge ni movimientos numéricos.</p>
+        </fieldset>
+        <fieldset>
+          <legend>Guías temporales</legend>
+          <form id="ev2-precision-guide-form" class="ev2-precision-form" novalidate>
+            <label for="ev2-precision-guide-axis">Orientación
+              <select id="ev2-precision-guide-axis">
+                <option value="x">Vertical · X</option>
+                <option value="y">Horizontal · Y</option>
+              </select>
+            </label>
+            <label for="ev2-precision-guide-position">Posición
+              <span class="ev2-position-input"><input id="ev2-precision-guide-position" inputmode="decimal" autocomplete="off" aria-describedby="ev2-precision-guide-error"><span aria-hidden="true">mm</span></span>
+            </label>
+            <button id="ev2-precision-guide-add" type="submit">Agregar guía</button>
+            <p id="ev2-precision-guide-error" class="ev2-position-feedback" role="alert" aria-live="assertive"></p>
+          </form>
+          <p>También puedes arrastrar desde una regla. Se admiten posiciones negativas visibles.</p>
+          <ul id="ev2-precision-guides-list" class="ev2-precision-guides-list" aria-label="Guías temporales"></ul>
+          <button id="ev2-precision-guides-clear" type="button" disabled>Eliminar todas las guías</button>
+        </fieldset>
+        <fieldset>
+          <legend>Medición punto a punto</legend>
+          <div class="ev2-arrangement-inline-actions">
+            <button id="ev2-precision-measure-toggle" type="button" aria-pressed="false">Activar medición</button>
+            <button id="ev2-precision-measure-clear" type="button" disabled>Limpiar</button>
+          </div>
+          <output id="ev2-precision-measurement-result" class="ev2-precision-output" aria-live="polite">Sin medición.</output>
+        </fieldset>
+        <fieldset>
+          <legend>Métricas de selección</legend>
+          <output id="ev2-precision-selection-metrics" class="ev2-precision-output" aria-live="polite">Sin selección visible.</output>
+        </fieldset>
+        <p id="ev2-precision-live" class="ev2-precision-live" role="status" aria-live="polite">Snap desactivado.</p>
+      </section>
       <section class="ev2-advanced-selection-panel" aria-labelledby="ev2-advanced-selection-heading">
         <div class="ev2-advanced-selection-heading">
           <h2 id="ev2-advanced-selection-heading">Objetos y selección</h2>
@@ -448,7 +512,10 @@
 
   <script id="editor-offset-v2-context" type="application/json">{{ editor_context | tojson }}</script>
   <script src="{{ url_for('static', filename='js/editor_offset_v2/dom_refs.js') }}" defer></script>
+  <script src="{{ url_for('static', filename='js/editor_offset_v2/geometry_kernel.js') }}" defer></script>
   <script src="{{ url_for('static', filename='js/editor_offset_v2/geometry_view.js') }}" defer></script>
+  <script src="{{ url_for('static', filename='js/editor_offset_v2/precision_tools.js') }}" defer></script>
+  <script src="{{ url_for('static', filename='js/editor_offset_v2/snap_engine.js') }}" defer></script>
   <script src="{{ url_for('static', filename='js/editor_offset_v2/edit_policy.js') }}" defer></script>
   <script src="{{ url_for('static', filename='js/editor_offset_v2/position_inspector.js') }}" defer></script>
   <script src="{{ url_for('static', filename='js/editor_offset_v2/nudge_controller.js') }}" defer></script>
@@ -471,6 +538,7 @@
   <script src="{{ url_for('static', filename='js/editor_offset_v2/output_panel.js') }}" defer></script>
   <script src="{{ url_for('static', filename='js/editor_offset_v2/objects_panel.js') }}" defer></script>
   <script src="{{ url_for('static', filename='js/editor_offset_v2/arrangement_panel.js') }}" defer></script>
+  <script src="{{ url_for('static', filename='js/editor_offset_v2/precision_panel.js') }}" defer></script>
   <script src="{{ url_for('static', filename='js/editor_offset_v2/bootstrap.js') }}" defer></script>
   <script src="{{ url_for('static', filename='js/editor_offset_visual_v2.js') }}" defer></script>
 </body>

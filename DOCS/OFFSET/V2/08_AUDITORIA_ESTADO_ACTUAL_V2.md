@@ -100,18 +100,41 @@ La Fase 8D está implementada y validada. Su contrato operativo se documenta en
 - todo el estado 8D queda fuera de dirty, historial, autosave y revisión;
 - cobertura acumulada de 85 casos Node y ocho recorridos Playwright.
 
+### 1.6 Actualización operativa — Fase 8E
+
+La Fase 8E está implementada y validada. Su contrato operativo se documenta en
+`17_REGLAS_GUIAS_SNAP_Y_MEDICION_V2.md`:
+
+- `geometry_kernel.js` es la capa geométrica frontend canónica, pura y sin DOM;
+- Python y Node consumen `geometry_cases.json` con tolerancia numérica común de
+  `1e-9 mm`, cardinales, bleed, posiciones negativas, SAT, contacto, gaps y
+  distancias;
+- `geometry_view.js` queda como frontera de viewport/SVG y reutiliza el kernel;
+- reglas SVG horizontal/vertical presentan X derecha e Y canónica arriba, con
+  ticks adaptativos y límite de cantidad;
+- guías X/Y se crean desde reglas o por valor exacto, se mueven, editan y
+  eliminan sin entrar en Layout V2;
+- snap configurable actúa solo en drag y Alt+drag, con umbral de pantalla,
+  referencia trim/footprint compartida y targets capturados al iniciar;
+- smart guides, medición y métricas de selección son temporales y accesibles;
+- slots ocultos, otra cara y slots movidos quedan fuera de targets;
+- los previews no crean historial ni dirty; la confirmación conserva un único
+  `MoveSlotsCommand` o `DuplicateSlotsCommand`;
+- no se añadieron endpoints, campos de schema, persistencia de guías ni
+  funciones de resize.
+
 ## 2. Resumen ejecutivo
 
 Editor V2 ya es una aplicación aislada y accesible, no un prototipo documental. Puede crear y abrir jobs, persistir Layout V2 con control de revisión, subir PDFs, inspeccionar páginas y cajas, generar miniaturas, crear works y slots reales, mover y seleccionar slots en SVG, deshacer/rehacer, guardar automáticamente y calcular/aplicar Repeat como una operación reversible.
 
-La base más estable está en Python: contrato estricto, persistencia atómica, almacenamiento seguro de assets, kernel geométrico puro y adaptadores aislados. La base frontend también está modularizada, pero continúa en JavaScript estándar con un kernel de vista reducido y duplicado. Esa duplicación está caracterizada para bounds cardinales mediante fixtures compartidos, no para toda la API geométrica Python.
+La base más estable está en Python: contrato estricto, persistencia atómica, almacenamiento seguro de assets, kernel geométrico puro y adaptadores aislados. La base frontend continúa en JavaScript estándar, pero desde 8E posee un kernel geométrico puro y canónico con fixtures compartidos. `geometry_view.js` conserva únicamente responsabilidades de viewport y conversión SVG.
 
-La Fase 8P resolvió las contradicciones de locks, procedencia, fuentes, historial y estado visible; 8A añadió precisión manual y una frontera central de acciones/atajos; 8B completó las operaciones cardinales de objeto, clipboard interno, selecciones básicas y locks de usuario; 8C incorporó alineación, distribución, gap y matriz; 8D añadió selección espacial, árbol jerárquico y visibilidad temporal sin cambiar contrato ni backend. Permanecen como deudas para fases posteriores:
+La Fase 8P resolvió las contradicciones de locks, procedencia, fuentes, historial y estado visible; 8A añadió precisión manual y una frontera central de acciones/atajos; 8B completó las operaciones cardinales de objeto, clipboard interno, selecciones básicas y locks de usuario; 8C incorporó alineación, distribución, gap y matriz; 8D añadió selección espacial, árbol jerárquico y visibilidad temporal; 8E consolidó paridad geométrica frontend y herramientas temporales de precisión sin cambiar contrato ni backend. Permanecen como deudas para fases posteriores:
 
 1. `activeFace`, `activeTool` y `hoverId` existen en el store, pero no tienen flujo funcional completo;
 2. el artwork SVG no aplica `content_transform`: representa una miniatura completa con `meet` y clip trim, ahora advertida explícitamente como aproximada;
 3. el OutputAdapter sigue sin conectar preview ni PDF final y bloquea transformaciones avanzadas, CTP activo, páginas distintas de 1 y cajas distintas de TrimBox;
-4. la paridad geométrica JavaScript continúa siendo cardinal y parcial.
+4. resize productivo y transformaciones internas exactas continúan fuera del alcance y deben tratarse en 8F/8G.
 
 ## 3. Mapa de arquitectura actual
 
@@ -236,19 +259,19 @@ La tolerancia `1e-9 mm` es exclusivamente numérica. El contacto de bordes no es
 
 Repeat y OutputAdapter consumen este kernel para normalizar y validar geometría. El canvas no puede importar Python: usa `geometry_view.js`, una réplica reducida de tamaño, orientación, bounds, contención y frontera SVG.
 
-### 6.1 Deuda de paridad frontend
+### 6.1 Paridad frontend vigente
 
-Los tests Node ejecutan los mismos `geometry_cases.json` que Python para tamaños y bounds cardinales, e invierten Y. Esta es paridad real, pero parcial. JavaScript todavía no implementa ni prueba:
+`geometry_kernel.js` implementa validación finita, cardinales exactos, tamaños,
+polígonos trim/bleed, bounds, unión, contención, SAT, gaps firmados y distancias
+con `1e-9 mm`. Node y Python consumen el mismo `geometry_cases.json`, incluido
+contacto sin overlap, penetración menor que tolerancia, coordenadas decimales y
+negativas. `geometry_view.js` importa esa capa y añade área imprimible,
+clasificación y transformación Y dominio↔SVG.
 
-- polígonos ordenados;
-- SAT;
-- point-in-polygon;
-- tolerancias equivalentes;
-- gaps y distancias;
-- contención contra márgenes imprimibles;
-- APIs para guías, snap o resize.
-
-Por tanto, `geometry_view.js` es una duplicación temporal controlada, no una fuente equivalente completa al kernel.
+La paridad cubierta es suficiente para las herramientas 8E y no autoriza
+rotación libre, resize ni transformaciones internas. La representación visual
+de overlap del panel usa bounds cardinales trim/footprint; SAT permanece
+disponible en el kernel para semántica poligonal precisa.
 
 ## 7. Adaptador de salida
 

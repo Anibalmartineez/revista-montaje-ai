@@ -28,6 +28,33 @@
     return element ? element.dataset.slotId : null;
   }
 
+  function dataFromTarget(target, selector, key) {
+    const element = target instanceof Element ? target.closest(selector) : null;
+    return element ? element.dataset[key] : null;
+  }
+
+  function screenPixelsToDomain(svg, pixels) {
+    const matrix = svg.getScreenCTM();
+    if (!matrix) return null;
+    const inverse = matrix.inverse();
+    const origin = svg.createSVGPoint();
+    origin.x = 0;
+    origin.y = 0;
+    const horizontal = svg.createSVGPoint();
+    horizontal.x = pixels;
+    horizontal.y = 0;
+    const vertical = svg.createSVGPoint();
+    vertical.x = 0;
+    vertical.y = pixels;
+    const start = origin.matrixTransform(inverse);
+    const x = horizontal.matrixTransform(inverse);
+    const y = vertical.matrixTransform(inverse);
+    return {
+      x: Math.abs(x.x - start.x),
+      y: Math.abs(y.y - start.y),
+    };
+  }
+
   class CanvasInteractions {
     constructor(store, refs, geometry, commands, editPolicy, gestureLifecycle) {
       this.store = store;
@@ -37,8 +64,11 @@
       this.editPolicy = editPolicy;
       this.gestureLifecycle = gestureLifecycle || {};
       this.advancedSelection = this.gestureLifecycle.advancedSelection || null;
+      this.snapEngine = this.gestureLifecycle.snapEngine || null;
+      this.precisionTools = this.gestureLifecycle.precisionTools || null;
       this.actionIds = this.gestureLifecycle.actionIds || null;
       this.runAction = this.gestureLifecycle.runAction || null;
+      this.measurementTargets = null;
       this.spacePressed = false;
       this.panSession = null;
       this.marqueeFrame = null;
@@ -68,6 +98,103 @@
       );
     }
 
+    snapThresholdMm() {
+      const threshold = this.store.precisionTools.snapThresholdPx;
+      return screenPixelsToDomain(this.refs.canvas, threshold) || { x: threshold, y: threshold };
+    }
+
+    snapSources() {
+      const precision = this.store.precisionTools;
+      return {
+        guides: precision.snapToGuides && precision.guidesVisible,
+        slots: precision.snapToSlots,
+        sheet: precision.snapToSheet,
+        printable: precision.snapToPrintable,
+      };
+    }
+
+    captureSnapTargets(movingIds) {
+      if (!this.snapEngine) return null;
+      return this.snapEngine.captureTargets({
+        layout: this.store.layout,
+        activeFace: this.store.activeFace,
+        hiddenSlotIds: this.store.advancedSelection.hiddenSlotIds,
+        movingIds: movingIds || [],
+        guides: this.store.precisionTools.guides,
+        geometry: this.geometry,
+        reference: this.store.arrangement.geometryReference,
+        sources: this.snapSources(),
+      });
+    }
+
+    snappedMeasurementPoint(point) {
+      if (!this.store.precisionTools.snapEnabled || !this.snapEngine) {
+        return { point, guides: [] };
+      }
+      const targets = this.measurementTargets || this.captureSnapTargets([]);
+      return this.snapEngine.snapPoint({
+        point,
+        targets,
+        thresholdMm: this.snapThresholdMm(),
+        enabled: true,
+      });
+    }
+
+    beginGuidePointer(event, axis, guideId) {
+      const point = this.domainPoint(event);
+      if (!point) return false;
+      const existing = guideId
+        ? this.store.precisionTools.guides.find((guide) => guide.id === guideId) : null;
+      if (guideId && !existing) return false;
+      const position = existing?.position_mm ?? (axis === "x" ? point.x : point.y);
+      this.store.setActiveGuide(guideId || null);
+      this.store.beginPointerSession({
+        type: existing ? "guide_move" : "guide_create",
+        pointerId: event.pointerId,
+        axis,
+        guideId: existing?.id || null,
+        originalPosition: existing?.position_mm ?? null,
+        startClient: { x: event.clientX, y: event.clientY },
+      });
+      this.store.setGuideDraft({
+        id: existing?.id || null,
+        axis,
+        position_mm: position,
+      });
+      this.refs.canvas.setPointerCapture(event.pointerId);
+      this.refs.canvas.classList.add("is-guide-dragging");
+      return true;
+    }
+
+    guideDropIsValid(event, axis) {
+      const rect = this.refs.canvas.getBoundingClientRect();
+      if (event.clientX < rect.left || event.clientX > rect.right
+          || event.clientY < rect.top || event.clientY > rect.bottom) return false;
+      const rulerBand = 24;
+      return axis === "x"
+        ? event.clientY > rect.top + rulerBand
+        : event.clientX > rect.left + rulerBand;
+    }
+
+    measurementClick(point) {
+      if (!this.store.precisionTools.measurementDraft) {
+        this.measurementTargets = this.captureSnapTargets([]);
+        const snapped = this.snappedMeasurementPoint(point);
+        this.store.startMeasurement(snapped.point);
+        this.store.setSnapPreview({ guides: snapped.guides, mode: "measurement" });
+        this.store.setFeedback("Primer punto de medición fijado.");
+        return;
+      }
+      const snapped = this.snappedMeasurementPoint(point);
+      const result = this.precisionTools.measurement(
+        this.store.precisionTools.measurementDraft.start,
+        snapped.point,
+      );
+      this.store.finishMeasurement(result);
+      this.measurementTargets = null;
+      this.store.setFeedback(`Medición: ΔX ${result.deltaX.toFixed(3)} · ΔY ${result.deltaY.toFixed(3)} · ${result.distance.toFixed(3)} mm.`);
+    }
+
     onPointerDown(event) {
       this.gestureLifecycle.beforePointerAction?.();
       if (event.button === 1 || this.spacePressed) {
@@ -83,6 +210,26 @@
         return;
       }
       if (event.button !== 0) {
+        return;
+      }
+      const guideId = dataFromTarget(event.target, "[data-guide-id]", "guideId");
+      if (guideId && this.store.precisionTools.guidesVisible) {
+        event.preventDefault();
+        const guide = this.store.precisionTools.guides.find((item) => item.id === guideId);
+        if (guide) this.beginGuidePointer(event, guide.axis, guide.id);
+        return;
+      }
+      const rulerAxis = dataFromTarget(event.target, "[data-ruler-axis]", "rulerAxis");
+      if (rulerAxis && this.store.precisionTools.rulersVisible) {
+        event.preventDefault();
+        this.beginGuidePointer(event, rulerAxis, null);
+        return;
+      }
+      if (this.store.precisionTools.measurementMode) {
+        const point = this.domainPoint(event);
+        if (!point) return;
+        event.preventDefault();
+        this.measurementClick(point);
         return;
       }
       const slotId = slotIdFromTarget(event.target);
@@ -169,6 +316,14 @@
         previewSlots,
         targetSlotId: slotId,
         cycleAdditive: Boolean(event.shiftKey),
+        snapTargets: this.captureSnapTargets(selectionBefore),
+        snapSourceBounds: this.snapEngine
+          ? this.snapEngine.groupBounds(
+            positionSlots,
+            this.geometry,
+            this.store.arrangement.geometryReference,
+          )
+          : null,
       });
       this.refs.canvas.setPointerCapture(event.pointerId);
       this.refs.canvas.classList.add(
@@ -200,6 +355,13 @@
         });
         return;
       }
+      if (point && this.store.precisionTools.measurementMode
+          && this.store.precisionTools.measurementDraft && !this.store.pointerSession) {
+        const snapped = this.snappedMeasurementPoint(point);
+        this.store.updateMeasurement(snapped.point);
+        this.store.setSnapPreview({ guides: snapped.guides, mode: "measurement" });
+        return;
+      }
       const session = this.store.pointerSession;
       if (!session || session.pointerId !== event.pointerId || !point) {
         return;
@@ -216,16 +378,38 @@
         );
         return;
       }
+      if (session.type === "guide_create" || session.type === "guide_move") {
+        this.store.setGuideDraft({
+          id: session.guideId,
+          axis: session.axis,
+          position_mm: session.axis === "x" ? point.x : point.y,
+        });
+        return;
+      }
       const dx = point.x - session.startMm.x;
       const dy = point.y - session.startMm.y;
       if (!Number.isFinite(dx) || !Number.isFinite(dy)) {
         return;
       }
+      const snapped = this.snapEngine && session.snapSourceBounds
+        ? this.snapEngine.snapTranslation({
+          sourceBounds: session.snapSourceBounds,
+          rawDx: dx,
+          rawDy: dy,
+          targets: session.snapTargets,
+          thresholdMm: this.snapThresholdMm(),
+          enabled: this.store.precisionTools.snapEnabled,
+        })
+        : { dx, dy, guides: [] };
+      this.store.setSnapPreview({
+        guides: this.store.precisionTools.smartGuidesVisible ? snapped.guides : [],
+        mode: session.type,
+      });
       const preview = {};
       for (const [slotId, position] of Object.entries(session.beforePositions)) {
         preview[slotId] = {
-          x_mm: position.x_mm + dx,
-          y_mm: position.y_mm + dy,
+          x_mm: position.x_mm + snapped.dx,
+          y_mm: position.y_mm + snapped.dy,
         };
       }
       if (session.type === "duplicate_move") {
@@ -254,6 +438,33 @@
       }
       const session = this.store.pointerSession;
       if (!session || session.pointerId !== event.pointerId) {
+        return;
+      }
+      if (session.type === "guide_create" || session.type === "guide_move") {
+        const draft = this.store.precisionTools.guideDraft
+          ? { ...this.store.precisionTools.guideDraft } : null;
+        const validDrop = draft && this.guideDropIsValid(event, session.axis);
+        const rect = this.refs.canvas.getBoundingClientRect();
+        const outsideCanvas = event.clientX < rect.left || event.clientX > rect.right
+          || event.clientY < rect.top || event.clientY > rect.bottom;
+        this.store.endPointerSession();
+        this.refs.canvas.classList.remove("is-guide-dragging");
+        this.releasePointer(event.pointerId);
+        if (validDrop) {
+          this.runAction(
+            session.type === "guide_create"
+              ? this.actionIds.PRECISION_GUIDE_CREATE
+              : this.actionIds.PRECISION_GUIDE_UPDATE,
+            session.type === "guide_create"
+              ? { axis: draft.axis, position_mm: draft.position_mm }
+              : { id: session.guideId, position_mm: draft.position_mm },
+          );
+        } else if (session.type === "guide_move" && outsideCanvas) {
+          this.runAction(this.actionIds.PRECISION_GUIDE_DELETE, { id: session.guideId });
+          this.store.setFeedback("Guía eliminada al soltar fuera del canvas.");
+        } else {
+          this.store.setFeedback("Creación o movimiento de guía cancelado.");
+        }
         return;
       }
       if (session.type === "marquee") {
@@ -385,14 +596,24 @@
         capturedPointerIds.push(this.store.pointerSession.pointerId);
         const cancelledDuplicate = this.store.pointerSession.type === "duplicate_move";
         const cancelledMarquee = this.store.pointerSession.type === "marquee";
+        const cancelledGuide = ["guide_create", "guide_move"].includes(
+          this.store.pointerSession.type,
+        );
         this.cancelMarqueeFrame();
         this.store.clearMarqueeRect(false);
         this.store.endPointerSession();
-        this.refs.canvas.classList.remove("is-dragging", "is-duplicating", "is-marquee-selecting");
+        this.refs.canvas.classList.remove(
+          "is-dragging",
+          "is-duplicating",
+          "is-marquee-selecting",
+          "is-guide-dragging",
+        );
         if (cancelledDuplicate) {
           this.store.setFeedback("Duplicación por Alt+drag cancelada.");
         } else if (cancelledMarquee) {
           this.store.setFeedback("Selección rectangular cancelada.");
+        } else if (cancelledGuide) {
+          this.store.setFeedback("Guía temporal cancelada.");
         }
       }
       if (event && event.pointerId !== undefined) {
@@ -448,5 +669,5 @@
     }
   }
 
-  return Object.freeze({ CanvasInteractions, pointerToDomain });
+  return Object.freeze({ CanvasInteractions, pointerToDomain, screenPixelsToDomain });
 });

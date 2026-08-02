@@ -363,6 +363,19 @@ def test_distance_between_bounds_is_minimum_euclidean_distance():
     assert distance_between_bounds(base, Bounds(10, 20, 10, 20)) == 0
 
 
+@pytest.mark.parametrize("case", load_cases()["bounds_cases"], ids=lambda case: case["id"])
+def test_shared_bounds_gap_distance_and_overlap_cases(case):
+    first = Bounds(**case["bounds_a"])
+    second = Bounds(**case["bounds_b"])
+    expected = case["expected"]
+
+    assert horizontal_gap(first, second) == pytest.approx(expected["gap_x"])
+    assert vertical_gap(first, second) == pytest.approx(expected["gap_y"])
+    assert distance_between_bounds(first, second) == pytest.approx(expected["distance"])
+    intersects = horizontal_gap(first, second) < 0 and vertical_gap(first, second) < 0
+    assert intersects is expected["intersects"]
+
+
 def test_models_are_immutable():
     point = Point(1, 2)
     size = Size(3, 4)

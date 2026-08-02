@@ -65,6 +65,25 @@
         target: "selection",
         keySlotId: null,
       };
+      this.precisionTools = {
+        rulersVisible: false,
+        guidesVisible: true,
+        smartGuidesVisible: true,
+        snapEnabled: false,
+        snapToGuides: true,
+        snapToSlots: true,
+        snapToSheet: true,
+        snapToPrintable: true,
+        snapThresholdPx: 6,
+        guides: [],
+        activeGuideId: null,
+        guideDraft: null,
+        snapPreview: null,
+        measurementMode: false,
+        measurementDraft: null,
+        lastMeasurement: null,
+        version: 0,
+      };
       this.advancedSelection = {
         marqueeMode: "contain",
         marqueeRect: null,
@@ -136,6 +155,18 @@
         previewSlots: this.previewSlots,
         clipboard: this.clipboard ? clone(this.clipboard) : null,
         arrangement: { ...this.arrangement },
+        precisionTools: {
+          ...this.precisionTools,
+          guides: clone(this.precisionTools.guides),
+          guideDraft: this.precisionTools.guideDraft
+            ? clone(this.precisionTools.guideDraft) : null,
+          snapPreview: this.precisionTools.snapPreview
+            ? clone(this.precisionTools.snapPreview) : null,
+          measurementDraft: this.precisionTools.measurementDraft
+            ? clone(this.precisionTools.measurementDraft) : null,
+          lastMeasurement: this.precisionTools.lastMeasurement
+            ? clone(this.precisionTools.lastMeasurement) : null,
+        },
         advancedSelection: {
           marqueeMode: this.advancedSelection.marqueeMode,
           marqueeRect: this.advancedSelection.marqueeRect
@@ -306,8 +337,177 @@
       }
       if (this.arrangement.geometryReference !== reference) {
         this.arrangement = { ...this.arrangement, geometryReference: reference };
+        this.precisionTools.snapPreview = null;
+        this.precisionTools.version += 1;
         this.emit("arrangement");
       }
+    }
+
+    setPrecisionOption(name, value) {
+      const booleanOptions = [
+        "rulersVisible",
+        "guidesVisible",
+        "smartGuidesVisible",
+        "snapEnabled",
+        "snapToGuides",
+        "snapToSlots",
+        "snapToSheet",
+        "snapToPrintable",
+      ];
+      if (!booleanOptions.includes(name)) throw new Error(`Unknown precision option: ${name}`);
+      const next = Boolean(value);
+      if (this.precisionTools[name] === next) return false;
+      this.precisionTools[name] = next;
+      if (!next && ["smartGuidesVisible", "snapEnabled"].includes(name)) {
+        this.precisionTools.snapPreview = null;
+      }
+      this.precisionTools.version += 1;
+      this.emit("precision_tools", { name, value: next });
+      return true;
+    }
+
+    setSnapThresholdPx(value) {
+      const next = Number(value);
+      if (!Number.isFinite(next) || next < 1 || next > 24) {
+        throw new Error("El umbral de snap debe estar entre 1 y 24 px.");
+      }
+      if (this.precisionTools.snapThresholdPx === next) return false;
+      this.precisionTools.snapThresholdPx = next;
+      this.precisionTools.version += 1;
+      this.emit("precision_tools", { name: "snapThresholdPx", value: next });
+      return true;
+    }
+
+    createGuide(guide) {
+      const id = String(guide?.id || "").trim();
+      const axis = guide?.axis;
+      const position = Number(guide?.position_mm);
+      if (!id || this.precisionTools.guides.some((item) => item.id === id)) {
+        throw new Error("La guía requiere un ID temporal único.");
+      }
+      if (!["x", "y"].includes(axis) || !Number.isFinite(position)) {
+        throw new Error("La guía requiere eje y posición finita.");
+      }
+      this.precisionTools.guides.push({ id, axis, position_mm: position });
+      this.precisionTools.activeGuideId = id;
+      this.precisionTools.version += 1;
+      this.emit("precision_guides", { action: "create", id });
+      return id;
+    }
+
+    updateGuide(guideId, positionMm) {
+      const item = this.precisionTools.guides.find((guide) => guide.id === guideId);
+      const position = Number(positionMm);
+      if (!item) throw new Error(`Guía temporal desconocida: ${guideId}.`);
+      if (!Number.isFinite(position)) throw new Error("La posición de guía debe ser finita.");
+      if (item.position_mm === position) return false;
+      item.position_mm = position;
+      this.precisionTools.activeGuideId = item.id;
+      this.precisionTools.version += 1;
+      this.emit("precision_guides", { action: "update", id: item.id });
+      return true;
+    }
+
+    deleteGuide(guideId) {
+      const index = this.precisionTools.guides.findIndex((guide) => guide.id === guideId);
+      if (index < 0) return false;
+      this.precisionTools.guides.splice(index, 1);
+      if (this.precisionTools.activeGuideId === guideId) this.precisionTools.activeGuideId = null;
+      this.precisionTools.version += 1;
+      this.emit("precision_guides", { action: "delete", id: guideId });
+      return true;
+    }
+
+    clearGuides() {
+      if (!this.precisionTools.guides.length) return false;
+      this.precisionTools.guides = [];
+      this.precisionTools.activeGuideId = null;
+      this.precisionTools.version += 1;
+      this.emit("precision_guides", { action: "clear" });
+      return true;
+    }
+
+    setActiveGuide(guideId) {
+      const next = guideId === null ? null : String(guideId);
+      if (next && !this.precisionTools.guides.some((guide) => guide.id === next)) {
+        throw new Error(`Guía temporal desconocida: ${next}.`);
+      }
+      if (this.precisionTools.activeGuideId === next) return false;
+      this.precisionTools.activeGuideId = next;
+      this.emit("precision_guides", { action: "select", id: next });
+      return true;
+    }
+
+    setGuideDraft(draft) {
+      this.precisionTools.guideDraft = draft ? clone(draft) : null;
+      this.emit("precision_preview");
+    }
+
+    setSnapPreview(preview) {
+      this.precisionTools.snapPreview = preview ? clone(preview) : null;
+      this.emit("precision_preview");
+    }
+
+    setMeasurementMode(enabled) {
+      const next = Boolean(enabled);
+      if (this.precisionTools.measurementMode === next) return false;
+      this.precisionTools.measurementMode = next;
+      this.precisionTools.measurementDraft = null;
+      this.precisionTools.snapPreview = null;
+      this.precisionTools.version += 1;
+      this.emit("precision_measurement", { action: next ? "start_mode" : "stop_mode" });
+      return true;
+    }
+
+    startMeasurement(point) {
+      if (!Number.isFinite(point?.x) || !Number.isFinite(point?.y)) {
+        throw new Error("La medición requiere un punto finito.");
+      }
+      this.precisionTools.measurementDraft = {
+        start: { x: point.x, y: point.y },
+        current: { x: point.x, y: point.y },
+      };
+      this.precisionTools.lastMeasurement = null;
+      this.emit("precision_measurement", { action: "first_point" });
+    }
+
+    updateMeasurement(point) {
+      if (!this.precisionTools.measurementDraft
+          || !Number.isFinite(point?.x) || !Number.isFinite(point?.y)) return false;
+      this.precisionTools.measurementDraft.current = { x: point.x, y: point.y };
+      this.emit("precision_preview");
+      return true;
+    }
+
+    finishMeasurement(result) {
+      if (!result) return false;
+      this.precisionTools.lastMeasurement = clone(result);
+      this.precisionTools.measurementDraft = null;
+      this.precisionTools.snapPreview = null;
+      this.precisionTools.version += 1;
+      this.emit("precision_measurement", { action: "finish" });
+      return true;
+    }
+
+    cancelMeasurementDraft() {
+      if (!this.precisionTools.measurementDraft) return false;
+      this.precisionTools.measurementDraft = null;
+      this.precisionTools.snapPreview = null;
+      this.emit("precision_measurement", { action: "cancel" });
+      return true;
+    }
+
+    clearMeasurement() {
+      const changed = Boolean(this.precisionTools.measurementDraft
+        || this.precisionTools.lastMeasurement);
+      this.precisionTools.measurementDraft = null;
+      this.precisionTools.lastMeasurement = null;
+      this.precisionTools.snapPreview = null;
+      if (changed) {
+        this.precisionTools.version += 1;
+        this.emit("precision_measurement", { action: "clear" });
+      }
+      return changed;
     }
 
     setArrangementTarget(target) {
@@ -593,6 +793,8 @@
       this.pointerSession = null;
       this.previewPositions = {};
       this.previewSlots = [];
+      this.precisionTools.guideDraft = null;
+      this.precisionTools.snapPreview = null;
       this.emit("pointer_end");
     }
 

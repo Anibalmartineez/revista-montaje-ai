@@ -123,12 +123,13 @@
   }
 
   class Renderer {
-    constructor(store, refs, geometry, assetsApiUrl, actionSystem) {
+    constructor(store, refs, geometry, assetsApiUrl, actionSystem, precisionTools) {
       this.store = store;
       this.refs = refs;
       this.geometry = geometry;
       this.assetsApiUrl = assetsApiUrl;
       this.actionSystem = actionSystem || null;
+      this.precisionTools = precisionTools || null;
       this.unsubscribe = store.subscribe(() => this.render());
       this.render();
     }
@@ -336,6 +337,198 @@
           "aria-hidden": "true",
         }));
       }
+      this.renderPrecisionOverlays(svg, state, {
+        left: centerX - viewWidth / 2,
+        top: centerY - viewHeight / 2,
+        width: viewWidth,
+        height: viewHeight,
+      });
+    }
+
+    renderPrecisionOverlays(svg, state, viewport) {
+      if (!this.precisionTools) return;
+      const precision = state.precisionTools;
+      const sheetHeight = state.layout.sheet.size_mm.height;
+      const rect = svg.getBoundingClientRect();
+      const pixelsPerMmX = rect.width > 0 ? rect.width / viewport.width : state.zoom;
+      const pixelsPerMmY = rect.height > 0 ? rect.height / viewport.height : state.zoom;
+      const guides = precision.guidesVisible ? [...precision.guides] : [];
+      if (precision.guideDraft) guides.push({ ...precision.guideDraft, draft: true });
+      for (const guide of guides) {
+        const attributes = {
+          class: [
+            "ev2-svg-guide",
+            precision.activeGuideId === guide.id && "is-active",
+            guide.draft && "is-draft",
+          ].filter(Boolean).join(" "),
+          "data-guide-axis": guide.axis,
+          "data-guide-position-mm": guide.position_mm,
+          "pointer-events": guide.draft ? "none" : "stroke",
+        };
+        if (guide.id) attributes["data-guide-id"] = guide.id;
+        if (guide.axis === "x") {
+          svg.append(svgElement("line", {
+            ...attributes,
+            x1: guide.position_mm,
+            x2: guide.position_mm,
+            y1: viewport.top,
+            y2: viewport.top + viewport.height,
+          }));
+        } else {
+          const svgY = this.geometry.mmToSvgY(guide.position_mm, sheetHeight);
+          svg.append(svgElement("line", {
+            ...attributes,
+            x1: viewport.left,
+            x2: viewport.left + viewport.width,
+            y1: svgY,
+            y2: svgY,
+          }));
+        }
+      }
+
+      const snapGuides = precision.smartGuidesVisible
+        ? precision.snapPreview?.guides || [] : [];
+      for (const [index, guide] of snapGuides.entries()) {
+        const position = guide.axis === "x"
+          ? guide.position_mm : this.geometry.mmToSvgY(guide.position_mm, sheetHeight);
+        const line = guide.axis === "x"
+          ? { x1: position, x2: position, y1: viewport.top, y2: viewport.top + viewport.height }
+          : { x1: viewport.left, x2: viewport.left + viewport.width, y1: position, y2: position };
+        svg.append(svgElement("line", {
+          ...line,
+          class: "ev2-svg-smart-guide",
+          "data-smart-guide-axis": guide.axis,
+          "data-smart-guide-source": guide.source,
+          "pointer-events": "none",
+        }));
+        svg.append(svgElement("text", {
+          x: guide.axis === "x" ? position + 8 / pixelsPerMmX : viewport.left + 30 / pixelsPerMmX,
+          y: guide.axis === "y" ? position - 8 / pixelsPerMmY : viewport.top + (42 + index * 16) / pixelsPerMmY,
+          class: "ev2-svg-smart-guide-label",
+          "font-size": 11 / pixelsPerMmY,
+          "pointer-events": "none",
+        }, guide.label));
+      }
+
+      const measurement = precision.lastMeasurement || (precision.measurementDraft
+        ? this.precisionTools.measurement(
+          precision.measurementDraft.start,
+          precision.measurementDraft.current,
+        ) : null);
+      if (measurement) {
+        const startY = this.geometry.mmToSvgY(measurement.start.y, sheetHeight);
+        const endY = this.geometry.mmToSvgY(measurement.end.y, sheetHeight);
+        svg.append(svgElement("line", {
+          x1: measurement.start.x,
+          y1: startY,
+          x2: measurement.end.x,
+          y2: endY,
+          class: "ev2-svg-measurement",
+          "data-measurement-line": "true",
+          "pointer-events": "none",
+        }));
+        for (const [x, y] of [[measurement.start.x, startY], [measurement.end.x, endY]]) {
+          svg.append(svgElement("circle", {
+            cx: x,
+            cy: y,
+            r: 4 / Math.max(pixelsPerMmX, pixelsPerMmY),
+            class: "ev2-svg-measurement-point",
+            "pointer-events": "none",
+          }));
+        }
+        svg.append(svgElement("text", {
+          x: (measurement.start.x + measurement.end.x) / 2,
+          y: (startY + endY) / 2 - 8 / pixelsPerMmY,
+          class: "ev2-svg-measurement-label",
+          "font-size": 11 / pixelsPerMmY,
+          "text-anchor": "middle",
+          "pointer-events": "none",
+        }, `ΔX ${measurement.deltaX.toFixed(2)} · ΔY ${measurement.deltaY.toFixed(2)} · ${measurement.distance.toFixed(2)} mm`));
+      }
+
+      if (precision.rulersVisible) {
+        this.renderRulers(svg, state, viewport, pixelsPerMmX, pixelsPerMmY);
+      }
+    }
+
+    renderRulers(svg, state, viewport, pixelsPerMmX, pixelsPerMmY) {
+      const thicknessX = 24 / pixelsPerMmX;
+      const thicknessY = 24 / pixelsPerMmY;
+      const sheetHeight = state.layout.sheet.size_mm.height;
+      const horizontal = this.precisionTools.rulerTicks({
+        start: viewport.left,
+        end: viewport.left + viewport.width,
+        pixelsPerMm: pixelsPerMmX,
+      });
+      const vertical = this.precisionTools.rulerTicks({
+        start: sheetHeight - (viewport.top + viewport.height),
+        end: sheetHeight - viewport.top,
+        pixelsPerMm: pixelsPerMmY,
+      });
+      const horizontalGroup = svgElement("g", {
+        class: "ev2-svg-ruler ev2-svg-ruler-horizontal",
+        "data-ruler-axis": "x",
+        "aria-hidden": "true",
+      });
+      horizontalGroup.append(svgElement("rect", {
+        x: viewport.left,
+        y: viewport.top,
+        width: viewport.width,
+        height: thicknessY,
+      }));
+      for (const tick of horizontal.ticks) {
+        horizontalGroup.append(svgElement("line", {
+          x1: tick.value,
+          x2: tick.value,
+          y1: viewport.top + thicknessY,
+          y2: viewport.top + (tick.major ? 10 : 16) / pixelsPerMmY,
+          class: tick.major ? "is-major" : "is-minor",
+        }));
+        if (tick.label !== null) {
+          horizontalGroup.append(svgElement("text", {
+            x: tick.value + 2 / pixelsPerMmX,
+            y: viewport.top + 9 / pixelsPerMmY,
+            "font-size": 9 / pixelsPerMmY,
+          }, tick.label));
+        }
+      }
+      const verticalGroup = svgElement("g", {
+        class: "ev2-svg-ruler ev2-svg-ruler-vertical",
+        "data-ruler-axis": "y",
+        "aria-hidden": "true",
+      });
+      verticalGroup.append(svgElement("rect", {
+        x: viewport.left,
+        y: viewport.top,
+        width: thicknessX,
+        height: viewport.height,
+      }));
+      for (const tick of vertical.ticks) {
+        const y = this.geometry.mmToSvgY(tick.value, sheetHeight);
+        verticalGroup.append(svgElement("line", {
+          x1: viewport.left + thicknessX,
+          x2: viewport.left + (tick.major ? 10 : 16) / pixelsPerMmX,
+          y1: y,
+          y2: y,
+          class: tick.major ? "is-major" : "is-minor",
+        }));
+        if (tick.label !== null) {
+          verticalGroup.append(svgElement("text", {
+            x: viewport.left + 2 / pixelsPerMmX,
+            y: y - 2 / pixelsPerMmY,
+            "font-size": 9 / pixelsPerMmY,
+          }, tick.label));
+        }
+      }
+      const corner = svgElement("rect", {
+        x: viewport.left,
+        y: viewport.top,
+        width: thicknessX,
+        height: thicknessY,
+        class: "ev2-svg-ruler-corner",
+        "aria-hidden": "true",
+      });
+      svg.append(horizontalGroup, verticalGroup, corner);
     }
 
     renderSlotsList(state) {

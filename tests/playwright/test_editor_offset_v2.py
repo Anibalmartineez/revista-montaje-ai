@@ -1606,3 +1606,303 @@ def test_v2_advanced_selection_tree_and_temporary_visibility(v2_server, tmp_path
             assert not page_errors
         finally:
             browser.close()
+
+
+def test_v2_precision_rulers_guides_snap_measurement_and_reload(v2_server, tmp_path):
+    pdf_path = tmp_path / "fase-8e.pdf"
+    _write_test_pdf(pdf_path)
+
+    with sync_playwright() as playwright:
+        browser = playwright.chromium.launch(headless=True)
+        page = browser.new_page(viewport={"width": 1680, "height": 1050})
+        console_errors: list[str] = []
+        page_errors: list[str] = []
+        page.on(
+            "console",
+            lambda message: console_errors.append(message.text)
+            if message.type == "error" and "favicon" not in message.text.lower()
+            else None,
+        )
+        page.on("pageerror", lambda error: page_errors.append(str(error)))
+
+        def domain_to_client(point: dict[str, float]) -> dict[str, float]:
+            return page.evaluate(
+                """point => {
+                  const app = window.__EDITOR_OFFSET_V2__;
+                  const svg = app.renderer.refs.canvas;
+                  const svgPoint = svg.createSVGPoint();
+                  svgPoint.x = point.x;
+                  svgPoint.y = app.store.layout.sheet.size_mm.height - point.y;
+                  const client = svgPoint.matrixTransform(svg.getScreenCTM());
+                  return {x: client.x, y: client.y};
+                }""",
+                point,
+            )
+
+        def add_exact_guide(axis: str, value: float | str) -> None:
+            page.locator("#ev2-precision-guide-axis").select_option(axis)
+            page.locator("#ev2-precision-guide-position").fill(str(value))
+            page.locator("#ev2-precision-guide-add").click()
+
+        try:
+            _open_job_with_repeat(page, v2_server, pdf_path, quantity=4)
+            page.wait_for_function(
+                "() => window.__EDITOR_OFFSET_V2__.store.saveState.status === 'clean'",
+                timeout=10_000,
+            )
+            expect(page.locator("#ev2-precision-heading")).to_be_visible()
+            baseline = page.evaluate(
+                """() => {
+                  const store = window.__EDITOR_OFFSET_V2__.store;
+                  return {layout: JSON.stringify(store.layout), revision: store.revision,
+                    changeVersion: store.changeVersion, undo: store.undoStack.length};
+                }"""
+            )
+
+            page.locator("#ev2-precision-rulers").check()
+            expect(page.locator(".ev2-svg-ruler-horizontal")).to_have_count(1)
+            expect(page.locator(".ev2-svg-ruler-vertical")).to_have_count(1)
+            expect(page.locator(".ev2-svg-ruler-corner")).to_have_count(1)
+            expect(page.locator(".ev2-svg-ruler-horizontal text").first).to_be_visible()
+            labels_before = page.locator(".ev2-svg-ruler-horizontal text").all_text_contents()
+            page.evaluate("() => window.__EDITOR_OFFSET_V2__.store.setZoom(2)")
+            labels_zoom = page.locator(".ev2-svg-ruler-horizontal text").all_text_contents()
+            assert labels_zoom != labels_before
+            page.evaluate("() => window.__EDITOR_OFFSET_V2__.store.setPan({x: 45, y: -25})")
+            labels_pan = page.locator(".ev2-svg-ruler-horizontal text").all_text_contents()
+            assert labels_pan != labels_zoom
+            page.locator("#ev2-reset-view").click()
+
+            add_exact_guide("x", "-12,5")
+            assert page.evaluate(
+                "() => window.__EDITOR_OFFSET_V2__.store.precisionTools.guides[0].position_mm"
+            ) == -12.5
+            expect(page.locator(".ev2-svg-guide[data-guide-axis='x']")).to_have_count(1)
+
+            canvas_box = page.locator("#ev2-canvas").bounding_box()
+            horizontal_box = page.locator(".ev2-svg-ruler-horizontal").bounding_box()
+            vertical_box = page.locator(".ev2-svg-ruler-vertical").bounding_box()
+            assert canvas_box and horizontal_box and vertical_box
+            guide_count = page.evaluate(
+                "() => window.__EDITOR_OFFSET_V2__.store.precisionTools.guides.length"
+            )
+            page.mouse.move(horizontal_box["x"] + horizontal_box["width"] * 0.65,
+                            horizontal_box["y"] + 6)
+            page.mouse.down()
+            page.mouse.move(canvas_box["x"] + canvas_box["width"] * 0.65,
+                            canvas_box["y"] + 100, steps=3)
+            page.mouse.up()
+            page.wait_for_function(
+                "count => window.__EDITOR_OFFSET_V2__.store.precisionTools.guides.length === count + 1",
+                arg=guide_count,
+            )
+            page.mouse.move(vertical_box["x"] + 6,
+                            vertical_box["y"] + vertical_box["height"] * 0.55)
+            page.mouse.down()
+            page.mouse.move(canvas_box["x"] + 100,
+                            canvas_box["y"] + canvas_box["height"] * 0.55, steps=3)
+            page.mouse.up()
+            page.wait_for_function(
+                "count => window.__EDITOR_OFFSET_V2__.store.precisionTools.guides.length === count + 2",
+                arg=guide_count,
+            )
+            assert page.evaluate(
+                "() => new Set(window.__EDITOR_OFFSET_V2__.store.precisionTools.guides.map(g => g.axis)).size"
+            ) == 2
+
+            first_row_input = page.locator("#ev2-precision-guides-list li[data-guide-id]").first.locator("input")
+            original_value = first_row_input.input_value()
+            first_row_input.fill("999")
+            first_row_input.press("Escape")
+            assert first_row_input.input_value() == original_value
+            first_row_input.fill("888")
+            page.locator("#ev2-precision-heading").click()
+            assert first_row_input.input_value() == original_value
+            first_row_input.fill("100,25")
+            page.locator("#ev2-precision-guides-list li[data-guide-id]").first.locator(
+                "button[data-guide-action='update']"
+            ).click()
+            assert page.evaluate(
+                "() => window.__EDITOR_OFFSET_V2__.store.precisionTools.guides[0].position_mm"
+            ) == 100.25
+            sheet_height = page.evaluate(
+                "() => window.__EDITOR_OFFSET_V2__.store.layout.sheet.size_mm.height"
+            )
+            guide_start = domain_to_client({"x": 100.25, "y": sheet_height / 2})
+            guide_end = domain_to_client({"x": 125.5, "y": sheet_height / 2})
+            page.mouse.move(guide_start["x"], guide_start["y"])
+            page.mouse.down()
+            page.mouse.move(guide_end["x"], guide_end["y"], steps=3)
+            page.mouse.up()
+            assert page.evaluate(
+                "() => window.__EDITOR_OFFSET_V2__.store.precisionTools.guides[0].position_mm"
+            ) == pytest.approx(125.5, abs=1e-3)
+            last_row = page.locator("#ev2-precision-guides-list li[data-guide-id]").last
+            last_row.focus()
+            page.keyboard.press("Delete")
+            page.wait_for_function(
+                "count => window.__EDITOR_OFFSET_V2__.store.precisionTools.guides.length === count + 1",
+                arg=guide_count,
+            )
+
+            temporary = page.evaluate(
+                """() => {
+                  const store = window.__EDITOR_OFFSET_V2__.store;
+                  return {layout: JSON.stringify(store.layout), revision: store.revision,
+                    changeVersion: store.changeVersion, undo: store.undoStack.length};
+                }"""
+            )
+            assert temporary == baseline
+
+            page.locator("#ev2-precision-guides-clear").click()
+            first = page.evaluate(
+                """() => {
+                  const slot = window.__EDITOR_OFFSET_V2__.store.layout.slots[0];
+                  return {id: slot.id, x: slot.geometry.position_mm.x_mm,
+                    y: slot.geometry.position_mm.y_mm};
+                }"""
+            )
+            snap_x = first["x"] + 40
+            add_exact_guide("x", snap_x)
+            page.locator("#ev2-precision-snap-enabled").check()
+            page.locator("#ev2-precision-snap-slots").uncheck()
+            page.locator("#ev2-precision-snap-sheet").uncheck()
+            page.locator("#ev2-precision-snap-printable").uncheck()
+            page.evaluate(
+                "id => window.__EDITOR_OFFSET_V2__.store.setSelection([id], 'replace')",
+                first["id"],
+            )
+            undo_before = page.evaluate(
+                "() => window.__EDITOR_OFFSET_V2__.store.undoStack.length"
+            )
+            start = domain_to_client({"x": first["x"], "y": first["y"]})
+            end = domain_to_client({"x": snap_x, "y": first["y"]})
+            page.mouse.move(start["x"], start["y"])
+            page.mouse.down()
+            page.mouse.move(end["x"] - 2, end["y"], steps=4)
+            expect(page.locator(".ev2-svg-smart-guide[data-smart-guide-axis='x']")).to_have_count(1)
+            expect(page.locator(".ev2-svg-smart-guide-label")).to_contain_text("guía")
+            assert page.locator(".ev2-svg-smart-guide").first.evaluate(
+                "element => getComputedStyle(element).pointerEvents"
+            ) == "none"
+            page.mouse.up()
+            expect(page.locator(".ev2-svg-smart-guide")).to_have_count(0)
+            assert page.evaluate(
+                "id => window.__EDITOR_OFFSET_V2__.store.layout.slots.find(s => s.id === id).geometry.position_mm.x_mm",
+                first["id"],
+            ) == pytest.approx(snap_x)
+            assert page.evaluate(
+                "() => window.__EDITOR_OFFSET_V2__.store.undoStack.length"
+            ) == undo_before + 1
+            page.locator("#ev2-undo").click()
+            page.locator("#ev2-redo").click()
+
+            count_before_duplicate = page.evaluate(
+                "() => window.__EDITOR_OFFSET_V2__.store.layout.slots.length"
+            )
+            duplicate_x = snap_x + 45
+            page.locator("#ev2-precision-guides-clear").click()
+            add_exact_guide("x", duplicate_x)
+            start = domain_to_client({"x": snap_x, "y": first["y"]})
+            end = domain_to_client({"x": duplicate_x, "y": first["y"]})
+            page.keyboard.down("Alt")
+            page.mouse.move(start["x"], start["y"])
+            page.mouse.down()
+            page.mouse.move(end["x"] - 2, end["y"], steps=4)
+            expect(page.locator(".ev2-svg-smart-guide")).to_have_count(1)
+            page.mouse.up()
+            page.keyboard.up("Alt")
+            assert page.evaluate(
+                "() => window.__EDITOR_OFFSET_V2__.store.layout.slots.length"
+            ) == count_before_duplicate + 1
+            page.locator("#ev2-undo").click()
+            assert page.evaluate(
+                "() => window.__EDITOR_OFFSET_V2__.store.layout.slots.length"
+            ) == count_before_duplicate
+
+            current = page.evaluate(
+                """id => {
+                  const slot = window.__EDITOR_OFFSET_V2__.store.layout.slots.find(s => s.id === id);
+                  return {x: slot.geometry.position_mm.x_mm, y: slot.geometry.position_mm.y_mm};
+                }""",
+                first["id"],
+            )
+            start = domain_to_client(current)
+            page.mouse.move(start["x"], start["y"])
+            page.mouse.down()
+            page.mouse.move(start["x"] + 18, start["y"], steps=3)
+            page.keyboard.press("Escape")
+            page.mouse.up()
+            expect(page.locator(".ev2-svg-smart-guide")).to_have_count(0)
+            assert page.evaluate(
+                "id => window.__EDITOR_OFFSET_V2__.store.layout.slots.find(s => s.id === id).geometry.position_mm.x_mm",
+                first["id"],
+            ) == pytest.approx(current["x"])
+
+            page.locator("#ev2-precision-snap-enabled").uncheck()
+            page.locator("#ev2-precision-measure-toggle").click()
+            measure_start = domain_to_client({"x": 30, "y": 30})
+            measure_end = domain_to_client({"x": 33, "y": 34})
+            page.mouse.click(measure_start["x"], measure_start["y"])
+            page.mouse.move(measure_end["x"], measure_end["y"], steps=3)
+            expect(page.locator(".ev2-svg-measurement")).to_have_count(1)
+            page.mouse.click(measure_end["x"], measure_end["y"])
+            measurement = page.evaluate(
+                "() => window.__EDITOR_OFFSET_V2__.store.precisionTools.lastMeasurement"
+            )
+            assert measurement["deltaX"] == pytest.approx(3, abs=1e-3)
+            assert measurement["deltaY"] == pytest.approx(4, abs=1e-3)
+            assert measurement["distance"] == pytest.approx(5, abs=1e-3)
+            expect(page.locator("#ev2-precision-measurement-result")).to_contain_text("Distancia 5 mm")
+            page.locator("#ev2-precision-measure-toggle").click()
+
+            ids = page.evaluate(
+                "() => window.__EDITOR_OFFSET_V2__.store.layout.slots.slice(0, 3).map(slot => slot.id)"
+            )
+            page.evaluate(
+                "ids => window.__EDITOR_OFFSET_V2__.store.setSelection(ids.slice(0, 2), 'replace')",
+                ids,
+            )
+            expect(page.locator("#ev2-precision-selection-metrics")).to_contain_text("2 slots")
+            expect(page.locator("#ev2-precision-selection-metrics")).to_contain_text("Gap X")
+            page.evaluate(
+                "ids => window.__EDITOR_OFFSET_V2__.store.setSelection(ids, 'replace')", ids
+            )
+            expect(page.locator("#ev2-precision-selection-metrics")).to_contain_text("3 slots")
+            expect(page.locator("#ev2-precision-selection-metrics")).to_contain_text("Aggregate")
+
+            page.evaluate("() => window.__EDITOR_OFFSET_V2__.saver.manualSave()")
+            page.wait_for_function(
+                "() => window.__EDITOR_OFFSET_V2__.store.saveState.status === 'clean'",
+                timeout=10_000,
+            )
+            persisted = page.evaluate(
+                "() => JSON.stringify(window.__EDITOR_OFFSET_V2__.store.layout)"
+            )
+            assert page.evaluate(
+                "() => window.__EDITOR_OFFSET_V2__.store.precisionTools.guides.length"
+            ) == 1
+            page.reload(wait_until="domcontentloaded")
+            assert page.evaluate(
+                "() => JSON.stringify(window.__EDITOR_OFFSET_V2__.store.layout)"
+            ) == persisted
+            assert page.evaluate(
+                "() => window.__EDITOR_OFFSET_V2__.store.precisionTools.guides.length"
+            ) == 0
+            assert page.evaluate(
+                "() => window.__EDITOR_OFFSET_V2__.store.precisionTools.measurementMode"
+            ) is False
+            expect(page.locator("#ev2-arrangement-heading")).to_be_visible()
+            expect(page.locator("#ev2-advanced-selection-heading")).to_be_visible()
+            expect(page.locator(".ev2-svg-slot-label").first).to_have_text("#1")
+            expect(page.locator(".ev2-resize-handle, [data-resize-handle]")).to_have_count(0)
+            with page.expect_response(
+                lambda response: response.request.method == "GET"
+                and response.url.endswith("/output-capabilities")
+            ):
+                page.locator("#ev2-output-check").click()
+            expect(page.locator("#ev2-output-status")).to_be_visible()
+            assert not console_errors
+            assert not page_errors
+        finally:
+            browser.close()

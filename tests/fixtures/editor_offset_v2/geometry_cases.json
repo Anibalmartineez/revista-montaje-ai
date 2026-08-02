@@ -88,6 +88,20 @@
       }
     },
     {
+      "id": "negative_position_different_size",
+      "center": {"x": -12.5, "y": -7.25},
+      "trim_size": {"width": 13.5, "height": 4.5},
+      "bleed": 1.25,
+      "rotation_deg": 180,
+      "expected": {
+        "oriented_trim_size": {"width": 13.5, "height": 4.5},
+        "productive_size": {"width": 16.0, "height": 7.0},
+        "trim_bounds": {"left": -19.25, "right": -5.75, "bottom": -9.5, "top": -5.0},
+        "bleed_bounds": {"left": -20.5, "right": -4.5, "bottom": -10.75, "top": -3.75},
+        "trim_polygon": [[-5.75, -5.0], [-19.25, -5.0], [-19.25, -9.5], [-5.75, -9.5]]
+      }
+    },
+    {
       "id": "realistic_offset_sheet_piece",
       "center": {"x": 350.0, "y": 250.0},
       "trim_size": {"width": 210.0, "height": 297.0},
@@ -177,6 +191,13 @@
       "expected": true
     },
     {
+      "id": "total_overlap_equal_size",
+      "slot_a": {"center": {"x": -5.5, "y": 12.25}, "trim_size": {"width": 8.0, "height": 6.0}, "bleed": 0.0, "rotation_deg": 180},
+      "slot_b": {"center": {"x": -5.5, "y": 12.25}, "trim_size": {"width": 8.0, "height": 6.0}, "bleed": 0.0, "rotation_deg": 0},
+      "use_bleed": true,
+      "expected": true
+    },
+    {
       "id": "cardinal_rotated_overlap",
       "slot_a": {"center": {"x": 10.0, "y": 10.0}, "trim_size": {"width": 20.0, "height": 8.0}, "bleed": 0.0, "rotation_deg": 90},
       "slot_b": {"center": {"x": 13.0, "y": 10.0}, "trim_size": {"width": 8.0, "height": 20.0}, "bleed": 0.0, "rotation_deg": 0},
@@ -199,6 +220,26 @@
       "polygon_b": [[-2.61629509, -1.626345597], [1.626345597, 2.61629509], [0.919238816, 3.323401871], [-3.323401871, -0.919238816]],
       "expected_bounds_overlap": true,
       "expected_polygon_overlap": false
+    }
+  ],
+  "bounds_cases": [
+    {
+      "id": "horizontal_gap_and_diagonal_distance",
+      "bounds_a": {"left": 0.0, "right": 10.0, "bottom": 0.0, "top": 10.0},
+      "bounds_b": {"left": 13.0, "right": 20.0, "bottom": 14.0, "top": 20.0},
+      "expected": {"gap_x": 3.0, "gap_y": 4.0, "distance": 5.0, "intersects": false}
+    },
+    {
+      "id": "touching_bounds",
+      "bounds_a": {"left": 0.0, "right": 10.0, "bottom": 0.0, "top": 10.0},
+      "bounds_b": {"left": 10.0, "right": 20.0, "bottom": 2.0, "top": 8.0},
+      "expected": {"gap_x": 0.0, "gap_y": -6.0, "distance": 0.0, "intersects": false}
+    },
+    {
+      "id": "partial_overlap",
+      "bounds_a": {"left": 0.0, "right": 10.0, "bottom": 0.0, "top": 10.0},
+      "bounds_b": {"left": 8.0, "right": 16.0, "bottom": 6.0, "top": 14.0},
+      "expected": {"gap_x": -2.0, "gap_y": -4.0, "distance": 0.0, "intersects": true}
     }
   ]
 }

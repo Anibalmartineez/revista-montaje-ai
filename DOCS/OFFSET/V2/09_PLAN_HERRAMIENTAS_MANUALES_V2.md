@@ -4,9 +4,9 @@
 
 Este plan parte del código auditado después de las fases 1–7. No propone reconstruir el editor ni introducir un framework. Extiende la arquitectura que ya funciona:
 
-> ACTUALIZACIÓN VIGENTE — 8P, CORRECCIÓN DE MEDIDA/ETIQUETAS Y 8A–8D COMPLETADAS
+> ACTUALIZACIÓN VIGENTE — 8P, CORRECCIÓN DE MEDIDA/ETIQUETAS Y 8A–8E COMPLETADAS
 >
-> La estabilización semántica está en `10_ESTABILIZACION_SEMANTICA_V2.md`; la corrección de tolerancia/etiquetas en `12_CORRECCION_COMPATIBILIDAD_DE_MEDIDA_Y_ETIQUETAS_V2.md`; el cierre de posicionamiento/acciones en `13_POSICIONAMIENTO_Y_COMANDOS_V2.md`; las operaciones de objeto en `14_OPERACIONES_DE_OBJETO_Y_CLIPBOARD_V2.md`; alineación/distribución/matriz en `15_ALINEACION_DISTRIBUCION_Y_MATRIZ_V2.md`; y selección avanzada/árbol en `16_SELECCION_AVANZADA_Y_ARBOL_V2.md`. Ya existen marquee, ciclo de superpuestos, selección por propiedades/locks/issues, árbol accesible y visibilidad temporal además de las capacidades previas. Las fases futuras no deben reimplementar estas piezas.
+> La estabilización semántica está en `10_ESTABILIZACION_SEMANTICA_V2.md`; la corrección de tolerancia/etiquetas en `12_CORRECCION_COMPATIBILIDAD_DE_MEDIDA_Y_ETIQUETAS_V2.md`; el cierre de posicionamiento/acciones en `13_POSICIONAMIENTO_Y_COMANDOS_V2.md`; las operaciones de objeto en `14_OPERACIONES_DE_OBJETO_Y_CLIPBOARD_V2.md`; alineación/distribución/matriz en `15_ALINEACION_DISTRIBUCION_Y_MATRIZ_V2.md`; selección avanzada/árbol en `16_SELECCION_AVANZADA_Y_ARBOL_V2.md`; y reglas, guías, snap y medición en `17_REGLAS_GUIAS_SNAP_Y_MEDICION_V2.md`. Las fases futuras no deben reimplementar estas piezas.
 
 ```text
 EditorStore
@@ -30,11 +30,11 @@ Base disponible:
 - marquee trim/footprint, ciclo, árbol cara/work/slot y `hiddenSlotIds` temporal;
 - kernel Python con polígonos, bounds, SAT y distancias.
 
-Deudas que condicionan el orden después de 8D:
+Deudas que condicionan el orden después de 8E:
 
 - el inspector de posición solo edita X/Y; la rotación cardinal vive en el panel
   de objetos y tamaño/contenido siguen fuera de alcance;
-- el kernel JS solo cubre bounds cardinales;
+- el kernel JS cubre la geometría requerida por 8E, pero resize y transformaciones internas siguen pendientes;
 - no hay navegación de cara;
 - el renderer no aplica `content_transform`;
 - OutputAdapter bloquea resize incompatible y transformaciones internas avanzadas.
@@ -279,13 +279,15 @@ Una marca roja de bounds no reemplaza un preflight. Una transformación visual n
 
 ### Fase 8E — Reglas, guías, snap, smart guides y medición
 
-- **Rama:** `feat/editor-offset-v2-guides-snap-measure`
-- **Alcance:** completar paridad JS; reglas, guías temporales, snap a sheet/márgenes/centros/slots, smart guides, medidas, gaps e overlap visual.
-- **Archivos:** kernel JS/snap engine/renderer/interactions/store/UI; fixtures y tests Python/Node de paridad.
-- **Tests:** SAT, contacto, tolerancias, prioridades, zoom/pan y Playwright.
-- **Riesgo:** alto por precisión e interacción.
+- **Estado:** completada y validada.
+- **Rama:** `feat/editor-offset-v2-rulers-guides-snap-measurement`.
+- **Alcance completado:** kernel JS canónico; reglas adaptativas; guías temporales desde regla/valor exacto; snap configurable a guías, pliego, área imprimible y slots visibles; smart guides; medición y métricas.
+- **Arquitectura:** Store, selección, referencia trim/footprint, locks, sesiones de puntero, ActionRegistry, comandos e historial existentes.
+- **Tests:** fixtures compartidos Python/Node, tolerancia/SAT/gaps, fuentes y prioridades, 500 slots y recorrido Playwright real.
+- **Riesgo residual:** moderado; métricas de varios slots usan bounds cardinales y el análisis de pares se reserva para eventos discretos.
 - **No tocar:** corrección automática, persistencia de guías, resize.
-- **Finalización:** mismo resultado geométrico Python/JS y un drag continúa siendo un comando.
+- **Finalización:** mismo resultado geométrico Python/JS para el alcance, estado 8E temporal y un drag/Alt+drag continúa siendo un comando.
+- **Evidencia:** `17_REGLAS_GUIAS_SNAP_Y_MEDICION_V2.md`.
 
 ### Fase 8F — Resize productivo del slot
 
@@ -396,7 +398,7 @@ Una marca roja de bounds no reemplaza un preflight. Una transformación visual n
   -> 8B Operaciones de objeto y rotación cardinal (completada)
   -> 8C Alinear/distribuir/matriz (completada)
   -> 8D Selección avanzada y árbol (completada)
-  -> 8E Paridad completa, snap y medición
+  -> 8E Paridad frontend, snap y medición (completada)
   -> 8F Resize productivo
   -> 8G Transformación de artwork + canvas exacto
   -> 8H Frente/dorso y mesa de luz
@@ -408,14 +410,15 @@ Una marca roja de bounds no reemplaza un preflight. Una transformación visual n
   -> 10 Presupuesto
 ```
 
-8D está completada. 8F no debe adelantarse a la señal de exportabilidad. 8G debe conseguir un canvas exacto, pero no incorporar el motor PDF; la salida nativa comienza en Fase 9 después de 8K y 8L. Presupuesto permanece separado hasta Fase 10.
+8E está completada. 8F es la siguiente fase y no debe alterar silenciosamente la señal de exportabilidad. 8G debe conseguir un canvas exacto, pero no incorporar el motor PDF; la salida nativa comienza en Fase 9 después de 8K y 8L. Presupuesto permanece separado hasta Fase 10.
 
 ## 12. Siguiente fase recomendada
 
-Fases 8A, 8B, 8C y 8D están completadas. La siguiente fase segura es **Fase 8E —
-Reglas, guías, snap, smart guides y medición**. Debe consumir la selección,
-visibilidad temporal, referencia geométrica y sesiones de puntero existentes,
-ampliando paridad geométrica sin adelantar resize 8F.
+Fases 8A, 8B, 8C, 8D y 8E están completadas. La siguiente fase segura es
+**Fase 8F — Resize productivo del slot**. Debe reutilizar el kernel frontend,
+las coordenadas, locks, sesiones de puntero, smart guides y comandos existentes;
+requiere decidir anclas, proporción, multiselección y señal de exportabilidad
+antes de exponer handles.
 
 ## 13. Especificación histórica de implementación 8A
 
