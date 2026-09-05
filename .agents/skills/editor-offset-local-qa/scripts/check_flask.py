@@ -9,10 +9,15 @@ from dataclasses import dataclass
 from typing import Sequence
 
 
-REQUIRED_URLS: tuple[str, ...] = (
-    "http://127.0.0.1:5000/",
-    "http://127.0.0.1:5000/editor_offset_visual",
-)
+ROOT_URL = "http://127.0.0.1:5000/"
+EDITOR_V1_URL = "http://127.0.0.1:5000/editor_offset_visual"
+EDITOR_V2_URL = "http://127.0.0.1:5000/editor_offset_visual_v2"
+URLS_BY_TARGET: dict[str, tuple[str, ...]] = {
+    "root": (ROOT_URL,),
+    "v1": (ROOT_URL, EDITOR_V1_URL),
+    "v2": (ROOT_URL, EDITOR_V2_URL),
+    "both": (ROOT_URL, EDITOR_V1_URL, EDITOR_V2_URL),
+}
 SUCCESS_STATUS_MIN = 200
 SUCCESS_STATUS_MAX = 399
 
@@ -62,6 +67,12 @@ def positive_float(value: str) -> float:
 def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description="Comprueba las rutas HTTP obligatorias de Flask local."
+    )
+    parser.add_argument(
+        "--target",
+        choices=tuple(URLS_BY_TARGET),
+        default="v1",
+        help="superficie que debe responder: v1, v2, both o root (uso interno)",
     )
     parser.add_argument("--attempts", type=positive_int, default=5)
     parser.add_argument("--interval", type=non_negative_float, default=1.0)
@@ -131,19 +142,20 @@ def print_result(result: CheckResult) -> None:
 
 def main(argv: Sequence[str] | None = None) -> int:
     args = parse_args(argv)
+    required_urls = URLS_BY_TARGET[args.target]
     print(
         f"Criterio de éxito: todas las rutas deben devolver HTTP "
         f"{SUCCESS_STATUS_MIN}-{SUCCESS_STATUS_MAX}."
     )
     print(
-        f"Configuración: intentos={args.attempts}, intervalo={args.interval}s, "
-        f"timeout={args.timeout}s."
+        f"Configuración: target={args.target}, intentos={args.attempts}, "
+        f"intervalo={args.interval}s, timeout={args.timeout}s."
     )
 
     final_results: list[CheckResult] = []
     for attempt in range(1, args.attempts + 1):
         print(f"Intento {attempt}/{args.attempts}:")
-        final_results = [check_url(url, args.timeout) for url in REQUIRED_URLS]
+        final_results = [check_url(url, args.timeout) for url in required_urls]
         for result in final_results:
             print_result(result)
         if all(result.ok for result in final_results):

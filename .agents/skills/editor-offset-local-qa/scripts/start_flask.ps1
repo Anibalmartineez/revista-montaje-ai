@@ -1,3 +1,10 @@
+param(
+    [ValidateSet("v1", "v2", "both")]
+    [string]$Target = "v1",
+
+    [switch]$EnableV2DevTools
+)
+
 $ErrorActionPreference = "Stop"
 if (Test-Path Variable:PSNativeCommandUseErrorActionPreference) {
     $PSNativeCommandUseErrorActionPreference = $false
@@ -45,6 +52,7 @@ $checkScript = Join-Path $repoRoot ".agents\skills\editor-offset-local-qa\script
 $runtimeDir = Join-Path $repoRoot ".codex-runtime\editor-offset-local-qa"
 $pidPath = Join-Path $runtimeDir "flask.pid"
 $metadataPath = Join-Path $runtimeDir "process.json"
+$targetValue = $Target.ToLowerInvariant()
 
 foreach ($requiredFile in @($pythonPath, $entryPoint, $checkScript)) {
     if (-not (Test-Path -LiteralPath $requiredFile -PathType Leaf)) {
@@ -53,14 +61,24 @@ foreach ($requiredFile in @($pythonPath, $entryPoint, $checkScript)) {
 }
 
 if ((Test-Path -LiteralPath $runtimeDir -PathType Container) -and (Test-SavedProcessIsActive -PidPath $pidPath)) {
+    & $pythonPath $checkScript --target $targetValue --attempts 1 --interval 0 --timeout 2
+    if ($LASTEXITCODE -eq 0) {
+        Write-Output "El proceso registrado ya sirve el target '$targetValue'."
+        exit 0
+    }
+    throw "Existe un proceso activo registrado por la Skill, pero no sirve el target '$targetValue'. Deténgalo con stop_flask.ps1 antes de cambiar de modo."
+}
+
+Write-Output "Comprobando si Flask ya responde para el target '$targetValue' antes de iniciar otro servidor..."
+& $pythonPath $checkScript --target $targetValue --attempts 1 --interval 0 --timeout 2
+if ($LASTEXITCODE -eq 0) {
+    Write-Output "Flask ya responde en todas las rutas obligatorias del target '$targetValue'. No se iniciará otro proceso."
     exit 0
 }
 
-Write-Output "Comprobando si Flask ya responde antes de iniciar otro servidor..."
-& $pythonPath $checkScript --attempts 1 --interval 0 --timeout 2
+& $pythonPath $checkScript --target root --attempts 1 --interval 0 --timeout 2
 if ($LASTEXITCODE -eq 0) {
-    Write-Output "Flask ya responde en todas las rutas obligatorias. No se iniciará otro proceso."
-    exit 0
+    throw "Ya existe un servidor respondiendo en http://127.0.0.1:5000/, pero no sirve el target '$targetValue'. No se iniciará un proceso duplicado ni se ocupará el mismo puerto."
 }
 
 New-Item -ItemType Directory -Path $runtimeDir -Force | Out-Null
@@ -73,19 +91,44 @@ $bootstrapCode = "from app import app; skill_marker='editor-offset-local-qa'; ap
 $bootstrapArgument = '"' + $bootstrapCode + '"'
 $commandDisplay = '"{0}" -c "{1}"' -f $pythonPath, $bootstrapCode
 
-$process = Start-Process `
-    -FilePath $pythonPath `
-    -ArgumentList @("-c", $bootstrapArgument) `
-    -WorkingDirectory $repoRoot `
-    -RedirectStandardOutput $stdoutPath `
-    -RedirectStandardError $stderrPath `
-    -WindowStyle Hidden `
-    -PassThru
+$v2Enabled = if ($targetValue -in @("v2", "both")) { "1" } else { "0" }
+$v2DevToolsEnabled = if ($v2Enabled -eq "1" -and $EnableV2DevTools) { "1" } else { "0" }
+$previousV2Enabled = [Environment]::GetEnvironmentVariable("EDITOR_OFFSET_V2_ENABLED", "Process")
+$previousV2DevToolsEnabled = [Environment]::GetEnvironmentVariable("EDITOR_OFFSET_V2_DEV_TOOLS_ENABLED", "Process")
+$startArguments = @{
+    FilePath = $pythonPath
+    ArgumentList = @("-c", $bootstrapArgument)
+    WorkingDirectory = $repoRoot
+    RedirectStandardOutput = $stdoutPath
+    RedirectStandardError = $stderrPath
+    WindowStyle = "Hidden"
+    PassThru = $true
+}
+
+try {
+    $env:EDITOR_OFFSET_V2_ENABLED = $v2Enabled
+    $env:EDITOR_OFFSET_V2_DEV_TOOLS_ENABLED = $v2DevToolsEnabled
+    $process = Start-Process @startArguments
+} finally {
+    if ($null -eq $previousV2Enabled) {
+        Remove-Item Env:\EDITOR_OFFSET_V2_ENABLED -ErrorAction SilentlyContinue
+    } else {
+        $env:EDITOR_OFFSET_V2_ENABLED = $previousV2Enabled
+    }
+    if ($null -eq $previousV2DevToolsEnabled) {
+        Remove-Item Env:\EDITOR_OFFSET_V2_DEV_TOOLS_ENABLED -ErrorAction SilentlyContinue
+    } else {
+        $env:EDITOR_OFFSET_V2_DEV_TOOLS_ENABLED = $previousV2DevToolsEnabled
+    }
+}
 
 $processStartUtc = $process.StartTime.ToUniversalTime().ToString("o")
 $metadata = [ordered]@{
-    schema_version = 1
+    schema_version = 2
     pid = $process.Id
+    target = $targetValue
+    editor_offset_v2_enabled = $v2Enabled
+    editor_offset_v2_dev_tools_enabled = $v2DevToolsEnabled
     executable_path = $pythonPath
     entry_point = $entryPoint
     working_directory = $repoRoot
@@ -112,4 +155,7 @@ Write-Output "stdout: $stdoutPath"
 Write-Output "stderr: $stderrPath"
 Write-Output "comando: $commandDisplay"
 Write-Output "directorio de trabajo: $repoRoot"
+Write-Output "target: $targetValue"
+Write-Output "EDITOR_OFFSET_V2_ENABLED (solo proceso hijo): $v2Enabled"
+Write-Output "EDITOR_OFFSET_V2_DEV_TOOLS_ENABLED (solo proceso hijo): $v2DevToolsEnabled"
 
