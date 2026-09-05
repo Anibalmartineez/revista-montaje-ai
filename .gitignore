@@ -49,3 +49,4 @@ pdf_medidor_pro/exports/*
 !pdf_medidor_pro/exports/.gitkeep
 
 .codex-runtime/
+.playwright-cli/
