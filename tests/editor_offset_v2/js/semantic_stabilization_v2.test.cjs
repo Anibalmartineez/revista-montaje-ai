@@ -513,3 +513,22 @@ test("slot label visibility is temporary and never dirties or changes the layout
   assert.equal(store.hasUnsavedChanges(), false);
   assert.deepEqual(store.layout, before);
 });
+
+test("save conflict message explains the safe recovery without exposing API text", () => {
+  const technical = "The submitted base revision does not match the persisted layout";
+  const message = CanvasRenderer.saveStatusMessage(
+    { status: "conflict", error: technical },
+    "feedback anterior",
+  );
+
+  assert.match(message, /otra pestaña o sesión/);
+  assert.match(message, /cambios siguen aquí sin guardar/);
+  assert.match(message, /versión más reciente/);
+  assert.match(message, /descartará/);
+  assert.doesNotMatch(message, /submitted base revision/i);
+  assert.equal(
+    CanvasRenderer.saveStatusMessage({ status: "save_error", error: "Error normal" }, ""),
+    "Error normal",
+  );
+  assert.equal(CanvasRenderer.saveStatusMessage({ status: "clean", error: null }, "Listo"), "Listo");
+});

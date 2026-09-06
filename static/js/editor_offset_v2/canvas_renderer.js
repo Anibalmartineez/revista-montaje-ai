@@ -22,6 +22,12 @@
   const SLOT_LABEL_MIN_PHYSICAL_MM = 6;
   const SLOT_LABEL_MIN_VISIBLE_MM = 10;
   const SOURCE_TRIM_VISUAL_TOLERANCE_MM = 0.01;
+  const SAVE_CONFLICT_MESSAGE = "Este job cambió en otra pestaña o sesión. Tus cambios siguen aquí sin guardar; recargar cargará la versión más reciente y los descartará.";
+
+  function saveStatusMessage(saveState, feedback) {
+    if (saveState?.status === "conflict") return SAVE_CONFLICT_MESSAGE;
+    return saveState?.error || feedback || "";
+  }
 
   function svgElement(name, attributes, text) {
     const element = document.createElementNS(SVG_NS, name);
@@ -618,7 +624,10 @@
       this.refs.revision.textContent = String(state.revision);
       this.refs.saveStatus.textContent = labels[state.saveState.status];
       this.refs.saveStatus.dataset.state = state.saveState.status;
-      this.refs.statusMessage.textContent = state.saveState.error || state.feedback || "";
+      const statusMessage = saveStatusMessage(state.saveState, state.feedback);
+      this.refs.statusMessage.textContent = statusMessage;
+      this.refs.statusMessage.dataset.state = state.saveState.status;
+      this.refs.statusMessage.title = state.saveState.status === "conflict" ? statusMessage : "";
       if (this.actionSystem) {
         const context = this.actionSystem.contextProvider();
         this.refs.save.disabled = !this.actionSystem.registry.isEnabled(
@@ -667,6 +676,7 @@
     artworkForSlot,
     artworkIsApproximate,
     shortSlotLabel,
+    saveStatusMessage,
     slotLabelPresentation,
     slotPlacementClasses,
     svgElement,

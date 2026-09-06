@@ -718,7 +718,7 @@ Gate de salida:
 
 ### Fase 19-B: estabilización mínima
 
-Estado: en curso. STAB-001 a STAB-004 corregidos y validados el 2026-09-05; STAB-005 y STAB-006 permanecen pendientes.
+Estado: en curso. STAB-001 a STAB-005 corregidos y validados el 2026-09-05; STAB-006 permanece pendiente.
 
 Orden recomendado:
 
@@ -937,6 +937,67 @@ Resultado:
 - no se detectaron regresiones nuevas en el alcance focalizado;
 - el siguiente defecto aislado es STAB-005, recuperación comprensible ante conflicto de revisión 409.
 
+#### Resultado 19-B.5: STAB-005 conflicto de revisión comprensible
+
+Fecha: 2026-09-05.
+
+Problema confirmado antes del cambio:
+
+- el backend rechazaba correctamente una revisión antigua con 409 REVISION_CONFLICT;
+- no se sobrescribía la versión remota y el layout local rechazado permanecía en la pestaña;
+- el renderer mostraba directamente el mensaje técnico en inglés devuelto por el API;
+- la barra de estado limitaba el texto a 300 px en una sola línea y lo truncaba;
+- no se explicaba qué seguía disponible localmente ni qué descartaría la recarga;
+- la regresión STAB-005 reproducía el defecto como xfailed.
+
+Criterio aplicado:
+
+- conservar sin cambios el control optimista de revisión y la prohibición de sobrescritura automática;
+- no introducir merge automático ni un reintento forzado;
+- comunicar en lenguaje del operador que otra pestaña o sesión actualizó el job;
+- explicar que los cambios locales continúan visibles pero no guardados;
+- advertir que recargar recuperará la versión más reciente y descartará esos cambios locales;
+- mostrar la explicación completa durante el conflicto.
+
+Cambio aplicado:
+
+- canvas_renderer.js transforma solamente la presentación del estado conflict y deja disponible internamente el error técnico;
+- el mensaje operativo tiene precedencia sobre el texto del API cuando saveState.status es conflict;
+- el elemento de estado publica data-state y title coherentes con el conflicto;
+- el CSS permite varias líneas y retira el ellipsis únicamente en ese estado;
+- el botón Recargar versión remota permanece visible a 820 px aunque las acciones secundarias de la cabecera se oculten;
+- los errores de guardado que no son 409 conservan su mensaje habitual;
+- no se modificaron autosave.js, api_client.js, store.js, el endpoint PUT, base_revision, Layout V2, la escritura atómica, PDF ni CTP.
+
+Archivos modificados:
+
+    static/js/editor_offset_v2/canvas_renderer.js
+    static/css/editor_offset_visual_v2.css
+    tests/editor_offset_v2/js/semantic_stabilization_v2.test.cjs
+    tests/playwright/test_editor_offset_v2_ux_characterization.py
+
+Validación focalizada:
+
+- node --check de canvas_renderer.js: correcto;
+- tests unitarios de semantic_stabilization_v2.test.cjs: 15 passed;
+- tests unitarios de editor_core_v2.test.cjs: 10 passed, incluido 409 sin reemplazar el layout local;
+- STAB-005 antes del cambio: 1 xfailed por mensaje técnico sin guía;
+- STAB-005 después del cambio: 1 passed;
+- el recorrido de dos pestañas comprueba layout local intacto, versión remota intacta, texto completo, recuperación por recarga y ausencia de pageerror;
+- archivo de caracterización completo: 5 passed;
+- recorrido Playwright existente de Repeat, undo/redo, guardado y recarga: 1 passed;
+- capturas Playwright a 1440 × 900 y 820 × 900: explicación completa visible y acción de recarga accesible;
+- warnings observados: tipos SWIG de PyMuPDF deprecados, sin fallo funcional;
+- suite completa no ejecutada.
+
+Resultado:
+
+- STAB-005 queda corregido y protegido por pruebas unitarias y de navegador real;
+- el operador conoce la causa del conflicto y la consecuencia de recargar antes de descartar su trabajo local;
+- la versión remota continúa protegida y no existe sobrescritura ni merge silencioso;
+- no se detectaron regresiones nuevas en el alcance focalizado;
+- STAB-006 es el único gate pendiente antes de iniciar los fundamentos visuales de 19-C.
+
 ### Fase 19-C: fundamentos visuales
 
 Estado: pendiente.
@@ -1150,7 +1211,7 @@ Estados permitidos:
 | STAB-002 | Delete y Cut respetan source_slot_id | Exploración 1 y tests Playwright 19-A.2/19-B.2 | 19-A/19-B | Corregido y validado | Bloqueo con feedback, borrado colectivo atómico, undo/redo, guardado y recarga comprobados |
 | STAB-003 | Output-capabilities invalida diagnósticos de revisiones anteriores | Exploración 4 y tests Playwright 19-A.2/19-B.3 | 19-A/19-B | Corregido y validado | Aviso de estado obsoleto, revisión comprobada/actual, reconsulta y respuesta tardía comprobados |
 | STAB-004 | Matriz evita segundo submit accidental | Exploración 3 y tests Playwright 19-A.2/19-B.4 | 19-A/19-B | Corregido y validado | Guardia por selección y parámetros; una operación, undo/redo, repetición deliberada y persistencia comprobados |
-| STAB-005 | Conflicto 409 comprensible | Exploración 3 y tests Playwright 19-A.2 | 19-A/19-B | Caracterizado automáticamente | XFAIL exacto por mensaje técnico sin guía |
+| STAB-005 | Conflicto 409 comprensible | Exploración 3 y tests Playwright 19-A.2/19-B.5 | 19-A/19-B | Corregido y validado | Mensaje operativo completo; layout local y remoto, consecuencia de recarga y recuperación comprobados |
 | STAB-006 | Feedback temporal se limpia correctamente | Exploración 3 | 19-A/19-B | Pendiente | Clipboard y medición con undo/clear |
 | OUT-001 | Preview V2 productivo | Documento 18 | Futura | Pospuesto | Contrato y comparación renderizada |
 | OUT-002 | PDF final V2 | Documento 18 | Futura | Pospuesto | Fixtures PDF y tolerancias productivas |
@@ -1189,6 +1250,7 @@ Estados permitidos:
 | 2026-09-05 | Corrección STAB-002 de integridad referencial en Delete y Cut | commands.js, command_registry.js, tests unitarios, test Playwright de caracterización y documento 19 | Bloquea orígenes con dependientes no seleccionados; permite borrado conjunto atómico y reversible | Node: 17 passed; Playwright STAB-002: 1 passed; dos recorridos existentes: 2 passed; caracterización: 2 passed y 3 xfailed | DEC-009 aplicada; segundo bloque de Fase 19-B completado sin regresión focalizada |
 | 2026-09-05 | Corrección STAB-003 de diagnóstico de salida obsoleto | output_panel.js, tests semánticos, test Playwright de caracterización y documento 19 | Invalida el resultado ante mutaciones, diferencia revisión comprobada/actual y exige reconsulta | Node: 14 passed; Playwright STAB-003: 1 passed; dos recorridos existentes: 2 passed; caracterización: 3 passed y 2 xfailed; Navegador sin errores | Tercer bloque de Fase 19-B completado sin tocar el contrato ni la salida productiva |
 | 2026-09-05 | Corrección STAB-004 de doble creación de matriz | arrangement_panel.js, test unitario de matriz, test Playwright de caracterización y documento 19 | Bloquea la repetición accidental sobre la selección generada y conserva una repetición deliberada | Node: 10 passed; Playwright STAB-004: 1 passed; recorrido existente de matriz: 1 passed; caracterización: 4 passed y 1 xfailed; comprobación de carga en Navegador | Cuarto bloque de Fase 19-B completado sin cambiar motor, comandos ni contratos |
+| 2026-09-05 | Corrección STAB-005 de conflicto de revisión | canvas_renderer.js, CSS V2, tests semánticos, test Playwright de caracterización y documento 19 | Sustituye el error técnico por una explicación visible sobre conservación local y descarte al recargar | Node: 15 + 10 passed; Playwright STAB-005: 1 passed; flujo existente de guardado: 1 passed; caracterización: 5 passed; capturas 1440 × 900 y 820 × 900 revisadas | Quinto bloque de Fase 19-B completado sin cambiar concurrencia, persistencia ni contratos |
 
 Después de cada cambio futuro se debe agregar una fila con:
 
@@ -1257,4 +1319,4 @@ No actualizar documentación para afirmar funciones que no fueron validadas.
 
 El próximo cambio no debe ser todavía la reorganización del template.
 
-STAB-001 a STAB-004 ya están corregidos y validados. El siguiente paso recomendado es corregir STAB-005 de forma aislada: el conflicto de revisión 409 debe explicar en lenguaje del operador qué ocurrió, preservar la recuperación existente y orientar la decisión entre recargar o conservar el trabajo local. Después se debe repetir el archivo Playwright focalizado y confirmar 5 passed. A continuación corresponde caracterizar y resolver o diferir explícitamente STAB-006; con ese cierre termina la estabilización mínima y puede comenzar el rediseño visual productivo de las Fases 19-C y 19-D.
+STAB-001 a STAB-005 ya están corregidos y validados. El siguiente paso recomendado es caracterizar STAB-006 de forma aislada: comprobar cómo se comporta el feedback temporal de clipboard y medición frente a undo, redo, limpiar y nuevas acciones. Con esa evidencia se debe aplicar una corrección pequeña o diferirlo explícitamente si no afecta decisiones del operador. Después de cerrar STAB-006 termina la estabilización mínima y puede comenzar el rediseño visual productivo por la Fase 19-C de fundamentos visuales, seguido de la reorganización progresiva de 19-D.

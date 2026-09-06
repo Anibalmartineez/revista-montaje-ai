@@ -540,16 +540,47 @@ def test_stab_005_revision_conflict_explains_recovery_in_operator_language(
             expect(second_page.locator("#ev2-reload-conflict")).to_be_visible()
             message = second_page.locator("#ev2-status-message").inner_text()
             normalized = message.lower()
-            technical_message = "submitted base revision" in normalized
-            has_operator_guidance = any(
-                token in normalized
-                for token in (
-                    "otra pestaña",
-                    "versión remota",
-                    "versión más reciente",
-                    "recarga",
-                    "cambios más recientes",
-                )
+            assert "submitted base revision" not in normalized
+            assert "otra pestaña o sesión" in normalized
+            assert "cambios siguen aquí sin guardar" in normalized
+            assert "versión más reciente" in normalized
+            assert "descartará" in normalized
+            assert second_page.evaluate(
+                "() => window.__EDITOR_OFFSET_V2__.store.hasUnsavedChanges()"
+            ) is True
+            assert second_page.evaluate(
+                "id => window.__EDITOR_OFFSET_V2__.store.layout.slots.find(slot => slot.id === id).geometry.position_mm.x_mm",
+                slot_id,
+            ) == pytest.approx(original_x + 0.3)
+            persisted = second_page.evaluate(
+                "async () => (await fetch(window.__EDITOR_OFFSET_V2__.context.job_api_url)).json()"
+            )
+            persisted_slot = next(
+                slot for slot in persisted["layout"]["slots"] if slot["id"] == slot_id
+            )
+            assert persisted_slot["geometry"]["position_mm"]["x_mm"] == pytest.approx(
+                original_x + 0.2
+            )
+            conflict_presentation = second_page.locator("#ev2-status-message").evaluate(
+                "element => ({ state: element.dataset.state, "
+                "whiteSpace: getComputedStyle(element).whiteSpace, "
+                "overflow: getComputedStyle(element).overflow })"
+            )
+            assert conflict_presentation == {
+                "state": "conflict",
+                "whiteSpace": "normal",
+                "overflow": "visible",
+            }
+            second_page.screenshot(
+                path=str(tmp_path / "stab-005-conflict-visible.png"),
+                full_page=False,
+            )
+            second_page.set_viewport_size({"width": 820, "height": 900})
+            expect(second_page.locator("#ev2-reload-conflict")).to_be_visible()
+            expect(second_page.locator("#ev2-status-message")).to_be_visible()
+            second_page.screenshot(
+                path=str(tmp_path / "stab-005-conflict-visible-820.png"),
+                full_page=False,
             )
             _assert_no_console_errors(first_errors)
             _assert_no_console_errors(
@@ -558,12 +589,22 @@ def test_stab_005_revision_conflict_explains_recovery_in_operator_language(
             )
             assert not first_errors["page"], f"Pageerrors inesperados: {first_errors['page']}"
             assert not second_errors["page"], f"Pageerrors inesperados: {second_errors['page']}"
-            if technical_message and not has_operator_guidance:
-                pytest.xfail(
-                    "STAB-005 confirmado: el conflicto muestra el mensaje técnico del API sin guía operativa"
-                )
-            assert not technical_message
-            assert has_operator_guidance
+
+            second_page.locator("#ev2-reload-conflict").click()
+            second_page.wait_for_load_state("domcontentloaded")
+            expect(second_page.locator("#ev2-save-status")).to_have_text("Guardado")
+            assert second_page.evaluate(
+                "() => window.__EDITOR_OFFSET_V2__.store.hasUnsavedChanges()"
+            ) is False
+            assert second_page.evaluate(
+                "id => window.__EDITOR_OFFSET_V2__.store.layout.slots.find(slot => slot.id === id).geometry.position_mm.x_mm",
+                slot_id,
+            ) == pytest.approx(original_x + 0.2)
+            _assert_no_console_errors(
+                second_errors,
+                allowed_fragments=("status of 409 (CONFLICT)",),
+            )
+            assert not second_errors["page"], f"Pageerrors inesperados: {second_errors['page']}"
         finally:
             if second_page is not None:
                 second_page.close()
