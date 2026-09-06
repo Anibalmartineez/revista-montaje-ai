@@ -799,3 +799,139 @@ def test_stab_006_measurement_clear_removes_only_measurement_feedback(
             assert not errors["page"], f"Pageerrors inesperados: {errors['page']}"
         finally:
             browser.close()
+
+
+def test_phase_19_c_visual_foundations_preserve_hierarchy_and_controls(
+    v2_characterization_server,
+    tmp_path,
+):
+    pdf_path = tmp_path / "phase-19-c-visual-foundations.pdf"
+    _write_test_pdf(pdf_path)
+
+    with sync_playwright() as playwright:
+        browser = playwright.chromium.launch(headless=True)
+        page, errors = _new_page(browser, width=1487, height=1058)
+        try:
+            _open_job_with_repeat(
+                page,
+                v2_characterization_server,
+                pdf_path,
+                quantity=2,
+            )
+            slot_id = page.evaluate(
+                "() => window.__EDITOR_OFFSET_V2__.store.layout.slots[0].id"
+            )
+            _select_slot(page, slot_id)
+
+            desktop = page.evaluate(
+                """() => {
+                  const style = selector => getComputedStyle(document.querySelector(selector));
+                  const rect = selector => document.querySelector(selector).getBoundingClientRect();
+                  const root = getComputedStyle(document.documentElement);
+                  const inspector = document.querySelector('.ev2-inspector');
+                  return {
+                    controlHeight: root.getPropertyValue('--ev2-control-height').trim(),
+                    topbarHeight: rect('.ev2-topbar').height,
+                    saveHeight: rect('#ev2-save').height,
+                    regionFont: parseFloat(style('.ev2-region-label').fontSize),
+                    assetMetaFont: parseFloat(style('.ev2-asset-card small').fontSize),
+                    objectNoteFont: parseFloat(style('.ev2-object-note').fontSize),
+                    statusFont: parseFloat(style('.ev2-statusbar').fontSize),
+                    disabledOpacity: parseFloat(style('#ev2-redo').opacity),
+                    panelMargin: style('.ev2-object-operations').marginLeft,
+                    panelBorder: style('.ev2-object-operations').borderLeftWidth,
+                    workspaceWidth: rect('.ev2-workspace').width,
+                    inspectorWidth: rect('.ev2-inspector').width,
+                    inspectorOverflow: inspector.scrollWidth - inspector.clientWidth,
+                    documentOverflow: document.documentElement.scrollWidth - document.documentElement.clientWidth,
+                  };
+                }"""
+            )
+            assert desktop["controlHeight"] == "34px"
+            assert desktop["topbarHeight"] >= 72
+            assert desktop["saveHeight"] >= 34
+            assert desktop["regionFont"] >= 10
+            assert desktop["assetMetaFont"] >= 11
+            assert desktop["objectNoteFont"] >= 11
+            assert desktop["statusFont"] >= 11
+            assert desktop["disabledOpacity"] >= 0.55
+            assert desktop["panelMargin"] == "0px"
+            assert desktop["panelBorder"] == "0px"
+            assert desktop["workspaceWidth"] > desktop["inspectorWidth"] * 2
+            assert desktop["inspectorOverflow"] <= 1
+            assert desktop["documentOverflow"] <= 1
+
+            copy_button = page.locator("#ev2-object-copy")
+            expect(copy_button).to_be_enabled()
+            copy_button.focus()
+            page.keyboard.press("Tab")
+            cut_button = page.locator("#ev2-object-cut")
+            expect(cut_button).to_be_focused()
+            focus_style = cut_button.evaluate(
+                "element => ({ outlineWidth: getComputedStyle(element).outlineWidth, "
+                "boxShadow: getComputedStyle(element).boxShadow })"
+            )
+            assert float(focus_style["outlineWidth"].removesuffix("px")) >= 2
+            assert focus_style["boxShadow"] != "none"
+
+            labels_toggle = page.locator("#ev2-toggle-labels")
+            pressed_before = labels_toggle.get_attribute("aria-pressed")
+            labels_toggle.click()
+            expect(labels_toggle).not_to_have_attribute("aria-pressed", pressed_before)
+            labels_toggle.click()
+            expect(labels_toggle).to_have_attribute("aria-pressed", pressed_before)
+            page.screenshot(path=str(tmp_path / "phase-19-c-1487.png"), full_page=False)
+
+            page.set_viewport_size({"width": 1050, "height": 900})
+            medium = page.evaluate(
+                """() => {
+                  const rect = selector => document.querySelector(selector).getBoundingClientRect();
+                  const inspector = document.querySelector('.ev2-inspector');
+                  const lockLabel = document.querySelector('.ev2-object-lock-row span').getBoundingClientRect();
+                  const lockAction = document.querySelector('.ev2-object-lock-row button').getBoundingClientRect();
+                  return {
+                    objectsVisible: getComputedStyle(document.querySelector('.ev2-objects')).display !== 'none',
+                    workspaceWidth: rect('.ev2-workspace').width,
+                    inspectorWidth: rect('.ev2-inspector').width,
+                    inspectorOverflow: inspector.scrollWidth - inspector.clientWidth,
+                    documentOverflow: document.documentElement.scrollWidth - document.documentElement.clientWidth,
+                    lockActionsClearLabel: lockAction.top >= lockLabel.bottom - 1,
+                  };
+                }"""
+            )
+            assert medium["objectsVisible"] is True
+            assert medium["workspaceWidth"] > medium["inspectorWidth"]
+            assert medium["inspectorOverflow"] <= 1
+            assert medium["documentOverflow"] <= 1
+            assert medium["lockActionsClearLabel"] is True
+            page.screenshot(path=str(tmp_path / "phase-19-c-1050.png"), full_page=False)
+
+            page.set_viewport_size({"width": 820, "height": 900})
+            compact = page.evaluate(
+                """() => {
+                  const rect = selector => document.querySelector(selector).getBoundingClientRect();
+                  const inspector = document.querySelector('.ev2-inspector');
+                  const lockLabel = document.querySelector('.ev2-object-lock-row span').getBoundingClientRect();
+                  const lockAction = document.querySelector('.ev2-object-lock-row button').getBoundingClientRect();
+                  return {
+                    objectsVisible: getComputedStyle(document.querySelector('.ev2-objects')).display !== 'none',
+                    workspaceWidth: rect('.ev2-workspace').width,
+                    inspectorWidth: rect('.ev2-inspector').width,
+                    inspectorOverflow: inspector.scrollWidth - inspector.clientWidth,
+                    documentOverflow: document.documentElement.scrollWidth - document.documentElement.clientWidth,
+                    lockActionsClearLabel: lockAction.top >= lockLabel.bottom - 1,
+                  };
+                }"""
+            )
+            assert compact["objectsVisible"] is False
+            assert compact["workspaceWidth"] > compact["inspectorWidth"] * 2
+            assert compact["inspectorOverflow"] <= 1
+            assert compact["documentOverflow"] <= 1
+            assert compact["lockActionsClearLabel"] is True
+            expect(page.locator(".ev2-brand h1")).to_be_visible()
+            page.screenshot(path=str(tmp_path / "phase-19-c-820.png"), full_page=False)
+
+            _assert_no_console_errors(errors)
+            assert not errors["page"], f"Pageerrors inesperados: {errors['page']}"
+        finally:
+            browser.close()

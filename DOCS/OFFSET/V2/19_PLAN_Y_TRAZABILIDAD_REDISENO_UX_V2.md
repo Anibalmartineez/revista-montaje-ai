@@ -8,7 +8,7 @@ Rama de trabajo prevista:
 
     codex/editor-offset-v2-ux-foundation
 
-Estado actual del documento: plan y dirección visual aprobados por el usuario el 2026-09-05; Fases 19-A y 19-B completadas, con STAB-001 a STAB-006 corregidos y validados. El siguiente bloque es la Fase 19-C de fundamentos visuales.
+Estado actual del documento: plan y dirección visual aprobados por el usuario el 2026-09-05; Fases 19-A, 19-B y 19-C completadas. STAB-001 a STAB-006 y los fundamentos visuales quedaron validados. El siguiente bloque previsto es la Fase 19-D de jerarquía y organización funcional.
 
 Este documento define cómo mejorar la usabilidad y la organización visual del Editor Offset Visual V2 sin reescribir el editor ni adelantar funciones productivas que todavía no existen.
 
@@ -58,13 +58,15 @@ El documento 18 debe conservarse como fotografía histórica previa al rediseño
 - el botón Nuevo job crea el job directamente y navega a su URL, sin un paso de configuración;
 - Layout V2 ya contiene sheet.size_mm y sheet.printable_margins_mm.
 
-### Pendiente de confirmación automatizada
+### Confirmado por validación automatizada posterior
 
-- la suite Python no fue ejecutada durante las exploraciones;
-- los tests Node no fueron ejecutados durante las exploraciones;
-- la suite Playwright existente no fue ejecutada durante las exploraciones;
-- todavía no existen baselines automatizados específicos para el rediseño;
-- todavía no se ha validado la propuesta visual en HTML/CSS real.
+- las exploraciones originales no ejecutaron suites, pero las Fases 19-A a 19-C incorporaron y ejecutaron regresiones específicas;
+- todos los tests de tests/editor_offset_v2 pasaron: 331 passed y 1 skipped;
+- todos los tests JavaScript V2 pasaron: 108 passed;
+- los dos archivos Playwright V2 pasaron: 17 passed;
+- existe una caracterización específica para los fundamentos visuales en 1487, 1050 y 820 px;
+- la dirección visual aprobada fue comparada con la implementación HTML/CSS real;
+- no se ejecutó la suite completa de todo el repositorio, fuera de la superficie V2 indicada.
 
 ## 3. Decisión principal del rediseño
 
@@ -1062,7 +1064,7 @@ Resultado:
 
 ### Fase 19-C: fundamentos visuales
 
-Estado: pendiente.
+Estado: completada y validada el 2026-09-05.
 
 Alcance:
 
@@ -1088,6 +1090,93 @@ Gate de salida:
 - herramientas actuales operativas;
 - foco visible;
 - ausencia de clipping y overflow nuevo.
+
+#### Resultado 19-C.1: sistema visual base y legibilidad
+
+Fecha: 2026-09-05.
+
+Baseline y dirección aplicados:
+
+- se revisó la propuesta aprobada 19_propuesta_visual_redisenio_incremental_v2.png en su tamaño nativo de 1487 x 1058 px;
+- se capturó el editor anterior al cambio en 1487 x 1058, 1050 x 900 y 820 x 900 px;
+- el baseline confirmó texto utilitario de 8 a 10 px, controles comprimidos, baja legibilidad de disabled y numerosas cajas anidadas;
+- se tomó de la propuesta únicamente su lenguaje visual base; la navegación de flujo y la reubicación de herramientas continúan reservadas para 19-D.
+
+Sistema visual implementado:
+
+- paleta fría azul-negra con texto de alto contraste y verde reservado para selección y acciones principales;
+- tokens CSS reutilizables para superficies, líneas, texto, estados, espaciado, radios, altura de control y foco;
+- altura mínima de 34 px para controles generales y 36 px para acciones globales;
+- textos operativos elevados principalmente a 11 o 12 px, con títulos de panel entre 13 y 16 px;
+- foco de teclado con contorno y halo visibles, hover y active diferenciados, y disabled legible con opacidad 0,62;
+- inspector abierto mediante separadores horizontales, sin las cajas exteriores repetidas de operaciones, posición, Repeat y output;
+- controles internos que sí representan agrupaciones, assets o estados conservan bordes discretos;
+- barra superior de 72 px y barra de estado de 40 px, con separación más clara;
+- canvas conservado como superficie dominante: 783 px frente a 300 px de inspector en 1487 px, 468 px frente a 240 px en 1050 px y 512 px frente a 240 px en 820 px;
+- inspector y documento sin overflow horizontal en los tres anchos;
+- en 1050 y 820 px, las acciones de locks pasan debajo de su etiqueta para evitar solapamiento;
+- en 820 px se oculta únicamente el rótulo redundante Herramientas; Selección y Eliminar permanecen visibles y la región conserva su nombre accesible.
+
+Fidelidad respecto de la propuesta aprobada:
+
+1. se conserva el fondo azul-negro y el canvas en un plano central más claro;
+2. el verde identifica selección, Guardar, Nuevo job y confirmaciones, sin convertirse en color decorativo general;
+3. las columnas laterales usan separadores y superficies abiertas en lugar de tarjetas anidadas para cada sección;
+4. la tipografía y los controles ganan jerarquía y espacio sin cambiar el contenido existente;
+5. la cabecera y la barra inferior se leen como superficies globales diferenciadas;
+6. el canvas continúa ocupando la mayor parte útil en los tres viewports validados;
+7. no se incorporaron todavía la franja Preparar-Imponer-Ajustar-Validar-Salida, la toolbar sobre el canvas ni la reorganización contextual del inspector, porque pertenecen a 19-D;
+8. tampoco se mostró la medida del pliego junto al canvas, reservada para la siguiente fase sin cambiar aún Layout V2.
+
+Archivos modificados:
+
+    static/css/editor_offset_visual_v2.css
+    tests/playwright/test_editor_offset_v2_ux_characterization.py
+    DOCS/OFFSET/V2/19_PLAN_Y_TRAZABILIDAD_REDISENO_UX_V2.md
+
+Prueba automatizada agregada:
+
+- crea un job y un PDF temporales, aplica Repeat y selecciona un slot;
+- comprueba tokens, tamaños de texto y controles, disabled, foco real de teclado y eliminación de las cajas exteriores;
+- confirma que Etiquetas puede alternarse y volver a su estado original;
+- mide canvas, inspector y overflow en 1487, 1050 y 820 px;
+- confirma que Assets sigue visible en 1050 y conserva el comportamiento existente de ocultarse en 820;
+- confirma que los locks responsive no se solapan;
+- captura screenshots temporales fuera del repositorio;
+- falla ante errores de consola o pageerror no previstos.
+
+Validación ejecutada:
+
+- prueba 19-C antes del CSS: falló por ausencia del token --ev2-control-height;
+- prueba 19-C después del CSS: 1 passed;
+- Playwright V2 completo: 17 passed;
+- tests Python V2: 331 passed y 1 skipped;
+- tests JavaScript V2: 108 passed;
+- node --check del entrypoint y todos los módulos JavaScript V2: correcto;
+- git diff --check: correcto, con avisos informativos de conversión LF/CRLF;
+- Navegador integrado sobre ev2_14d0c6f8f60e601aed51f833: revisión 52, 8 slots, estado Guardado, contenido no vacío, sin overlay ni overflow y consola sin errores;
+- interacción reversible en Navegador: selección de slot habilitó Copiar y Etiquetas cambió true -> false -> true sin alterar el job;
+- Playwright CLI mostró únicamente el 404 conocido de favicon en la captura inicial, no un error de la aplicación.
+
+No se modificó:
+
+- template, IDs, atributos data-* ni orden DOM;
+- JavaScript, listeners, store, comandos, atajos, historial o autosave;
+- Layout V2, rutas, backend, assets, works o slots;
+- preview, PDF, CTP, output-capabilities ni motores;
+- Editor V1.
+
+Riesgo residual:
+
+- 19-C mejora la adaptación existente, pero no resuelve por sí sola el acceso completo a Preparar/Imponer en 820 px; esa navegación pertenece a 19-D y la validación operativa responsive completa a 19-F;
+- la columna derecha continúa siendo larga porque todavía contiene todas las herramientas actuales; su agrupación contextual queda pendiente en 19-D;
+- la suite completa de todo el repositorio no fue ejecutada.
+
+Resultado:
+
+- el gate de 19-C queda cumplido sin cambios funcionales ni contractuales;
+- la base visual es más legible y reutilizable, y queda protegida por una regresión de navegador real;
+- la Fase 19-D puede comenzar como cambio separado y reconciliado control por control.
 
 ### Fase 19-D: jerarquía y organización funcional
 
@@ -1259,13 +1348,13 @@ Estados permitidos:
 | --- | --- | --- | --- | --- | --- |
 | UX-001 | Conservar diseño V2 como base, sin reescritura | Decisión del usuario y propuesta visual | 19-0 | Aprobado | Revisión visual y diff limitado |
 | UX-002 | Flujo Preparar-Imponer-Ajustar-Validar-Salida | Exploraciones y propuesta visual | 19-D | Propuesto | Recorridos por tarea y foco |
-| UX-003 | Mejorar legibilidad y tamaño de controles | Exploraciones responsive | 19-C | Propuesto | Comparativa visual y accesibilidad |
-| UX-004 | Mantener canvas como superficie principal | Propuesta visual | 19-C/19-D | Aprobado | Screenshots y medición de layout |
+| UX-003 | Mejorar legibilidad y tamaño de controles | Exploraciones responsive y Resultado 19-C.1 | 19-C | Validado | Textos de 11/12 px, controles de 34/36 px, estados y foco comprobados |
+| UX-004 | Mantener canvas como superficie principal | Propuesta visual y Resultado 19-C.1 | 19-C/19-D | Validado | Canvas medido como superficie dominante en 1487, 1050 y 820 px; seguimiento al reorganizar en 19-D |
 | UX-005 | Reducir longitud y densidad del inspector | Exploraciones 1-4 | 19-D | Propuesto | Acceso a todos los controles existentes |
 | UX-006 | Dar acceso primario a Repeat y composición | Inventario del template | 19-D | Propuesto | Repeat calculate/apply y undo |
 | UX-007 | Separar validación de salida productiva | Documento 18 y output_panel.js | 19-D | Aprobado | Revisión analizada visible y estado pendiente |
-| UX-008 | Mejorar responsive en 1050 y 820 px | Capturas de exploración y tanda 19-A.1 | 19-F | En caracterización | Playwright por viewport y tareas |
-| UX-009 | Mantener barra de estado útil | Interfaz actual | 19-C/19-F | Propuesto | Zoom, cara, slots y feedback visibles |
+| UX-008 | Mejorar responsive en 1050 y 820 px | Capturas de exploración, tanda 19-A.1 y Resultado 19-C.1 | 19-F | En caracterización | Sin overflow en 19-C; acceso completo por tarea sigue pendiente de 19-F |
+| UX-009 | Mantener barra de estado útil | Interfaz actual y Resultado 19-C.1 | 19-C/19-F | Validado | Zoom, cara, slots, etiquetas y estado visibles en los tres viewports; seguimiento de accesibilidad en 19-F |
 | SHEET-001 | Mostrar medida del pliego junto al canvas | Falta observada por el usuario | 19-D | Aprobado | Render correcto del valor persistido |
 | SHEET-002 | Permitir configurar medida y márgenes | Default fijo confirmado por código | 19-E | Propuesto | Contrato, comando, autosave y recarga |
 | SHEET-003 | No escalar o mover slots silenciosamente | Política SAFE | 19-E | Propuesto | Test de impacto con slots existentes |
@@ -1298,6 +1387,7 @@ Estados permitidos:
 | DEC-010 | Pendiente | Flujo exacto de configuración del pliego | Afecta creación, persistencia y geometría | Abierta |
 | DEC-011 | Pendiente | Modelo responsive de paneles | Afecta acceso y foco | Abierta |
 | DEC-012 | 2026-09-05 | Sincronizar el contador temporal de pegado con su comando y limpiar feedback por origen | Mantiene coherencia operativa sin persistir estado efímero ni borrar avisos ajenos | Aplicada |
+| DEC-013 | 2026-09-05 | Aplicar 19-C como una capa CSS reversible, sin mover controles ni modificar HTML o JavaScript | Permite mejorar legibilidad y jerarquía antes de alterar conexiones funcionales | Aplicada y validada |
 
 ## 19. Bitácora de cambios de la fase
 
@@ -1315,6 +1405,7 @@ Estados permitidos:
 | 2026-09-05 | Corrección STAB-004 de doble creación de matriz | arrangement_panel.js, test unitario de matriz, test Playwright de caracterización y documento 19 | Bloquea la repetición accidental sobre la selección generada y conserva una repetición deliberada | Node: 10 passed; Playwright STAB-004: 1 passed; recorrido existente de matriz: 1 passed; caracterización: 4 passed y 1 xfailed; comprobación de carga en Navegador | Cuarto bloque de Fase 19-B completado sin cambiar motor, comandos ni contratos |
 | 2026-09-05 | Corrección STAB-005 de conflicto de revisión | canvas_renderer.js, CSS V2, tests semánticos, test Playwright de caracterización y documento 19 | Sustituye el error técnico por una explicación visible sobre conservación local y descarte al recargar | Node: 15 + 10 passed; Playwright STAB-005: 1 passed; flujo existente de guardado: 1 passed; caracterización: 5 passed; capturas 1440 × 900 y 820 × 900 revisadas | Quinto bloque de Fase 19-B completado sin cambiar concurrencia, persistencia ni contratos |
 | 2026-09-05 | Corrección STAB-006 de feedback temporal | store.js, command_registry.js, interactions.js, objects_panel.js, tests unitarios, test Playwright de caracterización y documento 19 | Clipboard acompaña paste/undo/redo; Limpiar medición retira solo su feedback; no cambia Layout V2 | Node V2: 108 passed; caracterización: 7 passed; dos recorridos Playwright productivos: 2 passed; Navegador integrado sin errores, revisión 52 y job Guardado | Fase 19-B completada; fundamentos visuales 19-C habilitados |
+| 2026-09-05 | Fase 19-C de fundamentos visuales | CSS V2, test Playwright de caracterización y documento 19 | Mejora tipografía, controles, contraste, estados, espaciado y superficies; no cambia DOM, JS ni Layout V2 | Playwright V2: 17 passed; Python V2: 331 passed y 1 skipped; Node V2: 108 passed; node --check y diff correctos; Navegador sin errores | Fase 19-C completada; 19-D habilitada como fase separada |
 
 Después de cada cambio futuro se debe agregar una fila con:
 
@@ -1331,14 +1422,14 @@ Después de cada cambio futuro se debe agregar una fila con:
 
 - [x] La propuesta visual fue revisada y aceptada como dirección.
 - [x] Las diferencias entre maqueta y funcionalidad real fueron identificadas.
-- [ ] El inventario de controles e IDs está completo para la fase a modificar.
+- [x] El inventario de controles e IDs está completo para la fase 19-C; no se modificó el DOM.
 - [x] Existen pruebas de caracterización focalizadas.
 - [x] Los fallos conocidos se reproducen de manera controlada.
 - [x] Se decidió la política de delete con dependientes.
-- [ ] Se definió qué se cambia en una única fase.
-- [ ] Se definieron criterios de aceptación y rollback.
-- [ ] Se confirmó que Layout V2 no necesita cambiar para esa fase.
-- [ ] Se confirmó que V1 no será tocado.
+- [x] Se definió qué se cambia en una única fase.
+- [x] Se definieron criterios de aceptación y rollback.
+- [x] Se confirmó que Layout V2 no necesita cambiar para esa fase.
+- [x] Se confirmó que V1 no será tocado.
 - [x] Se obtuvo autorización para ejecutar las pruebas necesarias.
 - [ ] Se obtuvo aprobación antes de cambiar contrato, persistencia, PDF, CTP o motores.
 
@@ -1368,19 +1459,18 @@ No actualizar documentación para afirmar funciones que no fueron validadas.
 
 ## 22. Preguntas abiertas para las siguientes decisiones
 
-1. ¿La propuesta visual queda aceptada como referencia principal o requiere una revisión?
-2. ¿La navegación de flujo funcionará como modos exclusivos o como accesos que abren paneles?
-3. ¿Qué acciones deben permanecer siempre visibles aunque cambie el modo?
-4. ¿Dónde debe vivir el árbol de objetos en la experiencia final?
-5. ¿Repeat será un modo completo o un panel contextual dentro de Imponer?
-6. ¿La configuración del pliego ocurrirá antes de crear el job, después o en ambos lugares?
-7. ¿Qué presets de pliego necesita realmente la imprenta?
-8. ¿Qué advertencias deben bloquear salida y cuáles solo informar?
-9. ¿Cómo se representará Salida mientras PDF y CTP estén pendientes?
-10. ¿Qué comportamiento responsive es prioritario para operación real?
+1. ¿La navegación de flujo funcionará como modos exclusivos o como accesos que abren paneles?
+2. ¿Qué acciones deben permanecer siempre visibles aunque cambie el modo?
+3. ¿Dónde debe vivir el árbol de objetos en la experiencia final?
+4. ¿Repeat será un modo completo o un panel contextual dentro de Imponer?
+5. ¿La configuración del pliego ocurrirá antes de crear el job, después o en ambos lugares?
+6. ¿Qué presets de pliego necesita realmente la imprenta?
+7. ¿Qué advertencias deben bloquear salida y cuáles solo informar?
+8. ¿Cómo se representará Salida mientras PDF y CTP estén pendientes?
+9. ¿Qué comportamiento responsive es prioritario para operación real?
 
 ## 23. Próximo paso SAFE
 
-La estabilización mínima terminó con STAB-001 a STAB-006 corregidos y validados. El siguiente paso recomendado es iniciar la Fase 19-C de fundamentos visuales sobre el diseño actual: tipografía, tamaños mínimos, contraste, espaciado, divisores y estados focus/hover/active/disabled.
+La Fase 19-C terminó con su prueba visual, regresiones V2 y comprobación interactiva en verde. El siguiente paso recomendado es iniciar la Fase 19-D de jerarquía y organización funcional.
 
-19-C debe comenzar con una comparación visual controlada en los mismos viewports de 1440, 1050 y 820 px. Todavía no debe reorganizar el template, mover herramientas entre módulos, cambiar IDs ni introducir acciones nuevas. Cuando ese gate visual y funcional esté en verde podrá comenzar 19-D, donde sí se aplicará progresivamente la jerarquía Preparar -> Imponer -> Ajustar -> Validar -> Salida y se mostrará la medida persistida del pliego.
+19-D debe comenzar reconciliando control por control el inventario del template con dom_refs.js y sus módulos consumidores. Después puede introducir de forma incremental la navegación Preparar -> Imponer -> Ajustar -> Validar -> Salida, mostrar la medida persistida del pliego y reducir la longitud aparente del inspector. Todavía no debe cambiar Layout V2, añadir configuración editable del pliego, activar PDF/CTP ni duplicar acciones existentes.
