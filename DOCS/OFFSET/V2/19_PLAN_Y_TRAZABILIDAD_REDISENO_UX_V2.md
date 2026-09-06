@@ -718,7 +718,7 @@ Gate de salida:
 
 ### Fase 19-B: estabilización mínima
 
-Estado: pendiente.
+Estado: en curso. STAB-001 corregido y validado el 2026-09-05; STAB-002 a STAB-006 permanecen pendientes.
 
 Orden recomendado:
 
@@ -728,6 +728,47 @@ Orden recomendado:
 4. proteger la matriz contra el segundo submit accidental;
 5. mejorar recuperación de conflicto;
 6. sincronizar feedback temporal de clipboard y medición.
+
+#### Resultado 19-B.1: STAB-001 nudge sin pageerror
+
+Fecha: 2026-09-05.
+
+Problema confirmado antes del cambio:
+
+- ArrowRight movía el slot 0,1 mm, pero generaba TypeError: Illegal invocation;
+- la regresión STAB-001 reproducía el fallo como xfailed;
+- el origen estaba en nudge_controller.js: setTimeout y clearTimeout del navegador se guardaban sin enlazar su receptor global y después se invocaban como métodos del controlador.
+
+Cambio aplicado:
+
+- se enlazaron setTimeout y clearTimeout a globalThis al usar las implementaciones predeterminadas;
+- se conservaron sin cambios las funciones inyectables usadas por tests;
+- no se modificaron payloads, pasos de 0,1/1/10 mm, batching, comandos, locks, geometría, Layout V2 ni persistencia;
+- se amplió STAB-001 para comprobar un único comando de historial, undo, redo, guardado, recarga y ausencia de errores de consola/pageerror.
+
+Archivos modificados:
+
+    static/js/editor_offset_v2/nudge_controller.js
+    tests/playwright/test_editor_offset_v2_ux_characterization.py
+
+Validación focalizada:
+
+- node --check de nudge_controller.js: correcto;
+- tests unitarios de positioning_commands_v2.test.cjs: 18 passed;
+- STAB-001 antes del cambio: 1 xfailed por Illegal invocation;
+- STAB-001 después del cambio: 1 passed;
+- recorrido Playwright existente de posicionamiento, atajos, batching, persistencia y locks: 1 passed;
+- archivo de caracterización completo: 1 passed y 4 xfailed conocidos;
+- STAB-002 a STAB-005 conservaron exactamente sus síntomas caracterizados;
+- warnings observados: tipos SWIG de PyMuPDF deprecados, sin fallo funcional;
+- suite completa no ejecutada.
+
+Resultado:
+
+- STAB-001 queda corregido y protegido por prueba de navegador real;
+- el movimiento con flechas mantiene 0,1 mm, undo/redo y persistencia después de recargar;
+- no se detectaron regresiones nuevas en el alcance focalizado;
+- el siguiente defecto, STAB-002, requiere cerrar primero la decisión de producto sobre eliminación con dependientes.
 
 Gate de salida:
 
@@ -945,7 +986,7 @@ Estados permitidos:
 | SHEET-001 | Mostrar medida del pliego junto al canvas | Falta observada por el usuario | 19-D | Aprobado | Render correcto del valor persistido |
 | SHEET-002 | Permitir configurar medida y márgenes | Default fijo confirmado por código | 19-E | Propuesto | Contrato, comando, autosave y recarga |
 | SHEET-003 | No escalar o mover slots silenciosamente | Política SAFE | 19-E | Propuesto | Test de impacto con slots existentes |
-| STAB-001 | Nudge sin pageerror | Exploración 2 y tests Playwright 19-A.2 | 19-A/19-B | Caracterizado automáticamente | XFAIL exacto por Illegal invocation |
+| STAB-001 | Nudge sin pageerror | Exploración 2 y tests Playwright 19-A.2/19-B.1 | 19-A/19-B | Corregido y validado | Playwright en verde; historial, undo/redo, guardado y recarga comprobados |
 | STAB-002 | Delete respeta source_slot_id | Exploración 1 y tests Playwright 19-A.2 | 19-A/19-B | Caracterizado automáticamente | XFAIL exacto por referencia rota y save_error |
 | STAB-003 | Output-capabilities no queda obsoleto sin aviso | Exploración 4 y tests Playwright 19-A.2 | 19-A/19-B | Caracterizado automáticamente | XFAIL exacto por revisión anterior sin aviso |
 | STAB-004 | Matriz evita segundo submit accidental | Exploración 3 y tests Playwright 19-A.2 | 19-A/19-B | Caracterizado automáticamente | XFAIL exacto por doble aplicación |
@@ -984,6 +1025,7 @@ Estados permitidos:
 | 2026-09-05 | Aprobación del documento 19 y autorización para avanzar | DOCS/OFFSET/V2/19_PLAN_Y_TRAZABILIDAD_REDISENO_UX_V2.md | Sin cambios | Confirmación explícita del usuario | Fase 19-0 cerrada; Fase 19-A iniciada |
 | 2026-09-05 | Primera tanda interactiva de caracterización | Documento 19 y output/playwright/v2-redesign-phase-19a-20260905/ | Sin cambios de código; job restaurado semánticamente y revisión final 52 | Playwright CLI, HTTP, persistencia y consola | Se reprodujeron nudge, delete, output obsoleto, matriz, conflicto y riesgos responsive |
 | 2026-09-05 | Regresiones automatizadas focalizadas STAB-001 a STAB-005 | tests/playwright/test_editor_offset_v2_ux_characterization.py y documento 19 | Solo tests y trazabilidad; sin código productivo | Pytest Playwright focalizado: 5 xfailed, exit code 0 | Fase 19-A completada para los cinco defectos prioritarios |
+| 2026-09-05 | Corrección STAB-001 de temporizadores de nudge | nudge_controller.js, test_editor_offset_v2_ux_characterization.py y documento 19 | Las flechas mueven sin Illegal invocation; mismo batching, undo/redo y persistencia | Node: 18 passed; Playwright STAB-001: 1 passed; recorrido existente: 1 passed; caracterización: 1 passed y 4 xfailed | Primer bloque de Fase 19-B completado sin regresión focalizada |
 
 Después de cada cambio futuro se debe agregar una fila con:
 
@@ -1052,4 +1094,4 @@ No actualizar documentación para afirmar funciones que no fueron validadas.
 
 El próximo cambio no debe ser todavía la reorganización del template.
 
-El siguiente paso recomendado es iniciar la Fase 19-B con una corrección aislada de STAB-001 en nudge_controller.js. Después se debe ejecutar el archivo Playwright focalizado y confirmar que STAB-001 pasa mientras STAB-002 a STAB-005 continúan como fallos conocidos. Las demás correcciones deben seguir el mismo patrón, una por vez. Solo después de completar la estabilización mínima debe comenzar el rediseño visual productivo de las Fases 19-C y 19-D.
+STAB-001 ya está corregido. El siguiente paso recomendado es cerrar DEC-009 y luego corregir STAB-002 de forma aislada. La política SAFE recomendada es impedir eliminar un slot origen cuando existen duplicados dependientes no incluidos en la selección, explicar qué objetos dependen de él y permitir la operación únicamente si el usuario selecciona también esos dependientes. No debe implementarse una eliminación en cascada silenciosa. Después se debe repetir el archivo Playwright focalizado y confirmar 2 passed y 3 xfailed. Solo después de completar la estabilización mínima debe comenzar el rediseño visual productivo de las Fases 19-C y 19-D.

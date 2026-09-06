@@ -152,6 +152,9 @@ def test_stab_001_nudge_moves_without_pageerror(v2_characterization_server, tmp_
                 "id => window.__EDITOR_OFFSET_V2__.store.layout.slots.find(slot => slot.id === id).geometry.position_mm.x_mm",
                 slot_id,
             )
+            history_before = page.evaluate(
+                "() => window.__EDITOR_OFFSET_V2__.store.undoStack.length"
+            )
 
             page.locator("#ev2-canvas").focus()
             page.keyboard.press("ArrowRight")
@@ -162,6 +165,32 @@ def test_stab_001_nudge_moves_without_pageerror(v2_characterization_server, tmp_
                 slot_id,
             )
             assert after_x == pytest.approx(before_x + 0.1)
+            assert page.evaluate(
+                "() => window.__EDITOR_OFFSET_V2__.store.undoStack.length"
+            ) == history_before + 1
+
+            page.keyboard.press("Control+Z")
+            assert page.evaluate(
+                "id => window.__EDITOR_OFFSET_V2__.store.layout.slots.find(slot => slot.id === id).geometry.position_mm.x_mm",
+                slot_id,
+            ) == pytest.approx(before_x)
+            page.keyboard.press("Control+Shift+Z")
+            assert page.evaluate(
+                "id => window.__EDITOR_OFFSET_V2__.store.layout.slots.find(slot => slot.id === id).geometry.position_mm.x_mm",
+                slot_id,
+            ) == pytest.approx(after_x)
+
+            page.evaluate("() => window.__EDITOR_OFFSET_V2__.saver.manualSave()")
+            page.wait_for_function(
+                "() => window.__EDITOR_OFFSET_V2__.store.saveState.status === 'clean'",
+                timeout=10_000,
+            )
+            page.reload(wait_until="domcontentloaded")
+            expect(page.locator(".ev2-svg-slot")).to_have_count(1)
+            assert page.evaluate(
+                "id => window.__EDITOR_OFFSET_V2__.store.layout.slots.find(slot => slot.id === id).geometry.position_mm.x_mm",
+                slot_id,
+            ) == pytest.approx(after_x)
             _assert_no_console_errors(errors)
             unexpected = [
                 message

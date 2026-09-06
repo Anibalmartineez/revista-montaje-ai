@@ -43,8 +43,8 @@
       this.commands = commands;
       this.editPolicy = editPolicy;
       this.timeoutMs = options?.timeoutMs ?? NUDGE_TIMEOUT_MS;
-      this.setTimer = options?.setTimeout || setTimeout;
-      this.clearTimer = options?.clearTimeout || clearTimeout;
+      this.setTimer = options?.setTimeout || globalThis.setTimeout.bind(globalThis);
+      this.clearTimer = options?.clearTimeout || globalThis.clearTimeout.bind(globalThis);
       this.timer = null;
       this.session = null;
       this.committing = false;
