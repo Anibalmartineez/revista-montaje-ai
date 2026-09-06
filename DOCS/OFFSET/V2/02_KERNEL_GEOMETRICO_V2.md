@@ -420,13 +420,15 @@ Incluye:
 * falsos positivos de bounds;
 * dimensiones realistas de offset.
 
-`static/js/editor_offset_v2/geometry_view.js` ya ejecuta una réplica reducida en JavaScript estándar. Comparte fixtures para tamaños, bounds y rotaciones cardinales; además deriva el rectángulo imprimible y clasifica slots por footprint con bleed contra pliego y márgenes.
+Actualización documental 2026-09-06, contrastada con código y pruebas leídas, sin ejecutarlas: `static/js/editor_offset_v2/geometry_kernel.js` contiene la réplica JavaScript de tamaños, polígonos, bounds, cardinales, point-in-polygon, SAT, gaps, distancias y tolerancia numérica. `geometry_view.js` consume ese kernel y añade la frontera SVG, el rectángulo imprimible y la clasificación por footprint con bleed.
 
-La paridad continúa siendo parcial: JavaScript todavía no replica SAT, polígonos ordenados, point-in-polygon, gaps, distancias ni la tolerancia completa del kernel Python. Estas capacidades deben incorporarse y probarse antes de box select poligonal, snap avanzado, overlap visual o resize.
+`tests/editor_offset_v2/js/geometry_parity_v2.test.cjs` consume fixtures compartidos con Python para geometría, contención, SAT, gaps y tolerancia. La descripción anterior que situaba SAT y gaps como pendientes quedó superada. Esta cobertura geométrica no demuestra paridad del artwork PDF, clipping, marcas o CTP; esa evidencia pertenece al [contrato de preflight](21_CONTRATO_PREFLIGHT_V2.md) y a los gates productivos posteriores.
 
 JavaScript estándar es la decisión actual para las fases 8A–8F. TypeScript sigue siendo una opción futura, no una obligación ni una condición de inicio. No se instala Vite ni TypeScript como parte de esta estabilización.
 
-## 21. No implementado todavía
+## 21. Exclusiones históricas de la Fase 2
+
+La lista siguiente conserva el alcance de aquella fase; no enumera las funciones ausentes hoy. Para estado actual de herramientas consultar el documento 20; para preparación productiva, el documento 21.
 
 Esta fase no incluye:
 

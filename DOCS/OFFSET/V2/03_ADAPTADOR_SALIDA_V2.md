@@ -14,14 +14,16 @@ Layout V2
   -> kernel geométrico V2
   -> modelos inmutables Output*
   -> serialización temporal legacy
-  -> futura conexión con montaje_offset_inteligente.py
+  -> fin de la adaptación; renderer no conectado
 ```
 
 El adaptador continúa siendo un puente temporal, no el destino arquitectónico final. Jobs y uploads ya existen, y Flask expone un diagnóstico de capacidades de solo lectura; preview y PDF final siguen desconectados. `montaje_offset_inteligente.py` y los servicios V1 permanecen sin cambios. El destino futuro es `Editor V2 -> motor de salida V2 propio`.
 
+Decisión posterior aprobada el 2026-09-06: V2 será el editor principal y tendrá código productivo independiente. Puede copiar y adaptar código útil de V1 para mantenerlo dentro de V2; no debe depender de servicios o motores de negocio compartidos con V1 como arquitectura final. Este puente se conserva para diagnóstico/caracterización y no se ampliará como camino productivo por defecto. Ver [11](11_DECISIONES_ARQUITECTONICAS_PENDIENTES_V2.md) y [21 — Contrato de preflight](21_CONTRATO_PREFLIGHT_V2.md).
+
 ## 2. Frontera V2/legacy
 
-El único módulo que conoce simultáneamente Layout V2 y los nombres temporales
+El módulo responsable de traducir Layout V2 y emitir los diccionarios temporales
 del renderer actual es:
 
 ```text
@@ -37,15 +39,14 @@ El dominio V2, el canvas futuro y el store futuro no deben conocer:
 - `design_export`;
 - `bleed_default_mm`.
 
-Los tres primeros aparecen solamente al serializar un `OutputJob`. No se
-persisten en Layout V2.
+`posiciones_manual` y `modo_manual` se emiten al serializar `OutputJob`. La auditoría de 2026-09-06 identificó una excepción a la separación prevista: `OutputPosition` en `domain/output_contract.py` ya contiene `slot_box_final`. Es deuda del contrato temporal; no se persiste en Layout V2 y no debe heredarse en el contrato nativo. Esta corrección documental no modifica el modelo existente.
 
 ## 3. Responsabilidades
 
 El adaptador:
 
 1. valida el layout completo con `validate_layout_v2()`;
-2. comprueba que la salida actual pueda representar cada opción sin degradarla;
+2. compara las opciones declaradas con las restricciones modeladas del puente temporal; esa comprobación no demuestra fidelidad del renderer;
 3. resuelve los assets físicos dentro de una raíz V2 suministrada por el
    servidor;
 4. crea diseños de salida por combinación de asset, página y caja PDF;
@@ -208,10 +209,9 @@ La salida raster actual está fijada a 300 dpi. `vector_hybrid` exige
 `preserve_vector_content = true`; `raster` exige `false`. También se bloquea
 `crop_to_content = true`.
 
-Los crop marks por slot tienen equivalencia directa. Las marcas de registro,
-texto técnico y barra de color por perfil no tienen todavía una representación
-segura por slot en el renderer actual y generan
-`UNSUPPORTED_MARKS_PROFILE_FEATURE`. No se ignoran.
+Los crop marks por slot se conservan en la serialización, pero su equivalencia productiva no está demostrada. La auditoría de código de 2026-09-06 observó que la normalización manual del renderer legacy no conserva `crop_marks` por posición y que su dibujado está condicionado a bleed positivo. Se requieren fixtures con perfiles mixtos y bleed cero antes de reutilizar esa lógica. No se ejecutó una reproducción durante esa auditoría.
+
+Las marcas de registro, texto técnico y barra de color por perfil no tienen todavía una representación segura por slot en el puente y generan `UNSUPPORTED_MARKS_PROFILE_FEATURE`. No se ignoran.
 
 ## 10. CTP pendiente
 
@@ -296,12 +296,11 @@ El endpoint informa revisión, compatibilidad, errores y warnings estructurados 
 
 Cada posición manual contiene `file_idx`, coordenadas bottom-left, footprint
 productivo, rotación, bleed, crop marks y dimensiones trim de la fuente. Esta
-forma coincide con la rama manual que hoy consume
-`montaje_offset_inteligente.py`, pero aún no se la entrega automáticamente.
+forma apunta a la rama manual de `montaje_offset_inteligente.py`, pero aún no se la entrega automáticamente ni se ha demostrado paridad productiva. El diccionario no es un `layout_constructor.json` ni puede pasarse directamente al servicio de salida V1 como si lo fuera.
 
 ## 14. Evolución futura de salida
 
-Mientras el puente temporal siga vigente, una conexión controlada podría tomar el contrato serializado y construir objetos `Diseno` y `MontajeConfig`, uno por cara. Cualquier conexión deberá:
+La Fase 3 contemplaba una futura conexión mediante `Diseno` y `MontajeConfig`. La dirección aprobada el 2026-09-06 prioriza salida propia V2 y deja esa conexión como posibilidad de caracterización aislada, no como próximo paso productivo. Una caracterización autorizada deberá:
 
 1. volver a rechazar un resultado no exitoso;
 2. usar exclusivamente las rutas resueltas del adaptador;
@@ -310,9 +309,9 @@ Mientras el puente temporal siga vigente, una conexión controlada podría tomar
 5. comparar preview y PDF final con fixtures de paridad;
 6. mantener `montaje_offset_inteligente.py` sin semántica V2.
 
-El destino arquitectónico es un motor de salida nativo V2. El OutputAdapter legacy seguirá siendo puente hasta que el motor nativo alcance paridad y cobertura suficientes. El renderer, el preflight futuro y el conector productivo no deben volver a
-implementar las fórmulas de centro, rotación, bleed o footprint. El kernel V2
-continúa siendo la única fuente de verdad geométrica.
+El destino arquitectónico es un motor de salida nativo V2. Sus capacidades se demostrarán contra el contrato V2 y fixtures propios; no deben replicar errores legacy para alcanzar una paridad aparente. El renderer y el preflight consumirán el kernel V2 para centro, rotación, bleed y footprint. La retirada del diagnóstico temporal tendrá un gate propio y no exige conectarlo antes a producción.
+
+Riesgos adicionales confirmados por lectura: capabilities no inspecciona archivos y admite páginas con preflight `not_run`; el adaptador verifica existencia pero no hash ni cajas físicas; el modelo temporal no transporta `faces.duplex.flip`. El renderer legacy puede recentrar, sintetizar bleed reflejado y producir preview por una ruta distinta del PDF. Por ello `success`/`compatible` nunca significan preflight productivo aprobado. La resolución está especificada como diseño pendiente en el documento 21.
 
 ## 15. Fuera de alcance
 
@@ -320,6 +319,4 @@ El alcance de salida todavía no implementa generación PDF, preview, CTP produc
 transformaciones de contenido ni preparación física de assets. Tampoco modifica
 el Editor V1 ni adapta layouts anteriores.
 
-Los casos JSON de `output_adapter_cases.json` son independientes de Python y se
-reutilizarán para comprobar paridad del futuro adaptador TypeScript y de la
-conexión productiva.
+Los casos JSON de `output_adapter_cases.json` son independientes de Python y pueden reutilizarse como caracterización del puente y referencia geométrica. No son fixtures PDF renderizados ni obligan a implementar un adaptador TypeScript o una conexión productiva legacy.

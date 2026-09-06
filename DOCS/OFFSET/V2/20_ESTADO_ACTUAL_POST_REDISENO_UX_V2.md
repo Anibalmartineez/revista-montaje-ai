@@ -4,6 +4,8 @@
 
 Fecha de corte: 2026-09-06.
 
+Actualización posterior al cierre UX, también del 2026-09-06: la auditoría SAFE de salida/preflight fue presentada y el usuario aprobó iniciar su fase documental en `codex/editor-offset-v2-output-preflight`. V2 será el editor principal, con código productivo propio e independiente; puede copiar y adaptar código útil de V1, sin mantener dependencias legacy como arquitectura final. La especificación nueva está en [21_CONTRATO_PREFLIGHT_V2.md](21_CONTRATO_PREFLIGHT_V2.md). No hay implementación productiva nueva. Los datos de rama y pruebas siguientes pertenecen al cierre 19-G, salvo actualización expresamente identificada.
+
 Rama revisada:
 
     codex/editor-offset-v2-ux-foundation
@@ -24,7 +26,8 @@ Jerarquía documental:
 - los documentos 04 a 17 conservan historia y decisiones específicas de sus fases;
 - `18_ESTADO_ACTUAL_POST_EXPLORACIONES_1_A_4_V2.md` es el snapshot histórico previo a las correcciones;
 - `19_PLAN_Y_TRAZABILIDAD_REDISENO_UX_V2.md` conserva plan, decisiones, pruebas y bitácora del rediseño;
-- este documento 20 resume el estado actual y debe consultarse primero para planificar cambios nuevos.
+- este documento 20 resume el estado actual y debe consultarse primero para planificar cambios nuevos;
+- el documento 21 define el diseño propuesto del reporte canónico de preflight y sus gates; no modifica Layout V2 ni acredita una implementación.
 
 No se reescribió el contenido histórico del documento 18. Solo se le agregó una advertencia que dirige a este estado vigente.
 
@@ -334,18 +337,19 @@ La rama puede pasar a revisión focalizada de V2. Si el proceso de integración 
 | 18 | Snapshot histórico de exploraciones 1 a 4. |
 | 19 | Plan, decisiones y bitácora completa del rediseño. |
 | 20 | Estado operativo vigente. |
+| 21 | Especificación documental de preflight preparada después del cierre UX; dirección de independencia aprobada, detalles nuevos para revisión y ejecución pendiente. |
 
-No se actualizaron 01, 02, 03 o el schema porque el rediseño no cambió sus contratos.
+Al cerrar el rediseño no se actualizaron 01, 02, 03 o el schema porque esa fase no cambió sus contratos. La fase documental posterior 21-A corrige descripciones auditadas en 02 y 03; conserva 01 y el schema sin cambios.
 
 ## 16. Pendientes reales después del rediseño
 
 ### Prioridad alta: preparación productiva
 
-1. Definir el contrato canónico de preflight.
-2. Decidir qué advertencias informan y cuáles bloquean exportación.
+1. Revisar la especificación canónica de preflight preparada en el documento 21; schema y ejecución todavía pendientes.
+2. Resolver la matriz propuesta de advertencias/bloqueos y las decisiones PF-D01 a PF-D09 según el gate de cada una.
 3. Resolver archivos físicos, página, cajas PDF, CropBox/TrimBox, clipping y `actual_size`.
 4. Crear fixtures PDF de comparación visual y métrica.
-5. Decidir y diseñar el motor de salida V2 nativo o la transición controlada desde el puente temporal.
+5. Diseñar el motor de salida propio V2 conforme a la independencia aprobada; el puente queda para diagnóstico/caracterización, sin ampliación productiva por defecto.
 6. Establecer coherencia demostrable entre canvas, preview y PDF final.
 7. Diseñar CTP, marcas, pinza, barras, texto técnico y caras como contrato específico.
 
@@ -377,7 +381,7 @@ No se actualizaron 01, 02, 03 o el schema porque el rediseño no cambió sus con
 6. ¿Qué tolerancias métricas y visuales aceptará la imprenta para preview/PDF?
 7. ¿Qué estrategia de concurrencia se utilizará en producción multiproceso?
 8. ¿Qué jobs existentes forman el conjunto obligatorio de compatibilidad?
-9. ¿Cuándo se retira el puente legacy y comienza el motor nativo?
+9. ¿Cuándo se retira el diagnóstico temporal? El motor nativo independiente ya es la dirección aprobada; no es necesario conectar primero el puente a producción.
 10. ¿Qué formatos de pliego reales justifican presets?
 
 Preguntas resueltas por Fase 19:
@@ -431,6 +435,7 @@ Revisar:
 Revisar antes de programar:
 
 - `03_ADAPTADOR_SALIDA_V2.md` y `11_DECISIONES_ARQUITECTONICAS_PENDIENTES_V2.md`;
+- `21_CONTRATO_PREFLIGHT_V2.md`, sus reglas propuestas, cobertura y gates pendientes;
 - output contract, output service y EditorOutputAdapter;
 - resolución física y seguridad de assets;
 - cajas PDF, trim, bleed, clipping, transformaciones y páginas;
@@ -450,19 +455,22 @@ Revisar:
 
 ## 19. Próximo paso SAFE recomendado
 
-Cerrar y revisar esta rama antes de agregar nuevas funciones. La siguiente implementación debe vivir en otra fase y, preferentemente, en otra rama.
+La Fase 19 está cerrada. Actualización de 2026-09-06: la rama de salida/preflight ya es `codex/editor-offset-v2-output-preflight`; la auditoría se presentó y la fase documental 21-A fue autorizada. Se preparó el documento 21 sin modificar código, schema, pruebas ni jobs. La siguiente implementación requiere su propio gate; no es 19-H.
 
 Orden recomendado:
 
-1. auditoría focalizada de salida y preflight, solo lectura;
-2. decisión y documento contractual del preflight V2;
-3. fixtures PDF productivos y criterios de paridad;
-4. preview productivo mínimo detrás de un gate explícito;
+1. revisar el contrato documental 21 y resolver las decisiones necesarias para la próxima tanda;
+2. aprobar una fase focalizada de fixtures PDF y criterios de paridad, sin usar el job real como fixture modificable;
+3. implementar preflight nativo y publicación de reportes bajo un gate separado;
+4. preview productivo mínimo propio V2 detrás de un gate explícito;
 5. PDF final V2;
-6. CTP y marcas en una fase posterior propia;
-7. retomar Resize 8F únicamente cuando su efecto sobre exportación esté definido.
+6. CTP, marcas y dúplex bajo sus fases correspondientes;
+7. independizar Repeat y demás código compartido mediante fases de extracción, sin ampliar el puente como arquitectura final;
+8. retomar Resize 8F únicamente cuando su efecto sobre exportación esté definido.
 
 No conviene comenzar directamente por botones de PDF o CTP. Primero debe existir un contrato capaz de decidir con evidencia si un montaje puede producirse y cómo se representa cada error o advertencia.
+
+La independencia es una decisión de destino, no una descripción del runtime actual. Las bibliotecas externas pueden seguir utilizándose. Empaquetado, despliegue y separación de repositorio no se han decidido. El inventario completo de dependencias a extraer corresponde a una fase propia.
 
 ## 20. Gate para comenzar la siguiente fase
 
@@ -479,3 +487,5 @@ Antes de modificar código nuevamente:
 - confirmar si se requiere compatibilidad con jobs actuales;
 - no usar el job real como fixture destructivo;
 - no mezclar preflight, PDF, CTP, resize e IA en un mismo bloque.
+
+La autorización recibida cubre la fase documental actual. Los detalles de política, clipping, tolerancias, perfiles, API y lectura física estable están identificados en la sección 14 del documento 21; cada uno debe resolverse antes de implementar su superficie dependiente. La existencia del documento no habilita salida ni autoriza ejecutar las pruebas planificadas.
