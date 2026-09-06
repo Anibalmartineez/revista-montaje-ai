@@ -8,7 +8,7 @@ Rama de trabajo prevista:
 
     codex/editor-offset-v2-ux-foundation
 
-Estado actual del documento: plan y dirección visual aprobados por el usuario el 2026-09-05; Fase 19-A completada y Fase 19-B en curso con STAB-001 y STAB-002 corregidos y validados.
+Estado actual del documento: plan y dirección visual aprobados por el usuario el 2026-09-05; Fase 19-A completada y Fase 19-B en curso con STAB-001, STAB-002 y STAB-003 corregidos y validados.
 
 Este documento define cómo mejorar la usabilidad y la organización visual del Editor Offset Visual V2 sin reescribir el editor ni adelantar funciones productivas que todavía no existen.
 
@@ -718,7 +718,7 @@ Gate de salida:
 
 ### Fase 19-B: estabilización mínima
 
-Estado: en curso. STAB-001 y STAB-002 corregidos y validados el 2026-09-05; STAB-003 a STAB-006 permanecen pendientes.
+Estado: en curso. STAB-001, STAB-002 y STAB-003 corregidos y validados el 2026-09-05; STAB-004 a STAB-006 permanecen pendientes.
 
 Orden recomendado:
 
@@ -833,6 +833,56 @@ Resultado:
 - la operación colectiva mantiene atomicidad, historial, undo/redo, guardado y recarga;
 - no se detectaron regresiones nuevas en el alcance focalizado;
 - el siguiente defecto aislado es STAB-003, diagnóstico de salida obsoleto tras cambiar la revisión.
+
+#### Resultado 19-B.3: STAB-003 invalidación del diagnóstico de salida
+
+Fecha: 2026-09-05.
+
+Problema confirmado antes del cambio:
+
+- output_panel.js mostraba la revisión devuelta por output-capabilities, pero no la conservaba como estado temporal;
+- el panel no estaba suscrito a eventos del store;
+- después de modificar y guardar el layout, el diagnóstico anterior seguía pareciendo vigente;
+- la regresión STAB-003 reproducía el fallo como xfailed.
+
+Cambio aplicado:
+
+- el panel conserva la revisión que realmente fue diagnosticada;
+- command, undo, redo y external_update invalidan un diagnóstico existente;
+- durante cambios locales se muestra que el diagnóstico está desactualizado y que primero se debe guardar y volver a consultar;
+- después del guardado, el aviso distingue la revisión comprobada de la revisión actual;
+- los issues anteriores se retiran al invalidarse para que no parezcan aplicables al layout nuevo;
+- una consulta nueva reemplaza el aviso por un resultado vigente;
+- si el layout cambia mientras la petición está en curso, la respuesta que llega tarde se presenta como obsoleta;
+- cambios exclusivamente temporales, como selección, no invalidan el diagnóstico;
+- no se modificaron el endpoint, la validación backend, Layout V2, preview, PDF ni CTP.
+
+Archivos modificados:
+
+    static/js/editor_offset_v2/output_panel.js
+    tests/editor_offset_v2/js/semantic_stabilization_v2.test.cjs
+    tests/playwright/test_editor_offset_v2_ux_characterization.py
+
+Validación focalizada:
+
+- node --check de output_panel.js: correcto;
+- tests unitarios de semantic_stabilization_v2.test.cjs: 14 passed;
+- STAB-003 antes del cambio: 1 xfailed por diagnóstico de revisión anterior sin aviso;
+- STAB-003 después del cambio: 1 passed;
+- dos recorridos Playwright existentes de semántica visual, output e issues agrupados: 2 passed;
+- archivo de caracterización completo: 3 passed y 2 xfailed conocidos;
+- STAB-004 y STAB-005 conservaron exactamente sus síntomas caracterizados;
+- comprobación en Navegador del job existente: revisión 52 diagnosticada, contenido visible y consola sin errores;
+- warnings observados: tipos SWIG de PyMuPDF deprecados, sin fallo funcional;
+- suite completa no ejecutada.
+
+Resultado:
+
+- STAB-003 queda corregido y protegido contra mutaciones normales y respuestas asíncronas tardías;
+- el operador ya no ve un resultado antiguo como si correspondiera al layout actual;
+- el estado es temporal y no altera persistencia, revisión ni contrato de salida;
+- no se detectaron regresiones nuevas en el alcance focalizado;
+- el siguiente defecto aislado es STAB-004, doble activación accidental de Crear matriz.
 
 ### Fase 19-C: fundamentos visuales
 
@@ -1045,7 +1095,7 @@ Estados permitidos:
 | SHEET-003 | No escalar o mover slots silenciosamente | Política SAFE | 19-E | Propuesto | Test de impacto con slots existentes |
 | STAB-001 | Nudge sin pageerror | Exploración 2 y tests Playwright 19-A.2/19-B.1 | 19-A/19-B | Corregido y validado | Playwright en verde; historial, undo/redo, guardado y recarga comprobados |
 | STAB-002 | Delete y Cut respetan source_slot_id | Exploración 1 y tests Playwright 19-A.2/19-B.2 | 19-A/19-B | Corregido y validado | Bloqueo con feedback, borrado colectivo atómico, undo/redo, guardado y recarga comprobados |
-| STAB-003 | Output-capabilities no queda obsoleto sin aviso | Exploración 4 y tests Playwright 19-A.2 | 19-A/19-B | Caracterizado automáticamente | XFAIL exacto por revisión anterior sin aviso |
+| STAB-003 | Output-capabilities invalida diagnósticos de revisiones anteriores | Exploración 4 y tests Playwright 19-A.2/19-B.3 | 19-A/19-B | Corregido y validado | Aviso de estado obsoleto, revisión comprobada/actual, reconsulta y respuesta tardía comprobados |
 | STAB-004 | Matriz evita segundo submit accidental | Exploración 3 y tests Playwright 19-A.2 | 19-A/19-B | Caracterizado automáticamente | XFAIL exacto por doble aplicación |
 | STAB-005 | Conflicto 409 comprensible | Exploración 3 y tests Playwright 19-A.2 | 19-A/19-B | Caracterizado automáticamente | XFAIL exacto por mensaje técnico sin guía |
 | STAB-006 | Feedback temporal se limpia correctamente | Exploración 3 | 19-A/19-B | Pendiente | Clipboard y medición con undo/clear |
@@ -1084,6 +1134,7 @@ Estados permitidos:
 | 2026-09-05 | Regresiones automatizadas focalizadas STAB-001 a STAB-005 | tests/playwright/test_editor_offset_v2_ux_characterization.py y documento 19 | Solo tests y trazabilidad; sin código productivo | Pytest Playwright focalizado: 5 xfailed, exit code 0 | Fase 19-A completada para los cinco defectos prioritarios |
 | 2026-09-05 | Corrección STAB-001 de temporizadores de nudge | nudge_controller.js, test_editor_offset_v2_ux_characterization.py y documento 19 | Las flechas mueven sin Illegal invocation; mismo batching, undo/redo y persistencia | Node: 18 passed; Playwright STAB-001: 1 passed; recorrido existente: 1 passed; caracterización: 1 passed y 4 xfailed | Primer bloque de Fase 19-B completado sin regresión focalizada |
 | 2026-09-05 | Corrección STAB-002 de integridad referencial en Delete y Cut | commands.js, command_registry.js, tests unitarios, test Playwright de caracterización y documento 19 | Bloquea orígenes con dependientes no seleccionados; permite borrado conjunto atómico y reversible | Node: 17 passed; Playwright STAB-002: 1 passed; dos recorridos existentes: 2 passed; caracterización: 2 passed y 3 xfailed | DEC-009 aplicada; segundo bloque de Fase 19-B completado sin regresión focalizada |
+| 2026-09-05 | Corrección STAB-003 de diagnóstico de salida obsoleto | output_panel.js, tests semánticos, test Playwright de caracterización y documento 19 | Invalida el resultado ante mutaciones, diferencia revisión comprobada/actual y exige reconsulta | Node: 14 passed; Playwright STAB-003: 1 passed; dos recorridos existentes: 2 passed; caracterización: 3 passed y 2 xfailed; Navegador sin errores | Tercer bloque de Fase 19-B completado sin tocar el contrato ni la salida productiva |
 
 Después de cada cambio futuro se debe agregar una fila con:
 
@@ -1152,4 +1203,4 @@ No actualizar documentación para afirmar funciones que no fueron validadas.
 
 El próximo cambio no debe ser todavía la reorganización del template.
 
-STAB-001 y STAB-002 ya están corregidos y validados. El siguiente paso recomendado es corregir STAB-003 de forma aislada: cuando el layout cambia de revisión después de consultar output-capabilities, el diagnóstico anterior debe dejar de presentarse como vigente y la interfaz debe indicar que requiere una nueva validación. Antes de implementarlo se debe mapear dónde se conserva la revisión diagnosticada, qué eventos del store la invalidan y cómo se representa visualmente el estado obsoleto sin tocar todavía preview, PDF ni CTP. Después se debe repetir el archivo Playwright focalizado y confirmar 3 passed y 2 xfailed. Solo después de completar la estabilización mínima debe comenzar el rediseño visual productivo de las Fases 19-C y 19-D.
+STAB-001, STAB-002 y STAB-003 ya están corregidos y validados. El siguiente paso recomendado es corregir STAB-004 de forma aislada: una doble activación de Crear matriz no debe volver a calcular inmediatamente desde la selección recién generada ni crear una segunda operación accidental. Antes de implementarlo se debe caracterizar qué evento produce la repetición, cómo cambia la selección después de aplicar y qué mecanismo mínimo conserva la posibilidad de una segunda creación deliberada. Después se debe repetir el archivo Playwright focalizado y confirmar 4 passed y 1 xfailed. Solo después de completar la estabilización mínima debe comenzar el rediseño visual productivo de las Fases 19-C y 19-D.

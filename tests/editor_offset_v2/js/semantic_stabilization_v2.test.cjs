@@ -38,6 +38,29 @@ function positions(slots, delta = 0) {
   }]));
 }
 
+function outputRefs() {
+  const listeners = {};
+  return {
+    listeners,
+    outputCheck: {
+      disabled: false,
+      addEventListener(type, listener) {
+        listeners[type] = listener;
+      },
+    },
+    outputStatus: { textContent: "", dataset: {} },
+    outputIssues: {
+      children: [],
+      replaceChildren(...children) {
+        this.children = children;
+      },
+      append(child) {
+        this.children.push(child);
+      },
+    },
+  };
+}
+
 function repeatResult(slot) {
   const proposed = structuredClone(slot);
   proposed.id = "slot_repeat_editable";
@@ -352,6 +375,102 @@ test("thirty identical slot issues are grouped by code, asset and work", () => {
   assert.equal(groups[0].slotIds.length, 30);
   assert.equal(groups[0].slotIds[0], "slot_repeat_operation_0001");
   assert.equal(groups[0].slotIds[29], "slot_repeat_operation_0030");
+});
+
+test("output diagnosis becomes stale on layout changes and tracks the saved revision", async () => {
+  const layout = fixture();
+  layout.slots = [unlockedFrontSlot(layout)];
+  const store = new EditorStore(layout);
+  const refs = outputRefs();
+  const panel = new OutputPanel.Panel(
+    store,
+    refs,
+    {
+      async getOutputCapabilities() {
+        return {
+          compatible: true,
+          revision: store.revision,
+          issues: [],
+        };
+      },
+    },
+    { async manualSave() { return false; } },
+    { output_capabilities_api_url: "/output-capabilities" },
+  );
+
+  await panel.check();
+  const checkedRevision = store.revision;
+  assert.equal(panel.checkedRevision, checkedRevision);
+  assert.equal(panel.diagnosisStale, false);
+  assert.match(refs.outputStatus.textContent, new RegExp(`revisión ${checkedRevision}`));
+  assert.equal(refs.outputStatus.dataset.state, "success");
+
+  const before = positions(store.layout.slots);
+  const after = positions(store.layout.slots, 1);
+  store.executeCommand(new Commands.MoveSlotsCommand(before, after));
+  assert.equal(panel.diagnosisStale, true);
+  assert.match(refs.outputStatus.textContent, /Diagnóstico desactualizado/);
+  assert.match(refs.outputStatus.textContent, /Guarda y vuelve a consultar compatibilidad/);
+  assert.equal(refs.outputStatus.dataset.state, "warning");
+  assert.deepEqual(refs.outputIssues.children, []);
+
+  const canonical = structuredClone(store.layout);
+  canonical.job.revision = checkedRevision + 1;
+  canonical.job.updated_at = "2026-09-05T12:00:00Z";
+  store.completeSave(canonical, store.changeVersion);
+  assert.match(
+    refs.outputStatus.textContent,
+    new RegExp(`revisión ${checkedRevision}.*revisión actual es ${checkedRevision + 1}`),
+  );
+  assert.match(refs.outputStatus.textContent, /Vuelve a consultar compatibilidad/);
+
+  await panel.check();
+  assert.equal(panel.checkedRevision, checkedRevision + 1);
+  assert.equal(panel.diagnosisStale, false);
+  assert.equal(refs.outputStatus.dataset.state, "success");
+  store.setSelection([store.layout.slots[0].id], "replace");
+  assert.equal(panel.diagnosisStale, false);
+
+  const external = structuredClone(store.layout);
+  external.job.revision += 1;
+  external.job.updated_at = "2026-09-05T12:01:00Z";
+  store.applyServerLayout(external);
+  assert.equal(panel.diagnosisStale, true);
+  assert.match(refs.outputStatus.textContent, /Diagnóstico desactualizado/);
+  panel.dispose();
+});
+
+test("output response is stale when the layout changes while the request is in flight", async () => {
+  const layout = fixture();
+  layout.slots = [unlockedFrontSlot(layout)];
+  const store = new EditorStore(layout);
+  const refs = outputRefs();
+  let resolveRequest;
+  const resultPromise = new Promise((resolve) => {
+    resolveRequest = resolve;
+  });
+  const panel = new OutputPanel.Panel(
+    store,
+    refs,
+    { async getOutputCapabilities() { return resultPromise; } },
+    { async manualSave() { return false; } },
+    { output_capabilities_api_url: "/output-capabilities" },
+  );
+  const checkedRevision = store.revision;
+
+  const checkPromise = panel.check();
+  store.executeCommand(new Commands.MoveSlotsCommand(
+    positions(store.layout.slots),
+    positions(store.layout.slots, 2),
+  ));
+  resolveRequest({ compatible: true, revision: checkedRevision, issues: [] });
+  await checkPromise;
+
+  assert.equal(panel.checkedRevision, checkedRevision);
+  assert.equal(panel.diagnosisStale, true);
+  assert.equal(refs.outputStatus.dataset.state, "warning");
+  assert.match(refs.outputStatus.textContent, /Guarda y vuelve a consultar compatibilidad/);
+  panel.dispose();
 });
 
 test("slot labels stay short, adapt to zoom and hide on physically tiny slots", () => {

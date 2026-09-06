@@ -21,6 +21,13 @@
     ASSET_NOT_READY: "Asset no listo o placeholder",
   });
 
+  const DIAGNOSIS_INVALIDATING_EVENTS = Object.freeze([
+    "command",
+    "undo",
+    "redo",
+    "external_update",
+  ]);
+
   function issueLabel(issue) {
     return ISSUE_LABELS[issue.code] || issue.message || issue.code;
   }
@@ -100,13 +107,54 @@
       this.api = api;
       this.saver = saver;
       this.context = context;
+      this.checkedRevision = null;
+      this.diagnosisStale = false;
+      this.unsubscribe = this.store.subscribe((event) => this.onStoreEvent(event));
       this.refs.outputCheck.addEventListener("click", () => this.check());
+    }
+
+    onStoreEvent(event) {
+      if (DIAGNOSIS_INVALIDATING_EVENTS.includes(event.type)) {
+        this.invalidate();
+        return;
+      }
+      if (event.type === "save_success"
+          && this.checkedRevision !== null
+          && (this.diagnosisStale || this.checkedRevision !== this.store.revision)) {
+        this.invalidate();
+      }
+    }
+
+    staleMessage() {
+      if (this.store.hasUnsavedChanges()) {
+        return (
+          `Diagnóstico desactualizado · la revisión ${this.checkedRevision} tiene cambios pendientes. `
+          + "Guarda y vuelve a consultar compatibilidad."
+        );
+      }
+      return (
+        `Diagnóstico desactualizado · se comprobó la revisión ${this.checkedRevision}, `
+        + `pero la revisión actual es ${this.store.revision}. `
+        + "Vuelve a consultar compatibilidad."
+      );
+    }
+
+    invalidate() {
+      if (this.checkedRevision === null) return false;
+      this.diagnosisStale = true;
+      this.refs.outputStatus.textContent = this.staleMessage();
+      this.refs.outputStatus.dataset.state = "warning";
+      this.refs.outputIssues.replaceChildren();
+      return true;
     }
 
     async check() {
       this.refs.outputCheck.disabled = true;
       this.refs.outputStatus.textContent = "Analizando la última revisión guardada…";
+      this.refs.outputStatus.dataset.state = "pending";
       this.refs.outputIssues.replaceChildren();
+      this.checkedRevision = null;
+      this.diagnosisStale = false;
       try {
         if (this.store.hasUnsavedChanges()) await this.saver.manualSave();
         if (this.store.saveState.status !== "clean") {
@@ -115,6 +163,11 @@
         const result = await this.api.getOutputCapabilities(
           this.context.output_capabilities_api_url,
         );
+        this.checkedRevision = result.revision;
+        if (this.store.hasUnsavedChanges() || this.store.revision !== result.revision) {
+          this.invalidate();
+          return result;
+        }
         this.refs.outputStatus.textContent = result.compatible
           ? `Compatible con salida temporal · revisión ${result.revision}`
           : `No compatible con salida temporal · revisión ${result.revision}`;
@@ -129,10 +182,16 @@
         this.refs.outputCheck.disabled = false;
       }
     }
+
+    dispose() {
+      this.unsubscribe?.();
+      this.unsubscribe = null;
+    }
   }
 
   return Object.freeze({
     ISSUE_LABELS,
+    DIAGNOSIS_INVALIDATING_EVENTS,
     Panel,
     groupIssues,
     issueLabel,

@@ -349,6 +349,15 @@ def test_stab_003_output_diagnosis_is_invalidated_after_revision_change(
                 slot_id,
             )
             _move_selected_with_position_form(page, current_x + 0.25)
+            expect(page.locator("#ev2-output-status")).to_contain_text(
+                "Diagnóstico desactualizado"
+            )
+            expect(page.locator("#ev2-output-status")).to_contain_text(
+                "Guarda y vuelve a consultar compatibilidad"
+            )
+            expect(page.locator("#ev2-output-status")).to_have_attribute(
+                "data-state", "warning"
+            )
             page.evaluate("() => window.__EDITOR_OFFSET_V2__.saver.manualSave()")
             page.wait_for_function(
                 "() => window.__EDITOR_OFFSET_V2__.store.saveState.status === 'clean'",
@@ -359,20 +368,32 @@ def test_stab_003_output_diagnosis_is_invalidated_after_revision_change(
             )
             assert current_revision > checked_revision
 
-            status = page.locator("#ev2-output-status").inner_text()
-            normalized = status.lower()
-            has_stale_warning = any(
-                token in normalized
-                for token in ("desactual", "obsolet", "volver a comprobar", "pendiente")
+            expect(page.locator("#ev2-output-status")).to_contain_text(
+                f"se comprobó la revisión {checked_revision}"
             )
-            still_claims_old_revision = f"revisión {checked_revision}" in status
+            expect(page.locator("#ev2-output-status")).to_contain_text(
+                f"la revisión actual es {current_revision}"
+            )
+            expect(page.locator("#ev2-output-status")).to_contain_text(
+                "Vuelve a consultar compatibilidad"
+            )
+
+            with page.expect_response(
+                lambda response: response.request.method == "GET"
+                and response.url.endswith("/output-capabilities"),
+            ):
+                page.locator("#ev2-output-check").click()
+            expect(page.locator("#ev2-output-status")).to_contain_text(
+                f"revisión {current_revision}"
+            )
+            expect(page.locator("#ev2-output-status")).not_to_contain_text(
+                "Diagnóstico desactualizado"
+            )
+            assert page.evaluate(
+                "() => window.__EDITOR_OFFSET_V2__.outputPanel.checkedRevision"
+            ) == current_revision
             _assert_no_console_errors(errors)
             assert not errors["page"], f"Pageerrors inesperados: {errors['page']}"
-            if still_claims_old_revision and not has_stale_warning:
-                pytest.xfail(
-                    "STAB-003 confirmado: output-capabilities sigue presentando una revisión anterior como vigente"
-                )
-            assert not still_claims_old_revision or has_stale_warning
         finally:
             browser.close()
 
