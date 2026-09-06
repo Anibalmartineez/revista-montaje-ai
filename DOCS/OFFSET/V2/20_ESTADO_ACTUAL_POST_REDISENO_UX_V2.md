@@ -6,6 +6,8 @@ Fecha de corte: 2026-09-06.
 
 Actualización posterior al cierre UX, también del 2026-09-06: la auditoría SAFE de salida/preflight fue presentada y el usuario aprobó iniciar su fase documental en `codex/editor-offset-v2-output-preflight`. V2 será el editor principal, con código productivo propio e independiente; puede copiar y adaptar código útil de V1, sin mantener dependencias legacy como arquitectura final. La especificación nueva está en [21_CONTRATO_PREFLIGHT_V2.md](21_CONTRATO_PREFLIGHT_V2.md). No hay implementación productiva nueva. Los datos de rama y pruebas siguientes pertenecen al cierre 19-G, salvo actualización expresamente identificada.
 
+Actualización posterior de salida: el usuario autorizó reutilización temporal de funciones V1 y el ensayo controlado [22 — Reutilización de salida V1](22_ENSAYO_REUTILIZACION_SALIDA_V1.md). Existe un invocador offline V2 con snapshots de fuentes, PDF experimental y preview derivada del mismo PDF. La validación focalizada ejecutó 78 pruebas (23 nuevas de ensayo, 50 de adaptador y 5 de inspector). Se demostraron posiciones y giros sin bleed en ambos modos; se reprodujeron diferencias de bleed y marcas. No se modificaron rutas, canvas, contrato, jobs reales ni motor V1. Preview/PDF/CTP productivos continúan pendientes. La rama y evidencia que siguen corresponden al cierre UX histórico.
+
 Rama revisada:
 
     codex/editor-offset-v2-ux-foundation

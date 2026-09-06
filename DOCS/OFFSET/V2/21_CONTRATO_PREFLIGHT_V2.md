@@ -6,11 +6,11 @@ Fecha: 2026-09-06.
 
 Fase: 21-A, definición documental de preflight, independiente del rediseño cerrado. No existe una Fase 19-H.
 
-Estado: especificación documental preparada para revisión. El usuario aprobó iniciar esta fase después de la auditoría SAFE y estableció que V2 será el editor principal, con código propio e independiente. La aprobación autoriza documentación; no implica que los detalles nuevos de este documento ya hayan sido aceptados individualmente ni autoriza código, pruebas, servicios, publicación o salida productiva.
+Estado: especificación documental preparada para revisión. La autorización original de 21-A cubrió documentación, no la implementación del preflight. Posteriormente el usuario aclaró que permite reutilizar temporalmente las funciones V1 y aprobó código y pruebas del ensayo offline [22](22_ENSAYO_REUTILIZACION_SALIDA_V1.md). Ese ensayo no implementa el reporte canónico propuesto aquí ni habilita salida productiva. V2 principal e independiente sigue siendo el destino.
 
 Clasificación de las afirmaciones:
 
-- **Decisión aprobada:** dirección de independencia de V2 y reutilización mediante copia selectiva.
+- **Decisión aprobada:** independencia futura de V2, copia selectiva y reutilización temporal explícita de funciones V1 en infraestructura.
 - **Hecho actual:** comportamiento contrastado con código, schema o persistencia durante la auditoría previa.
 - **Especificación propuesta:** reglas del futuro preflight definidas aquí para revisión y posterior implementación.
 - **Pendiente:** decisiones operativas, tolerancias o detalles que deben cerrarse antes de su fase dependiente.
@@ -43,7 +43,7 @@ Independencia no obliga a reescribir bibliotecas externas como PyMuPDF o Flask. 
 
 Las dependencias actuales son deuda de transición explícita: registro en `app.py` compartido y motor Repeat en `engines/step_repeat_pro_engine.py`, entre otras que deberá completar una auditoría de extracción. Se retirarán en fases propias. Esta fase no las elimina ni modifica.
 
-La nueva salida productiva se diseñará nativa V2. El puente puede conservarse para diagnóstico y caracterización, pero no se ampliará como camino productivo por defecto. Una comparación con legacy no obliga a reproducir errores ni a conservar su semántica de bleed, defaults o rotaciones.
+La futura salida propia V2 puede alcanzarse mediante reutilización temporal de funciones V1, según la aclaración posterior del usuario. El dominio y el montaje permanecen en V2; los imports temporales se concentran en infraestructura. El ensayo 22 caracteriza esa frontera antes de habilitar funciones en la aplicación. Comparar con legacy no obliga a reproducir errores ni a conservar su semántica de bleed, defaults o rotaciones.
 
 ## 3. Punto de partida comprobado
 
@@ -361,9 +361,9 @@ Aceptación documental:
 - pruebas, archivos candidatos, compatibilidad y rollback identificados;
 - enlaces y diff revisados; solo documentos del alcance modificados.
 
-### Siguiente gate — Fixtures y decisiones focalizadas
+### Gate posterior a 21-A — Ensayo de reutilización autorizado
 
-Presentar para aprobación una tanda concreta de fixtures y pruebas. Cerrar las decisiones necesarias para esa tanda, formalizar schema del reporte en su fase autorizada y caracterizar primero identidad, estructura y geometría. No comenzar el renderer ni reutilizar código compartido por conveniencia.
+El usuario aprobó la identificación de funciones útiles V1 y posteriormente su ensayo controlado. [22](22_ENSAYO_REUTILIZACION_SALIDA_V1.md) registra alcance, fixtures, resultados y bloqueos del invocador offline. La autorización cubre este ensayo y su documentación; no implementa el preflight canónico, preparación de páginas/cajas ni habilitación productiva. Las decisiones de bleed, clipping y marcas siguen abiertas para la siguiente adaptación.
 
 ### Gates posteriores, independientes
 
@@ -385,6 +385,7 @@ Rollback documental: retirar o corregir exclusivamente este cambio documental me
 | 2026-09-06 | Usuario define V2 principal con código independiente y permite copiar lo útil de V1 | Decisión arquitectónica aprobada; extracción física todavía no realizada |
 | 2026-09-06 | Usuario indica «inicia, aprobado» para la fase documental | Autoriza esta especificación y alineación necesaria; no código ni pruebas |
 | 2026-09-06 | Especificación 21-A y referencias documentales preparadas | Revisión documental; próximo gate pendiente de aprobación, sin funciones productivas nuevas |
+| 2026-09-06 | Aclaración posterior: compartir temporalmente funciones V1 está permitido; ensayo controlado aprobado | Ejecución aislada y resultados en documento 22; independencia futura preservada |
 
 Comprobación documental de cierre: diff de los documentos existentes revisado, enlaces Markdown locales resueltos y los cinco documentos sin espacios finales ni bloques de código desequilibrados. `git diff --check` sin errores; avisos informativos LF/CRLF de Git. El archivo nuevo se comprobó también directamente porque aún no está rastreado. No se ejecutaron suites, Flask, navegador ni generación PDF; no hay commit o push.
 

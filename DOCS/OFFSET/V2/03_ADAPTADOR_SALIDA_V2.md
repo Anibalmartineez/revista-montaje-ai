@@ -19,7 +19,7 @@ Layout V2
 
 El adaptador continúa siendo un puente temporal, no el destino arquitectónico final. Jobs y uploads ya existen, y Flask expone un diagnóstico de capacidades de solo lectura; preview y PDF final siguen desconectados. `montaje_offset_inteligente.py` y los servicios V1 permanecen sin cambios. El destino futuro es `Editor V2 -> motor de salida V2 propio`.
 
-Decisión posterior aprobada el 2026-09-06: V2 será el editor principal y tendrá código productivo independiente. Puede copiar y adaptar código útil de V1 para mantenerlo dentro de V2; no debe depender de servicios o motores de negocio compartidos con V1 como arquitectura final. Este puente se conserva para diagnóstico/caracterización y no se ampliará como camino productivo por defecto. Ver [11](11_DECISIONES_ARQUITECTONICAS_PENDIENTES_V2.md) y [21 — Contrato de preflight](21_CONTRATO_PREFLIGHT_V2.md).
+Decisión posterior aprobada el 2026-09-06: V2 será el editor principal y tendrá código productivo independiente. El usuario aclaró después que permite reutilizar temporalmente las funciones de salida V1, manteniendo el montaje V2 como fuente de verdad. La dependencia debe concentrarse en infraestructura y poder sustituirse por código propio; no será la arquitectura final. Está autorizado el ensayo aislado descrito en [22 — Ensayo de reutilización](22_ENSAYO_REUTILIZACION_SALIDA_V1.md), no la habilitación productiva de rutas. Ver [11](11_DECISIONES_ARQUITECTONICAS_PENDIENTES_V2.md) y [21 — Contrato de preflight](21_CONTRATO_PREFLIGHT_V2.md).
 
 ## 2. Frontera V2/legacy
 
@@ -300,7 +300,7 @@ forma apunta a la rama manual de `montaje_offset_inteligente.py`, pero aún no s
 
 ## 14. Evolución futura de salida
 
-La Fase 3 contemplaba una futura conexión mediante `Diseno` y `MontajeConfig`. La dirección aprobada el 2026-09-06 prioriza salida propia V2 y deja esa conexión como posibilidad de caracterización aislada, no como próximo paso productivo. Una caracterización autorizada deberá:
+La Fase 3 contemplaba una futura conexión mediante `Diseno` y `MontajeConfig`. La aclaración posterior del usuario autoriza reutilización temporal, con independencia como destino. El ensayo offline [22](22_ENSAYO_REUTILIZACION_SALIDA_V1.md) materializa esa llamada sin modificar el adaptador ni su diagnóstico público. La integración debe:
 
 1. volver a rechazar un resultado no exitoso;
 2. usar exclusivamente las rutas resueltas del adaptador;
@@ -315,8 +315,9 @@ Riesgos adicionales confirmados por lectura: capabilities no inspecciona archivo
 
 ## 15. Fuera de alcance
 
-El alcance de salida todavía no implementa generación PDF, preview, CTP productivo,
-transformaciones de contenido ni preparación física de assets. Tampoco modifica
-el Editor V1 ni adapta layouts anteriores.
+La aplicación todavía no implementa generación PDF o preview productivos, CTP,
+transformaciones de contenido ni preparación de páginas/cajas para salida. El
+invocador offline genera únicamente artefactos experimentales y copias byte a byte
+de fuentes para el ensayo 22. No modifica Editor V1 ni adapta layouts anteriores.
 
 Los casos JSON de `output_adapter_cases.json` son independientes de Python y pueden reutilizarse como caracterización del puente y referencia geométrica. No son fixtures PDF renderizados ni obligan a implementar un adaptador TypeScript o una conexión productiva legacy.

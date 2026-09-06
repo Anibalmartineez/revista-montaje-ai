@@ -100,7 +100,7 @@ Se permite copiar selectivamente código útil del editor anterior dentro de V2,
 
 Las dependencias actuales, incluido Repeat sobre `engines/step_repeat_pro_engine.py` y el registro compartido en `app.py`, requieren fases de extracción propias. La decisión no autoriza modificarlas dentro del preflight documental, ni decide aún separación de repositorio o despliegue.
 
-El OutputAdapter legacy sigue siendo una superficie temporal de diagnóstico y posible caracterización. No se ampliará como camino productivo por defecto ni definirá las capacidades del nuevo dominio. La futura salida se diseñará nativa V2, sin introducir vocabulario legacy en Layout V2.
+El usuario aclaró posteriormente que permite compartir temporalmente las funciones de salida V1, conservando exactamente el montaje V2. La independencia continúa siendo el destino. El cruce se concentra en infraestructura V2, sin introducir vocabulario legacy en Layout V2 ni reutilizar la persistencia V1. La aprobación actual cubre el ensayo offline de [22](22_ENSAYO_REUTILIZACION_SALIDA_V1.md); habilitar preview/PDF en la aplicación requiere su siguiente gate de fidelidad.
 
 Antes de habilitar cada capacidad nativa, el motor deberá demostrar coherencia con el contrato V2 y cobertura para:
 
