@@ -422,6 +422,9 @@ def test_stab_004_matrix_double_activation_creates_only_one_operation(
             count_before = page.evaluate(
                 "() => window.__EDITOR_OFFSET_V2__.store.layout.slots.length"
             )
+            history_before = page.evaluate(
+                "() => window.__EDITOR_OFFSET_V2__.store.undoStack.length"
+            )
             page.locator("#ev2-arrangement-matrix-rows").fill("2")
             page.locator("#ev2-arrangement-matrix-columns").fill("2")
             page.locator("#ev2-arrangement-matrix-gap-x").fill("10")
@@ -437,13 +440,48 @@ def test_stab_004_matrix_double_activation_creates_only_one_operation(
                 "() => window.__EDITOR_OFFSET_V2__.store.layout.slots.length"
             )
             expected_count = count_before + 3
+            selected_after = page.evaluate(
+                "() => [...window.__EDITOR_OFFSET_V2__.store.selection]"
+            )
             _assert_no_console_errors(errors)
             assert not errors["page"], f"Pageerrors inesperados: {errors['page']}"
-            if count_after > expected_count:
-                pytest.xfail(
-                    "STAB-004 confirmado: una doble activación reaplica la matriz sobre la selección recién creada"
-                )
             assert count_after == expected_count
+            assert len(selected_after) == 3
+            assert page.evaluate(
+                "() => window.__EDITOR_OFFSET_V2__.store.undoStack.length"
+            ) == history_before + 1
+            expect(page.locator("#ev2-arrangement-feedback")).to_contain_text(
+                "La matriz ya fue creada"
+            )
+
+            page.locator("#ev2-undo").click()
+            expect(page.locator(".ev2-svg-slot")).to_have_count(count_before)
+            assert page.evaluate(
+                "() => [...window.__EDITOR_OFFSET_V2__.store.selection]"
+            ) == [source_id]
+
+            page.locator("#ev2-redo").click()
+            expect(page.locator(".ev2-svg-slot")).to_have_count(expected_count)
+            assert page.evaluate(
+                "() => [...window.__EDITOR_OFFSET_V2__.store.selection]"
+            ) == selected_after
+
+            _select_slot(page, source_id)
+            page.locator("#ev2-arrangement-matrix-apply").click()
+            expect(page.locator(".ev2-svg-slot")).to_have_count(expected_count + 3)
+            assert page.evaluate(
+                "() => window.__EDITOR_OFFSET_V2__.store.undoStack.length"
+            ) == history_before + 2
+
+            page.evaluate("() => window.__EDITOR_OFFSET_V2__.saver.manualSave()")
+            page.wait_for_function(
+                "() => window.__EDITOR_OFFSET_V2__.store.saveState.status === 'clean'",
+                timeout=10_000,
+            )
+            page.reload(wait_until="domcontentloaded")
+            expect(page.locator(".ev2-svg-slot")).to_have_count(expected_count + 3)
+            _assert_no_console_errors(errors)
+            assert not errors["page"], f"Pageerrors inesperados: {errors['page']}"
         finally:
             browser.close()
 

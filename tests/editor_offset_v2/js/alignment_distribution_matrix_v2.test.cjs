@@ -11,6 +11,7 @@ const Commands = require(path.join(repoRoot, "static/js/editor_offset_v2/command
 const EditPolicy = require(path.join(repoRoot, "static/js/editor_offset_v2/edit_policy.js"));
 const Geometry = require(path.join(repoRoot, "static/js/editor_offset_v2/geometry_view.js"));
 const RegistryModule = require(path.join(repoRoot, "static/js/editor_offset_v2/command_registry.js"));
+const ArrangementPanel = require(path.join(repoRoot, "static/js/editor_offset_v2/arrangement_panel.js"));
 const { EditorStore } = require(path.join(repoRoot, "static/js/editor_offset_v2/store.js"));
 
 function fixture() {
@@ -412,6 +413,30 @@ test("matrix duplicates one or several sources in +X/-Y with stable IDs, provena
   assert.throws(() => Alignment.matrixSummary(100, 3, 3), /500/);
   assert.equal(Alignment.parsePositiveInteger("2.5", "Filas").ok, false);
   assert.equal(Alignment.parsePositiveInteger("0", "Filas").ok, false);
+});
+
+test("matrix repeat guard blocks only the unchanged generated selection", () => {
+  const payload = { rows: 2, columns: 2, gapX: 10, gapY: 10 };
+  const guard = ArrangementPanel.createMatrixRepeatGuard(
+    ["generated_a", "generated_b", "generated_c"],
+    payload,
+  );
+
+  assert.equal(ArrangementPanel.shouldBlockMatrixRepeat(
+    guard,
+    ["generated_c", "generated_a", "generated_b"],
+    payload,
+  ), true);
+  assert.equal(ArrangementPanel.shouldBlockMatrixRepeat(
+    guard,
+    ["source_a"],
+    payload,
+  ), false);
+  assert.equal(ArrangementPanel.shouldBlockMatrixRepeat(
+    guard,
+    ["generated_a", "generated_b", "generated_c"],
+    { ...payload, gapX: 11 },
+  ), false);
 });
 
 test("8C actions are unique, buttons can share them and commands alone trigger dirty", () => {

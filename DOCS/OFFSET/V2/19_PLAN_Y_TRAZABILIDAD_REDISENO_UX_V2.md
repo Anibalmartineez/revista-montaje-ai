@@ -718,7 +718,7 @@ Gate de salida:
 
 ### Fase 19-B: estabilización mínima
 
-Estado: en curso. STAB-001, STAB-002 y STAB-003 corregidos y validados el 2026-09-05; STAB-004 a STAB-006 permanecen pendientes.
+Estado: en curso. STAB-001 a STAB-004 corregidos y validados el 2026-09-05; STAB-005 y STAB-006 permanecen pendientes.
 
 Orden recomendado:
 
@@ -883,6 +883,59 @@ Resultado:
 - el estado es temporal y no altera persistencia, revisión ni contrato de salida;
 - no se detectaron regresiones nuevas en el alcance focalizado;
 - el siguiente defecto aislado es STAB-004, doble activación accidental de Crear matriz.
+
+#### Resultado 19-B.4: STAB-004 protección contra doble creación de matriz
+
+Fecha: 2026-09-05.
+
+Problema confirmado antes del cambio:
+
+- Crear matriz ejecutaba la operación de forma síncrona y seleccionaba inmediatamente los slots recién creados;
+- el segundo click de una doble activación volvía a enviar el formulario con esa selección nueva;
+- una matriz 2 × 2 sobre una fuente creaba primero tres copias y luego otra matriz desde esas tres copias;
+- la regresión STAB-004 reproducía el fallo como xfailed.
+
+Criterio aplicado:
+
+- impedir solamente la reaplicación inmediata con los mismos parámetros sobre la selección generada por la operación anterior;
+- mantener habilitada una segunda creación deliberada cuando el operador cambia un parámetro o vuelve a seleccionar las fuentes;
+- explicar el bloqueo con feedback operativo, sin depender de un intervalo de tiempo ni deshabilitar permanentemente el botón.
+
+Cambio aplicado:
+
+- arrangement_panel.js conserva temporalmente la selección resultante y una firma de filas, columnas y gaps de la matriz aplicada;
+- si un segundo submit llega con esa misma selección y firma, no ejecuta un comando nuevo y muestra cómo rearmar la acción;
+- cualquier edición del formulario de matriz retira la protección;
+- una selección diferente no queda bloqueada, por lo que se puede repetir la matriz de manera intencional;
+- la protección permanece en la capa de interfaz y no altera el motor de matriz, los comandos, Layout V2, IDs, geometría, autosave, backend, PDF ni CTP.
+
+Archivos modificados:
+
+    static/js/editor_offset_v2/arrangement_panel.js
+    tests/editor_offset_v2/js/alignment_distribution_matrix_v2.test.cjs
+    tests/playwright/test_editor_offset_v2_ux_characterization.py
+
+Validación focalizada:
+
+- node --check de arrangement_panel.js: correcto;
+- tests unitarios de alignment_distribution_matrix_v2.test.cjs: 10 passed;
+- STAB-004 antes del cambio: 1 xfailed por doble aplicación sobre la selección recién creada;
+- STAB-004 después del cambio: 1 passed;
+- el recorrido comprueba una sola entrada de historial, selección de las tres copias, undo, redo, segunda creación deliberada, guardado y recarga;
+- recorrido Playwright existente de alineación, distribución, gaps, matriz y persistencia: 1 passed;
+- archivo de caracterización completo: 4 passed y 1 xfailed conocido correspondiente a STAB-005;
+- comprobación en Navegador del job existente: interfaz recargada, contenido y controles de matriz disponibles, sin modificar el job;
+- warnings observados: tipos SWIG de PyMuPDF deprecados, sin fallo funcional;
+- suite completa no ejecutada.
+
+Resultado:
+
+- STAB-004 queda corregido y protegido por pruebas unitarias y de navegador real;
+- una doble activación ya no recalcula desde las copias recién seleccionadas;
+- undo/redo y persistencia continúan operando sobre una sola creación;
+- la repetición deliberada se conserva al cambiar parámetros o seleccionar nuevamente las fuentes;
+- no se detectaron regresiones nuevas en el alcance focalizado;
+- el siguiente defecto aislado es STAB-005, recuperación comprensible ante conflicto de revisión 409.
 
 ### Fase 19-C: fundamentos visuales
 
@@ -1096,7 +1149,7 @@ Estados permitidos:
 | STAB-001 | Nudge sin pageerror | Exploración 2 y tests Playwright 19-A.2/19-B.1 | 19-A/19-B | Corregido y validado | Playwright en verde; historial, undo/redo, guardado y recarga comprobados |
 | STAB-002 | Delete y Cut respetan source_slot_id | Exploración 1 y tests Playwright 19-A.2/19-B.2 | 19-A/19-B | Corregido y validado | Bloqueo con feedback, borrado colectivo atómico, undo/redo, guardado y recarga comprobados |
 | STAB-003 | Output-capabilities invalida diagnósticos de revisiones anteriores | Exploración 4 y tests Playwright 19-A.2/19-B.3 | 19-A/19-B | Corregido y validado | Aviso de estado obsoleto, revisión comprobada/actual, reconsulta y respuesta tardía comprobados |
-| STAB-004 | Matriz evita segundo submit accidental | Exploración 3 y tests Playwright 19-A.2 | 19-A/19-B | Caracterizado automáticamente | XFAIL exacto por doble aplicación |
+| STAB-004 | Matriz evita segundo submit accidental | Exploración 3 y tests Playwright 19-A.2/19-B.4 | 19-A/19-B | Corregido y validado | Guardia por selección y parámetros; una operación, undo/redo, repetición deliberada y persistencia comprobados |
 | STAB-005 | Conflicto 409 comprensible | Exploración 3 y tests Playwright 19-A.2 | 19-A/19-B | Caracterizado automáticamente | XFAIL exacto por mensaje técnico sin guía |
 | STAB-006 | Feedback temporal se limpia correctamente | Exploración 3 | 19-A/19-B | Pendiente | Clipboard y medición con undo/clear |
 | OUT-001 | Preview V2 productivo | Documento 18 | Futura | Pospuesto | Contrato y comparación renderizada |
@@ -1135,6 +1188,7 @@ Estados permitidos:
 | 2026-09-05 | Corrección STAB-001 de temporizadores de nudge | nudge_controller.js, test_editor_offset_v2_ux_characterization.py y documento 19 | Las flechas mueven sin Illegal invocation; mismo batching, undo/redo y persistencia | Node: 18 passed; Playwright STAB-001: 1 passed; recorrido existente: 1 passed; caracterización: 1 passed y 4 xfailed | Primer bloque de Fase 19-B completado sin regresión focalizada |
 | 2026-09-05 | Corrección STAB-002 de integridad referencial en Delete y Cut | commands.js, command_registry.js, tests unitarios, test Playwright de caracterización y documento 19 | Bloquea orígenes con dependientes no seleccionados; permite borrado conjunto atómico y reversible | Node: 17 passed; Playwright STAB-002: 1 passed; dos recorridos existentes: 2 passed; caracterización: 2 passed y 3 xfailed | DEC-009 aplicada; segundo bloque de Fase 19-B completado sin regresión focalizada |
 | 2026-09-05 | Corrección STAB-003 de diagnóstico de salida obsoleto | output_panel.js, tests semánticos, test Playwright de caracterización y documento 19 | Invalida el resultado ante mutaciones, diferencia revisión comprobada/actual y exige reconsulta | Node: 14 passed; Playwright STAB-003: 1 passed; dos recorridos existentes: 2 passed; caracterización: 3 passed y 2 xfailed; Navegador sin errores | Tercer bloque de Fase 19-B completado sin tocar el contrato ni la salida productiva |
+| 2026-09-05 | Corrección STAB-004 de doble creación de matriz | arrangement_panel.js, test unitario de matriz, test Playwright de caracterización y documento 19 | Bloquea la repetición accidental sobre la selección generada y conserva una repetición deliberada | Node: 10 passed; Playwright STAB-004: 1 passed; recorrido existente de matriz: 1 passed; caracterización: 4 passed y 1 xfailed; comprobación de carga en Navegador | Cuarto bloque de Fase 19-B completado sin cambiar motor, comandos ni contratos |
 
 Después de cada cambio futuro se debe agregar una fila con:
 
@@ -1154,7 +1208,7 @@ Después de cada cambio futuro se debe agregar una fila con:
 - [ ] El inventario de controles e IDs está completo para la fase a modificar.
 - [x] Existen pruebas de caracterización focalizadas.
 - [x] Los fallos conocidos se reproducen de manera controlada.
-- [ ] Se decidió la política de delete con dependientes.
+- [x] Se decidió la política de delete con dependientes.
 - [ ] Se definió qué se cambia en una única fase.
 - [ ] Se definieron criterios de aceptación y rollback.
 - [ ] Se confirmó que Layout V2 no necesita cambiar para esa fase.
@@ -1203,4 +1257,4 @@ No actualizar documentación para afirmar funciones que no fueron validadas.
 
 El próximo cambio no debe ser todavía la reorganización del template.
 
-STAB-001, STAB-002 y STAB-003 ya están corregidos y validados. El siguiente paso recomendado es corregir STAB-004 de forma aislada: una doble activación de Crear matriz no debe volver a calcular inmediatamente desde la selección recién generada ni crear una segunda operación accidental. Antes de implementarlo se debe caracterizar qué evento produce la repetición, cómo cambia la selección después de aplicar y qué mecanismo mínimo conserva la posibilidad de una segunda creación deliberada. Después se debe repetir el archivo Playwright focalizado y confirmar 4 passed y 1 xfailed. Solo después de completar la estabilización mínima debe comenzar el rediseño visual productivo de las Fases 19-C y 19-D.
+STAB-001 a STAB-004 ya están corregidos y validados. El siguiente paso recomendado es corregir STAB-005 de forma aislada: el conflicto de revisión 409 debe explicar en lenguaje del operador qué ocurrió, preservar la recuperación existente y orientar la decisión entre recargar o conservar el trabajo local. Después se debe repetir el archivo Playwright focalizado y confirmar 5 passed. A continuación corresponde caracterizar y resolver o diferir explícitamente STAB-006; con ese cierre termina la estabilización mínima y puede comenzar el rediseño visual productivo de las Fases 19-C y 19-D.

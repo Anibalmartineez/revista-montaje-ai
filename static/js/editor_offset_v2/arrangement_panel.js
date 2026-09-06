@@ -7,6 +7,35 @@
 })(typeof globalThis !== "undefined" ? globalThis : this, function () {
   "use strict";
 
+  function matrixPayloadSignature(payload) {
+    return JSON.stringify([
+      payload.rows,
+      payload.columns,
+      payload.gapX,
+      payload.gapY,
+    ]);
+  }
+
+  function sameIdSelection(left, right) {
+    const leftIds = new Set(left || []);
+    const rightIds = new Set(right || []);
+    if (leftIds.size !== rightIds.size) return false;
+    return [...leftIds].every((id) => rightIds.has(id));
+  }
+
+  function createMatrixRepeatGuard(selectionAfter, payload) {
+    return Object.freeze({
+      selectionAfter: Object.freeze([...selectionAfter]),
+      payloadSignature: matrixPayloadSignature(payload),
+    });
+  }
+
+  function shouldBlockMatrixRepeat(guard, selection, payload) {
+    return Boolean(guard)
+      && guard.payloadSignature === matrixPayloadSignature(payload)
+      && sameIdSelection(guard.selectionAfter, selection);
+  }
+
   class Panel {
     constructor(store, refs, registry, contextProvider, actionIds, operations, runAction) {
       this.store = store;
@@ -17,6 +46,7 @@
       this.operations = operations;
       this.runAction = runAction;
       this.dirtyForms = new Set();
+      this.matrixRepeatGuard = null;
       this.bind();
       this.unsubscribe = store.subscribe(() => this.render());
       this.render();
@@ -60,6 +90,7 @@
 
     onDraft(key) {
       this.dirtyForms.add(key);
+      if (key === "matrix") this.matrixRepeatGuard = null;
       this.validateDraft(key, false);
       this.renderSummary();
       this.updateFormButtons();
@@ -240,8 +271,25 @@
     applyMatrix() {
       const result = this.validateMatrix(true);
       if (!result.ok) return false;
+      if (shouldBlockMatrixRepeat(
+        this.matrixRepeatGuard,
+        this.store.selection,
+        result.payload,
+      )) {
+        this.store.setFeedback(
+          "La matriz ya fue creada. Cambia un parámetro o vuelve a seleccionar las fuentes para repetirla.",
+        );
+        this.updateFormButtons();
+        return false;
+      }
       const executed = this.runAction(this.actionIds.MATRIX_CREATE, result.payload);
-      if (executed !== false) this.dirtyForms.delete("matrix");
+      if (executed !== false) {
+        this.dirtyForms.delete("matrix");
+        const selectionAfter = Array.isArray(executed?.affectedIds)
+          ? executed.affectedIds
+          : [...this.store.selection];
+        this.matrixRepeatGuard = createMatrixRepeatGuard(selectionAfter, result.payload);
+      }
       this.updateFormButtons();
       return executed;
     }
@@ -293,5 +341,9 @@
     }
   }
 
-  return Object.freeze({ Panel });
+  return Object.freeze({
+    Panel,
+    createMatrixRepeatGuard,
+    shouldBlockMatrixRepeat,
+  });
 });
