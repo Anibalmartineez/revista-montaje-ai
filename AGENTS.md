@@ -1,849 +1,505 @@
-# AGENTS.md — Reglas operativas para Codex y agentes
+# AGENTS.md — Reglas operativas de `revista-montaje-ai`
 
-## 1. Rol principal del agente
+## 1. Propósito y prioridad actual
 
-Este repositorio corresponde al sistema `revista-montaje-ai`.
+Este repositorio contiene `revista-montaje-ai` y varias superficies de preprensa.
 
-El agente debe actuar como:
+El agente debe trabajar como:
 
-* arquitecto técnico;
-* analista SAFE;
-* desarrollador senior;
-* especialista en preprensa e imposición offset;
-* revisor de contratos de datos;
-* asistente de planificación para Codex;
-* acompañante técnico del usuario.
+- arquitecto técnico y analista SAFE;
+- desarrollador senior;
+- especialista en preprensa e imposición offset;
+- revisor de contratos, persistencia y salida productiva;
+- acompañante técnico del usuario.
 
-El usuario define la visión del producto.
-El agente debe convertir esa visión en análisis, planes, documentación, validaciones y cambios seguros.
+El usuario define la visión y aprueba las decisiones relevantes. El agente convierte esa visión en evidencia, planes, documentación, pruebas y cambios pequeños y verificables.
 
-El foco principal actual del repositorio es el **Editor Offset Visual**, también referido como:
+La prioridad activa es **Editor Offset Visual V2**. Editor V1 se conserva como sistema legacy y superficie de compatibilidad. No tratar V1 y V2 como variantes intercambiables.
 
-* Editor Visual IA;
-* Editor Offset Visual;
-* Editor Visual Offset;
-* Editor de montaje offset;
-* constructor visual por job;
-* sistema visual de imposición offset.
+## 2. Regla SAFE central
 
----
+Antes de un cambio importante:
 
-## 2. Principio central de trabajo
+1. determinar versión y alcance;
+2. leer las instrucciones y documentación vigentes;
+3. inspeccionar el código y la persistencia relacionados;
+4. reconstruir el flujo real;
+5. identificar contratos, dependencias y riesgos;
+6. separar hechos, inferencias y pendientes;
+7. proponer un plan reversible;
+8. obtener aprobación cuando el cambio sea amplio, riesgoso o contractual;
+9. implementar sin mezclar fases;
+10. validar en proporción al riesgo;
+11. actualizar la trazabilidad cuando cambie el comportamiento real.
 
-Antes de modificar código, el agente debe entender el sistema.
+No confundir velocidad con progreso. No programar una salida productiva antes de definir cómo se demuestra que es correcta.
 
-La prioridad no es editar rápido.
-La prioridad es trabajar de forma SAFE:
+## 3. Resolución obligatoria de versión
 
-1. leer documentación;
-2. inspeccionar archivos relacionados;
-3. reconstruir flujo real;
-4. mapear dependencias;
-5. identificar riesgos;
-6. separar hechos confirmados de inferencias;
-7. proponer plan;
-8. esperar aprobación cuando el cambio sea importante;
-9. implementar en pasos pequeños;
-10. validar;
-11. documentar cambios reales si corresponde.
+### Cuando el trabajo es V2
 
----
+Si la solicitud menciona V2, Layout V2, `editor_offset_v2`, `/editor_offset_visual_v2` o documentación `DOCS/OFFSET/V2/`:
 
-## 3. Documentación obligatoria antes de tocar el Editor Offset Visual
+- permanecer en superficies V2;
+- no abrir, ejecutar ni modificar V1 salvo dependencia compartida demostrada;
+- no ejecutar Playwright legacy como validación predeterminada;
+- no reutilizar contratos, campos, rutas o persistencia V1 dentro de V2;
+- tratar cualquier cruce V2/legacy como una frontera explícita de compatibilidad.
 
-Antes de hacer cambios en el Editor Offset Visual, el agente debe revisar primero la documentación actualizada en `DOCS/OFFSET/`.
+### Cuando el trabajo es V1
 
-Documentos base:
+Trabajar sobre V1 únicamente cuando el usuario lo solicite o cuando un análisis de impacto confirme que una dependencia compartida exige revisarlo. Declarar ese alcance antes de actuar.
 
-* `DOCS/OFFSET/AUDITORIA_EDITOR_OFFSET_VISUAL.md`
-* `DOCS/OFFSET/01_MAPA_EDITOR_OFFSET_VISUAL.md`
-* `DOCS/OFFSET/02_ESTADO_EDITOR_OFFSET_VISUAL.md`
-* `DOCS/OFFSET/03_RIESGOS_Y_DEUDA_EDITOR_OFFSET_VISUAL.md`
-* `DOCS/OFFSET/04_PLAN_SAFE_EDITOR_OFFSET_VISUAL.md`
-* `DOCS/OFFSET/05_CONTRATOS_EDITOR_OFFSET_VISUAL.md`
+### Cuando la versión es ambigua
 
-Uso de cada documento:
+Usar el contexto más reciente y los archivos mencionados. Si elegir una versión alteraría materialmente el resultado, pedir una aclaración breve. No asumir V1 por costumbre.
 
-* `AUDITORIA_EDITOR_OFFSET_VISUAL.md`: fuente de evidencia original de la auditoría SAFE.
-* `01_MAPA_EDITOR_OFFSET_VISUAL.md`: mapa principal del sistema.
-* `02_ESTADO_EDITOR_OFFSET_VISUAL.md`: estado actual, partes operativas, latentes y legacy.
-* `03_RIESGOS_Y_DEUDA_EDITOR_OFFSET_VISUAL.md`: zonas frágiles, deuda técnica y riesgos.
-* `04_PLAN_SAFE_EDITOR_OFFSET_VISUAL.md`: ruta futura de trabajo por fases.
-* `05_CONTRATOS_EDITOR_OFFSET_VISUAL.md`: estructuras de datos, contratos y reglas críticas.
+## 4. Fuentes de verdad y jerarquía documental
 
-Si hay conflicto entre documentación antigua y estos documentos nuevos, debe priorizarse la documentación nueva del Editor Offset Visual.
+Las instrucciones explícitas del usuario y las instrucciones superiores del entorno prevalecen. Este archivo gobierna el trabajo dentro del repositorio.
 
----
+Para comportamiento actual:
 
-## 4. Uso de la skill system-architect
+- código ejecutable, schema, datos persistidos, ejecución y pruebas aportan evidencia;
+- la documentación contractual define intención e invariantes;
+- la documentación operativa vigente organiza el estado conocido;
+- los documentos históricos conservan evidencia, pero no prueban el estado presente.
 
-Cuando el usuario pida auditoría, revisión profunda, refactor grande, reorganización, rediseño de arquitectura o análisis de impacto, el agente debe usar el enfoque de la skill:
+Si código y documentación se contradicen, no elegir silenciosamente. Registrar el conflicto y determinar si existe un defecto de implementación, documentación obsoleta o una decisión pendiente.
 
-`system-architect`
+### Lectura inicial para Editor V2
 
-Modo esperado:
+Consultar solo los documentos necesarios para el alcance, comenzando por:
 
-* explorar antes de proponer;
-* trabajar primero en lectura;
-* no modificar archivos durante auditoría;
-* no ejecutar tests si el usuario no lo autorizó;
-* no crear documentación durante una auditoría si el prompt lo prohíbe;
-* no hacer commits ni push;
-* separar hechos confirmados de inferencias;
-* citar rutas de archivos y símbolos concretos;
-* identificar contratos y superficies de compatibilidad.
+1. `DOCS/OFFSET/V2/20_ESTADO_ACTUAL_POST_REDISENO_UX_V2.md`: entrada operativa vigente y próximo gate SAFE.
+2. `DOCS/OFFSET/V2/01_CONTRATO_LAYOUT_V2.md`: contrato persistente.
+3. `DOCS/OFFSET/V2/02_KERNEL_GEOMETRICO_V2.md`: semántica geométrica canónica.
+4. `DOCS/OFFSET/V2/03_ADAPTADOR_SALIDA_V2.md`: frontera temporal de salida.
+5. `DOCS/OFFSET/V2/11_DECISIONES_ARQUITECTONICAS_PENDIENTES_V2.md`: decisiones que aún no autorizan implementación.
+6. El documento específico de la funcionalidad afectada entre 04 y 17.
+7. `DOCS/OFFSET/V2/19_PLAN_Y_TRAZABILIDAD_REDISENO_UX_V2.md` cuando se necesite la historia detallada del rediseño.
 
-Para auditorías importantes del Editor Offset Visual, se recomienda dividir la revisión en áreas:
+Clasificación importante:
 
-1. núcleo JavaScript del editor;
-2. integración HTML/CSS/UI;
-3. rutas, servicios y orquestación Python;
-4. layouts, uploads, preview, PDF, CTP y bleed;
-5. dependencias, riesgos y cobertura.
+- documento 01: contrato vigente;
+- documento 02: fuente geométrica; sus descripciones de alcance histórico no sustituyen el estado del documento 20;
+- documento 03: adaptador temporal vigente, no salida productiva;
+- documentos 04 a 17: decisiones y fases específicas, con posibles cortes históricos;
+- documento 18: snapshot histórico de las exploraciones 1 a 4;
+- documento 19: plan, decisiones y bitácora de la Fase 19 cerrada;
+- documento 20: estado operativo vigente posterior al rediseño.
 
----
+Para V1, consultar `DOCS/OFFSET/` solo cuando V1 o una dependencia legacy esté dentro del alcance. No usar esos documentos como contrato de V2.
 
-## 5. Alcance real del Editor Offset Visual
+## 5. Modos de trabajo y autorización
 
-El Editor Offset Visual no vive en un único archivo ni en una única carpeta.
+### Auditoría
 
-Su superficie real incluye:
+- Solo lectura.
+- No modificar código ni documentación.
+- No ejecutar tests, iniciar Flask o usar recorridos interactivos si el usuario no lo autorizó.
+- Entregar hechos, inferencias, riesgos, dependencias, preguntas y plan SAFE.
+
+### Alineación documental
+
+- Contrastar documentación con código y evidencia actual.
+- Clasificar cada documento como contractual, operativo, histórico, propuesta o pendiente.
+- No reescribir evidencia histórica como si fuera estado presente.
+- Modificar únicamente los documentos autorizados.
+
+### Planificación
+
+- No editar código.
+- Definir objetivo, alcance, no objetivos, riesgos, contratos, archivos, fases, pruebas, aceptación y rollback.
+- Esperar aprobación antes de cambios importantes.
+
+### Implementación
+
+- La solicitud debe autorizar el cambio.
+- Mantener cada fase pequeña, reversible y trazable.
+- No incorporar refactors oportunistas ni funciones futuras.
+- Explicar qué cambió, qué no cambió y qué quedó pendiente.
+
+### Validación
+
+- Ejecutar solamente validaciones autorizadas y pertinentes al alcance.
+- Una validación focalizada no demuestra que todo el repositorio esté verde.
+- No llamar “preexistente” a un fallo sin ejecutar una comparación equivalente contra la base apropiada.
+
+### Git
+
+- No crear commits, merge, push, rebase ni borrar ramas salvo petición explícita.
+- Las comprobaciones de estado y diff son de solo lectura y pueden usarse cuando sean relevantes.
+
+## 6. Límite real de Editor V2
+
+### Backend y contrato
+
+- `app.py`: registra la superficie V2.
+- `editor_offset_v2/blueprint.py`: rutas HTML y API V2.
+- `editor_offset_v2/config.py`: flags, jobs root y límites.
+- `editor_offset_v2/domain/`: Layout V2, validación, geometría, Repeat y contrato interno de salida.
+- `editor_offset_v2/application/`: servicios de jobs, assets, Repeat y diagnóstico de salida.
+- `editor_offset_v2/infrastructure/`: persistencia, PDF inspector, thumbnails, Repeat adapter y OutputAdapter temporal.
+- `editor_offset_v2/schemas/layout-v2.schema.json`: schema persistente.
 
 ### Frontend
 
-* `templates/editor_offset_visual.html`
-* `static/css/editor_offset_visual.css`
-* `static/js/editor_offset_visual.js`
-* `static/js/editor_offset_visual/`
-* `static/js/editor_offset_visual/core/`
-
-### Backend Flask y servicios
-
-* `routes.py`
-* `services/editor_offset_http_service.py`
-* `services/editor_offset_jobs.py`
-* `services/editor_offset_layout_defaults.py`
-* `services/editor_offset_uploads.py`
-* `services/editor_offset_imposition_service.py`
-* `services/editor_offset_output_contract.py`
-* `services/editor_offset_output_service.py`
-
-### Motores
-
-* `engines/step_repeat_pro_engine.py`
-* `engines/nesting_pro_engine.py`
-
-### Salida legacy y producción
-
-* `montaje_offset_inteligente.py`
-* `strategies/`
-
-### Cuadernillos
-
-* `cuadernillos/simulator.py`
-
-### IA
-
-* `ai_agent/tools_repeat.py`
-* `ai_agent/openai_tool_bridge.py`
-* `ai_agent/editor_advisor/`
-
-### Tests relacionados
-
-* `tests/test_editor_offset_characterization.py`
-* `tests/test_editor_offset_output_contract.py`
-* `tests/test_step_repeat_pro_engine.py`
-* `tests/test_editor_advisor_tools.py`
-* `tests/test_cuadernillos_simulator.py`
-* `tests/playwright/test_editor_load.py`
-* `tests/playwright/test_editor_productive_workflows.py`
-* `tests/playwright/test_editor_manual_interactions.py`
-* `tests/playwright/test_editor_drag_resize_interactions.py`
-
----
-
-## 6. Mapa funcional resumido
-
-El flujo principal del Editor Offset Visual es:
-
-1. `GET /editor_offset_visual` entra por `routes.py`.
-2. El backend delega en `services.editor_offset_http_service.editor_visual_context()`.
-3. Se carga o inicializa un layout.
-4. El template `templates/editor_offset_visual.html` inyecta:
-
-   * `window.INITIAL_LAYOUT_JSON`;
-   * `window.JOB_ID`.
-5. El frontend inicializa `state.layout` desde ese JSON.
-6. El usuario configura:
-
-   * pliego;
-   * trabajos lógicos;
-   * PDFs;
-   * formas;
-   * slots;
-   * bleed;
-   * spacing;
-   * CTP;
-   * output.
-7. Upload usa `POST /editor_offset/upload/<job_id>`.
-8. Imposición automática usa `POST /editor_offset_visual/apply_imposition`.
-9. La edición manual modifica `state.layout.slots`.
-10. Guardar usa `POST /editor_offset/save`.
-11. Preview usa `POST /editor_offset/preview/<job_id>`.
-12. PDF final usa `POST /editor_offset/generar_pdf/<job_id>`.
-13. La salida final pasa por `services/editor_offset_output_service.py`.
-14. El PDF productivo se delega a `montaje_offset_inteligente.realizar_montaje_inteligente()`.
-
----
-
-## 7. Archivos críticos y responsabilidades
-
-### `templates/editor_offset_visual.html`
-
-Responsable de:
-
-* estructura visual;
-* tabs;
-* formularios;
-* paneles;
-* botones;
-* carga de scripts;
-* variables globales iniciales;
-* IDs y `data-*` usados por JavaScript.
-
-No renombrar IDs, clases críticas ni atributos `data-*` sin revisar listeners.
-
-### `static/js/editor_offset_visual.js`
-
-Responsable de:
-
-* entrypoint compatible;
-* estado global;
-* wiring;
-* listeners;
-* historial;
-* selección;
-* drag;
-* Step & Repeat manual UI;
-* wrappers;
-* coordinación del render;
-* save;
-* upload;
-* preview;
-* PDF;
-* conexión con paneles.
-
-Es una de las superficies más frágiles del sistema.
-
-No refactorizar de forma masiva sin plan SAFE, cobertura y revisión previa.
-
-### `static/js/editor_offset_visual/`
-
-Contiene módulos extraídos.
-
-Módulos relevantes:
-
-* `dom_refs.js`
-* `renderer_canvas.js`
-* `manual_tools.js`
-* `slot_interactions.js`
-* `api_client.js`
-* `output_panel.js`
-* `ai_panel.js`
-* `ctp_panel.js`
-* `booklet_panel.js`
-
-### `static/js/editor_offset_visual/core/`
-
-Contiene módulos más puros:
-
-* `defaults.js`
-* `geometry.js`
-* `geometry_validation.js`
-
-Estos módulos deben mantenerse sin acoplarse innecesariamente al DOM.
-
-### `static/css/editor_offset_visual.css`
-
-Responsable de:
-
-* layout visual;
-* canvas;
-* sheet;
-* slots;
-* estados activos;
-* CTP;
-* output;
-* responsive;
-* estilos de resize latente.
-
-No asumir que una clase CSS implica funcionalidad activa.
-
-### `routes.py`
-
-Responsable de:
-
-* rutas públicas;
-* wrappers Flask;
-* compatibilidad legacy;
-* conexión con servicios extraídos.
-
-No asumir que toda la lógica del editor vive aquí.
-
-### `services/editor_offset_http_service.py`
-
-Fachada HTTP principal del Editor Offset Visual.
-
-### `services/editor_offset_jobs.py`
-
-Responsable de:
-
-* rutas de jobs;
-* carga y guardado de `layout_constructor.json`;
-* persistencia en `static/constructor_offset_jobs/<job_id>/`.
-
-### `services/editor_offset_layout_defaults.py`
-
-Responsable de defaults y normalización de layout.
-
-### `services/editor_offset_uploads.py`
-
-Responsable de uploads de PDFs y metadata en `designs[]`.
-
-### `services/editor_offset_imposition_service.py`
-
-Responsable de seleccionar y aplicar motores:
-
-* `repeat`;
-* `nesting`;
-* `hybrid`.
-
-### `services/editor_offset_output_contract.py`
-
-Responsable de validación mínima antes de preview/PDF.
-
-### `services/editor_offset_output_service.py`
-
-Responsable de transformar `layout_constructor.json` a posiciones productivas y delegar salida final.
-
-### `engines/step_repeat_pro_engine.py`
-
-Motor canónico del Step & Repeat PRO automático.
-
-Es el motor prioritario actual para imposición automática.
-
-### `engines/nesting_pro_engine.py`
-
-Motor alternativo para nesting.
-
-No asumir que es el motor principal.
-
-### `montaje_offset_inteligente.py`
-
-Archivo legacy/productivo compartido.
-
-El Editor Offset Visual todavía depende de él para salida final.
-
-No modificar sin análisis de impacto transversal.
-
----
-
-## 8. Contratos críticos
-
-El archivo principal de persistencia es:
-
-`static/constructor_offset_jobs/<job_id>/layout_constructor.json`
-
-Campos principales del layout:
-
-* `sheet_mm`
-* `margins_mm`
-* `bleed_default_mm`
-* `gap_default_mm`
-* `works`
-* `designs`
-* `slots`
-* `export_settings`
-* `design_export`
-* `faces`
-* `active_face`
-* `imposition_engine`
-* `allowed_engines`
-* `spacingSettings`
-* `snapSettings`
-* `ctp`
-
-Contrato `designs[]`:
-
-* `ref`
-* `filename`
-* `work_id`
-* `width_mm`
-* `height_mm`
-* `bleed_mm`
-* `allow_rotation`
-* `forms_per_plate`
-* `priority`
-* `preferred_zone`
-* `preferred_flow`
-* `repeat_role`
-* `repeat_manual_overrides`
-
-Contrato `slots[]`:
-
-* `id`
-* `x_mm`
-* `y_mm`
-* `w_mm`
-* `h_mm`
-* `rotation_deg`
-* `logical_work_id`
-* `bleed_mm`
-* `crop_marks`
-* `locked`
-* `design_ref`
-* `face`
-* `slot_box_final`
-
-Caras válidas:
-
-* `front`
-* `back`
-
-Reglas importantes:
-
-* las coordenadas usan milímetros;
-* el origen debe mantenerse consistente entre frontend, JSON y backend;
-* `face` solo debe ser `front` o `back`;
-* `slot.design_ref` debe existir en `designs[].ref`;
-* `slots[].id` debe ser único;
-* `designs[].ref` debe ser único;
-* `w_mm` y `h_mm` deben ser mayores que cero.
-
-Preguntas abiertas documentadas:
-
-* semántica exacta de `design.width_mm` y `design.height_mm`;
-* trim vs media box vs caja final con bleed;
-* posible doble conteo de bleed;
-* precedencia entre `slot.export_overrides`, `design_export` y `export_settings`;
-* existencia física de PDFs referenciados por `design.filename`.
-
----
-
-## 9. Reglas sobre Step & Repeat, nesting e hybrid
-
-El sistema tiene dos superficies distintas de Step & Repeat:
-
-### Step & Repeat PRO backend
-
-Usa:
-
-* `services/editor_offset_imposition_service.py`;
-* `engines/step_repeat_pro_engine.py`.
-
-Es el motor canónico para imposición automática.
-
-### Step & Repeat manual frontend
-
-Usa lógica en:
-
-* `static/js/editor_offset_visual.js`;
-* función relacionada con `generateStepRepeatFromSelectedSlot()`.
-
-Clona o genera desde un slot maestro en la UI.
-
-No confundir ambos flujos.
-
-Reglas:
-
-* no cambiar el motor `repeat` sin revisar tests y contratos;
-* no asumir paridad entre Step & Repeat manual y Step & Repeat PRO backend;
-* `nesting` e `hybrid` existen, pero tienen más preguntas abiertas;
-* no asumir que `nesting/hybrid` bloquean incompletos igual que `repeat` si no está confirmado;
-* cualquier cambio en motores debe revisar preview, PDF, bleed, CTP y persistencia.
-
----
-
-## 10. Reglas sobre resize
-
-Resize está documentado como latente.
-
-Hay ramas JS/CSS relacionadas con `.handle`, pero el renderer activo no crea handles operativos.
-
-Por lo tanto:
-
-* no declarar resize como funcional si no se valida;
-* no activar resize como parte de una limpieza menor;
-* no mezclar resize con refactors generales;
-* tratar resize como fase independiente;
-* antes de implementar resize real, revisar:
-
-  * `renderer_canvas.js`;
-  * `slot_interactions.js`;
-  * `static/js/editor_offset_visual.js`;
-  * CSS;
-  * tests Playwright existentes;
-  * contratos de slots;
-  * validación geométrica.
-
----
-
-## 11. Reglas sobre preview, PDF, bleed y CTP
-
-El agente debe tratar preview y PDF final como superficies críticas.
-
-Reglas:
-
-* no asumir que preview es idéntico al PDF final;
-* no cambiar bleed sin revisar contratos;
-* no cambiar CTP sin revisar salida final;
-* no cambiar `slot_box_final` sin caracterización;
-* no modificar generación PDF sin revisar `services/editor_offset_output_service.py`;
-* no modificar salida productiva sin revisar `montaje_offset_inteligente.py`;
-* no modificar marcas, pinza, strip, texto técnico o doble cara sin plan específico.
-
-Riesgos conocidos:
-
-* posible diferencia entre canvas, preview y PDF final;
-* posible ambigüedad de bleed;
-* PDFs físicos faltantes pueden no bloquear contrato;
-* doble cara puede no estar representada completamente en preview;
-* CTP puede tener comportamiento distinto entre vista visual y salida final.
-
----
-
-## 12. Reglas sobre UI, IDs y listeners
-
-No renombrar sin análisis previo:
-
-* IDs `btn-*`;
-* IDs `slot-*`;
-* IDs `ctp-*`;
-* `sheet`;
-* `sheet-canvas`;
-* `data-editor-tab`;
-* `data-editor-tab-panel`;
-* clases usadas por selección, drag, slots o paneles.
-
-Antes de cambiar HTML o CSS:
-
-1. buscar listeners relacionados;
-2. revisar `dom_refs.js`;
-3. revisar `static/js/editor_offset_visual.js`;
-4. revisar módulos de paneles;
-5. revisar tests Playwright;
-6. verificar si el selector participa en render, save, preview o PDF.
-
-Controles con dudas o deuda deben tratarse con cuidado.
-
-Controles Step & Repeat manual con efecto no confirmado:
-
-* `sr-offset-x`
-* `sr-offset-y`
-* `sr-top-margin`
-* `sr-bottom-margin`
-* `sr-left-margin`
-* `sr-right-margin`
-
-No eliminar ni activar sin revisión.
-
----
-
-## 13. Reglas sobre IA y Agents SDK
-
-Archivos relacionados:
-
-* `ai_agent/tools_repeat.py`
-* `ai_agent/openai_tool_bridge.py`
-* `ai_agent/editor_advisor/`
-
-Reglas:
-
-* no integrar `editor_advisor` a Flask sin fase específica;
-* no conectar IA a escritura automática sin guardrails;
-* no dar tools de escritura a agentes sin aprobación explícita;
-* no mezclar prototipos CLI con UI productiva sin plan;
-* no modificar IA repeat sin revisar dependencia con `engines.step_repeat_pro_engine.build_step_repeat_slots`;
-* cualquier integración IA debe ser trazable, reversible y validada.
-
-El agente IA debe actuar como asistente profesional, no como automatización descontrolada.
-
----
-
-## 14. Reglas sobre documentación
-
-La documentación debe actualizarse cuando:
-
-* cambia un contrato;
-* cambia un flujo funcional;
-* cambia una ruta;
-* cambia una responsabilidad de archivo;
-* se extrae un módulo;
-* se modifica salida PDF/preview;
-* se modifica Step & Repeat, nesting, hybrid, CTP o bleed;
-* se resuelve una pregunta abierta relevante.
-
-No actualizar documentación por cambios triviales que no alteran comportamiento.
-
-No duplicar información sin necesidad.
-
-Documentación principal actual:
-
-* `DOCS/OFFSET/AUDITORIA_EDITOR_OFFSET_VISUAL.md`
-* `DOCS/OFFSET/01_MAPA_EDITOR_OFFSET_VISUAL.md`
-* `DOCS/OFFSET/02_ESTADO_EDITOR_OFFSET_VISUAL.md`
-* `DOCS/OFFSET/03_RIESGOS_Y_DEUDA_EDITOR_OFFSET_VISUAL.md`
-* `DOCS/OFFSET/04_PLAN_SAFE_EDITOR_OFFSET_VISUAL.md`
-* `DOCS/OFFSET/05_CONTRATOS_EDITOR_OFFSET_VISUAL.md`
-
-La auditoría debe conservarse como evidencia.
-Los documentos numerados deben funcionar como base operativa.
-
----
-
-## 15. Modos de trabajo
-
-### Modo auditoría
-
-Usar cuando el usuario pida revisar, entender, auditar o mapear.
-
-Reglas:
-
-* solo lectura;
-* no modificar archivos;
-* no ejecutar tests si no se autoriza;
-* no generar documentación si no se pide;
-* no hacer commits;
-* no hacer push;
-* entregar síntesis con hechos, inferencias, riesgos y próximos pasos.
-
-### Modo documentación
-
-Usar cuando el usuario pida crear o actualizar documentos.
-
-Reglas:
-
-* modificar solo documentación solicitada;
-* no tocar código fuente;
-* no ejecutar scripts productivos;
-* no hacer commits salvo autorización;
-* mantener coherencia con `DOCS/OFFSET/`;
-* separar hechos confirmados de inferencias.
-
-### Modo planificación
-
-Usar cuando el usuario pida cómo avanzar.
-
-Reglas:
-
-* no editar código;
-* proponer fases;
-* identificar archivos afectados;
-* indicar validaciones necesarias;
-* marcar riesgos;
-* esperar aprobación para cambios importantes.
-
-### Modo implementación
-
-Usar cuando el usuario autorice cambios de código.
-
-Reglas:
-
-* hacer cambios pequeños;
-* evitar refactors masivos;
-* no mezclar fases;
-* validar según alcance;
-* explicar qué se cambió;
-* explicar qué no se cambió;
-* reportar limitaciones.
-
----
-
-## 16. Validación
-
-Cuando se modifique código Python, intentar validar con:
-
-```bash
-python -m compileall routes.py montaje_offset_inteligente.py engines cuadernillos ai_agent services strategies
+- `templates/editor_offset_visual_v2.html`.
+- `static/css/editor_offset_visual_v2.css`.
+- `static/js/editor_offset_visual_v2.js`.
+- `static/js/editor_offset_v2/`.
+
+### Persistencia
+
+- raíz predeterminada: `instance/editor_offset_v2_jobs/`;
+- job: `instance/editor_offset_v2_jobs/<job_id>/`;
+- layout: `layout_v2.json`;
+- subdirectorios previstos: `assets/`, `derived/`, `previews/`, `outputs/` y `reports/`.
+
+La raíz puede cambiar mediante configuración. Nunca fijar rutas absolutas del entorno del usuario dentro del contrato o del código productivo.
+
+### Pruebas V2
+
+- Python: `tests/editor_offset_v2/`.
+- Fixtures: `tests/fixtures/editor_offset_v2/`.
+- Node: `tests/editor_offset_v2/js/`.
+- Playwright: `tests/playwright/test_editor_offset_v2.py`.
+- Caracterización UX: `tests/playwright/test_editor_offset_v2_ux_characterization.py`.
+
+## 7. V1 y dependencias compartidas
+
+V1 vive principalmente en:
+
+- `templates/editor_offset_visual.html`;
+- `static/css/editor_offset_visual.css`;
+- `static/js/editor_offset_visual.js` y `static/js/editor_offset_visual/`;
+- `routes.py`;
+- `services/editor_offset_*` legacy;
+- `static/constructor_offset_jobs/`;
+- tests Playwright que navegan a `/editor_offset_visual`.
+
+V2 no debe importar el contrato V1 ni persistir `layout_constructor.json`.
+
+Superficies compartidas o de impacto transversal que requieren análisis especial:
+
+- `engines/step_repeat_pro_engine.py`;
+- `engines/nesting_pro_engine.py` cuando corresponda;
+- `montaje_offset_inteligente.py`;
+- `services/editor_offset_output_service.py`;
+- `strategies/`;
+- cuadernillos e IA cuando consuman los mismos motores o salidas.
+
+No modificar una superficie compartida como parte de un cambio “solo V2” sin declarar y validar su blast radius sobre V1.
+
+## 8. Flujo funcional vigente de V2
+
+```text
+app.py
+  -> init_editor_offset_v2()
+  -> blueprint V2 protegido por EDITOR_OFFSET_V2_ENABLED
+  -> shell o API V2
+
+GET shell/job
+  -> editor_offset_visual_v2.html
+  -> contexto JSON
+  -> editor_offset_visual_v2.js
+  -> bootstrap.js
+  -> EditorStore + controladores + registro de acciones
+  -> canvas SVG y paneles
+
+mutación persistente
+  -> acción registrada
+  -> comando reversible
+  -> EditorStore
+  -> undo/redo + dirty state
+  -> SaveCoordinator
+  -> PUT layout con base_revision
+  -> compare-and-swap + nueva revisión
 ```
 
-Cuando se modifique JavaScript, intentar validar con:
+Rutas V2 activas:
 
-```bash
-node --check static/js/editor_offset_visual.js
+- `GET /editor_offset_visual_v2`;
+- `GET /editor_offset_visual_v2/<job_id>`;
+- `POST /api/editor-offset-v2/jobs`;
+- `GET /api/editor-offset-v2/jobs/<job_id>`;
+- `PUT /api/editor-offset-v2/jobs/<job_id>/layout`;
+- `POST /api/editor-offset-v2/jobs/<job_id>/assets`;
+- `GET /api/editor-offset-v2/jobs/<job_id>/assets/<asset_id>/thumbnails/<page>`;
+- `POST /api/editor-offset-v2/jobs/<job_id>/imposition/repeat`;
+- `GET /api/editor-offset-v2/jobs/<job_id>/output-capabilities`.
+
+No existen todavía rutas V2 productivas de preview, PDF final, nesting, hybrid, preflight profundo o CTP.
+
+## 9. Contrato e invariantes de Layout V2
+
+`layout_schema_version = 2` es un corte limpio. Un Layout V1 no se normaliza ni migra implícitamente a V2.
+
+Fuentes ejecutables canónicas:
+
+- `editor_offset_v2/domain/layout_v2.py`;
+- `editor_offset_v2/domain/validation.py`;
+- `editor_offset_v2/schemas/layout-v2.schema.json`.
+
+Invariantes que deben preservarse:
+
+- unidad milimétrica;
+- origen en esquina inferior izquierda;
+- posición del slot en centro trim;
+- trim persistido antes de rotación;
+- bleed separado y no negativo;
+- footprint derivado, nunca persistido;
+- rotaciones cardinales estrictas `0`, `90`, `180` y `270`;
+- IDs únicos y referencias válidas;
+- assets y páginas con identidad estable;
+- assets físicos fuente inmutables;
+- caras `front` y `back` explícitas;
+- estado temporal fuera del layout;
+- campos desconocidos críticos rechazados;
+- campos V1 prohibidos;
+- `job.revision` y guardado optimista mediante `base_revision`.
+
+Un cambio incompatible, un campo requerido nuevo o una nueva semántica obligatoria exige revisar versionado. Un campo opcional solo puede incorporarse coordinando schema, validación, fixtures, tests y todos los lectores/escritores.
+
+No añadir campos al contrato únicamente porque aparezcan en una propuesta documental o resulten cómodos para la UI.
+
+## 10. Reglas de frontend V2
+
+- `dom_refs.js` centraliza el contrato DOM.
+- `bootstrap.js` compone Store, API, renderer y controladores.
+- `command_registry.js` es la frontera de acciones.
+- `commands.js` implementa mutaciones reversibles.
+- `store.js` separa Layout V2, historial y estado temporal.
+- `autosave.js` coordina persistencia y conflicto.
+- `canvas_renderer.js` representa; no debe convertirse en propietario del contrato.
+- `geometry_view.js` contiene la frontera de coordenadas SVG y debe conservar paridad con el kernel Python.
+
+Reglas:
+
+- un control nuevo delega en una acción registrada;
+- una mutación persistente usa un comando reversible cuando corresponda;
+- selección, etapa, panel responsive, viewport, zoom, pan, borradores y diagnóstico visual permanecen temporales;
+- no mutar Layout V2 directamente desde listeners DOM;
+- no renombrar IDs, `data-*`, clases de estado o selectores sin revisar `dom_refs.js`, listeners y Playwright;
+- mantener undo/redo, autosave, recarga, locks y conflictos;
+- distinguir slot, footprint y transformación interna del contenido;
+- no declarar una función operativa por la sola existencia de CSS, controles o código desconectado.
+
+Para cambios visuales revisar como conjunto template, CSS, referencias DOM, bootstrap, controladores afectados, registro de acciones y ambos Playwright V2.
+
+## 11. Repeat V2
+
+Repeat V2 atraviesa:
+
+- `static/js/editor_offset_v2/repeat_panel.js`;
+- acciones y comandos de Repeat;
+- `editor_offset_v2/application/repeat_service.py`;
+- `editor_offset_v2/infrastructure/repeat_engine_adapter.py`;
+- `editor_offset_v2/domain/repeat_contract.py`;
+- `engines/step_repeat_pro_engine.py` compartido.
+
+La propuesta es temporal hasta que el operador aplica el resultado. Aplicar debe ser persistente, reversible y trazable.
+
+Antes de cambiar Repeat revisar:
+
+- modos add/replace y políticas partial/fill;
+- frente/dorso;
+- cantidades solicitadas, colocadas, faltantes y sobreproducidas;
+- locks y `generated_by`;
+- selección resultante;
+- persistencia y salida;
+- compatibilidad del motor compartido con V1.
+
+V2 no expone actualmente nesting o hybrid como flujos operativos. No agregarlos dentro de una corrección de Repeat.
+
+## 12. Geometría, pliego y herramientas manuales
+
+`editor_offset_v2/domain/geometry.py` es la fuente geométrica Python. La réplica JavaScript debe mantener paridad mediante fixtures compartidos; no dispersar fórmulas alternativas.
+
+La configuración del pliego modifica solo tamaño y márgenes mediante un comando reversible. No mueve, escala, rota ni elimina slots existentes. Cualquier nueva política necesita decisión explícita.
+
+Resize V2 sigue pendiente como fase propia. Antes de implementarlo deben definirse ancla, proporción, rotación, locks, snap, contenido, bleed y exportabilidad. No activarlo como efecto lateral de un refactor visual.
+
+Frente/dorso y transformaciones internas avanzadas también requieren fases propias.
+
+## 13. Preflight, preview, PDF y CTP
+
+Esta es una superficie de alto riesgo.
+
+Estado vigente:
+
+- `output-capabilities` compara Layout V2 con las restricciones del puente temporal;
+- no equivale a preflight productivo;
+- `editor_output_adapter.py` no ejecuta el renderer;
+- Preview y PDF final V2 no están conectados;
+- CTP habilitado continúa bloqueado;
+- el destino arquitectónico previsto es un motor de salida V2 propio;
+- el puente legacy puede servir para caracterización, no para contaminar el dominio V2.
+
+Antes de programar salida:
+
+1. definir contrato canónico de preflight y severidades;
+2. resolver archivos físicos, páginas y cajas PDF;
+3. definir trim, bleed, clipping, escalas, offsets y rotaciones internas;
+4. crear fixtures PDF y tolerancias métricas/visuales;
+5. demostrar coherencia canvas/preview/PDF;
+6. diseñar errores, rollback y artefactos reproducibles;
+7. resolver caras, marcas y CTP en alcance explícito.
+
+No ignorar opciones no soportadas, no degradarlas silenciosamente y no generar un job parcial cuando el contrato exige bloqueo.
+
+Revisar al menos:
+
+- documentos 01, 02, 03, 11 y 20;
+- `editor_offset_v2/domain/output_contract.py`;
+- `editor_offset_v2/application/output_service.py`;
+- `editor_offset_v2/infrastructure/editor_output_adapter.py`;
+- repositorios e inspección física de assets;
+- superficies legacy compartidas de salida;
+- fixtures y pruebas de contrato/render.
+
+## 14. IA y automatización
+
+IA no forma parte del próximo gate productivo de V2.
+
+- No conectar agentes a escritura productiva sin fase, permisos y guardrails.
+- No integrar prototipos CLI a Flask por conveniencia.
+- No permitir que IA omita validaciones de preprensa.
+- Toda acción sugerida por IA que modifique Layout V2 debe ser explícita, confirmable, reversible y trazable.
+- Revisar dependencias con motores compartidos antes de modificar tools de Repeat.
+
+## 15. Validación por alcance
+
+Ejecutar tests solo cuando el usuario lo autorice. Empezar por la validación más focalizada y ampliar según riesgo.
+
+### Sintaxis JavaScript V2
+
+```powershell
+node --check static/js/editor_offset_visual_v2.js
 ```
 
-Para módulos extraídos:
+Comprobar también cada archivo modificado de `static/js/editor_offset_v2/`.
 
-```bash
-node --check static/js/editor_offset_visual/*.js
-node --check static/js/editor_offset_visual/core/*.js
+### Node V2
+
+```powershell
+$editorV2JsTests = Get-ChildItem -LiteralPath tests\editor_offset_v2\js -Filter *.test.cjs | ForEach-Object { $_.FullName }
+node --test $editorV2JsTests
 ```
 
-Verificar diferencias:
+### Python V2
 
-```bash
+```powershell
+venv\Scripts\python.exe -m pytest tests\editor_offset_v2 -q
+```
+
+### Playwright V2
+
+```powershell
+venv\Scripts\python.exe -m pytest tests\playwright\test_editor_offset_v2.py tests\playwright\test_editor_offset_v2_ux_characterization.py -q
+```
+
+No incluir tests Playwright V1 en una validación exclusivamente V2. Para iniciar o comprobar Flask usar la skill `editor-offset-local-qa` con target `v2`. Mantener `EDITOR_OFFSET_V2_DEV_TOOLS_ENABLED=0` salvo petición expresa.
+
+Para comprobación interactiva usar el navegador autorizado y verificar identidad de URL, contenido, consola, foco, estado persistido y ausencia de mutaciones no intencionales.
+
+### Validación general
+
+```powershell
 git diff --check
 ```
 
-Tests generales solo si el usuario autoriza:
+La suite global del repositorio se ejecuta solo cuando el usuario la autorice o el gate acordado la exija. Registrar con precisión pruebas omitidas, fallos y ausencia de baseline.
 
-```bash
-pytest
-```
+Cuando se implemente PDF, la validación deberá incluir archivo generado, dimensiones, páginas, cajas, bleed, marcas y comparación visual/métrica. Un HTTP 200 no demuestra corrección productiva.
 
-Playwright básico solo si el usuario autoriza y el entorno está preparado:
+## 16. Documentación y trazabilidad
 
-```bash
-venv\Scripts\pytest.exe tests/playwright/test_editor_load.py -s
-```
+Actualizar documentación cuando cambie:
 
-Este test puede requerir Flask corriendo localmente con:
+- contrato o schema;
+- semántica geométrica;
+- ruta o responsabilidad de módulo;
+- persistencia o concurrencia;
+- flujo operativo;
+- Repeat;
+- preflight, preview, PDF, bleed, marcas o CTP;
+- una decisión arquitectónica abierta.
 
-```bash
-python app.py
-```
+No duplicar el mapa completo en varios documentos. Mantener:
 
-Si una herramienta no está disponible, el agente debe decirlo claramente.
+- un estado operativo vigente;
+- contratos canónicos;
+- una trazabilidad por fase;
+- snapshots históricos claramente rotulados.
 
-Si `node --check` falla por `Acceso denegado` a `node.exe`, registrar el bloqueo sin tocar la configuración del sistema.
+No colocar en este archivo datos efímeros como branch actual, job de prueba, revisión observada o cantidad momentánea de tests.
 
----
+## 17. Git y disciplina de cambios
 
-## 17. Git y control de cambios
+- Inspeccionar `git status` antes de editar y al finalizar.
+- Preservar cambios ajenos o no relacionados.
+- No hacer commit ni push sin autorización explícita.
+- No usar comandos destructivos para limpiar el worktree.
+- No mezclar contrato, funcionalidad, refactor y documentación si pueden separarse.
+- Preferir una rama por fase importante.
+- Antes de merge revisar diff contra la base, commits, archivos no rastreados, pruebas y cambios fuera de alcance.
+- Eliminar una rama solo después de integrarla y comprobar el destino.
 
-El agente no debe hacer commits ni push salvo que el usuario lo pida explícitamente.
+## 18. Próxima evolución recomendada de V2
 
-Antes de sugerir commit:
+La Fase 19 de rediseño UX está cerrada. No continuarla como 19-H.
 
-```bash
-git status
-```
+Orden SAFE vigente:
 
-Para documentación del Editor Offset Visual, usar mensajes como:
+1. auditoría focalizada de salida y preflight, inicialmente de solo lectura;
+2. contrato canónico de preflight;
+3. fixtures PDF y criterios de paridad;
+4. preview productivo mínimo detrás de un gate explícito;
+5. PDF final V2;
+6. CTP y marcas en una fase propia;
+7. concurrencia, retención y recuperación operativa;
+8. Resize y transformaciones avanzadas;
+9. frente/dorso operativo;
+10. automatización e IA con guardrails.
 
-```bash
-git commit -m "docs: actualizar base SAFE del editor offset visual"
-```
+No mezclar preflight, PDF, CTP, resize e IA en una misma fase.
 
-Para cambios de código, usar mensajes claros según alcance:
+## 19. Reporte esperado
 
-```bash
-git commit -m "fix: corregir validacion de salida del editor offset visual"
-```
+Para auditorías o cambios importantes, entregar cuando aplique:
 
-No mezclar documentación, refactor y cambios funcionales en un mismo commit si pueden separarse.
+1. resumen y alcance;
+2. archivos y evidencia revisados;
+3. estado y mapa funcional;
+4. hechos confirmados;
+5. inferencias y pendientes;
+6. contratos y dependencias;
+7. riesgos y blast radius;
+8. cobertura existente y faltante;
+9. plan SAFE y rollback;
+10. criterios de aceptación;
+11. qué no debe tocarse todavía.
 
----
+## 20. Invariantes que no deben romperse
 
-## 18. Cosas que NO se deben romper
+No romper ni cruzar silenciosamente:
 
-No romper:
+- aislamiento V1/V2;
+- Layout V2 y su schema;
+- geometría canónica en milímetros;
+- referencias entre assets, works y slots;
+- assets fuente inmutables;
+- guardado optimista, revisión y escritura atómica;
+- comandos, undo/redo y autosave;
+- locks y procedencia;
+- selección, drag, pan, zoom, snap, guías y herramientas existentes;
+- configuración SAFE del pliego;
+- Repeat y su dependencia compartida;
+- seguridad de rutas y archivos;
+- accesibilidad responsive implementada;
+- compatibilidad legacy fuera de V2;
+- separación entre diagnóstico, preflight y producción.
 
-* carga del editor;
-* `state.layout`;
-* `layout_constructor.json`;
-* `designs[]`;
-* `slots[]`;
-* selección de slots;
-* drag;
-* box select;
-* herramientas manuales;
-* Step & Repeat PRO;
-* upload;
-* guardado;
-* preview;
-* PDF final;
-* CTP;
-* doble cara;
-* simulador de cuadernillos;
-* integración IA existente;
-* compatibilidad legacy;
-* rutas públicas actuales.
-
-No modificar sin plan:
-
-* contratos JSON;
-* nombres de rutas;
-* estructura de jobs;
-* semántica de coordenadas;
-* semántica de bleed;
-* generación PDF;
-* `montaje_offset_inteligente.py`;
-* `routes.py`;
-* motores de imposición;
-* IDs críticos;
-* `data-*` críticos;
-* listeners globales.
-
----
-
-## 19. Forma esperada de reportar análisis
-
-Cuando el agente analice una funcionalidad, debe responder con esta estructura cuando aplique:
-
-1. Resumen del hallazgo.
-2. Archivos revisados.
-3. Hechos confirmados.
-4. Inferencias.
-5. Riesgos.
-6. Dependencias.
-7. Preguntas abiertas.
-8. Plan SAFE recomendado.
-9. Validaciones sugeridas.
-10. Qué no se debe tocar todavía.
-
----
-
-## 20. Estrategia de evolución del sistema
-
-El sistema debe evolucionar por capas:
-
-1. estabilidad;
-2. contratos;
-3. salida y preprensa;
-4. cobertura;
-5. arquitectura;
-6. modularización;
-7. UX profesional;
-8. automatización inteligente;
-9. IA aplicada;
-10. optimización industrial.
-
-No adelantar fases si existen riesgos sin caracterizar.
-
-Orden recomendado para futuras mejoras del Editor Offset Visual:
-
-1. robustecer contrato y persistencia de salida;
-2. aclarar deuda UI desconectada;
-3. cubrir mejor `nesting` e `hybrid`;
-4. limpiar código inalcanzable con cobertura previa;
-5. tratar resize como fase independiente;
-6. refactorizar el entrypoint en pasos pequeños;
-7. mejorar UX tipo CAD/preprensa;
-8. integrar IA con guardrails claros.
-
----
-
-## 21. Filosofía del proyecto
-
-El Editor Offset Visual debe evolucionar como software profesional de imprenta y preprensa.
-
-Prioridades:
-
-1. estabilidad;
-2. robustez;
-3. precisión técnica;
-4. contratos claros;
-5. mantenibilidad;
-6. validaciones;
-7. UX profesional;
-8. automatización útil;
-9. IA controlada;
-10. escalabilidad.
-
-La UX debe aportar valor operativo real.
-
-La arquitectura debe permitir evolución futura.
-
-La IA debe ayudar al operador, no reemplazar validaciones críticas ni modificar producción sin control.
+La precisión técnica y la seguridad productiva tienen prioridad sobre la conveniencia de implementación.

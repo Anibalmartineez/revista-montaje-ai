@@ -1,180 +1,227 @@
 ---
 name: system-architect
-description: Audit repositories, trace dependencies, identify risks, review tests, and propose safe implementation plans before editing code.
+description: Audit unfamiliar or high-risk codebases, trace runtime flows and compatibility surfaces, align documentation, review branches, and produce approval-ready SAFE plans before broad or risky changes. Use for architecture audits, impact analysis, major refactors, production workflows, or pre-merge reviews; not for ordinary isolated edits.
 ---
 
 # System Architect
 
-Use this skill to understand a codebase before making important changes. Work as a system architect: gather facts from the repository, map behavior and dependencies, identify risks, and produce a SAFE plan before editing files.
+Understand a system before changing it. Build an evidence-backed map of behavior, contracts, dependencies and risk, then propose the smallest safe path forward.
 
-## Core Rules
+This skill defines the audit method. Project instructions define repository-specific files, priorities, commands and invariants; do not duplicate or override them here.
 
-- Explore before proposing changes.
-- Prefer repository evidence over assumptions.
-- Read project instructions when present, but do not depend on any specific instruction file name.
-- Do not assume a language, framework, architecture, package manager, or file layout.
-- Separate confirmed facts from inferences.
-- Do not modify files while performing an architecture audit unless the user explicitly approves implementation.
-- Treat public APIs, schemas, storage formats, command interfaces, generated artifacts, and user workflows as compatibility surfaces.
-- Preserve existing behavior unless the user explicitly asks to change it.
+## Start protocol
 
-## Operating Modes
+Before substantive work:
 
-Choose the smallest mode that satisfies the request. State the selected mode before beginning.
+1. Read applicable project instructions.
+2. Determine the user's requested outcome and current authorization boundary.
+3. Select the smallest operating mode that satisfies the request and state it.
+4. Define the system boundary, version, branch or subsystem in scope.
+5. Inspect repository and documentation state without modifying files.
 
-### Clean Code Audit
+Record whether the user authorized:
 
-Use when reconstructing architecture from scratch.
+- file edits;
+- documentation edits;
+- tests or build commands;
+- starting services;
+- browser or interactive validation;
+- external mutations;
+- commits, merge or push.
 
-- Treat executable code, imports, routes, schemas, persistence, runtime configuration, and tests as primary evidence.
-- Do not use historical documentation, roadmaps, previous architecture maps, or old audits as the source of truth.
-- Documentation may be reviewed only after reconstructing the implementation, when the user requests alignment analysis.
+Approval for analysis does not authorize implementation. Approval for implementation does not automatically authorize unrelated tests, external changes or Git publication.
 
-### Impact Analysis
+## Operating modes
 
-Use when evaluating a proposed change.
+### Architecture audit
 
-- Identify callers, callees, contracts, persistence surfaces, tests, and user-visible workflows affected by the change.
-- Estimate blast radius.
-- Propose the smallest reversible implementation plan.
-- Do not modify files until the plan is approved.
+Use to reconstruct an unfamiliar or broad system.
 
-### Documentation Alignment
+- Start read-only.
+- Trace entrypoint to observable output.
+- Classify active, auxiliary, legacy, experimental, generated and disconnected surfaces.
+- Do not modify files or execute unapproved runtime checks.
 
-Use when comparing documentation against implementation.
+### Impact analysis
 
-- Inspect executable code first.
-- Treat documentation as a secondary source.
-- Report aligned, outdated, ambiguous, and missing documentation separately.
-- Do not silently rewrite documentation.
+Use for a proposed change.
 
-### Branch Review
+- Identify callers, callees, contracts, storage, UI workflows and tests.
+- Estimate blast radius and shared dependencies.
+- Separate necessary work from attractive but out-of-scope refactors.
+- Produce an approval gate before broad, risky or contract-affecting edits.
 
-Use when reviewing work before merge.
+### Documentation alignment
 
-- Compare the active branch against the target branch.
-- Identify changed files, behavioral changes, contract changes, test coverage, regressions, and out-of-scope edits.
-- Recommend merge, correction, or additional validation.
+Use to compare documentation and implementation.
 
-## Evidence Rules
+- Read project instructions and the documented source hierarchy first.
+- Verify behavioral claims against executable code, persistence, runtime or tests.
+- Classify documents as contractual, operational, historical, proposal or pending.
+- Report aligned, outdated, ambiguous, conflicting and missing material separately.
+- Preserve historical evidence; do not silently rewrite it as current state.
 
-For every important conclusion, identify the strongest available evidence:
+### Branch review
 
-- Confirmed by code inspection.
-- Confirmed by runtime execution.
-- Confirmed by automated test.
-- Confirmed by persisted data or generated output.
-- Probable inference.
-- Pending verification.
+Use before integration.
 
-Do not present an inference as a confirmed fact.
-Do not claim that a feature is operational only because related code exists.
-When evidence conflicts, report the conflict explicitly.
+- Identify current branch, target branch, working-tree state and merge-base.
+- Include committed, staged, unstaged and untracked files in the review.
+- Classify behavioral, contractual, test, documentation and out-of-scope changes.
+- Distinguish a focused green suite from repository-wide health.
+- Do not call failures pre-existing without an equivalent baseline on the target revision.
+- Recommend merge, correction or additional validation with explicit residual risk.
 
-## Subagent Guidance
+## Source and evidence rules
 
-For broad audits, consider delegating independent read-only investigations to subagents.
+Use the strongest evidence available for each claim:
 
-Useful partitions include:
+1. persisted or generated artifact inspected directly;
+2. authorized runtime observation;
+3. automated test that exercises the behavior;
+4. executable code, schema and configuration;
+5. current contractual or operational documentation;
+6. historical documentation or probable inference.
 
-- frontend and user interactions;
-- backend routes and services;
-- persistence and contracts;
-- output generation and integrations;
-- tests and regression coverage.
+The order is contextual, not mechanical. A schema may be the authority for accepted data while runtime evidence proves what the application actually does.
 
-Keep subagent tasks independent.
-Require concrete evidence.
-Wait for all subagents before producing the consolidated SAFE plan.
-Do not delegate file modifications unless the user explicitly approves implementation.
+For each important conclusion label it as appropriate:
 
-## Architecture Audit Workflow
+- confirmed by artifact or persistence;
+- confirmed by runtime;
+- confirmed by automated test;
+- confirmed by code or schema;
+- documented intent;
+- probable inference;
+- pending verification.
 
-1. Identify the system boundary:
-   - Detect entrypoints, configuration, package manifests, build files, runtime commands, and deployment hints.
-   - Identify major subsystems and their responsibilities.
-   - Note external services, databases, queues, APIs, CLIs, UI surfaces, generated files, and test harnesses.
+Do not:
 
-2. Build a functional map:
-   - Trace the user-facing or caller-facing flow from entrypoint to output.
-   - Identify important modules, services, components, routes, commands, jobs, schemas, and data transformations.
-   - Mark which code appears active, auxiliary, legacy, experimental, generated, or disconnected.
-   - Highlight uncertainty when usage cannot be proven.
+- present intent as implemented behavior;
+- declare a feature operational because code, CSS or controls exist;
+- treat HTTP success as proof of correct rendered or productive output;
+- let a historical roadmap override current code;
+- resolve conflicting evidence silently.
 
-3. Trace dependencies:
-   - Map direct imports, callers, callees, configuration references, templates, assets, migrations, tests, and documentation links.
-   - Look for duplicate responsibility, hidden coupling, circular dependencies, and compatibility wrappers.
-   - Prefer static search and language-aware tools when available.
+When sources conflict, identify the exact conflict and what evidence would resolve it.
 
-4. Assess risk:
-   - Identify files and behaviors with high blast radius.
-   - Flag risky changes to contracts, persistence, authentication, authorization, concurrency, rendering, background jobs, build systems, or production workflows.
-   - Distinguish safe refactors from behavior changes.
-   - Identify rollback or containment strategies when relevant.
+## Audit workflow
 
-5. Review validation coverage:
-   - Find existing tests, fixtures, snapshots, integration checks, smoke tests, CI workflows, and manual validation paths.
-   - Determine what behavior is already characterized.
-   - Propose missing tests for critical flows and edge cases.
-   - Match validation depth to risk and blast radius.
+### 1. Establish the boundary
 
-6. Produce a SAFE plan:
-   - State the real problem being solved.
-   - Define the intended behavior and non-goals.
-   - List the files or subsystems likely to change.
-   - Describe the implementation sequence in small reversible steps.
-   - Include validation commands and acceptance criteria.
-   - Call out risks, assumptions, and decisions that require user approval.
+- Detect entrypoints, runtime flags, manifests, routes, commands and deployment hints.
+- Identify the exact product version and exclusions.
+- Check Git state when branch or change context matters.
+- Note external services, files, databases, queues, APIs, browsers and generated artifacts.
 
-## Output Format
+### 2. Build the functional map
 
-When analyzing a system, structure the response with these sections when useful:
+- Trace the user or caller flow from entrypoint to output.
+- Identify owners of state, mutation, validation, persistence and rendering.
+- Distinguish persisted state from derived, cached and temporary state.
+- Identify error, retry, conflict and recovery paths.
 
-- Current State
+### 3. Trace dependencies and contracts
+
+- Map imports, callers, callees, configuration, templates, selectors, schemas, fixtures and storage paths.
+- Find shared engines, adapters, compatibility wrappers and legacy bridges.
+- Treat APIs, schemas, storage formats, command interfaces, generated artifacts and operator workflows as compatibility surfaces.
+- Flag duplicate responsibility, hidden coupling and cross-version contamination.
+
+### 4. Assess risk
+
+Pay special attention to:
+
+- persistence and migrations;
+- concurrency and atomicity;
+- authentication, authorization and file security;
+- geometry, units and coordinate systems;
+- rendering and generated output;
+- destructive or irreversible workflows;
+- shared production engines;
+- user-visible recovery behavior.
+
+Classify findings:
+
+- **Safe:** isolated, reversible and covered.
+- **Moderate:** spans components or shared behavior.
+- **High:** affects contracts, persistence, security, production output or core runtime paths.
+- **Pending:** evidence is incomplete but useful work can continue.
+- **Blocked:** safe checks are exhausted and a user decision or unavailable external condition is essential.
+
+### 5. Review validation coverage
+
+- Locate unit, contract, integration, end-to-end, snapshot and manual checks.
+- Identify fixtures and whether they are synthetic, historical or production-derived.
+- Match validation depth to risk.
+- Record what was not executed and why.
+- Prefer characterization before refactoring behavior that is not already covered.
+
+For visual or interactive work, plan checks for rendered state, console errors, focus, keyboard, responsive behavior and persistence. For generated documents or production output, inspect the artifact itself and verify relevant dimensions, structure and visual or metric parity.
+
+### 6. Produce the SAFE plan
+
+Include:
+
+- real problem and success criteria;
+- in-scope and out-of-scope boundaries;
+- confirmed behavior and open decisions;
+- compatibility surfaces that must not break;
+- files or subsystems likely to change;
+- small reversible implementation phases;
+- tests, fixtures and manual evidence required;
+- rollback or containment strategy;
+- assumptions and approval gates.
+
+Do not begin a later phase merely because it is described in the same plan.
+
+## Subagents
+
+Use subagents only when the user explicitly requests delegation, the environment permits it, and the audit has genuinely independent areas.
+
+When authorized:
+
+- give each agent a bounded read-only scope unless implementation is separately approved;
+- avoid overlapping file ownership;
+- require concrete paths, symbols and evidence;
+- wait for all relevant results before consolidating conclusions;
+- keep responsibility for contradictions and the final SAFE plan with the primary agent.
+
+## Change discipline
+
+During approved implementation:
+
+- preserve existing behavior unless the user approved a change;
+- keep edits inside the approved phase;
+- avoid opportunistic cleanup;
+- protect unrelated and user-owned worktree changes;
+- stop when new evidence materially expands the blast radius or requires a product decision.
+
+After implementation, report:
+
+- what changed and what did not;
+- validation performed and omitted;
+- residual risks and limitations;
+- documentation or contracts updated;
+- rollback path;
+- whether the branch is ready for focused review.
+
+Do not commit, merge, push, delete branches or perform external mutations unless the user explicitly authorizes them.
+
+## Output shape
+
+Keep the response proportional. For broad work, use the sections that help another engineer continue without rediscovery:
+
+- Scope and Current State
 - Functional Map
-- Dependencies
+- Evidence
+- Dependencies and Contracts
 - Active vs Legacy or Disconnected Code
-- Risks
-- Test Coverage
-- Missing Tests
-- SAFE Plan
-- Open Questions
+- Risks and Blast Radius
+- Existing and Missing Coverage
+- Open Decisions
+- SAFE Plan and Rollback
+- Acceptance Criteria
+- Do Not Touch Yet
 
-Keep the output proportional to the request. For small changes, summarize briefly. For broad refactors, provide enough detail that another engineer can implement safely without rediscovering the architecture.
-
-## SAFE Plan Requirements
-
-A SAFE plan must include:
-
-- Goal and success criteria.
-- In-scope and out-of-scope boundaries.
-- Proposed implementation phases.
-- Compatibility surfaces that must not break.
-- Files or subsystems likely to be touched.
-- Validation commands or manual checks.
-- Rollback or containment notes when the change is risky.
-- Explicit assumptions where repository evidence is incomplete.
-
-## Classification Guidance
-
-Classify findings and proposed changes as:
-
-- Safe: low blast radius, well-covered, reversible, or isolated.
-- Moderate risk: touches shared behavior, contracts, or multiple subsystems.
-- High risk: changes public interfaces, persistence, security, production workflows, generated outputs, or core runtime paths.
-- Blocked: insufficient information, missing environment, ambiguous product intent, or validation impossible without user input.
-
-## Test Planning Guidance
-
-When proposing tests, include:
-
-- Existing tests that should continue passing.
-- Focused characterization tests before refactors.
-- Regression tests for changed behavior.
-- Integration or end-to-end tests for user-visible flows.
-- Contract tests for APIs, schemas, file formats, or CLI output.
-- Manual validation steps only when automated coverage is impractical.
-
-## Change Discipline
-
-Before implementation, confirm that the plan is approved when the change is broad, risky, architectural, or contract-affecting. During implementation, keep edits scoped to the approved plan and avoid opportunistic refactors. After implementation, report what changed, what was validated, and any remaining risk.
+For small impact analyses, a compact summary is enough. Always separate confirmed facts from inference and make required user decisions visible.
