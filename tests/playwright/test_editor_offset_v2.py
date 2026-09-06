@@ -55,6 +55,11 @@ def _write_test_pdf(path: Path) -> None:
     document.close()
 
 
+def _open_workflow_stage(page, stage: str) -> None:
+    page.locator(f"[data-ev2-stage-target='{stage}']").click()
+    expect(page.locator(f"[data-ev2-stage-panel='{stage}']").first).to_be_visible()
+
+
 def _open_job_with_repeat(page, server_url: str, pdf_path: Path, quantity: int = 2) -> None:
     page.goto(f"{server_url}/editor_offset_visual_v2", wait_until="domcontentloaded")
     page.locator("#ev2-new-job").click()
@@ -70,6 +75,7 @@ def _open_job_with_repeat(page, server_url: str, pdf_path: Path, quantity: int =
     page.wait_for_function(
         "() => window.__EDITOR_OFFSET_V2__.store.layout.works.length === 1"
     )
+    _open_workflow_stage(page, "impose")
     with page.expect_response(
         lambda response: response.request.method == "POST"
         and "/imposition/repeat" in response.url,
@@ -80,6 +86,7 @@ def _open_job_with_repeat(page, server_url: str, pdf_path: Path, quantity: int =
     )
     page.locator("#ev2-repeat-apply").click()
     expect(page.locator(".ev2-svg-slot")).to_have_count(quantity)
+    _open_workflow_stage(page, "adjust")
 
 
 def test_v2_visible_repeat_calculate_apply_undo_redo_save_and_reload(v2_server, tmp_path):
@@ -126,6 +133,7 @@ def test_v2_visible_repeat_calculate_apply_undo_redo_save_and_reload(v2_server, 
                 "() => window.__EDITOR_OFFSET_V2__.store.layout.works.length === 1"
             )
 
+            _open_workflow_stage(page, "impose")
             page.locator("#ev2-repeat-gap-x").fill("4")
             page.locator("#ev2-repeat-gap-y").fill("3")
             with page.expect_response(
@@ -144,6 +152,7 @@ def test_v2_visible_repeat_calculate_apply_undo_redo_save_and_reload(v2_server, 
             page.locator("#ev2-repeat-apply").click()
             expect(page.locator(".ev2-svg-slot")).to_have_count(4)
             expect(page.locator(".ev2-svg-artwork")).to_have_count(4)
+            _open_workflow_stage(page, "adjust")
             assert page.evaluate(
                 "() => window.__EDITOR_OFFSET_V2__.store.layout.imposition.last_result.operation_id"
             ).startswith("repeat_")
@@ -324,6 +333,7 @@ def test_v2_visual_semantics_printable_output_and_approximate_artwork(v2_server,
                 lambda response: response.request.method == "GET"
                 and "/output-capabilities" in response.url,
             ):
+                _open_workflow_stage(page, "validate")
                 page.locator("#ev2-output-check").click()
             expect(page.locator("#ev2-output-status")).to_contain_text(
                 "No compatible con salida temporal"
@@ -445,6 +455,7 @@ def test_v2_many_slot_labels_grouped_issues_zoom_drag_and_temporary_visibility(
                     body=json.dumps(grouped_payload),
                 ),
             )
+            _open_workflow_stage(page, "validate")
             page.locator("#ev2-output-check").click()
             grouped = page.locator(
                 "#ev2-output-issues [data-code='SOURCE_TRIM_SIZE_MISMATCH']"
@@ -455,6 +466,7 @@ def test_v2_many_slot_labels_grouped_issues_zoom_drag_and_temporary_visibility(
             grouped.locator("details summary").click()
             expect(grouped.locator("details code")).to_have_count(30)
             page.unroute("**/output-capabilities")
+            _open_workflow_stage(page, "adjust")
 
             first_slot = page.locator(".ev2-svg-slot").first
             slot_id = slot_ids[0]
@@ -734,8 +746,10 @@ def test_v2_precise_positioning_shortcuts_batching_persistence_and_locks(
                 lambda response: response.request.method == "GET"
                 and "/output-capabilities" in response.url
             ):
+                _open_workflow_stage(page, "validate")
                 page.locator("#ev2-output-check").click()
             expect(page.locator("#ev2-output-status")).to_contain_text("salida temporal")
+            _open_workflow_stage(page, "adjust")
             expect(page.locator("#ev2-object-duplicate")).to_be_visible()
             expect(page.locator("#ev2-object-copy")).to_be_visible()
             expect(page.locator("#ev2-object-rotation")).to_be_visible()
@@ -1250,8 +1264,10 @@ def test_v2_alignment_distribution_gap_matrix_and_persistence(v2_server, tmp_pat
                 lambda response: response.request.method == "GET"
                 and response.url.endswith("/output-capabilities")
             ):
+                _open_workflow_stage(page, "validate")
                 page.locator("#ev2-output-check").click()
             expect(page.locator("#ev2-output-status")).to_be_visible()
+            _open_workflow_stage(page, "adjust")
             expect(page.locator(".ev2-svg-slot-label").first).to_have_text("#1")
             expect(page.locator("#ev2-object-duplicate")).to_be_visible()
             expect(page.locator("#ev2-object-copy")).to_be_visible()
@@ -1310,6 +1326,7 @@ def test_v2_advanced_selection_tree_and_temporary_visibility(v2_server, tmp_path
 
         try:
             _open_job_with_repeat(page, v2_server, pdf_path, quantity=8)
+            _open_workflow_stage(page, "validate")
             expect(page.locator("#ev2-advanced-selection-heading")).to_be_visible()
             expect(page.locator("#ev2-object-tree")).to_have_attribute("role", "tree")
             expect(page.locator("#ev2-marquee-mode")).to_have_value("contain")
@@ -1460,10 +1477,14 @@ def test_v2_advanced_selection_tree_and_temporary_visibility(v2_server, tmp_path
                     first_id,
                 )
 
+            _open_workflow_stage(page, "adjust")
             page.locator('[data-lock-surface="geometry"][data-lock-action="lock"]').click()
+            _open_workflow_stage(page, "validate")
             page.locator('[data-selection-action="selection.select_locked_geometry"]').click()
             assert first_id in page.evaluate("() => [...window.__EDITOR_OFFSET_V2__.store.selection]")
+            _open_workflow_stage(page, "adjust")
             page.locator('[data-lock-surface="geometry"][data-lock-action="unlock"]').click()
+            _open_workflow_stage(page, "validate")
 
             page.evaluate(
                 """id => {
@@ -1517,9 +1538,11 @@ def test_v2_advanced_selection_tree_and_temporary_visibility(v2_server, tmp_path
                 "ids => window.__EDITOR_OFFSET_V2__.store.setSelection(ids, 'replace')",
                 [first_id, second_id],
             )
+            _open_workflow_stage(page, "adjust")
             page.locator("#ev2-arrangement-key-candidate").select_option(first_id)
             page.locator("#ev2-arrangement-key-set").click()
             expect(page.locator(f'[data-key-slot-badge="{first_id}"]')).to_have_count(1)
+            _open_workflow_stage(page, "validate")
             expect(first_tree.locator(".ev2-tree-badge.is-key")).to_have_text("K")
 
             page.evaluate("() => window.__EDITOR_OFFSET_V2__.saver.manualSave()")
@@ -1598,6 +1621,7 @@ def test_v2_advanced_selection_tree_and_temporary_visibility(v2_server, tmp_path
                 lambda response: response.request.method == "GET"
                 and response.url.endswith("/output-capabilities")
             ):
+                _open_workflow_stage(page, "validate")
                 page.locator("#ev2-output-check").click()
             expect(page.locator("#ev2-output-status")).to_be_visible()
             expect(page.locator(".ev2-svg-slot-label").first).to_have_text("#1")
@@ -1893,13 +1917,14 @@ def test_v2_precision_rulers_guides_snap_measurement_and_reload(v2_server, tmp_p
                 "() => window.__EDITOR_OFFSET_V2__.store.precisionTools.measurementMode"
             ) is False
             expect(page.locator("#ev2-arrangement-heading")).to_be_visible()
-            expect(page.locator("#ev2-advanced-selection-heading")).to_be_visible()
+            expect(page.locator("#ev2-advanced-selection-heading")).to_be_hidden()
             expect(page.locator(".ev2-svg-slot-label").first).to_have_text("#1")
             expect(page.locator(".ev2-resize-handle, [data-resize-handle]")).to_have_count(0)
             with page.expect_response(
                 lambda response: response.request.method == "GET"
                 and response.url.endswith("/output-capabilities")
             ):
+                _open_workflow_stage(page, "validate")
                 page.locator("#ev2-output-check").click()
             expect(page.locator("#ev2-output-status")).to_be_visible()
             assert not console_errors

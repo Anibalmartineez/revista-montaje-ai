@@ -2184,3 +2184,275 @@ button[aria-pressed="true"],
     transition: none;
   }
 }
+
+/* Fase 19-D: flujo por etapas y accesos frecuentes sin alterar Layout V2. */
+.ev2-shell {
+  grid-template-rows: 72px 84px minmax(420px, calc(100vh - 196px)) 40px;
+  grid-template-areas:
+    "topbar topbar topbar topbar"
+    "workflow workflow workflow workflow"
+    "tools objects workspace inspector"
+    "status status status status";
+}
+
+.ev2-workflow {
+  grid-area: workflow;
+  display: grid;
+  grid-template-columns: repeat(5, minmax(118px, 1fr)) minmax(220px, 1.5fr);
+  align-items: stretch;
+  gap: 0;
+  min-width: 0;
+  padding: 10px 16px;
+  overflow-x: auto;
+  border-bottom: 1px solid var(--ev2-line);
+  background: var(--ev2-surface-deep);
+}
+
+.ev2-workflow-step {
+  position: relative;
+  display: grid;
+  align-content: center;
+  justify-items: start;
+  gap: 2px;
+  min-height: 54px;
+  padding: 8px 14px 8px 28px;
+  border: 0;
+  border-bottom: 2px solid var(--ev2-line);
+  border-radius: 0;
+  background: transparent;
+  color: var(--ev2-muted);
+  text-align: left;
+}
+
+.ev2-workflow-step::before {
+  content: "";
+  position: absolute;
+  left: 9px;
+  width: 8px;
+  height: 8px;
+  border: 2px solid var(--ev2-line-strong);
+  border-radius: 50%;
+  background: var(--ev2-surface-deep);
+}
+
+.ev2-workflow-step + .ev2-workflow-step::after {
+  content: "";
+  position: absolute;
+  top: calc(50% - 1px);
+  right: calc(100% - 9px);
+  width: 18px;
+  height: 2px;
+  background: var(--ev2-line-strong);
+}
+
+.ev2-workflow-step span {
+  color: var(--ev2-text);
+  font-size: 12px;
+  font-weight: 750;
+}
+
+.ev2-workflow-step small {
+  font-size: 10px;
+}
+
+.ev2-workflow-step:hover:not(:disabled) {
+  border-bottom-color: var(--ev2-line-strong);
+  border-radius: 0;
+  background: var(--ev2-surface-soft);
+}
+
+.ev2-workflow-step.is-active {
+  border-bottom-color: var(--ev2-accent);
+  background: linear-gradient(180deg, transparent, rgb(88 223 168 / 8%));
+  color: var(--ev2-accent);
+}
+
+.ev2-workflow-step.is-active::before {
+  border-color: var(--ev2-accent);
+  background: var(--ev2-accent);
+  box-shadow: 0 0 0 4px rgb(88 223 168 / 12%);
+}
+
+.ev2-workflow-step.is-pending span,
+.ev2-workflow-step.is-pending small {
+  color: var(--ev2-warning);
+}
+
+.ev2-workflow > p {
+  align-self: center;
+  max-width: 280px;
+  margin: 0 0 0 16px;
+  color: var(--ev2-muted);
+  font-size: 10px;
+  line-height: 1.4;
+}
+
+.ev2-workspace {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+}
+
+.ev2-canvas-toolbar {
+  z-index: 3;
+  display: flex;
+  align-items: center;
+  gap: var(--ev2-space-3);
+  min-width: 0;
+  padding: 8px 12px;
+  overflow-x: auto;
+  border-bottom: 1px solid var(--ev2-line);
+  background: rgb(12 20 30 / 94%);
+}
+
+.ev2-sheet-summary {
+  display: flex;
+  align-items: baseline;
+  gap: 7px;
+  flex: 0 0 auto;
+  padding-right: 12px;
+  border-right: 1px solid var(--ev2-line);
+}
+
+.ev2-sheet-summary span {
+  color: var(--ev2-muted);
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.ev2-sheet-summary strong {
+  font-size: 12px;
+}
+
+.ev2-canvas-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.ev2-canvas-actions button {
+  min-height: 30px;
+  padding: 5px 10px;
+  white-space: nowrap;
+}
+
+.ev2-inspector {
+  display: flex;
+  flex-direction: column;
+}
+
+.ev2-inspector-mode {
+  position: sticky;
+  z-index: 4;
+  top: 0;
+  flex: 0 0 auto;
+  border-bottom-color: var(--ev2-line-strong);
+  background: rgb(16 25 35 / 96%);
+  backdrop-filter: blur(8px);
+}
+
+.ev2-stage-context {
+  display: grid;
+  gap: 8px;
+  margin: 10px;
+  padding: 14px;
+  border: 1px solid var(--ev2-line);
+  border-radius: var(--ev2-radius-md);
+  background: var(--ev2-surface-soft);
+}
+
+.ev2-stage-context h2,
+.ev2-stage-context p {
+  margin: 0;
+}
+
+.ev2-stage-context h2 {
+  font-size: 14px;
+}
+
+.ev2-stage-context p {
+  color: var(--ev2-muted);
+  font-size: 11px;
+  line-height: 1.55;
+}
+
+.ev2-stage-output-pending {
+  border-color: rgb(245 196 109 / 42%);
+  background: rgb(245 196 109 / 7%);
+}
+
+.ev2-inspector [data-ev2-stage-panel][hidden] {
+  display: none !important;
+}
+
+#ev2-stage-adjust-position {
+  order: 1;
+}
+
+#ev2-stage-adjust-operations {
+  order: 2;
+}
+
+#ev2-inspector-values {
+  order: 3;
+}
+
+#ev2-stage-adjust-arrangement {
+  order: 4;
+}
+
+#ev2-stage-adjust-precision {
+  order: 5;
+}
+
+#ev2-stage-adjust-help {
+  order: 6;
+}
+
+.ev2-stage-context,
+#ev2-stage-impose,
+#ev2-stage-validate-selection,
+#ev2-stage-validate-output {
+  order: 1;
+}
+
+[data-ev2-tool-anchor]:focus-visible,
+#ev2-stage-impose:focus-visible {
+  outline: 2px solid var(--ev2-accent);
+  outline-offset: 3px;
+}
+
+@media (max-width: 1050px) {
+  .ev2-workflow {
+    grid-template-columns: repeat(5, minmax(112px, 1fr));
+  }
+
+  .ev2-workflow > p {
+    display: none;
+  }
+}
+
+@media (max-width: 820px) {
+  .ev2-shell {
+    grid-template-rows: 72px 76px minmax(420px, calc(100vh - 188px)) 40px;
+    grid-template-areas:
+      "topbar topbar topbar"
+      "workflow workflow workflow"
+      "tools workspace inspector"
+      "status status status";
+  }
+
+  .ev2-workflow {
+    display: flex;
+    padding: 7px 10px;
+  }
+
+  .ev2-workflow-step {
+    flex: 0 0 128px;
+    min-height: 58px;
+  }
+
+  .ev2-canvas-toolbar {
+    padding: 6px 8px;
+  }
+}

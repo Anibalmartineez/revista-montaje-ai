@@ -47,6 +47,10 @@
     });
 
     if (!context.layout || !context.job_id) {
+      new modules.WorkflowNavigation.Controller(null, refs, {
+        hasJob: false,
+        initialStage: "prepare",
+      });
       refs.statusMessage.textContent = "Crea un job para abrir el canvas V2.";
       return null;
     }
@@ -221,6 +225,13 @@
       modules.AdvancedSelection,
       runAction,
     );
+    const workflowNavigation = new modules.WorkflowNavigation.Controller(store, refs, {
+      hasJob: true,
+      initialStage: refs.workflow.dataset.initialStage,
+      duplicateActionId: modules.CommandRegistry.ACTION_IDS.DUPLICATE,
+      runAction,
+      isActionEnabled: (actionId) => actionRegistry.isEnabled(actionId, contextProvider()),
+    });
 
     refs.save.addEventListener("click", () => runAction(modules.CommandRegistry.ACTION_IDS.SAVE));
     refs.undo.addEventListener("click", () => runAction(modules.CommandRegistry.ACTION_IDS.UNDO));
@@ -279,6 +290,7 @@
       shortcutHelp,
       positionInspector,
       nudgeController,
+      workflowNavigation,
       runAction,
     };
     root.__EDITOR_OFFSET_V2__ = instance;

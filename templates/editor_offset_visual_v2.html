@@ -36,6 +36,31 @@
       </nav>
     </header>
 
+    <nav
+      id="ev2-workflow"
+      class="ev2-workflow"
+      aria-label="Etapas del trabajo"
+      role="tablist"
+      data-initial-stage="{{ 'adjust' if editor_context.job_id else 'prepare' }}"
+    >
+      <button id="ev2-stage-tab-prepare" class="ev2-workflow-step" type="button" role="tab" data-ev2-stage-target="prepare" aria-controls="ev2-stage-prepare" aria-selected="false" tabindex="-1">
+        <span>Preparar</span><small>PDF y origen</small>
+      </button>
+      <button id="ev2-stage-tab-impose" class="ev2-workflow-step" type="button" role="tab" data-ev2-stage-target="impose" aria-controls="ev2-stage-impose" aria-selected="false" tabindex="-1" {% if not editor_context.job_id %}disabled{% endif %}>
+        <span>Imponer</span><small>Pliego y repetición</small>
+      </button>
+      <button id="ev2-stage-tab-adjust" class="ev2-workflow-step" type="button" role="tab" data-ev2-stage-target="adjust" aria-controls="ev2-stage-adjust-position ev2-stage-adjust-operations ev2-stage-adjust-arrangement ev2-stage-adjust-precision ev2-inspector-values ev2-stage-adjust-help" aria-selected="false" tabindex="-1" {% if not editor_context.job_id %}disabled{% endif %}>
+        <span>Ajustar</span><small>Posición y alineación</small>
+      </button>
+      <button id="ev2-stage-tab-validate" class="ev2-workflow-step" type="button" role="tab" data-ev2-stage-target="validate" aria-controls="ev2-stage-validate-selection ev2-stage-validate-output" aria-selected="false" tabindex="-1" {% if not editor_context.job_id %}disabled{% endif %}>
+        <span>Validar</span><small>Comprobaciones</small>
+      </button>
+      <button id="ev2-stage-tab-output" class="ev2-workflow-step is-pending" type="button" role="tab" data-ev2-stage-target="output" aria-controls="ev2-stage-output" aria-selected="false" tabindex="-1" {% if not editor_context.job_id %}disabled{% endif %}>
+        <span>Salida · pendiente</span><small>PDF y CTP</small>
+      </button>
+      <p>PDF y CTP se incorporarán después de validar el flujo.</p>
+    </nav>
+
     <aside class="ev2-tools" aria-label="Herramientas">
       <span class="ev2-region-label">Herramientas</span>
       <button class="ev2-tool is-active" id="ev2-select-tool" type="button" aria-pressed="true" {% if not editor_context.job_id %}disabled{% endif %}>
@@ -113,6 +138,18 @@
     </aside>
 
     <section class="ev2-workspace" aria-label="Canvas del montaje">
+      <div class="ev2-canvas-toolbar" aria-label="Acciones frecuentes del montaje">
+        <div class="ev2-sheet-summary">
+          <span>Pliego</span>
+          <strong id="ev2-sheet-size-summary">—</strong>
+        </div>
+        <div class="ev2-canvas-actions">
+          <button id="ev2-workspace-duplicate" type="button" disabled>Duplicar</button>
+          <button id="ev2-workspace-open-align" type="button" {% if not editor_context.job_id %}disabled{% endif %}>Alinear</button>
+          <button id="ev2-workspace-open-distribute" type="button" {% if not editor_context.job_id %}disabled{% endif %}>Distribuir</button>
+          <button id="ev2-workspace-open-repeat" type="button" {% if not editor_context.job_id %}disabled{% endif %}>Repetir</button>
+        </div>
+      </div>
       {% if not editor_context.job_id %}
         <div class="ev2-no-job">
           <span class="ev2-canvas-kicker">Editor V2</span>
@@ -131,11 +168,16 @@
     </section>
 
     <aside class="ev2-inspector" aria-label="Inspector del slot">
-      <div class="ev2-panel-heading">
-        <span class="ev2-region-label">Inspector</span>
-        <small>Geometría, procedencia y salida temporal</small>
+      <div class="ev2-panel-heading ev2-inspector-mode">
+        <span class="ev2-region-label" id="ev2-inspector-mode-title">Ajustar</span>
+        <small id="ev2-inspector-mode-description">Posición y alineación</small>
       </div>
-      <section class="ev2-object-operations" aria-labelledby="ev2-object-operations-heading">
+      <section id="ev2-stage-prepare" class="ev2-stage-context" data-ev2-stage-panel="prepare" role="tabpanel" aria-labelledby="ev2-stage-tab-prepare" hidden>
+        <span class="ev2-region-label">PDF y origen</span>
+        <h2>Prepara las fuentes del job</h2>
+        <p>Sube el PDF y crea sus works desde el panel de la izquierda. El pliego actual no cambia al recorrer estas etapas.</p>
+      </section>
+      <section id="ev2-stage-adjust-operations" class="ev2-object-operations" data-ev2-stage-panel="adjust" role="tabpanel" aria-labelledby="ev2-stage-tab-adjust ev2-object-operations-heading">
         <div class="ev2-object-operations-heading">
           <h2 id="ev2-object-operations-heading">Operaciones de objeto</h2>
           <span id="ev2-object-selection">Sin selección</span>
@@ -178,7 +220,7 @@
         </fieldset>
         <p class="ev2-object-note">Alt+arrastrar duplica. Los locks engine, CTP y system nunca se retiran desde este panel.</p>
       </section>
-      <section class="ev2-position-panel" aria-labelledby="ev2-position-heading">
+      <section id="ev2-stage-adjust-position" class="ev2-position-panel" data-ev2-stage-panel="adjust" role="tabpanel" aria-labelledby="ev2-stage-tab-adjust ev2-position-heading">
         <h2 id="ev2-position-heading">Posición precisa</h2>
         <p id="ev2-position-empty" class="ev2-position-empty">Selecciona un slot.</p>
         <form id="ev2-position-form" hidden novalidate>
@@ -200,7 +242,7 @@
           <p id="ev2-position-lock" class="ev2-position-feedback" data-state="ready" role="status" aria-live="polite">Posición canónica: centro trim, milímetros.</p>
         </form>
       </section>
-      <section class="ev2-arrangement-panel" aria-labelledby="ev2-arrangement-heading">
+      <section id="ev2-stage-adjust-arrangement" class="ev2-arrangement-panel" data-ev2-stage-panel="adjust" role="tabpanel" aria-labelledby="ev2-stage-tab-adjust ev2-arrangement-heading">
         <div class="ev2-arrangement-heading">
           <h2 id="ev2-arrangement-heading">Alineación y distribución</h2>
           <span id="ev2-arrangement-selection">0 slots seleccionados</span>
@@ -231,7 +273,7 @@
           </div>
           <p id="ev2-arrangement-key-status" role="status" aria-live="polite">Sin slot clave.</p>
         </fieldset>
-        <fieldset>
+        <fieldset data-ev2-tool-anchor="align" tabindex="-1">
           <legend>Alinear</legend>
           <div class="ev2-arrangement-action-grid">
             <button type="button" data-arrangement-action="selection.align.left" aria-label="Alinear a la izquierda" disabled>Izquierda</button>
@@ -250,7 +292,7 @@
             <button type="button" data-arrangement-action="selection.center.both" disabled>Ambos</button>
           </div>
         </fieldset>
-        <fieldset>
+        <fieldset data-ev2-tool-anchor="distribute" tabindex="-1">
           <legend>Distribuir</legend>
           <div class="ev2-arrangement-inline-actions">
             <button type="button" data-arrangement-action="selection.distribute.horizontal" disabled>Horizontal</button>
@@ -293,7 +335,7 @@
         </form>
         <p id="ev2-arrangement-feedback" class="ev2-arrangement-feedback" role="status" aria-live="polite">Estado temporal: no modifica el layout.</p>
       </section>
-      <section class="ev2-precision-panel" aria-labelledby="ev2-precision-heading">
+      <section id="ev2-stage-adjust-precision" class="ev2-precision-panel" data-ev2-stage-panel="adjust" role="tabpanel" aria-labelledby="ev2-stage-tab-adjust ev2-precision-heading">
         <div class="ev2-precision-heading">
           <h2 id="ev2-precision-heading">Herramientas de precisión</h2>
           <span>Estado temporal</span>
@@ -357,7 +399,7 @@
         </fieldset>
         <p id="ev2-precision-live" class="ev2-precision-live" role="status" aria-live="polite">Snap desactivado.</p>
       </section>
-      <section class="ev2-advanced-selection-panel" aria-labelledby="ev2-advanced-selection-heading">
+      <section id="ev2-stage-validate-selection" class="ev2-advanced-selection-panel" data-ev2-stage-panel="validate" role="tabpanel" aria-labelledby="ev2-stage-tab-validate ev2-advanced-selection-heading" hidden>
         <div class="ev2-advanced-selection-heading">
           <h2 id="ev2-advanced-selection-heading">Objetos y selección</h2>
           <span>Solo vista</span>
@@ -412,14 +454,14 @@
         ></div>
         <p id="ev2-advanced-selection-feedback" class="ev2-advanced-selection-feedback" role="status" aria-live="polite">Selección y visibilidad son temporales; la salida no cambia.</p>
       </section>
-      <dl class="ev2-inspector-list" id="ev2-inspector-values">
+      <dl class="ev2-inspector-list" id="ev2-inspector-values" data-ev2-stage-panel="adjust">
         <div><dt>Selección</dt><dd>Ninguna</dd></div>
       </dl>
-      <div class="ev2-inspector-help">
+      <div id="ev2-stage-adjust-help" class="ev2-inspector-help" data-ev2-stage-panel="adjust">
         Flechas: 0,1 mm · Shift: 1 mm · Ctrl/Cmd+Shift: 10 mm. Enter confirma y Escape cancela.
       </div>
       {% set repeat_settings = editor_context.layout.imposition.settings if editor_context.layout else {} %}
-      <details class="ev2-repeat-panel" open>
+      <details id="ev2-stage-impose" class="ev2-repeat-panel" data-ev2-stage-panel="impose" role="tabpanel" aria-labelledby="ev2-stage-tab-impose" tabindex="-1" hidden open>
         <summary>Imposición Repeat</summary>
         <div id="ev2-repeat-works" class="ev2-repeat-works">
           <p class="ev2-list-empty">Crea un work real antes de calcular Repeat.</p>
@@ -470,13 +512,18 @@
           </dl>
         </div>
       </details>
-      <details class="ev2-output-panel" open>
+      <details id="ev2-stage-validate-output" class="ev2-output-panel" data-ev2-stage-panel="validate" role="tabpanel" aria-labelledby="ev2-stage-tab-validate" hidden open>
         <summary>Compatibilidad con la salida actual</summary>
         <p class="ev2-repeat-note">Este diagnóstico no es un preflight final ni genera PDF.</p>
         <button id="ev2-output-check" type="button" {% if not editor_context.job_id %}disabled{% endif %}>Consultar compatibilidad</button>
         <p id="ev2-output-status" class="ev2-inline-status" role="status" aria-live="polite">Corresponde a la última revisión guardada.</p>
         <ul id="ev2-output-issues" class="ev2-repeat-issues"></ul>
       </details>
+      <section id="ev2-stage-output" class="ev2-stage-context ev2-stage-output-pending" data-ev2-stage-panel="output" role="tabpanel" aria-labelledby="ev2-stage-tab-output" hidden>
+        <span class="ev2-region-label">Salida · pendiente</span>
+        <h2>PDF y producción CTP</h2>
+        <p>Esta etapa todavía no genera archivos. Se habilitará cuando el flujo visual y sus contratos productivos estén validados.</p>
+      </section>
     </aside>
 
     <footer class="ev2-statusbar">
@@ -539,6 +586,7 @@
   <script src="{{ url_for('static', filename='js/editor_offset_v2/objects_panel.js') }}" defer></script>
   <script src="{{ url_for('static', filename='js/editor_offset_v2/arrangement_panel.js') }}" defer></script>
   <script src="{{ url_for('static', filename='js/editor_offset_v2/precision_panel.js') }}" defer></script>
+  <script src="{{ url_for('static', filename='js/editor_offset_v2/workflow_navigation.js') }}" defer></script>
   <script src="{{ url_for('static', filename='js/editor_offset_v2/bootstrap.js') }}" defer></script>
   <script src="{{ url_for('static', filename='js/editor_offset_visual_v2.js') }}" defer></script>
 </body>

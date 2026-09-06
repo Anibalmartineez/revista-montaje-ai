@@ -54,6 +54,11 @@ def _write_test_pdf(path: Path) -> None:
     document.close()
 
 
+def _open_workflow_stage(page, stage: str) -> None:
+    page.locator(f"[data-ev2-stage-target='{stage}']").click()
+    expect(page.locator(f"[data-ev2-stage-panel='{stage}']").first).to_be_visible()
+
+
 def _new_page(browser_or_context, *, width: int = 1440, height: int = 900):
     if hasattr(browser_or_context, "new_context"):
         page = browser_or_context.new_page(viewport={"width": width, "height": height})
@@ -88,6 +93,7 @@ def _open_job_with_repeat(page, server_url: str, pdf_path: Path, *, quantity: in
     page.wait_for_function(
         "() => window.__EDITOR_OFFSET_V2__.store.layout.works.length === 1"
     )
+    _open_workflow_stage(page, "impose")
     with page.expect_response(
         lambda response: response.request.method == "POST"
         and "/imposition/repeat" in response.url,
@@ -103,6 +109,7 @@ def _open_job_with_repeat(page, server_url: str, pdf_path: Path, *, quantity: in
         "() => window.__EDITOR_OFFSET_V2__.store.saveState.status === 'clean'",
         timeout=10_000,
     )
+    _open_workflow_stage(page, "adjust")
 
 
 def _select_slot(page, slot_id: str) -> None:
@@ -336,6 +343,7 @@ def test_stab_003_output_diagnosis_is_invalidated_after_revision_change(
                 lambda response: response.request.method == "GET"
                 and response.url.endswith("/output-capabilities"),
             ):
+                _open_workflow_stage(page, "validate")
                 page.locator("#ev2-output-check").click()
             checked_revision = page.evaluate(
                 "() => window.__EDITOR_OFFSET_V2__.store.revision"
@@ -348,6 +356,7 @@ def test_stab_003_output_diagnosis_is_invalidated_after_revision_change(
                 "id => window.__EDITOR_OFFSET_V2__.store.layout.slots.find(slot => slot.id === id).geometry.position_mm.x_mm",
                 slot_id,
             )
+            _open_workflow_stage(page, "adjust")
             _move_selected_with_position_form(page, current_x + 0.25)
             expect(page.locator("#ev2-output-status")).to_contain_text(
                 "Diagnóstico desactualizado"
@@ -382,6 +391,7 @@ def test_stab_003_output_diagnosis_is_invalidated_after_revision_change(
                 lambda response: response.request.method == "GET"
                 and response.url.endswith("/output-capabilities"),
             ):
+                _open_workflow_stage(page, "validate")
                 page.locator("#ev2-output-check").click()
             expect(page.locator("#ev2-output-status")).to_contain_text(
                 f"revisión {current_revision}"
@@ -930,6 +940,160 @@ def test_phase_19_c_visual_foundations_preserve_hierarchy_and_controls(
             assert compact["lockActionsClearLabel"] is True
             expect(page.locator(".ev2-brand h1")).to_be_visible()
             page.screenshot(path=str(tmp_path / "phase-19-c-820.png"), full_page=False)
+
+            _assert_no_console_errors(errors)
+            assert not errors["page"], f"Pageerrors inesperados: {errors['page']}"
+        finally:
+            browser.close()
+
+
+def test_phase_19_d_workflow_navigation_groups_tools_without_layout_mutation(
+    v2_characterization_server,
+    tmp_path,
+):
+    pdf_path = tmp_path / "phase-19-d-workflow-navigation.pdf"
+    _write_test_pdf(pdf_path)
+
+    with sync_playwright() as playwright:
+        browser = playwright.chromium.launch(headless=True)
+        page, errors = _new_page(browser, width=1487, height=1058)
+        try:
+            page.goto(
+                f"{v2_characterization_server}/editor_offset_visual_v2",
+                wait_until="domcontentloaded",
+            )
+            expect(page.locator("#ev2-stage-tab-prepare")).to_have_attribute(
+                "aria-selected", "true"
+            )
+            expect(page.locator("#ev2-stage-prepare")).to_be_visible()
+            expect(page.locator("#ev2-stage-tab-impose")).to_be_disabled()
+            expect(page.locator("#ev2-sheet-size-summary")).to_have_text("Sin pliego")
+
+            _open_job_with_repeat(
+                page,
+                v2_characterization_server,
+                pdf_path,
+                quantity=2,
+            )
+            baseline = page.evaluate(
+                """() => {
+                  const store = window.__EDITOR_OFFSET_V2__.store;
+                  return {
+                    layout: JSON.stringify(store.layout),
+                    slotIds: store.layout.slots.map(slot => slot.id),
+                    revision: store.revision,
+                    changeVersion: store.changeVersion,
+                    undo: store.undoStack.length,
+                    redo: store.redoStack.length,
+                    dirty: store.hasUnsavedChanges(),
+                  };
+                }"""
+            )
+
+            expect(page.locator("#ev2-stage-tab-adjust")).to_have_attribute(
+                "aria-selected", "true"
+            )
+            expect(page.locator("#ev2-stage-adjust-position")).to_be_visible()
+            expect(page.locator("#ev2-stage-impose")).to_be_hidden()
+            expect(page.locator("#ev2-stage-validate-selection")).to_be_hidden()
+            expect(page.locator("#ev2-stage-output")).to_be_hidden()
+            expect(page.locator("#ev2-sheet-size-summary")).to_have_text(
+                "700 × 500 mm"
+            )
+
+            for stage, visible_selector in [
+                ("impose", "#ev2-stage-impose"),
+                ("validate", "#ev2-stage-validate-selection"),
+                ("output", "#ev2-stage-output"),
+                ("prepare", "#ev2-stage-prepare"),
+                ("adjust", "#ev2-stage-adjust-position"),
+            ]:
+                _open_workflow_stage(page, stage)
+                expect(page.locator(visible_selector)).to_be_visible()
+                assert page.evaluate(
+                    """baseline => {
+                      const store = window.__EDITOR_OFFSET_V2__.store;
+                      return JSON.stringify(store.layout) === baseline.layout
+                        && store.revision === baseline.revision
+                        && store.changeVersion === baseline.changeVersion
+                        && store.undoStack.length === baseline.undo
+                        && store.redoStack.length === baseline.redo
+                        && store.hasUnsavedChanges() === baseline.dirty;
+                    }""",
+                    baseline,
+                ) is True
+
+            expect(page.locator("#ev2-stage-output")).to_be_hidden()
+            page.locator("#ev2-stage-tab-adjust").focus()
+            page.keyboard.press("ArrowRight")
+            expect(page.locator("#ev2-stage-tab-validate")).to_be_focused()
+            expect(page.locator("#ev2-stage-tab-validate")).to_have_attribute(
+                "aria-selected", "true"
+            )
+            page.keyboard.press("End")
+            expect(page.locator("#ev2-stage-tab-output")).to_be_focused()
+            expect(page.locator("#ev2-stage-output")).to_contain_text(
+                "todavía no genera archivos"
+            )
+
+            page.locator("#ev2-workspace-open-align").click()
+            expect(page.locator("[data-ev2-tool-anchor='align']")).to_be_focused()
+            expect(page.locator("#ev2-stage-tab-adjust")).to_have_attribute(
+                "aria-selected", "true"
+            )
+            page.locator("#ev2-workspace-open-distribute").click()
+            expect(page.locator("[data-ev2-tool-anchor='distribute']")).to_be_focused()
+            page.locator("#ev2-workspace-open-repeat").click()
+            expect(page.locator("#ev2-stage-impose")).to_be_focused()
+            expect(page.locator("#ev2-stage-tab-impose")).to_have_attribute(
+                "aria-selected", "true"
+            )
+
+            _open_workflow_stage(page, "adjust")
+            source_id = page.evaluate(
+                "() => window.__EDITOR_OFFSET_V2__.store.layout.slots[0].id"
+            )
+            _select_slot(page, source_id)
+            count_before = page.locator(".ev2-svg-slot").count()
+            undo_before = page.evaluate(
+                "() => window.__EDITOR_OFFSET_V2__.store.undoStack.length"
+            )
+            expect(page.locator("#ev2-workspace-duplicate")).to_be_enabled()
+            page.locator("#ev2-workspace-duplicate").click()
+            expect(page.locator(".ev2-svg-slot")).to_have_count(count_before + 1)
+            assert page.evaluate(
+                "() => window.__EDITOR_OFFSET_V2__.store.undoStack.length"
+            ) == undo_before + 1
+            page.locator("#ev2-undo").click()
+            expect(page.locator(".ev2-svg-slot")).to_have_count(count_before)
+            assert page.evaluate(
+                "baseline => JSON.stringify(window.__EDITOR_OFFSET_V2__.store.layout.slots.map(slot => slot.id)) === JSON.stringify(baseline.slotIds)",
+                baseline,
+            ) is True
+
+            ids = page.evaluate(
+                """() => [...document.querySelectorAll('[id]')].map(element => element.id)"""
+            )
+            assert len(ids) == len(set(ids))
+            assert page.locator("[data-ev2-stage-target]").count() == 5
+
+            page.screenshot(path=str(tmp_path / "phase-19-d-1487.png"), full_page=False)
+            page.set_viewport_size({"width": 820, "height": 900})
+            compact = page.evaluate(
+                """() => ({
+                  documentOverflow:
+                    document.documentElement.scrollWidth - document.documentElement.clientWidth,
+                  workflowScrollable:
+                    document.querySelector('#ev2-workflow').scrollWidth
+                      >= document.querySelector('#ev2-workflow').clientWidth,
+                  toolbarVisible:
+                    getComputedStyle(document.querySelector('.ev2-canvas-toolbar')).display !== 'none',
+                })"""
+            )
+            assert compact["documentOverflow"] <= 1
+            assert compact["workflowScrollable"] is True
+            assert compact["toolbarVisible"] is True
+            page.screenshot(path=str(tmp_path / "phase-19-d-820.png"), full_page=False)
 
             _assert_no_console_errors(errors)
             assert not errors["page"], f"Pageerrors inesperados: {errors['page']}"
