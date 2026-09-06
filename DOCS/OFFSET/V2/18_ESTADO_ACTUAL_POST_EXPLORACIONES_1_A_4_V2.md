@@ -1,5 +1,7 @@
 # Estado actual del Editor Offset Visual V2 después de las exploraciones 1 a 4
 
+> Estado documental: snapshot histórico con corte 2026-09-04. Conserva la evidencia original de las exploraciones 1 a 4 y no debe reescribirse como si describiera el sistema posterior. El estado operativo vigente después de las Fases 19-A a 19-G se encuentra en `20_ESTADO_ACTUAL_POST_REDISENO_UX_V2.md`; la trazabilidad de cada cambio permanece en `19_PLAN_Y_TRAZABILIDAD_REDISENO_UX_V2.md`.
+
 ## 1. Estado y propósito del documento
 
 Fecha de corte: 2026-09-04.

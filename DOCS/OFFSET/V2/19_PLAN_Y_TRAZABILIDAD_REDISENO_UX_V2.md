@@ -8,7 +8,7 @@ Rama de trabajo prevista:
 
     codex/editor-offset-v2-ux-foundation
 
-Estado actual del documento: plan y dirección visual aprobados por el usuario el 2026-09-05; Fases 19-A, 19-B, 19-C, 19-D, 19-E y 19-F completadas. STAB-001 a STAB-006, los fundamentos visuales, la organización funcional por etapas, la configuración SAFE del pliego y el acceso responsive quedaron validados. El siguiente bloque previsto es la Fase 19-G de cierre y documentación de estado.
+Estado actual del documento: plan y dirección visual aprobados por el usuario el 2026-09-05; Fases 19-A a 19-G completadas. STAB-001 a STAB-006, los fundamentos visuales, la organización funcional por etapas, la configuración SAFE del pliego y el acceso responsive quedaron validados. El cierre contrastó la rama contra `main` y creó `20_ESTADO_ACTUAL_POST_REDISENO_UX_V2.md` como estado operativo vigente.
 
 Este documento define cómo mejorar la usabilidad y la organización visual del Editor Offset Visual V2 sin reescribir el editor ni adelantar funciones productivas que todavía no existen.
 
@@ -1472,7 +1472,7 @@ Resultado:
 
 ### Fase 19-G: cierre y documentación de estado
 
-Estado: pendiente.
+Estado: completada y validada el 2026-09-06.
 
 Objetivos:
 
@@ -1489,6 +1489,58 @@ Gate de salida:
 - riesgos residuales explícitos;
 - documentación alineada con ejecución;
 - branch preparada para revisión, sin commit o push automático.
+
+#### Resultado 19-G.1: revisión de rama contra main
+
+La revisión partió del merge-base `9ee6e79e0e58af1ec166bfb5edd59592be4dae05` y del HEAD `3694602`. Antes de los cambios documentales de cierre, la rama contenía 12 commits y 27 archivos cambiados respecto de `main`, con 6143 inserciones y 33 eliminaciones.
+
+Clasificación del diff acumulado:
+
+- documentación y referencia visual del rediseño;
+- template, CSS y módulos JavaScript exclusivamente de Editor V2;
+- regresiones Node y Playwright exclusivamente de Editor V2;
+- ningún cambio en blueprint, rutas, servicios Python V2, esquema, dominio, repositorios, adaptador de salida, motores compartidos, V1, PDF o CTP;
+- ningún cambio de dependencias, empaquetado o configuración global.
+
+Cada commit corresponde a una entrada previa de esta bitácora: baseline, STAB-001 a STAB-006, fundamentos visuales, flujo, pliego y responsive. No se encontraron cambios de producción fuera del alcance aprobado. La rama queda preparada para revisión focalizada de V2, no para afirmar que todo el repositorio está verde.
+
+#### Resultado 19-G.2: estado ejecutado y documentación vigente
+
+Se preservó el documento 18 como snapshot histórico y se agregó únicamente una advertencia documental que apunta al estado actual. El documento 19 conserva la secuencia y decisiones del rediseño. El nuevo documento 20 pasa a ser el resumen operativo vigente e incluye:
+
+- arquitectura y mapa de conexiones actualizados;
+- flujo por etapas y política del pliego;
+- separación entre estado persistente y temporal;
+- evidencias de navegador, persistencia y pruebas;
+- funciones resueltas, pendientes y explícitamente no implementadas;
+- lista de revisión obligatoria antes de cambios futuros;
+- recomendación SAFE para la siguiente fase productiva.
+
+La comprobación del job real fue de solo lectura. En `ev2_14d0c6f8f60e601aed51f833` se observaron revisión 57, Layout V2, pliego 650 × 550 mm, márgenes 0, un asset, un work y ocho slots. `output-capabilities` continúa no compatible, con 16 issues de `UNSUPPORTED_PDF_BOX` y `UNSUPPORTED_CONTENT_CLIP`. No se ejecutó ninguna mutación sobre ese job durante 19-G.
+
+#### Resultado 19-G.3: validación final delimitada
+
+Validación ejecutada sin abrir V1:
+
+- Flask target V2: `/` y `/editor_offset_visual_v2` respondieron HTTP 200;
+- sintaxis del entrypoint y de todos los módulos JavaScript V2: correcta;
+- suite Node V2: 117 passed;
+- suite Python V2: 331 passed y 1 skipped;
+- los dos archivos Playwright V2: 20 passed;
+- `git diff --check` contra `main`: correcto;
+- Navegador integrado: identidad y contenido correctos, sin overlay, warnings ni errores de consola;
+- interacción Fuentes → abrir → Escape → cerrar: correcta, con retorno de foco;
+- screenshot responsive: canvas dominante, pliego 650 × 550 mm y accesos Fuentes/Inspector visibles.
+
+La suite global no se repitió en 19-G para no volver a ejecutar los Playwright legacy visibles de V1. El resultado global registrado en 19-F fue 662 passed, 1 skipped y 14 failed. Esos fallos están en archivos no modificados por la rama; no se verificó un baseline equivalente sobre `main`, por lo que este documento no los califica como preexistentes con certeza.
+
+Resultado:
+
+- el gate de 19-G queda cumplido;
+- DOC-001 y DOC-002 quedan validados;
+- el documento 20 es el estado operativo vigente;
+- no se realizó commit, merge ni push automático;
+- cualquier fase siguiente debe abrirse con alcance y rama propios.
 
 ## 14. Estrategia de pruebas
 
@@ -1566,7 +1618,7 @@ Estados permitidos:
 
 | ID | Requisito o hallazgo | Evidencia u origen | Fase | Estado inicial | Validación prevista |
 | --- | --- | --- | --- | --- | --- |
-| UX-001 | Conservar diseño V2 como base, sin reescritura | Decisión del usuario y propuesta visual | 19-0 | Aprobado | Revisión visual y diff limitado |
+| UX-001 | Conservar diseño V2 como base, sin reescritura | Decisión del usuario, propuesta visual y revisión 19-G.1 | 19-0/19-G | Validado | Revisión visual y diff contra main confirman evolución incremental sobre el mismo shell |
 | UX-002 | Flujo Preparar-Imponer-Ajustar-Validar-Salida | Exploraciones, propuesta visual y Resultado 19-D.1 | 19-D | Validado | Cinco tabs, teclado, foco y estado temporal comprobados sin mutar Layout V2 |
 | UX-003 | Mejorar legibilidad y tamaño de controles | Exploraciones responsive y Resultado 19-C.1 | 19-C | Validado | Textos de 11/12 px, controles de 34/36 px, estados y foco comprobados |
 | UX-004 | Mantener canvas como superficie principal | Propuesta visual y Resultado 19-C.1 | 19-C/19-D | Validado | Canvas medido como superficie dominante en 1487, 1050 y 820 px; seguimiento al reorganizar en 19-D |
@@ -1588,8 +1640,8 @@ Estados permitidos:
 | OUT-002 | PDF final V2 | Documento 18 | Futura | Pospuesto | Fixtures PDF y tolerancias productivas |
 | OUT-003 | Preflight productivo unificado | Documento 18 | Futura | Pospuesto | Gate de contrato, PDF, geometría y salida |
 | CTP-001 | Producción CTP V2 | Documento 18 | Futura | Pospuesto | Contrato específico de plancha y marcas |
-| DOC-001 | Registrar cada cambio material | Solicitud del usuario | Todas | Aprobado | Bitácora y matriz actualizadas |
-| DOC-002 | Crear estado posterior al rediseño | Política documental | 19-G | Propuesto | Documento nuevo contrastado con ejecución |
+| DOC-001 | Registrar cada cambio material | Solicitud del usuario | Todas | Validado | Bitácora, decisiones y matriz actualizadas hasta el cierre 19-G |
+| DOC-002 | Crear estado posterior al rediseño | Política documental y Resultado 19-G.2 | 19-G | Validado | `20_ESTADO_ACTUAL_POST_REDISENO_UX_V2.md` contrastado con código, persistencia, navegador y pruebas |
 
 ## 18. Registro de decisiones
 
@@ -1609,6 +1661,7 @@ Estados permitidos:
 | DEC-012 | 2026-09-05 | Sincronizar el contador temporal de pegado con su comando y limpiar feedback por origen | Mantiene coherencia operativa sin persistir estado efímero ni borrar avisos ajenos | Aplicada |
 | DEC-013 | 2026-09-05 | Aplicar 19-C como una capa CSS reversible, sin mover controles ni modificar HTML o JavaScript | Permite mejorar legibilidad y jerarquía antes de alterar conexiones funcionales | Aplicada y validada |
 | DEC-014 | 2026-09-05 | Implementar las etapas como modos temporales exclusivos y hacer que los accesos frecuentes deleguen en paneles o comandos existentes | Reduce densidad sin alterar Layout V2 ni duplicar mutaciones | Aplicada y validada |
+| DEC-015 | 2026-09-06 | Conservar 18 como snapshot histórico, 19 como trazabilidad y usar 20 como estado operativo vigente | Evita reescribir evidencia y ofrece una única entrada actual para cambios futuros | Aplicada y validada |
 
 ## 19. Bitácora de cambios de la fase
 
@@ -1630,6 +1683,7 @@ Estados permitidos:
 | 2026-09-05 | Fase 19-D de jerarquía y organización funcional | template y CSS V2, dom_refs.js, bootstrap.js, workflow_navigation.js, pruebas Node/Playwright y documento 19 | Añade cinco modos temporales, toolbar frecuente y lectura del pliego; conserva IDs, comandos, Layout V2, rutas y salida | Node V2: 111 passed; Python V2: 331 passed y 1 skipped; Playwright V2: 18 passed; 180 IDs únicos; node --check y diff correctos; Navegador real en revisión 52 y estado Guardado | Fase 19-D completada; 19-E queda condicionada a política de cambio de pliego |
 | 2026-09-06 | Fase 19-E de configuración funcional del pliego | template y CSS V2, sheet_panel.js, commands.js, command_registry.js, dom_refs.js, bootstrap.js, workflow_navigation.js, pruebas Node/Playwright y documento 19 | Edita medida y márgenes mediante un comando reversible; informa impacto y conserva todos los slots sin escalado ni movimiento | Node V2: 115 passed; Python V2: 331 passed y 1 skipped; Playwright V2: 19 passed; node --check y diff correctos; Navegador real en revisión 52 y estado Guardado | DEC-010 aplicada; Fase 19-E completada; 19-F habilitada |
 | 2026-09-06 | Fase 19-F de responsive y accesibilidad operativa | template y CSS V2, responsive_panels.js, dom_refs.js, bootstrap.js, workflow_navigation.js, command_registry.js, pruebas Node/Playwright y documento 19 | Conserva cuatro áreas en escritorio y ofrece Fuentes/Inspector como cajones temporales en ancho reducido; añade Escape, retorno de foco, `inert`, nombres y estados ARIA sin tocar Layout V2 | Node V2: 117 passed; Python V2: 331 passed y 1 skipped; Playwright V2: 20 passed; 201 IDs únicos; 1440/1050/820 y ampliación comprobados; Navegador sin errores, revisión 52 | DEC-011 aplicada; UX-008 validado; Fase 19-F completada y 19-G habilitada |
+| 2026-09-06 | Fase 19-G de cierre y estado posterior | documentos 18, 19 y 20; revisión de toda la rama sin código productivo nuevo | No cambia la aplicación; clasifica el diff, preserva evidencia histórica y establece el estado vigente | Diff contra main; sintaxis V2; Node 117; Python 331 + 1 skipped; Playwright V2 20; Flask HTTP 200; Navegador sin errores; job real leído en revisión 57 | Fase 19 completa; branch preparada para revisión focalizada y siguiente fase separada |
 
 Después de cada cambio futuro se debe agregar una fila con:
 
@@ -1646,7 +1700,7 @@ Después de cada cambio futuro se debe agregar una fila con:
 
 - [x] La propuesta visual fue revisada y aceptada como dirección.
 - [x] Las diferencias entre maqueta y funcionalidad real fueron identificadas.
-- [x] El inventario de controles e IDs está reconciliado para 19-D; los 180 IDs del template son únicos y todos los consumidores existentes se conservaron.
+- [x] El inventario final de controles e IDs está reconciliado; los 201 IDs del template renderizado son únicos y todos los consumidores existentes se conservaron.
 - [x] Existen pruebas de caracterización focalizadas.
 - [x] Los fallos conocidos se reproducen de manera controlada.
 - [x] Se decidió la política de delete con dependientes.
@@ -1695,6 +1749,6 @@ No actualizar documentación para afirmar funciones que no fueron validadas.
 
 ## 23. Próximo paso SAFE
 
-La Fase 19-F terminó con el acceso responsive, el foco, el teclado y las regresiones V2 en verde. El siguiente paso recomendado es la Fase 19-G de cierre y documentación de estado.
+La Fase 19 está cerrada. El estado operativo vigente, los riesgos residuales y la ruta recomendada continúan en `20_ESTADO_ACTUAL_POST_REDISENO_UX_V2.md`.
 
-19-G debe revisar el diff acumulado de 19-A a 19-F contra la base de la rama, confirmar que cada archivo modificado corresponde a una decisión registrada, reconciliar el documento 18 como snapshot histórico con el estado real posterior al rediseño y crear el documento de estado posterior previsto por DOC-002. No debe ampliar el alcance con presets, reparación automática de slots, PDF, CTP ni cambios del contrato de salida.
+Antes de comenzar otra implementación, conviene revisar y guardar este cierre en la rama actual. Después debe abrirse una fase separada para definir el preflight y la arquitectura de salida productiva V2 antes de programar preview, PDF o CTP. Resize 8F, presets y reparación automática de slots continúan fuera del rediseño cerrado.
