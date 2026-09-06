@@ -8,7 +8,7 @@ Rama de trabajo prevista:
 
     codex/editor-offset-v2-ux-foundation
 
-Estado inicial del documento: planificación aprobada para documentación; implementación de código todavía no iniciada.
+Estado actual del documento: plan y dirección visual aprobados por el usuario el 2026-09-05; implementación de código todavía no iniciada.
 
 Este documento define cómo mejorar la usabilidad y la organización visual del Editor Offset Visual V2 sin reescribir el editor ni adelantar funciones productivas que todavía no existen.
 
@@ -505,7 +505,7 @@ Los nombres son propuestas y no crean esas ramas.
 
 ### Fase 19-0: documentación y baseline visual
 
-Estado: en curso.
+Estado: completada y aprobada el 2026-09-05.
 
 Objetivos:
 
@@ -526,7 +526,7 @@ Gate de salida:
 
 ### Fase 19-A: caracterización previa
 
-Estado: pendiente de autorización.
+Estado: caracterización prioritaria completada el 2026-09-05. La tanda interactiva y cinco regresiones automatizadas focalizadas reproducen STAB-001 a STAB-005; no se ejecutó la suite completa.
 
 Objetivos:
 
@@ -549,6 +549,165 @@ Cobertura focalizada:
 - invalidación del diagnóstico de salida;
 - responsive en 1440, 1050 y 820 px;
 - consola limpia en recorridos críticos.
+
+#### Resultado 19-A.1: primera tanda interactiva
+
+Fecha: 2026-09-05.
+
+Entorno:
+
+- Flask V2 comprobado con editor-offset-local-qa;
+- GET / y GET /editor_offset_visual_v2 respondieron HTTP 200;
+- V2 activo y herramientas de desarrollo desactivadas según el proceso controlado;
+- navegador real controlado con Playwright CLI;
+- sesión aislada v2-redesign-19a;
+- job de caracterización ev2_14d0c6f8f60e601aed51f833;
+- no se ejecutó pytest, Node ni la suite Playwright existente;
+- no se modificó código de producción ni se crearon todavía archivos de test.
+
+Resultados confirmados:
+
+1. Baseline de 1440 x 1024:
+   - el editor abrió con 8 slots, 1 work y 1 asset;
+   - la revisión inicial de esta tanda fue 43;
+   - el primer load registró únicamente el 404 conocido de favicon;
+   - después de la recarga final, la consola quedó con 0 errores y 0 warnings.
+2. Responsive de 1050 x 900:
+   - assets, canvas e inspector permanecieron presentes;
+   - las cuatro columnas quedaron comprimidas;
+   - el canvas perdió superficie útil;
+   - assets e inspector necesitaron scroll independiente;
+   - la densidad y el recorte visual justifican una estrategia responsive específica.
+3. Responsive de 820 x 900:
+   - el panel de assets dejó de formar parte de la composición visible;
+   - el canvas y el inspector permanecieron;
+   - el inspector conservó una gran cantidad de controles en una columna estrecha;
+   - apareció scroll horizontal interno en el inspector;
+   - las tareas de preparar e imponer no quedaron disponibles en la misma vista.
+4. Nudge:
+   - ArrowRight cambió Centro X de 350.000 a 350.100 mm;
+   - se reprodujo TypeError: Illegal invocation en nudge_controller.js:126;
+   - el stack pasó por command_registry.js y shortcut_manager.js;
+   - undo restauró X a 350.000 mm;
+   - el job quedó guardado y alcanzó revisión 45.
+5. Delete con dependencia:
+   - al eliminar el origen seleccionado, la UI pasó temporalmente de 8 a 7 slots;
+   - autosave mostró Error al guardar;
+   - el mensaje recibido fue The submitted document is not a valid Layout V2;
+   - la revisión persistida no avanzó durante el rechazo;
+   - undo restauró 8 slots y guardó revisión 46;
+   - la comprobación final encontró 0 referencias source_slot_id rotas.
+6. Diagnóstico output-capabilities:
+   - se consultó el diagnóstico en revisión 46;
+   - informó incompatibilidad en dos grupos de issues;
+   - un cambio de posición guardó revisión 47;
+   - el panel continuó mostrando No compatible con salida temporal · revisión 46;
+   - undo restauró la geometría y guardó revisión 48;
+   - una consulta manual posterior actualizó el diagnóstico a revisión 48.
+7. Matriz:
+   - con 1 slot fuente y matriz 2 x 2 se esperaban 3 slots nuevos;
+   - después de aplicar, el layout pasó de 8 a 11 slots y revisión 49;
+   - la selección pasó a 3 copias;
+   - el mismo formulario cambió su resumen a 3 fuentes y 9 slots nuevos;
+   - output-capabilities permaneció asociado a revisión 48;
+   - undo restauró 8 slots, 1 fuente seleccionada y revisión 50.
+8. Conflicto de revisión:
+   - dos pestañas abrieron el mismo job en revisión 50;
+   - la primera guardó X 350.200 mm y revisión 51;
+   - la segunda intentó guardar X 350.300 mm sobre base 50;
+   - la UI mostró Conflicto de revisión;
+   - el mensaje técnico fue The submitted base revision does not match the persisted layout;
+   - Recargar versión remota recuperó revisión 51;
+   - undo en la primera pestaña restauró X 350.000 mm y guardó revisión 52.
+
+Estado final comprobado:
+
+- revisión 52;
+- 8 slots;
+- 1 work;
+- 1 asset;
+- 0 referencias source_slot_id rotas;
+- slot original en X 350 mm;
+- estado Guardado;
+- recarga final correcta;
+- consola final con 0 errores y 0 warnings;
+- Flask V2 continuó respondiendo HTTP 200.
+
+Artefactos:
+
+    output/playwright/v2-redesign-phase-19a-20260905/01-baseline-1440.png
+    output/playwright/v2-redesign-phase-19a-20260905/02-responsive-1050.png
+    output/playwright/v2-redesign-phase-19a-20260905/03-responsive-820.png
+    output/playwright/v2-redesign-phase-19a-20260905/04-nudge-restored.png
+    output/playwright/v2-redesign-phase-19a-20260905/05-delete-invalid-local-state.png
+    output/playwright/v2-redesign-phase-19a-20260905/06-output-stale-revision.png
+    output/playwright/v2-redesign-phase-19a-20260905/07-matrix-selection-risk.png
+    output/playwright/v2-redesign-phase-19a-20260905/08-conflict-409.png
+    output/playwright/v2-redesign-phase-19a-20260905/09-final-restored-1440.png
+
+Interpretación:
+
+- la primera tanda confirmó los principales hallazgos del documento 18;
+- los fallos son anteriores al rediseño y no fueron introducidos por esta rama;
+- el estado productivo del job quedó restaurado;
+- esta tanda aportó la evidencia necesaria para diseñar regresiones automatizadas estables.
+
+#### Resultado 19-A.2: regresiones automatizadas focalizadas
+
+Fecha: 2026-09-05.
+
+Archivo agregado:
+
+    tests/playwright/test_editor_offset_v2_ux_characterization.py
+
+Alcance:
+
+- servidor Flask V2 temporal por test, con almacenamiento aislado en tmp_path;
+- PDF mínimo creado dentro del directorio temporal de cada caso;
+- jobs temporales independientes del job usado durante las exploraciones;
+- captura de pageerror y errores de consola en cada recorrido;
+- exclusión limitada del ruido HTTP 400 y 409 únicamente en los casos que provocan deliberadamente esas respuestas;
+- ninguna modificación en HTML, CSS, JavaScript o Python productivo;
+- ninguna ejecución de la suite Playwright completa.
+
+Contratos automatizados:
+
+1. STAB-001: una flecha debe mover 0,1 mm sin pageerror.
+2. STAB-002: eliminar un origen no debe dejar source_slot_id roto ni terminar en save_error.
+3. STAB-003: un diagnóstico de output no debe seguir presentando una revisión anterior como vigente después de guardar un cambio.
+4. STAB-004: una doble activación de Crear matriz debe producir una sola operación.
+5. STAB-005: un conflicto 409 debe mantener la recuperación visible y explicar la situación en lenguaje del operador, sin exponer como único detalle el mensaje técnico del API.
+
+Estrategia de fallo conocido:
+
+- cada test afirma primero la preparación y los resultados no relacionados con el defecto;
+- pytest.xfail se activa dinámicamente solo cuando aparece el síntoma histórico exacto;
+- un fallo de infraestructura, un pageerror diferente o un error de consola no previsto continúa siendo un fallo real;
+- cuando se corrija un defecto, su test pasará directamente sin conservar una exclusión permanente.
+
+Ejecuciones:
+
+1. Primera ejecución:
+   - 3 xfailed y 2 failed;
+   - los dos failed correspondieron al mensaje genérico de Chromium para las respuestas HTTP 400 y 409 esperadas por esos escenarios;
+   - no se detectó un defecto nuevo;
+   - se acotó el filtro a esos estados y únicamente a sus respectivos casos.
+2. Ejecución final focalizada:
+   - 5 xfailed;
+   - exit code 0;
+   - duración aproximada: 24,44 segundos;
+   - STAB-001 a STAB-005 reproducidos de forma controlada;
+   - 5 warnings deprecados procedentes de tipos SWIG de PyMuPDF, sin fallo funcional.
+
+Comando ejecutado:
+
+    venv\Scripts\python.exe -m pytest tests\playwright\test_editor_offset_v2_ux_characterization.py -q -rxX
+
+Conclusión:
+
+- la Fase 19-A queda completada para los cinco defectos prioritarios anteriores al rediseño;
+- la suite amplia permanece sin ejecutar y no se considera validada en esta fase;
+- el próximo cambio productivo debe limitarse a STAB-001, ejecutar este archivo focalizado y conservar los otros cuatro defectos como xfailed conocidos.
 
 Gate de salida:
 
@@ -781,16 +940,16 @@ Estados permitidos:
 | UX-005 | Reducir longitud y densidad del inspector | Exploraciones 1-4 | 19-D | Propuesto | Acceso a todos los controles existentes |
 | UX-006 | Dar acceso primario a Repeat y composición | Inventario del template | 19-D | Propuesto | Repeat calculate/apply y undo |
 | UX-007 | Separar validación de salida productiva | Documento 18 y output_panel.js | 19-D | Aprobado | Revisión analizada visible y estado pendiente |
-| UX-008 | Mejorar responsive en 1050 y 820 px | Capturas de exploración | 19-F | Propuesto | Playwright por viewport y tareas |
+| UX-008 | Mejorar responsive en 1050 y 820 px | Capturas de exploración y tanda 19-A.1 | 19-F | En caracterización | Playwright por viewport y tareas |
 | UX-009 | Mantener barra de estado útil | Interfaz actual | 19-C/19-F | Propuesto | Zoom, cara, slots y feedback visibles |
 | SHEET-001 | Mostrar medida del pliego junto al canvas | Falta observada por el usuario | 19-D | Aprobado | Render correcto del valor persistido |
 | SHEET-002 | Permitir configurar medida y márgenes | Default fijo confirmado por código | 19-E | Propuesto | Contrato, comando, autosave y recarga |
 | SHEET-003 | No escalar o mover slots silenciosamente | Política SAFE | 19-E | Propuesto | Test de impacto con slots existentes |
-| STAB-001 | Nudge sin pageerror | Exploración 2 | 19-A/19-B | Pendiente | Playwright con captura de pageerror |
-| STAB-002 | Delete respeta source_slot_id | Exploración 1 | 19-A/19-B | Pendiente | Test de referencia dependiente |
-| STAB-003 | Output-capabilities no queda obsoleto sin aviso | Exploración 4 | 19-A/19-B | Pendiente | Cambio de revisión y panel invalidado |
-| STAB-004 | Matriz evita segundo submit accidental | Exploración 3 | 19-A/19-B | Pendiente | Submit repetido controlado |
-| STAB-005 | Conflicto 409 comprensible | Exploración 3 | 19-A/19-B | Pendiente | Dos clientes y recuperación visible |
+| STAB-001 | Nudge sin pageerror | Exploración 2 y tests Playwright 19-A.2 | 19-A/19-B | Caracterizado automáticamente | XFAIL exacto por Illegal invocation |
+| STAB-002 | Delete respeta source_slot_id | Exploración 1 y tests Playwright 19-A.2 | 19-A/19-B | Caracterizado automáticamente | XFAIL exacto por referencia rota y save_error |
+| STAB-003 | Output-capabilities no queda obsoleto sin aviso | Exploración 4 y tests Playwright 19-A.2 | 19-A/19-B | Caracterizado automáticamente | XFAIL exacto por revisión anterior sin aviso |
+| STAB-004 | Matriz evita segundo submit accidental | Exploración 3 y tests Playwright 19-A.2 | 19-A/19-B | Caracterizado automáticamente | XFAIL exacto por doble aplicación |
+| STAB-005 | Conflicto 409 comprensible | Exploración 3 y tests Playwright 19-A.2 | 19-A/19-B | Caracterizado automáticamente | XFAIL exacto por mensaje técnico sin guía |
 | STAB-006 | Feedback temporal se limpia correctamente | Exploración 3 | 19-A/19-B | Pendiente | Clipboard y medición con undo/clear |
 | OUT-001 | Preview V2 productivo | Documento 18 | Futura | Pospuesto | Contrato y comparación renderizada |
 | OUT-002 | PDF final V2 | Documento 18 | Futura | Pospuesto | Fixtures PDF y tolerancias productivas |
@@ -810,9 +969,10 @@ Estados permitidos:
 | DEC-005 | 2026-09-05 | No presentar PDF o CTP como funciones activas | Evita una promesa falsa y errores operativos | Aprobada |
 | DEC-006 | 2026-09-05 | Conservar el documento 18 como snapshot | Mantiene evidencia histórica verificable | Aprobada |
 | DEC-007 | 2026-09-05 | Registrar el rediseño en un documento de fase separado | Permite trazabilidad sin reescribir historia | Aplicada |
-| DEC-008 | Pendiente | Política de eliminación con dependientes | Afecta integridad referencial | Abierta |
-| DEC-009 | Pendiente | Flujo exacto de configuración del pliego | Afecta creación, persistencia y geometría | Abierta |
-| DEC-010 | Pendiente | Modelo responsive de paneles | Afecta acceso y foco | Abierta |
+| DEC-008 | 2026-09-05 | Aprobar el documento 19 y avanzar a caracterización | Congela alcance y permite preparar el baseline antes de código | Aprobada |
+| DEC-009 | Pendiente | Política de eliminación con dependientes | Afecta integridad referencial | Abierta |
+| DEC-010 | Pendiente | Flujo exacto de configuración del pliego | Afecta creación, persistencia y geometría | Abierta |
+| DEC-011 | Pendiente | Modelo responsive de paneles | Afecta acceso y foco | Abierta |
 
 ## 19. Bitácora de cambios de la fase
 
@@ -821,6 +981,9 @@ Estados permitidos:
 | 2026-09-05 | Creación de rama de trabajo | Git, sin archivos de producción | Sin cambios | git status | Rama creada limpia desde main |
 | 2026-09-05 | Propuesta visual incremental | DOCS/OFFSET/V2/assets/19_propuesta_visual_redisenio_incremental_v2.png | Sin cambios | Inspección visual | Referencia conservada |
 | 2026-09-05 | Creación del plan y trazabilidad | DOCS/OFFSET/V2/19_PLAN_Y_TRAZABILIDAD_REDISENO_UX_V2.md | Sin cambios | Revisión de estructura, espacios finales y git diff --check | Sin errores detectados |
+| 2026-09-05 | Aprobación del documento 19 y autorización para avanzar | DOCS/OFFSET/V2/19_PLAN_Y_TRAZABILIDAD_REDISENO_UX_V2.md | Sin cambios | Confirmación explícita del usuario | Fase 19-0 cerrada; Fase 19-A iniciada |
+| 2026-09-05 | Primera tanda interactiva de caracterización | Documento 19 y output/playwright/v2-redesign-phase-19a-20260905/ | Sin cambios de código; job restaurado semánticamente y revisión final 52 | Playwright CLI, HTTP, persistencia y consola | Se reprodujeron nudge, delete, output obsoleto, matriz, conflicto y riesgos responsive |
+| 2026-09-05 | Regresiones automatizadas focalizadas STAB-001 a STAB-005 | tests/playwright/test_editor_offset_v2_ux_characterization.py y documento 19 | Solo tests y trazabilidad; sin código productivo | Pytest Playwright focalizado: 5 xfailed, exit code 0 | Fase 19-A completada para los cinco defectos prioritarios |
 
 Después de cada cambio futuro se debe agregar una fila con:
 
@@ -835,17 +998,17 @@ Después de cada cambio futuro se debe agregar una fila con:
 
 ## 20. Checklist obligatorio antes de comenzar código
 
-- [ ] La propuesta visual fue revisada y aceptada como dirección.
-- [ ] Las diferencias entre maqueta y funcionalidad real fueron identificadas.
+- [x] La propuesta visual fue revisada y aceptada como dirección.
+- [x] Las diferencias entre maqueta y funcionalidad real fueron identificadas.
 - [ ] El inventario de controles e IDs está completo para la fase a modificar.
-- [ ] Existen pruebas de caracterización focalizadas.
-- [ ] Los fallos conocidos se reproducen de manera controlada.
+- [x] Existen pruebas de caracterización focalizadas.
+- [x] Los fallos conocidos se reproducen de manera controlada.
 - [ ] Se decidió la política de delete con dependientes.
 - [ ] Se definió qué se cambia en una única fase.
 - [ ] Se definieron criterios de aceptación y rollback.
 - [ ] Se confirmó que Layout V2 no necesita cambiar para esa fase.
 - [ ] Se confirmó que V1 no será tocado.
-- [ ] Se obtuvo autorización para ejecutar las pruebas necesarias.
+- [x] Se obtuvo autorización para ejecutar las pruebas necesarias.
 - [ ] Se obtuvo aprobación antes de cambiar contrato, persistencia, PDF, CTP o motores.
 
 ## 21. Qué debe actualizarse después de cada fase
@@ -889,4 +1052,4 @@ No actualizar documentación para afirmar funciones que no fueron validadas.
 
 El próximo cambio no debe ser todavía la reorganización del template.
 
-El siguiente paso recomendado es preparar y aprobar la Fase 19-A de caracterización focalizada, comenzando por captura global de pageerror y consola y por los defectos ya reproducidos. Después debe ejecutarse la estabilización mínima de la Fase 19-B. Solo entonces debe comenzar el rediseño visual productivo de las Fases 19-C y 19-D.
+El siguiente paso recomendado es iniciar la Fase 19-B con una corrección aislada de STAB-001 en nudge_controller.js. Después se debe ejecutar el archivo Playwright focalizado y confirmar que STAB-001 pasa mientras STAB-002 a STAB-005 continúan como fallos conocidos. Las demás correcciones deben seguir el mismo patrón, una por vez. Solo después de completar la estabilización mínima debe comenzar el rediseño visual productivo de las Fases 19-C y 19-D.
