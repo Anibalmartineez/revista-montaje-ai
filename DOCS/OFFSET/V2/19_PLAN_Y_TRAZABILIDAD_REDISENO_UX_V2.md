@@ -8,7 +8,7 @@ Rama de trabajo prevista:
 
     codex/editor-offset-v2-ux-foundation
 
-Estado actual del documento: plan y dirección visual aprobados por el usuario el 2026-09-05; Fases 19-A, 19-B, 19-C y 19-D completadas. STAB-001 a STAB-006, los fundamentos visuales y la organización funcional por etapas quedaron validados. El siguiente bloque previsto es la Fase 19-E de configuración funcional del pliego, todavía sujeto a las decisiones de producto documentadas.
+Estado actual del documento: plan y dirección visual aprobados por el usuario el 2026-09-05; Fases 19-A, 19-B, 19-C, 19-D y 19-E completadas. STAB-001 a STAB-006, los fundamentos visuales, la organización funcional por etapas y la configuración SAFE del pliego quedaron validados. El siguiente bloque previsto es la Fase 19-F de responsive y accesibilidad operativa.
 
 Este documento define cómo mejorar la usabilidad y la organización visual del Editor Offset Visual V2 sin reescribir el editor ni adelantar funciones productivas que todavía no existen.
 
@@ -62,9 +62,10 @@ El documento 18 debe conservarse como fotografía histórica previa al rediseño
 
 - las exploraciones originales no ejecutaron suites, pero las Fases 19-A a 19-C incorporaron y ejecutaron regresiones específicas;
 - todos los tests de tests/editor_offset_v2 pasaron: 331 passed y 1 skipped;
-- todos los tests JavaScript V2 pasaron: 108 passed;
-- los dos archivos Playwright V2 pasaron: 17 passed;
+- todos los tests JavaScript V2 pasaron: 115 passed;
+- los dos archivos Playwright V2 pasaron: 19 passed;
 - existe una caracterización específica para los fundamentos visuales en 1487, 1050 y 820 px;
+- existe una caracterización específica para cambiar medida y márgenes, validar su impacto, confirmar advertencias, deshacer, rehacer y recargar;
 - la dirección visual aprobada fue comparada con la implementación HTML/CSS real;
 - no se ejecutó la suite completa de todo el repositorio, fuera de la superficie V2 indicada.
 
@@ -1258,7 +1259,7 @@ Riesgo residual:
 
 ### Fase 19-E: configuración funcional del pliego
 
-Estado: pendiente de decisiones de producto.
+Estado: completada y validada el 2026-09-06.
 
 Alcance:
 
@@ -1277,6 +1278,102 @@ Gate de salida:
 - prueba Playwright de creación y modificación;
 - slots nunca escalados ni movidos silenciosamente;
 - revisión e invalidación de output coherentes.
+
+#### Decisiones de producto aplicadas
+
+1. La configuración ocurre inmediatamente después de crear el job, no dentro del endpoint de creación. El job conserva el fallback 700 × 500 mm y el operador accede mediante Configurar.
+2. Se permite cambiar el pliego cuando ya existen slots. Ningún slot se escala, mueve, rota ni elimina de forma automática.
+3. El impacto previo muestra conteos de slots dentro, fuera del pliego y fuera del área imprimible. La lista individual queda diferida hasta que una prueba de uso demuestre que aporta valor.
+4. No se incorporaron presets sin un catálogo real aprobado. La medida manual es la única fuente nueva de configuración.
+5. No se recuerda el último formato del operador. Solo se persiste la configuración del job actual en Layout V2.
+6. Intercambiar ancho y alto actúa primero como borrador local. Solo cambia el layout cuando el operador aplica la configuración.
+7. Si el nuevo pliego genera advertencias geométricas, la primera activación no modifica nada y convierte el CTA en Confirmar cambio. Solo una segunda confirmación sin alterar el borrador ejecuta el comando.
+
+#### Resultado 19-E.1: panel de pliego y lectura de impacto
+
+Se añadió Configurar junto al resumen del pliego en la toolbar del canvas. El acceso abre la etapa Imponer, enfoca Ancho y muestra un panel específico antes de Repeat con:
+
+- ancho y alto en milímetros, con punto o coma decimal;
+- intercambio local de orientación;
+- márgenes imprimibles izquierdo, derecho, inferior y superior;
+- cálculo inmediato del área útil;
+- conteo de todos los slots del layout, incluidas sus caras, clasificados con el kernel geométrico existente;
+- Restaurar para descartar el borrador y volver a los valores persistidos;
+- mensaje explícito de que los slots no se escalan.
+
+La validación impide:
+
+- ancho o alto vacío, no numérico, infinito, cero o negativo;
+- márgenes vacíos, no numéricos, infinitos o negativos;
+- izquierda + derecha mayor o igual al ancho;
+- inferior + superior mayor o igual al alto.
+
+El formulario reutiliza `GeometryView.classifySlotPlacement()`. No existe una segunda interpretación de bounds, bleed u orientación dentro del panel.
+
+#### Resultado 19-E.2: mutación única, reversible y persistente
+
+La acción `sheet.update` crea `UpdateSheetCommand` y entra una sola vez por `store.executeCommand()`. El comando conserva cualquier propiedad no editada de `layout.sheet` y sustituye únicamente:
+
+- `sheet.size_mm`;
+- `sheet.printable_margins_mm`.
+
+Los arrays `assets`, `works` y `slots` no se reescriben. En particular, los slots mantienen exactos sus IDs, fuentes, posición, trim, bleed, rotación, locks, producción y procedencia.
+
+Después del comando:
+
+- el canvas vuelve a renderizar el pliego y el área imprimible desde el Layout V2 actual;
+- el resumen de la toolbar se actualiza;
+- undo y redo restauran ambas configuraciones de pliego;
+- autosave persiste el cambio y la recarga lo conserva;
+- output-capabilities queda marcado como desactualizado mediante el mecanismo ya estabilizado en STAB-003;
+- un draft pendiente de posición o disposición bloquea la acción para no descartarlo silenciosamente.
+
+No se modificaron:
+
+- endpoint de creación de jobs, esquema o normalizador del Layout V2;
+- fallback 700 × 500 mm;
+- motores Repeat, nesting o hybrid;
+- semántica de slots, bleed, PDF, CTP o salida productiva;
+- Editor V1.
+
+Archivos modificados o agregados:
+
+    templates/editor_offset_visual_v2.html
+    static/css/editor_offset_visual_v2.css
+    static/js/editor_offset_v2/dom_refs.js
+    static/js/editor_offset_v2/bootstrap.js
+    static/js/editor_offset_v2/workflow_navigation.js
+    static/js/editor_offset_v2/commands.js
+    static/js/editor_offset_v2/command_registry.js
+    static/js/editor_offset_v2/sheet_panel.js
+    tests/editor_offset_v2/js/sheet_configuration_v2.test.cjs
+    tests/playwright/test_editor_offset_v2_ux_characterization.py
+    DOCS/OFFSET/V2/19_PLAN_Y_TRAZABILIDAD_REDISENO_UX_V2.md
+
+Validación ejecutada:
+
+- comprobación sintáctica de los seis módulos JavaScript modificados o agregados: correcta;
+- test Node focalizado inicial: 17 passed;
+- suite Node completa V2: 115 passed;
+- suite Python V2: 331 passed y 1 skipped;
+- prueba Playwright 19-E: 1 passed;
+- regresión completa de los dos archivos Playwright V2: 19 passed;
+- `git diff --check`: sin errores, con avisos informativos LF/CRLF;
+- Navegador integrado sobre `ev2_14d0c6f8f60e601aed51f833`: Configurar abrió Imponer, enfocó Ancho, mostró 700 × 500 mm, área útil 700 × 500 mm y clasificó 8 slots dentro; el job se mantuvo Guardado en revisión 52 porque no se aplicó ningún borrador sobre datos reales;
+- comparación visual con `19_propuesta_visual_redisenio_incremental_v2.png`: el acceso Configurar ocupa el lugar previsto y el panel mantiene la jerarquía visual aprobada.
+
+Riesgo residual:
+
+- cambiar el pliego puede dejar slots fuera; la fase informa y exige confirmación, pero no propone todavía una reparación automática;
+- la lista nominal de slots afectados y los presets reales siguen pendientes de evidencia de uso y decisión de producto;
+- la distribución del panel en viewports estrechos y el orden de foco integral pertenecen a 19-F;
+- output-capabilities sigue siendo diagnóstico temporal: no es preflight final, preview, PDF ni CTP.
+
+Resultado:
+
+- el gate de 19-E queda cumplido;
+- DEC-010 queda aplicada sin ampliar el contrato ni el backend;
+- la Fase 19-F puede comenzar como bloque separado de responsive y accesibilidad.
 
 ### Fase 19-F: responsive y accesibilidad operativa
 
@@ -1406,8 +1503,8 @@ Estados permitidos:
 | UX-008 | Mejorar responsive en 1050 y 820 px | Capturas de exploración, tanda 19-A.1 y Resultado 19-C.1 | 19-F | En caracterización | Sin overflow en 19-C; acceso completo por tarea sigue pendiente de 19-F |
 | UX-009 | Mantener barra de estado útil | Interfaz actual y Resultado 19-C.1 | 19-C/19-F | Validado | Zoom, cara, slots, etiquetas y estado visibles en los tres viewports; seguimiento de accesibilidad en 19-F |
 | SHEET-001 | Mostrar medida del pliego junto al canvas | Falta observada por el usuario y Resultado 19-D.2 | 19-D | Validado | `layout.sheet.size_mm` renderizado como dato de solo lectura junto al canvas |
-| SHEET-002 | Permitir configurar medida y márgenes | Default fijo confirmado por código | 19-E | Propuesto | Contrato, comando, autosave y recarga |
-| SHEET-003 | No escalar o mover slots silenciosamente | Política SAFE | 19-E | Propuesto | Test de impacto con slots existentes |
+| SHEET-002 | Permitir configurar medida y márgenes | Default fijo confirmado por código y Resultado 19-E.1/19-E.2 | 19-E | Validado | Formulario, validación, comando, autosave, undo/redo y recarga comprobados |
+| SHEET-003 | No escalar o mover slots silenciosamente | Política SAFE y Resultado 19-E.2 | 19-E | Validado | Igualdad exacta de `slots[]` comprobada en Node y Playwright antes, después, undo, redo y recarga |
 | STAB-001 | Nudge sin pageerror | Exploración 2 y tests Playwright 19-A.2/19-B.1 | 19-A/19-B | Corregido y validado | Playwright en verde; historial, undo/redo, guardado y recarga comprobados |
 | STAB-002 | Delete y Cut respetan source_slot_id | Exploración 1 y tests Playwright 19-A.2/19-B.2 | 19-A/19-B | Corregido y validado | Bloqueo con feedback, borrado colectivo atómico, undo/redo, guardado y recarga comprobados |
 | STAB-003 | Output-capabilities invalida diagnósticos de revisiones anteriores | Exploración 4 y tests Playwright 19-A.2/19-B.3 | 19-A/19-B | Corregido y validado | Aviso de estado obsoleto, revisión comprobada/actual, reconsulta y respuesta tardía comprobados |
@@ -1434,7 +1531,7 @@ Estados permitidos:
 | DEC-007 | 2026-09-05 | Registrar el rediseño en un documento de fase separado | Permite trazabilidad sin reescribir historia | Aplicada |
 | DEC-008 | 2026-09-05 | Aprobar el documento 19 y avanzar a caracterización | Congela alcance y permite preparar el baseline antes de código | Aprobada |
 | DEC-009 | 2026-09-05 | Bloquear Delete y Cut si quedan dependientes fuera de la selección; permitir borrado conjunto atómico y sin cascada silenciosa | Protege la integridad referencial y mantiene control explícito del operador | Aprobada y aplicada |
-| DEC-010 | Pendiente | Flujo exacto de configuración del pliego | Afecta creación, persistencia y geometría | Abierta |
+| DEC-010 | 2026-09-06 | Configurar el pliego después de crear el job; conservar slots exactos; mostrar conteos y exigir segunda confirmación solo ante advertencias; no agregar presets ni preferencia global todavía | Evita ampliar el endpoint o el contrato, conserva control del operador y permite validar formatos reales antes de crear catálogo | Aplicada y validada |
 | DEC-011 | Pendiente | Modelo responsive de paneles | Afecta acceso y foco | Abierta |
 | DEC-012 | 2026-09-05 | Sincronizar el contador temporal de pegado con su comando y limpiar feedback por origen | Mantiene coherencia operativa sin persistir estado efímero ni borrar avisos ajenos | Aplicada |
 | DEC-013 | 2026-09-05 | Aplicar 19-C como una capa CSS reversible, sin mover controles ni modificar HTML o JavaScript | Permite mejorar legibilidad y jerarquía antes de alterar conexiones funcionales | Aplicada y validada |
@@ -1458,6 +1555,7 @@ Estados permitidos:
 | 2026-09-05 | Corrección STAB-006 de feedback temporal | store.js, command_registry.js, interactions.js, objects_panel.js, tests unitarios, test Playwright de caracterización y documento 19 | Clipboard acompaña paste/undo/redo; Limpiar medición retira solo su feedback; no cambia Layout V2 | Node V2: 108 passed; caracterización: 7 passed; dos recorridos Playwright productivos: 2 passed; Navegador integrado sin errores, revisión 52 y job Guardado | Fase 19-B completada; fundamentos visuales 19-C habilitados |
 | 2026-09-05 | Fase 19-C de fundamentos visuales | CSS V2, test Playwright de caracterización y documento 19 | Mejora tipografía, controles, contraste, estados, espaciado y superficies; no cambia DOM, JS ni Layout V2 | Playwright V2: 17 passed; Python V2: 331 passed y 1 skipped; Node V2: 108 passed; node --check y diff correctos; Navegador sin errores | Fase 19-C completada; 19-D habilitada como fase separada |
 | 2026-09-05 | Fase 19-D de jerarquía y organización funcional | template y CSS V2, dom_refs.js, bootstrap.js, workflow_navigation.js, pruebas Node/Playwright y documento 19 | Añade cinco modos temporales, toolbar frecuente y lectura del pliego; conserva IDs, comandos, Layout V2, rutas y salida | Node V2: 111 passed; Python V2: 331 passed y 1 skipped; Playwright V2: 18 passed; 180 IDs únicos; node --check y diff correctos; Navegador real en revisión 52 y estado Guardado | Fase 19-D completada; 19-E queda condicionada a política de cambio de pliego |
+| 2026-09-06 | Fase 19-E de configuración funcional del pliego | template y CSS V2, sheet_panel.js, commands.js, command_registry.js, dom_refs.js, bootstrap.js, workflow_navigation.js, pruebas Node/Playwright y documento 19 | Edita medida y márgenes mediante un comando reversible; informa impacto y conserva todos los slots sin escalado ni movimiento | Node V2: 115 passed; Python V2: 331 passed y 1 skipped; Playwright V2: 19 passed; node --check y diff correctos; Navegador real en revisión 52 y estado Guardado | DEC-010 aplicada; Fase 19-E completada; 19-F habilitada |
 
 Después de cada cambio futuro se debe agregar una fila con:
 
@@ -1515,14 +1613,14 @@ No actualizar documentación para afirmar funciones que no fueron validadas.
 2. Resuelta para 19-D: acciones de documento, medida del pliego y accesos Duplicar, Alinear, Distribuir y Repetir permanecen visibles.
 3. Resuelta provisionalmente para 19-D: el árbol de objetos vive en Validar; 19-F podrá revisar su acceso responsive sin cambiar su comportamiento.
 4. Resuelta en 19-D: Repeat permanece como el panel existente dentro de Imponer.
-5. ¿La configuración del pliego ocurrirá antes de crear el job, después o en ambos lugares?
-6. ¿Qué presets de pliego necesita realmente la imprenta?
+5. Resuelta en 19-E: la configuración ocurre después de crear el job y conserva 700 × 500 mm como fallback.
+6. ¿Qué presets de pliego necesita realmente la imprenta? 19-E no inventó un catálogo ni guardó preferencias globales.
 7. ¿Qué advertencias deben bloquear salida y cuáles solo informar?
 8. Resuelta en 19-D: Salida se muestra como etapa pendiente, sin botones productivos y con explicación explícita.
 9. ¿Qué comportamiento responsive es prioritario para operación real?
 
 ## 23. Próximo paso SAFE
 
-La Fase 19-D terminó con las regresiones V2, el recorrido por etapas y la revisión visual en verde. El siguiente paso recomendado es preparar la decisión de producto de 19-E antes de escribir el comando que configurará el pliego.
+La Fase 19-E terminó con la configuración de pliego, sus contratos de interacción y las regresiones V2 en verde. El siguiente paso recomendado es la Fase 19-F de responsive y accesibilidad operativa.
 
-19-E debe definir primero qué ocurre al cambiar medida o márgenes cuando ya existen slots: bloquear el cambio, conservar posiciones y advertir los problemas, o aplicar una transformación explícita aprobada. Después podrá diseñar el comando, autosave, validación y recarga correspondientes. Todavía no debe escalar ni mover slots silenciosamente, activar PDF/CTP ni cambiar contratos de salida.
+19-F debe medir el flujo completo en 1440, 1050 y 820 px, incluyendo Configurar pliego, y decidir cómo se accede a Assets y al inspector cuando las cuatro columnas no caben. Debe revisar navegación por teclado, orden de foco, nombres accesibles, anuncios aria-live, zoom de navegador y targets táctiles. No debe mezclar esta adaptación con presets, reparación automática de slots, PDF, CTP ni cambios del contrato de salida.

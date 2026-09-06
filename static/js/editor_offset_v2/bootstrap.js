@@ -69,6 +69,7 @@
     let arrangementPanel = null;
     let precisionPanel = null;
     let objectTree = null;
+    let sheetPanel = null;
     const contextProvider = () => ({
       store,
       layout: store.layout,
@@ -99,6 +100,7 @@
       arrangementPanel,
       precisionPanel,
       objectTree,
+      sheetPanel,
     });
     function runAction(actionId, payload) {
       try {
@@ -225,6 +227,14 @@
       modules.AdvancedSelection,
       runAction,
     );
+    sheetPanel = new modules.SheetPanel.Panel(
+      store,
+      refs,
+      modules.GeometryView,
+      modules.CommandRegistry.ACTION_IDS.SHEET_UPDATE,
+      runAction,
+      (actionId) => actionRegistry.isEnabled(actionId, contextProvider()),
+    );
     const workflowNavigation = new modules.WorkflowNavigation.Controller(store, refs, {
       hasJob: true,
       initialStage: refs.workflow.dataset.initialStage,
@@ -285,6 +295,7 @@
       arrangementPanel,
       precisionPanel,
       objectTree,
+      sheetPanel,
       actionRegistry,
       shortcutManager,
       shortcutHelp,

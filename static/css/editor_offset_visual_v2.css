@@ -1728,6 +1728,173 @@ button:disabled {
   }
 }
 
+/* Fase 19-E: configuración reversible del pliego y lectura previa de impacto. */
+#ev2-workspace-configure-sheet {
+  border-color: rgb(88 223 168 / 45%);
+  color: var(--ev2-accent);
+}
+
+.ev2-sheet-panel {
+  order: 1;
+  display: grid;
+  gap: 10px;
+  padding: 14px;
+  border-bottom: 1px solid var(--ev2-line);
+  background: var(--ev2-panel);
+}
+
+#ev2-stage-impose {
+  order: 2;
+}
+
+.ev2-sheet-panel-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.ev2-sheet-panel-heading h2,
+.ev2-sheet-intro,
+.ev2-sheet-status {
+  margin: 0;
+}
+
+.ev2-sheet-panel-heading h2 {
+  margin-top: 4px;
+  font-size: 14px;
+  line-height: 1.35;
+}
+
+.ev2-sheet-safe-badge {
+  flex: 0 0 auto;
+  padding: 4px 6px;
+  border: 1px solid rgb(88 223 168 / 34%);
+  border-radius: 999px;
+  background: rgb(88 223 168 / 8%);
+  color: var(--ev2-accent);
+  font-size: 9px;
+  font-weight: 750;
+  white-space: nowrap;
+}
+
+.ev2-sheet-intro {
+  color: var(--ev2-muted);
+  font-size: 11px;
+  line-height: 1.5;
+}
+
+.ev2-sheet-form {
+  display: grid;
+  gap: 10px;
+}
+
+.ev2-sheet-form fieldset {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  padding: 10px;
+  border: 1px solid var(--ev2-line);
+  border-radius: var(--ev2-radius-md);
+  background: var(--ev2-surface-deep);
+}
+
+.ev2-sheet-form legend,
+.ev2-sheet-form label {
+  color: var(--ev2-muted);
+  font-size: 10px;
+}
+
+.ev2-sheet-form legend {
+  padding: 0 4px;
+  color: var(--ev2-text);
+  font-weight: 700;
+}
+
+.ev2-sheet-form label {
+  display: grid;
+  gap: 4px;
+}
+
+.ev2-sheet-size-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 32px minmax(0, 1fr);
+  align-items: end;
+  gap: 6px;
+}
+
+.ev2-sheet-size-grid button {
+  width: 32px;
+  min-height: var(--ev2-control-height);
+  padding: 0;
+  color: var(--ev2-accent);
+  font-size: 16px;
+}
+
+.ev2-sheet-margin-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.ev2-sheet-form input {
+  width: 100%;
+  min-width: 0;
+  padding: 7px 8px;
+  border: 1px solid var(--ev2-line);
+  border-radius: var(--ev2-radius-sm);
+}
+
+.ev2-sheet-form input[aria-invalid="true"] {
+  border-color: var(--ev2-danger);
+}
+
+.ev2-sheet-preview {
+  display: grid;
+  gap: 3px;
+  padding: 9px 10px;
+  border: 1px solid var(--ev2-line);
+  border-radius: var(--ev2-radius-md);
+  background: rgb(88 223 168 / 5%);
+}
+
+.ev2-sheet-preview strong {
+  color: var(--ev2-text);
+  font-size: 11px;
+}
+
+.ev2-sheet-preview span {
+  color: var(--ev2-muted);
+  font-size: 10px;
+  line-height: 1.45;
+}
+
+.ev2-sheet-status {
+  min-height: 32px;
+}
+
+.ev2-sheet-status[data-state="ready"] {
+  color: var(--ev2-accent);
+}
+
+.ev2-sheet-actions {
+  display: grid;
+  grid-template-columns: minmax(0, 0.7fr) minmax(0, 1.3fr);
+  gap: 8px;
+}
+
+.ev2-sheet-actions button {
+  width: 100%;
+  padding: 7px 9px;
+}
+
+.ev2-sheet-actions .ev2-sheet-apply {
+  border-color: #40886e;
+  background: var(--ev2-accent-dark);
+  color: var(--ev2-accent);
+  font-weight: 750;
+}
+
 /* Fase 19-C: fundamentos visuales compartidos, sin cambios de estructura ni flujo. */
 :root {
   --ev2-bg: #091019;
@@ -2410,10 +2577,17 @@ button[aria-pressed="true"],
 }
 
 .ev2-stage-context,
-#ev2-stage-impose,
 #ev2-stage-validate-selection,
 #ev2-stage-validate-output {
   order: 1;
+}
+
+#ev2-sheet-panel {
+  order: 1;
+}
+
+#ev2-stage-impose {
+  order: 2;
 }
 
 [data-ev2-tool-anchor]:focus-visible,

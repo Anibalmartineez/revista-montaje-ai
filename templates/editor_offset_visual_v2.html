@@ -46,7 +46,7 @@
       <button id="ev2-stage-tab-prepare" class="ev2-workflow-step" type="button" role="tab" data-ev2-stage-target="prepare" aria-controls="ev2-stage-prepare" aria-selected="false" tabindex="-1">
         <span>Preparar</span><small>PDF y origen</small>
       </button>
-      <button id="ev2-stage-tab-impose" class="ev2-workflow-step" type="button" role="tab" data-ev2-stage-target="impose" aria-controls="ev2-stage-impose" aria-selected="false" tabindex="-1" {% if not editor_context.job_id %}disabled{% endif %}>
+      <button id="ev2-stage-tab-impose" class="ev2-workflow-step" type="button" role="tab" data-ev2-stage-target="impose" aria-controls="ev2-sheet-panel ev2-stage-impose" aria-selected="false" tabindex="-1" {% if not editor_context.job_id %}disabled{% endif %}>
         <span>Imponer</span><small>Pliego y repetición</small>
       </button>
       <button id="ev2-stage-tab-adjust" class="ev2-workflow-step" type="button" role="tab" data-ev2-stage-target="adjust" aria-controls="ev2-stage-adjust-position ev2-stage-adjust-operations ev2-stage-adjust-arrangement ev2-stage-adjust-precision ev2-inspector-values ev2-stage-adjust-help" aria-selected="false" tabindex="-1" {% if not editor_context.job_id %}disabled{% endif %}>
@@ -144,6 +144,7 @@
           <strong id="ev2-sheet-size-summary">—</strong>
         </div>
         <div class="ev2-canvas-actions">
+          <button id="ev2-workspace-configure-sheet" type="button" {% if not editor_context.job_id %}disabled{% endif %}>Configurar</button>
           <button id="ev2-workspace-duplicate" type="button" disabled>Duplicar</button>
           <button id="ev2-workspace-open-align" type="button" {% if not editor_context.job_id %}disabled{% endif %}>Alinear</button>
           <button id="ev2-workspace-open-distribute" type="button" {% if not editor_context.job_id %}disabled{% endif %}>Distribuir</button>
@@ -461,6 +462,56 @@
         Flechas: 0,1 mm · Shift: 1 mm · Ctrl/Cmd+Shift: 10 mm. Enter confirma y Escape cancela.
       </div>
       {% set repeat_settings = editor_context.layout.imposition.settings if editor_context.layout else {} %}
+      <section id="ev2-sheet-panel" class="ev2-sheet-panel" data-ev2-stage-panel="impose" role="tabpanel" aria-labelledby="ev2-stage-tab-impose" hidden>
+        <div class="ev2-sheet-panel-heading">
+          <div>
+            <span class="ev2-region-label">Pliego</span>
+            <h2>Configurar medida y márgenes</h2>
+          </div>
+          <span class="ev2-sheet-safe-badge">Sin escalar slots</span>
+        </div>
+        <p class="ev2-sheet-intro">El cambio conserva exactamente el tamaño y la posición de cada slot. Revisa el impacto antes de aplicarlo.</p>
+        <form id="ev2-sheet-form" class="ev2-sheet-form" novalidate>
+          <fieldset>
+            <legend>Medida del pliego</legend>
+            <div class="ev2-sheet-size-grid">
+              <label for="ev2-sheet-width">Ancho (mm)
+                <input id="ev2-sheet-width" type="text" inputmode="decimal" autocomplete="off" {% if not editor_context.job_id %}disabled{% endif %}>
+              </label>
+              <button id="ev2-sheet-swap" type="button" title="Intercambiar ancho y alto" aria-label="Intercambiar ancho y alto" {% if not editor_context.job_id %}disabled{% endif %}>⇄</button>
+              <label for="ev2-sheet-height">Alto (mm)
+                <input id="ev2-sheet-height" type="text" inputmode="decimal" autocomplete="off" {% if not editor_context.job_id %}disabled{% endif %}>
+              </label>
+            </div>
+          </fieldset>
+          <fieldset>
+            <legend>Márgenes imprimibles</legend>
+            <div class="ev2-sheet-margin-grid">
+              <label for="ev2-sheet-margin-left">Izquierdo
+                <input id="ev2-sheet-margin-left" type="text" inputmode="decimal" autocomplete="off" {% if not editor_context.job_id %}disabled{% endif %}>
+              </label>
+              <label for="ev2-sheet-margin-right">Derecho
+                <input id="ev2-sheet-margin-right" type="text" inputmode="decimal" autocomplete="off" {% if not editor_context.job_id %}disabled{% endif %}>
+              </label>
+              <label for="ev2-sheet-margin-bottom">Inferior
+                <input id="ev2-sheet-margin-bottom" type="text" inputmode="decimal" autocomplete="off" {% if not editor_context.job_id %}disabled{% endif %}>
+              </label>
+              <label for="ev2-sheet-margin-top">Superior
+                <input id="ev2-sheet-margin-top" type="text" inputmode="decimal" autocomplete="off" {% if not editor_context.job_id %}disabled{% endif %}>
+              </label>
+            </div>
+          </fieldset>
+          <div class="ev2-sheet-preview" aria-label="Impacto de la configuración">
+            <strong id="ev2-sheet-useful-area">Área útil: —</strong>
+            <span id="ev2-sheet-impact">Sin slots que comprobar.</span>
+          </div>
+          <p id="ev2-sheet-status" class="ev2-inline-status ev2-sheet-status" data-state="idle" role="status" aria-live="polite"></p>
+          <div class="ev2-sheet-actions">
+            <button id="ev2-sheet-reset" type="button" {% if not editor_context.job_id %}disabled{% endif %}>Restaurar</button>
+            <button id="ev2-sheet-apply" class="ev2-sheet-apply" type="submit" {% if not editor_context.job_id %}disabled{% endif %}>Aplicar configuración</button>
+          </div>
+        </form>
+      </section>
       <details id="ev2-stage-impose" class="ev2-repeat-panel" data-ev2-stage-panel="impose" role="tabpanel" aria-labelledby="ev2-stage-tab-impose" tabindex="-1" hidden open>
         <summary>Imposición Repeat</summary>
         <div id="ev2-repeat-works" class="ev2-repeat-works">
@@ -586,6 +637,7 @@
   <script src="{{ url_for('static', filename='js/editor_offset_v2/objects_panel.js') }}" defer></script>
   <script src="{{ url_for('static', filename='js/editor_offset_v2/arrangement_panel.js') }}" defer></script>
   <script src="{{ url_for('static', filename='js/editor_offset_v2/precision_panel.js') }}" defer></script>
+  <script src="{{ url_for('static', filename='js/editor_offset_v2/sheet_panel.js') }}" defer></script>
   <script src="{{ url_for('static', filename='js/editor_offset_v2/workflow_navigation.js') }}" defer></script>
   <script src="{{ url_for('static', filename='js/editor_offset_v2/bootstrap.js') }}" defer></script>
   <script src="{{ url_for('static', filename='js/editor_offset_visual_v2.js') }}" defer></script>

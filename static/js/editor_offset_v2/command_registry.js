@@ -12,6 +12,7 @@
     CANCEL: "editor.cancel",
     UNDO: "history.undo",
     REDO: "history.redo",
+    SHEET_UPDATE: "sheet.update",
     MOVE_ABSOLUTE: "selection.move.absolute",
     MOVE_DELTA: "selection.move.delta",
     NUDGE: "selection.nudge",
@@ -399,6 +400,41 @@
         ),
       });
     }
+
+    registry.register({
+      id: ACTION_IDS.SHEET_UPDATE,
+      label: "Configurar pliego",
+      category: "document",
+      description: "Actualiza medida y márgenes sin mover ni escalar slots.",
+      modifiesLayout: true,
+      enabled: (context) => !["saving", "conflict"].includes(context.store.saveState.status)
+        && !hasIncompatiblePointerSession(context)
+        && !context.interactions?.hasPanSession()
+        && !context.positionInspector?.hasPendingDraft()
+        && !context.arrangementPanel?.hasPendingDraft(),
+      disabledReason: (context) => {
+        if (context.positionInspector?.hasPendingDraft()) {
+          return "Confirma o cancela la posición pendiente antes de configurar el pliego.";
+        }
+        if (context.arrangementPanel?.hasPendingDraft()) {
+          return "Confirma o cancela la operación de disposición pendiente antes de configurar el pliego.";
+        }
+        if (context.store.saveState.status === "conflict") {
+          return "Recarga la versión remota antes de configurar el pliego.";
+        }
+        return "No se puede configurar el pliego durante otra operación.";
+      },
+      execute: (context, payload) => {
+        context.nudgeController?.finish();
+        const command = new context.commands.UpdateSheetCommand(
+          context.store.layout,
+          payload?.sheet,
+        );
+        context.store.executeCommand(command);
+        context.store.setFeedback("Pliego actualizado sin mover ni escalar slots.");
+        return Object.freeze({ changed: true, affectedIds: command.affectedIds });
+      },
+    });
 
     registry.register({
       id: ACTION_IDS.SAVE,

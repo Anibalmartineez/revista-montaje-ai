@@ -1099,3 +1099,180 @@ def test_phase_19_d_workflow_navigation_groups_tools_without_layout_mutation(
             assert not errors["page"], f"Pageerrors inesperados: {errors['page']}"
         finally:
             browser.close()
+
+
+def test_phase_19_e_configures_sheet_with_safe_confirmation_undo_and_persistence(
+    v2_characterization_server,
+    tmp_path,
+):
+    pdf_path = tmp_path / "phase-19-e-sheet-configuration.pdf"
+    _write_test_pdf(pdf_path)
+
+    with sync_playwright() as playwright:
+        browser = playwright.chromium.launch(headless=True)
+        page, errors = _new_page(browser, width=1487, height=1058)
+        try:
+            _open_job_with_repeat(
+                page,
+                v2_characterization_server,
+                pdf_path,
+                quantity=2,
+            )
+            baseline = page.evaluate(
+                """() => {
+                  const store = window.__EDITOR_OFFSET_V2__.store;
+                  return {
+                    slots: JSON.stringify(store.layout.slots),
+                    revision: store.revision,
+                    history: store.undoStack.length,
+                    sheet: JSON.stringify(store.layout.sheet),
+                  };
+                }"""
+            )
+
+            with page.expect_response(
+                lambda response: response.request.method == "GET"
+                and response.url.endswith("/output-capabilities"),
+            ):
+                _open_workflow_stage(page, "validate")
+                page.locator("#ev2-output-check").click()
+            expect(page.locator("#ev2-output-status")).to_contain_text(
+                f"revisión {baseline['revision']}"
+            )
+
+            page.locator("#ev2-workspace-configure-sheet").click()
+            expect(page.locator("#ev2-stage-tab-impose")).to_have_attribute(
+                "aria-selected", "true"
+            )
+            expect(page.locator("#ev2-sheet-panel")).to_be_visible()
+            expect(page.locator("#ev2-sheet-width")).to_be_focused()
+            expect(page.locator("#ev2-sheet-width")).to_have_value("700")
+            expect(page.locator("#ev2-sheet-height")).to_have_value("500")
+            expect(page.locator("#ev2-sheet-impact")).to_contain_text("2 dentro")
+
+            page.locator("#ev2-sheet-swap").click()
+            expect(page.locator("#ev2-sheet-width")).to_have_value("500")
+            expect(page.locator("#ev2-sheet-height")).to_have_value("700")
+            assert page.evaluate(
+                "baseline => JSON.stringify(window.__EDITOR_OFFSET_V2__.store.layout.sheet) === baseline.sheet",
+                baseline,
+            ) is True
+            page.locator("#ev2-sheet-reset").click()
+            expect(page.locator("#ev2-sheet-width")).to_have_value("700")
+
+            page.locator("#ev2-sheet-width").fill("80")
+            page.locator("#ev2-sheet-height").fill("60")
+            page.locator("#ev2-sheet-margin-left").fill("40")
+            page.locator("#ev2-sheet-margin-right").fill("40")
+            page.locator("#ev2-sheet-margin-bottom").fill("5")
+            page.locator("#ev2-sheet-margin-top").fill("5")
+            expect(page.locator("#ev2-sheet-margin-left")).to_have_attribute(
+                "aria-invalid", "true"
+            )
+            expect(page.locator("#ev2-sheet-status")).to_have_attribute(
+                "data-state", "error"
+            )
+            expect(page.locator("#ev2-sheet-apply")).to_be_disabled()
+            assert page.evaluate(
+                "baseline => window.__EDITOR_OFFSET_V2__.store.undoStack.length === baseline.history",
+                baseline,
+            ) is True
+
+            page.locator("#ev2-sheet-margin-left").fill("5")
+            page.locator("#ev2-sheet-margin-right").fill("5")
+            expect(page.locator("#ev2-sheet-apply")).to_be_enabled()
+            expect(page.locator("#ev2-sheet-impact")).to_contain_text("fuera del pliego")
+
+            page.locator("#ev2-sheet-apply").click()
+            expect(page.locator("#ev2-sheet-apply")).to_have_text("Confirmar cambio")
+            expect(page.locator("#ev2-sheet-status")).to_contain_text(
+                "no se moverán ni escalarán"
+            )
+            assert page.evaluate(
+                "baseline => JSON.stringify(window.__EDITOR_OFFSET_V2__.store.layout.sheet) === baseline.sheet",
+                baseline,
+            ) is True
+            assert page.evaluate(
+                "baseline => window.__EDITOR_OFFSET_V2__.store.undoStack.length === baseline.history",
+                baseline,
+            ) is True
+            expect(page.locator("#ev2-output-status")).not_to_contain_text(
+                "Diagnóstico desactualizado"
+            )
+
+            page.locator("#ev2-sheet-apply").click()
+            expect(page.locator("#ev2-sheet-size-summary")).to_have_text("80 × 60 mm")
+            expect(page.locator("#ev2-sheet-useful-area")).to_have_text(
+                "Área útil: 70 × 50 mm"
+            )
+            expect(page.locator(".ev2-svg-sheet")).to_have_attribute("width", "80")
+            expect(page.locator(".ev2-svg-sheet")).to_have_attribute("height", "60")
+            expect(page.locator(".ev2-svg-printable-area")).to_have_attribute(
+                "width", "70"
+            )
+            expect(page.locator(".ev2-svg-printable-area")).to_have_attribute(
+                "height", "50"
+            )
+            expect(page.locator("#ev2-output-status")).to_contain_text(
+                "Diagnóstico desactualizado"
+            )
+            changed = page.evaluate(
+                """baseline => {
+                  const store = window.__EDITOR_OFFSET_V2__.store;
+                  return {
+                    slotsUnchanged: JSON.stringify(store.layout.slots) === baseline.slots,
+                    history: store.undoStack.length,
+                    size: store.layout.sheet.size_mm,
+                    margins: store.layout.sheet.printable_margins_mm,
+                  };
+                }""",
+                baseline,
+            )
+            assert changed == {
+                "slotsUnchanged": True,
+                "history": baseline["history"] + 1,
+                "size": {"width": 80, "height": 60},
+                "margins": {"left": 5, "right": 5, "bottom": 5, "top": 5},
+            }
+            page.wait_for_function(
+                "() => window.__EDITOR_OFFSET_V2__.store.saveState.status === 'clean'",
+                timeout=10_000,
+            )
+            assert page.evaluate(
+                "baseline => window.__EDITOR_OFFSET_V2__.store.revision > baseline.revision",
+                baseline,
+            ) is True
+
+            page.locator("#ev2-undo").click()
+            expect(page.locator("#ev2-sheet-size-summary")).to_have_text("700 × 500 mm")
+            expect(page.locator("#ev2-sheet-width")).to_have_value("700")
+            assert page.evaluate(
+                "baseline => JSON.stringify(window.__EDITOR_OFFSET_V2__.store.layout.slots) === baseline.slots",
+                baseline,
+            ) is True
+            page.wait_for_function(
+                "() => window.__EDITOR_OFFSET_V2__.store.saveState.status === 'clean'",
+                timeout=10_000,
+            )
+
+            page.locator("#ev2-redo").click()
+            expect(page.locator("#ev2-sheet-size-summary")).to_have_text("80 × 60 mm")
+            page.wait_for_function(
+                "() => window.__EDITOR_OFFSET_V2__.store.saveState.status === 'clean'",
+                timeout=10_000,
+            )
+            page.reload(wait_until="domcontentloaded")
+            expect(page.locator("#ev2-sheet-size-summary")).to_have_text("80 × 60 mm")
+            assert page.evaluate(
+                "baseline => JSON.stringify(window.__EDITOR_OFFSET_V2__.store.layout.slots) === baseline.slots",
+                baseline,
+            ) is True
+
+            page.locator("#ev2-workspace-configure-sheet").click()
+            expect(page.locator("#ev2-sheet-width")).to_have_value("80")
+            expect(page.locator("#ev2-sheet-margin-left")).to_have_value("5")
+            page.screenshot(path=str(tmp_path / "phase-19-e-sheet.png"), full_page=False)
+            _assert_no_console_errors(errors)
+            assert not errors["page"], f"Pageerrors inesperados: {errors['page']}"
+        finally:
+            browser.close()

@@ -101,6 +101,9 @@
           this.runAction(this.duplicateActionId);
         }
       });
+      this.listen(this.refs.workspaceConfigureSheet, "click", () => {
+        this.selectStage("impose", { focusSelector: "#ev2-sheet-width" });
+      });
       this.listen(this.refs.workspaceOpenAlign, "click", () => {
         this.selectStage("adjust", { focusSelector: '[data-ev2-tool-anchor="align"]' });
       });

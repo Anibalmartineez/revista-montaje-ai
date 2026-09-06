@@ -29,6 +29,77 @@
   const CARDINAL_ROTATIONS = Object.freeze([0, 90, 180, 270]);
   const USER_LOCK_SURFACES = Object.freeze(["geometry", "content", "delete"]);
 
+  function normalizeSheetDefinition(sheet) {
+    const width = Number(sheet?.size_mm?.width);
+    const height = Number(sheet?.size_mm?.height);
+    const left = Number(sheet?.printable_margins_mm?.left);
+    const right = Number(sheet?.printable_margins_mm?.right);
+    const bottom = Number(sheet?.printable_margins_mm?.bottom);
+    const top = Number(sheet?.printable_margins_mm?.top);
+    if (!Number.isFinite(width) || width <= 0
+        || !Number.isFinite(height) || height <= 0) {
+      throw new RangeError("El ancho y el alto del pliego deben ser mayores que cero.");
+    }
+    if (![left, right, bottom, top].every((value) => Number.isFinite(value) && value >= 0)) {
+      throw new RangeError("Los márgenes imprimibles deben ser números no negativos.");
+    }
+    if (left + right >= width) {
+      throw new RangeError("Los márgenes izquierdo y derecho deben dejar ancho imprimible.");
+    }
+    if (bottom + top >= height) {
+      throw new RangeError("Los márgenes inferior y superior deben dejar alto imprimible.");
+    }
+    return Object.freeze({
+      size_mm: Object.freeze({ width, height }),
+      printable_margins_mm: Object.freeze({ left, right, bottom, top }),
+    });
+  }
+
+  function sameSheetDefinition(left, right) {
+    const a = normalizeSheetDefinition(left);
+    const b = normalizeSheetDefinition(right);
+    return a.size_mm.width === b.size_mm.width
+      && a.size_mm.height === b.size_mm.height
+      && a.printable_margins_mm.left === b.printable_margins_mm.left
+      && a.printable_margins_mm.right === b.printable_margins_mm.right
+      && a.printable_margins_mm.bottom === b.printable_margins_mm.bottom
+      && a.printable_margins_mm.top === b.printable_margins_mm.top;
+  }
+
+  class UpdateSheetCommand {
+    constructor(layout, nextSheet) {
+      if (!layout?.sheet) throw new Error("UpdateSheetCommand requiere un pliego existente.");
+      const normalized = normalizeSheetDefinition(nextSheet);
+      if (sameSheetDefinition(layout.sheet, normalized)) {
+        throw new Error("La configuración del pliego no contiene cambios.");
+      }
+      this.description = "Configurar pliego";
+      this.beforeSheet = clone(layout.sheet);
+      this.afterSheet = {
+        ...clone(layout.sheet),
+        size_mm: clone(normalized.size_mm),
+        printable_margins_mm: clone(normalized.printable_margins_mm),
+      };
+      this.affectedIds = Object.freeze([]);
+    }
+
+    apply(layout, sheet) {
+      layout.sheet = clone(sheet);
+    }
+
+    execute(layout) {
+      this.apply(layout, this.afterSheet);
+    }
+
+    undo(layout) {
+      this.apply(layout, this.beforeSheet);
+    }
+
+    redo(layout) {
+      this.execute(layout);
+    }
+  }
+
   function normalizeCardinalRotation(value) {
     if (!Number.isFinite(value) || value % 90 !== 0) {
       throw new RangeError("Rotation must be a cardinal multiple of 90 degrees");
@@ -780,6 +851,7 @@
   }
 
   return Object.freeze({
+    UpdateSheetCommand,
     CreateSlotCommand,
     MoveSlotsCommand,
     RotateSlotsCommand,
@@ -801,6 +873,8 @@
     unselectedDeleteDependents,
     deleteDependencyMessage,
     uniqueSlotId,
+    normalizeSheetDefinition,
+    sameSheetDefinition,
     USER_LOCK_SURFACES,
   });
 });
