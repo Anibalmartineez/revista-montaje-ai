@@ -310,6 +310,42 @@ test("paste is same-job only, validates references and accumulates offset from c
   );
 });
 
+test("paste action synchronizes its temporary counter through undo and redo", () => {
+  const store = new EditorStore(layoutWithSlots(1));
+  const sourceId = store.layout.slots[0].id;
+  store.setSelection([sourceId], "replace");
+  const actionRegistry = registry();
+  const ctx = context(store);
+
+  actionRegistry.execute(RegistryModule.ACTION_IDS.COPY, ctx);
+  const clipboardVersion = store.clipboardVersion;
+  actionRegistry.execute(RegistryModule.ACTION_IDS.PASTE, ctx);
+  const firstPasteId = [...store.selection][0];
+  actionRegistry.execute(RegistryModule.ACTION_IDS.PASTE, ctx);
+  const secondPasteId = [...store.selection][0];
+  assert.equal(store.clipboard.pasteCount, 2);
+
+  actionRegistry.execute(RegistryModule.ACTION_IDS.UNDO, ctx);
+  assert.equal(store.layout.slots.some((slot) => slot.id === secondPasteId), false);
+  assert.equal(store.clipboard.pasteCount, 1);
+  actionRegistry.execute(RegistryModule.ACTION_IDS.UNDO, ctx);
+  assert.equal(store.layout.slots.some((slot) => slot.id === firstPasteId), false);
+  assert.equal(store.clipboard.pasteCount, 0);
+  actionRegistry.execute(RegistryModule.ACTION_IDS.REDO, ctx);
+  assert.equal(store.layout.slots.some((slot) => slot.id === firstPasteId), true);
+  assert.equal(store.clipboard.pasteCount, 1);
+
+  actionRegistry.execute(RegistryModule.ACTION_IDS.COPY, ctx);
+  assert.ok(store.clipboardVersion > clipboardVersion);
+  assert.equal(store.clipboard.pasteCount, 0);
+  actionRegistry.execute(RegistryModule.ACTION_IDS.UNDO, ctx);
+  assert.equal(
+    store.clipboard.pasteCount,
+    0,
+    "undo from an older paste must not alter a newer clipboard capture",
+  );
+});
+
 test("cut rejects mixed delete locks without replacing clipboard and successful undo keeps clipboard", () => {
   const store = new EditorStore(layoutWithSlots(2));
   const ids = store.layout.slots.map((slot) => slot.id);

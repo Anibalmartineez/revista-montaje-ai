@@ -610,3 +610,192 @@ def test_stab_005_revision_conflict_explains_recovery_in_operator_language(
                 second_page.close()
             context.close()
             browser.close()
+
+
+def test_stab_006_clipboard_counter_tracks_paste_undo_and_redo(
+    v2_characterization_server,
+    tmp_path,
+):
+    pdf_path = tmp_path / "stab-006-clipboard-history.pdf"
+    _write_test_pdf(pdf_path)
+
+    with sync_playwright() as playwright:
+        browser = playwright.chromium.launch(headless=True)
+        page, errors = _new_page(browser)
+        try:
+            _open_job_with_repeat(
+                page,
+                v2_characterization_server,
+                pdf_path,
+                quantity=1,
+            )
+            source_id = page.evaluate(
+                "() => window.__EDITOR_OFFSET_V2__.store.layout.slots[0].id"
+            )
+            source_position = page.evaluate(
+                "id => structuredClone(window.__EDITOR_OFFSET_V2__.store.layout.slots.find(slot => slot.id === id).geometry.position_mm)",
+                source_id,
+            )
+            _select_slot(page, source_id)
+
+            page.locator("#ev2-object-copy").click()
+            expect(page.locator("#ev2-object-clipboard")).to_contain_text(
+                "listo para pegar"
+            )
+            page.locator("#ev2-object-paste").click()
+            first_paste = page.evaluate(
+                """() => {
+                  const store = window.__EDITOR_OFFSET_V2__.store;
+                  const id = [...store.selection][0];
+                  const slot = store.layout.slots.find(item => item.id === id);
+                  return {id, position: structuredClone(slot.geometry.position_mm)};
+                }"""
+            )
+            assert first_paste["position"]["x_mm"] == pytest.approx(
+                source_position["x_mm"] + 5
+            )
+            assert first_paste["position"]["y_mm"] == pytest.approx(
+                source_position["y_mm"] - 5
+            )
+            expect(page.locator("#ev2-object-clipboard")).to_contain_text(
+                "1 pegado"
+            )
+
+            page.locator("#ev2-undo").click()
+            expect(page.locator(".ev2-svg-slot")).to_have_count(1)
+            expect(page.locator("#ev2-object-clipboard")).to_contain_text(
+                "listo para pegar"
+            )
+            assert page.evaluate(
+                "() => window.__EDITOR_OFFSET_V2__.store.clipboard.pasteCount"
+            ) == 0
+
+            page.locator("#ev2-redo").click()
+            expect(page.locator(".ev2-svg-slot")).to_have_count(2)
+            expect(page.locator("#ev2-object-clipboard")).to_contain_text(
+                "1 pegado"
+            )
+            assert page.evaluate(
+                "() => window.__EDITOR_OFFSET_V2__.store.clipboard.pasteCount"
+            ) == 1
+
+            page.locator("#ev2-undo").click()
+            page.locator("#ev2-object-paste").click()
+            replacement_paste = page.evaluate(
+                """() => {
+                  const store = window.__EDITOR_OFFSET_V2__.store;
+                  const id = [...store.selection][0];
+                  const slot = store.layout.slots.find(item => item.id === id);
+                  return {id, position: structuredClone(slot.geometry.position_mm)};
+                }"""
+            )
+            assert replacement_paste["id"] != first_paste["id"]
+            assert replacement_paste["position"] == first_paste["position"]
+            assert page.evaluate(
+                "() => window.__EDITOR_OFFSET_V2__.store.clipboard.pasteCount"
+            ) == 1
+            assert page.evaluate(
+                "() => window.__EDITOR_OFFSET_V2__.store.redoStack.length"
+            ) == 0
+
+            _assert_no_console_errors(errors)
+            assert not errors["page"], f"Pageerrors inesperados: {errors['page']}"
+        finally:
+            browser.close()
+
+
+def test_stab_006_measurement_clear_removes_only_measurement_feedback(
+    v2_characterization_server,
+    tmp_path,
+):
+    pdf_path = tmp_path / "stab-006-measurement-feedback.pdf"
+    _write_test_pdf(pdf_path)
+
+    with sync_playwright() as playwright:
+        browser = playwright.chromium.launch(headless=True)
+        page, errors = _new_page(browser, width=1680, height=1050)
+        try:
+            _open_job_with_repeat(
+                page,
+                v2_characterization_server,
+                pdf_path,
+                quantity=1,
+            )
+
+            def domain_to_client(point: dict[str, float]) -> dict[str, float]:
+                return page.evaluate(
+                    """point => {
+                      const app = window.__EDITOR_OFFSET_V2__;
+                      const svg = app.renderer.refs.canvas;
+                      const svgPoint = svg.createSVGPoint();
+                      svgPoint.x = point.x;
+                      svgPoint.y = app.store.layout.sheet.size_mm.height - point.y;
+                      const client = svgPoint.matrixTransform(svg.getScreenCTM());
+                      return {x: client.x, y: client.y};
+                    }""",
+                    point,
+                )
+
+            baseline = page.evaluate(
+                """() => {
+                  const store = window.__EDITOR_OFFSET_V2__.store;
+                  return {
+                    revision: store.revision,
+                    changeVersion: store.changeVersion,
+                    undo: store.undoStack.length,
+                    redo: store.redoStack.length,
+                    dirty: store.hasUnsavedChanges(),
+                  };
+                }"""
+            )
+            page.locator("#ev2-precision-snap-enabled").uncheck()
+            page.locator("#ev2-precision-measure-toggle").click()
+            start = domain_to_client({"x": 30, "y": 30})
+            end = domain_to_client({"x": 33, "y": 34})
+            page.mouse.click(start["x"], start["y"])
+            page.mouse.move(end["x"], end["y"], steps=3)
+            page.mouse.click(end["x"], end["y"])
+
+            expect(page.locator("#ev2-precision-measurement-result")).to_contain_text(
+                "Distancia 5 mm"
+            )
+            expect(page.locator("#ev2-status-message")).to_contain_text("Medición:")
+            page.locator("#ev2-precision-measure-clear").click()
+            expect(page.locator("#ev2-precision-measurement-result")).to_contain_text(
+                "Haz click para fijar el primer punto"
+            )
+            expect(page.locator("#ev2-status-message")).to_have_text("")
+            assert page.evaluate(
+                "() => window.__EDITOR_OFFSET_V2__.store.feedback"
+            ) is None
+            assert page.evaluate(
+                "() => window.__EDITOR_OFFSET_V2__.store.precisionTools.lastMeasurement"
+            ) is None
+            assert page.evaluate(
+                """baseline => {
+                  const store = window.__EDITOR_OFFSET_V2__.store;
+                  return store.revision === baseline.revision
+                    && store.changeVersion === baseline.changeVersion
+                    && store.undoStack.length === baseline.undo
+                    && store.redoStack.length === baseline.redo
+                    && store.hasUnsavedChanges() === baseline.dirty;
+                }""",
+                baseline,
+            ) is True
+
+            page.evaluate(
+                """() => {
+                  const store = window.__EDITOR_OFFSET_V2__.store;
+                  store.startMeasurement({x: 10, y: 10});
+                  store.setFeedback('Aviso posterior no relacionado.');
+                }"""
+            )
+            page.locator("#ev2-precision-measure-clear").click()
+            expect(page.locator("#ev2-status-message")).to_have_text(
+                "Aviso posterior no relacionado."
+            )
+
+            _assert_no_console_errors(errors)
+            assert not errors["page"], f"Pageerrors inesperados: {errors['page']}"
+        finally:
+            browser.close()

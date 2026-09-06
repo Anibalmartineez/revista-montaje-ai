@@ -182,7 +182,7 @@
         const snapped = this.snappedMeasurementPoint(point);
         this.store.startMeasurement(snapped.point);
         this.store.setSnapPreview({ guides: snapped.guides, mode: "measurement" });
-        this.store.setFeedback("Primer punto de medición fijado.");
+        this.store.setFeedback("Primer punto de medición fijado.", "measurement");
         return;
       }
       const snapped = this.snappedMeasurementPoint(point);
@@ -192,7 +192,10 @@
       );
       this.store.finishMeasurement(result);
       this.measurementTargets = null;
-      this.store.setFeedback(`Medición: ΔX ${result.deltaX.toFixed(3)} · ΔY ${result.deltaY.toFixed(3)} · ${result.distance.toFixed(3)} mm.`);
+      this.store.setFeedback(
+        `Medición: ΔX ${result.deltaX.toFixed(3)} · ΔY ${result.deltaY.toFixed(3)} · ${result.distance.toFixed(3)} mm.`,
+        "measurement",
+      );
     }
 
     onPointerDown(event) {

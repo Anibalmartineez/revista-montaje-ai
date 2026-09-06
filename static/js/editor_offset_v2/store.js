@@ -60,6 +60,7 @@
       this.previewPositions = {};
       this.previewSlots = [];
       this.clipboard = null;
+      this.clipboardVersion = 0;
       this.arrangement = {
         geometryReference: "trim",
         target: "selection",
@@ -118,6 +119,7 @@
         error: null,
       };
       this.feedback = null;
+      this.feedbackSource = null;
       this.undoStack = [];
       this.redoStack = [];
       this.changeVersion = 0;
@@ -186,6 +188,7 @@
         assetPanel: { ...this.assetPanel },
         repeatPanel: clone(this.repeatPanel),
         feedback: this.feedback,
+        feedbackSource: this.feedbackSource,
         canUndo: this.undoStack.length > 0,
         canRedo: this.redoStack.length > 0,
         hasUnsavedChanges: this.hasUnsavedChanges(),
@@ -251,6 +254,7 @@
       this.changeVersion += 1;
       this.clearSelectionCycle(false);
       this.feedback = null;
+      this.feedbackSource = null;
       if (this.saveState.status !== "saving" && this.saveState.status !== "conflict") {
         this.saveState = { ...this.saveState, status: "dirty", error: null };
       }
@@ -706,13 +710,24 @@
       this.emit("repeat_state");
     }
 
-    setFeedback(message) {
+    setFeedback(message, source) {
       this.feedback = message || null;
+      this.feedbackSource = this.feedback && source ? String(source) : null;
       this.emit("feedback");
+    }
+
+    clearFeedback(source) {
+      if (source && this.feedbackSource !== source) return false;
+      if (!this.feedback && !this.feedbackSource) return false;
+      this.feedback = null;
+      this.feedbackSource = null;
+      this.emit("feedback");
+      return true;
     }
 
     setClipboard(payload) {
       this.clipboard = payload ? deepFreeze(clone(payload)) : null;
+      this.clipboardVersion += 1;
       this.emit("clipboard");
     }
 

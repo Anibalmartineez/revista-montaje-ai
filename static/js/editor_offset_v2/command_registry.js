@@ -236,6 +236,27 @@
     return { direction, step, ...deltas[direction] };
   }
 
+  function attachClipboardHistory(command, store, afterCount) {
+    Object.defineProperty(command, "clipboardHistory", {
+      value: Object.freeze({
+        clipboardVersion: store.clipboardVersion,
+        beforeCount: afterCount - 1,
+        afterCount,
+      }),
+      configurable: false,
+      enumerable: false,
+      writable: false,
+    });
+  }
+
+  function syncClipboardHistory(store, command, phase) {
+    const history = command?.clipboardHistory;
+    if (!history || history.clipboardVersion !== store.clipboardVersion) return false;
+    return store.setClipboardPasteCount(
+      phase === "undo" ? history.beforeCount : history.afterCount,
+    );
+  }
+
   function registerEditorActions(registry) {
     function hiddenIds(context) {
       return context.store.advancedSelection.hiddenSlotIds;
@@ -418,7 +439,10 @@
       execute: (context) => {
         context.positionInspector?.cancelPending(false);
         context.nudgeController?.finish();
-        return context.store.undo();
+        const command = context.store.undoStack.at(-1);
+        const changed = context.store.undo();
+        if (changed) syncClipboardHistory(context.store, command, "undo");
+        return changed;
       },
     });
 
@@ -435,7 +459,10 @@
       execute: (context) => {
         context.positionInspector?.cancelPending(false);
         context.nudgeController?.finish();
-        return context.store.redo();
+        const command = context.store.redoStack.at(-1);
+        const changed = context.store.redo();
+        if (changed) syncClipboardHistory(context.store, command, "redo");
+        return changed;
       },
     });
 
@@ -701,6 +728,7 @@
           context.store,
           context.commands,
         );
+        attachClipboardHistory(prepared.command, context.store, prepared.pasteCount);
         context.store.executeCommand(prepared.command);
         context.store.setClipboardPasteCount(prepared.pasteCount);
         context.store.setFeedback(
@@ -1337,7 +1365,11 @@
         context.store.precisionTools.measurementDraft
         || context.store.precisionTools.lastMeasurement,
       ),
-      execute: (context) => context.store.clearMeasurement(),
+      execute: (context) => {
+        const changed = context.store.clearMeasurement();
+        context.store.clearFeedback("measurement");
+        return changed;
+      },
     });
 
     registry.register({

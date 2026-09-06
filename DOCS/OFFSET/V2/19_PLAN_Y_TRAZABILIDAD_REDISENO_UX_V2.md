@@ -8,7 +8,7 @@ Rama de trabajo prevista:
 
     codex/editor-offset-v2-ux-foundation
 
-Estado actual del documento: plan y dirección visual aprobados por el usuario el 2026-09-05; Fase 19-A completada y Fase 19-B en curso con STAB-001, STAB-002 y STAB-003 corregidos y validados.
+Estado actual del documento: plan y dirección visual aprobados por el usuario el 2026-09-05; Fases 19-A y 19-B completadas, con STAB-001 a STAB-006 corregidos y validados. El siguiente bloque es la Fase 19-C de fundamentos visuales.
 
 Este documento define cómo mejorar la usabilidad y la organización visual del Editor Offset Visual V2 sin reescribir el editor ni adelantar funciones productivas que todavía no existen.
 
@@ -718,7 +718,7 @@ Gate de salida:
 
 ### Fase 19-B: estabilización mínima
 
-Estado: en curso. STAB-001 a STAB-005 corregidos y validados el 2026-09-05; STAB-006 permanece pendiente.
+Estado: completada el 2026-09-05. STAB-001 a STAB-006 fueron corregidos y validados de forma incremental antes de iniciar el rediseño.
 
 Orden recomendado:
 
@@ -996,7 +996,69 @@ Resultado:
 - el operador conoce la causa del conflicto y la consecuencia de recargar antes de descartar su trabajo local;
 - la versión remota continúa protegida y no existe sobrescritura ni merge silencioso;
 - no se detectaron regresiones nuevas en el alcance focalizado;
-- STAB-006 es el único gate pendiente antes de iniciar los fundamentos visuales de 19-C.
+- al cerrar STAB-005, STAB-006 quedó como único gate pendiente antes de iniciar los fundamentos visuales de 19-C.
+
+#### Resultado 19-B.6: STAB-006 coherencia del feedback temporal
+
+Fecha: 2026-09-05.
+
+Problemas confirmados antes del cambio:
+
+- después de pegar y deshacer, el slot desaparecía correctamente, pero el contador del clipboard seguía indicando un pegado;
+- ese contador también determinaba el offset del siguiente pegado, por lo que deshacer no restauraba por completo el estado operativo de la secuencia;
+- al terminar una medición, Limpiar retiraba la línea y el resultado del panel, pero el mensaje global Medición permanecía visible;
+- una limpieza indiscriminada del mensaje global podía borrar un aviso posterior no relacionado;
+- dos regresiones Playwright nuevas reprodujeron ambos síntomas como fallos reales antes de modificar código productivo.
+
+Criterio aplicado:
+
+- mantener clipboard, su contador y la medición fuera del Layout V2;
+- asociar cada transición del contador únicamente con el comando de pegado que la originó;
+- sincronizar el contador al deshacer o rehacer ese comando;
+- impedir que un comando de un clipboard anterior modifique una captura posterior;
+- identificar el origen temporal del feedback de medición y limpiar solo el mensaje que todavía le pertenece;
+- no alterar undo/redo de otras acciones ni convertir estados temporales en cambios persistentes.
+
+Cambio aplicado:
+
+- store.js incorpora una versión temporal del clipboard que cambia al copiar o reemplazar su contenido, sin persistirse;
+- command_registry.js adjunta al comando de pegado su transición temporal y la aplica en undo/redo solo si el clipboard continúa siendo el mismo;
+- interactions.js marca los mensajes de medición con su origen temporal;
+- la acción Limpiar medición retira ese feedback únicamente cuando sigue perteneciendo a la medición;
+- objects_panel.js muestra listo para pegar cuando el clipboard existe y su contador está en cero, en lugar de informar cero pegados;
+- no se modificaron el Layout V2, commands.js, autosave, revisión optimista, endpoints, motores, PDF ni CTP.
+
+Archivos modificados:
+
+    static/js/editor_offset_v2/store.js
+    static/js/editor_offset_v2/command_registry.js
+    static/js/editor_offset_v2/interactions.js
+    static/js/editor_offset_v2/objects_panel.js
+    tests/editor_offset_v2/js/object_operations_v2.test.cjs
+    tests/editor_offset_v2/js/rulers_guides_snap_measurement_v2.test.cjs
+    tests/playwright/test_editor_offset_v2_ux_characterization.py
+
+Validación:
+
+- las dos regresiones STAB-006 fallaron antes del cambio con los síntomas documentados y pasaron después;
+- node --check de los cuatro módulos JavaScript modificados: correcto;
+- tests unitarios focalizados de objetos y precisión: 29 passed;
+- todos los tests JavaScript V2: 108 passed;
+- archivo Playwright de caracterización: 7 passed;
+- recorridos Playwright productivos de operaciones/clipboard y reglas/guías/snap/medición: 2 passed;
+- Navegador integrado: indicador listo para pegar visible, Limpiar dejó vacío el mensaje global, revisión 52 y estado Guardado sin cambios;
+- recarga final del job real: clipboard vacío, revisión 52, estado Guardado y consola sin errores;
+- warnings observados: tipos SWIG de PyMuPDF deprecados, sin fallo funcional;
+- la suite Python completa no fue ejecutada.
+
+Resultado:
+
+- STAB-006 queda corregido y protegido por pruebas unitarias, caracterización y recorridos de navegador real;
+- undo/redo representa de forma coherente tanto los slots pegados como el paso temporal usado para el próximo offset;
+- copiar nuevamente aísla el clipboard nuevo de comandos de pegado anteriores;
+- Limpiar medición neutraliza su resultado local y global sin borrar avisos posteriores ajenos;
+- la Fase 19-B queda cerrada sin modificar contratos ni salida productiva;
+- el siguiente bloque autorizado por el plan es 19-C, fundamentos visuales, todavía sin reorganizar controles ni cambiar IDs.
 
 ### Fase 19-C: fundamentos visuales
 
@@ -1212,7 +1274,7 @@ Estados permitidos:
 | STAB-003 | Output-capabilities invalida diagnósticos de revisiones anteriores | Exploración 4 y tests Playwright 19-A.2/19-B.3 | 19-A/19-B | Corregido y validado | Aviso de estado obsoleto, revisión comprobada/actual, reconsulta y respuesta tardía comprobados |
 | STAB-004 | Matriz evita segundo submit accidental | Exploración 3 y tests Playwright 19-A.2/19-B.4 | 19-A/19-B | Corregido y validado | Guardia por selección y parámetros; una operación, undo/redo, repetición deliberada y persistencia comprobados |
 | STAB-005 | Conflicto 409 comprensible | Exploración 3 y tests Playwright 19-A.2/19-B.5 | 19-A/19-B | Corregido y validado | Mensaje operativo completo; layout local y remoto, consecuencia de recarga y recuperación comprobados |
-| STAB-006 | Feedback temporal se limpia correctamente | Exploración 3 | 19-A/19-B | Pendiente | Clipboard y medición con undo/clear |
+| STAB-006 | Feedback temporal se limpia correctamente | Exploración 3 y tests Playwright 19-B.6 | 19-A/19-B | Corregido y validado | Contador de clipboard con undo/redo, aislamiento de nuevas copias y limpieza selectiva de medición comprobados |
 | OUT-001 | Preview V2 productivo | Documento 18 | Futura | Pospuesto | Contrato y comparación renderizada |
 | OUT-002 | PDF final V2 | Documento 18 | Futura | Pospuesto | Fixtures PDF y tolerancias productivas |
 | OUT-003 | Preflight productivo unificado | Documento 18 | Futura | Pospuesto | Gate de contrato, PDF, geometría y salida |
@@ -1235,6 +1297,7 @@ Estados permitidos:
 | DEC-009 | 2026-09-05 | Bloquear Delete y Cut si quedan dependientes fuera de la selección; permitir borrado conjunto atómico y sin cascada silenciosa | Protege la integridad referencial y mantiene control explícito del operador | Aprobada y aplicada |
 | DEC-010 | Pendiente | Flujo exacto de configuración del pliego | Afecta creación, persistencia y geometría | Abierta |
 | DEC-011 | Pendiente | Modelo responsive de paneles | Afecta acceso y foco | Abierta |
+| DEC-012 | 2026-09-05 | Sincronizar el contador temporal de pegado con su comando y limpiar feedback por origen | Mantiene coherencia operativa sin persistir estado efímero ni borrar avisos ajenos | Aplicada |
 
 ## 19. Bitácora de cambios de la fase
 
@@ -1251,6 +1314,7 @@ Estados permitidos:
 | 2026-09-05 | Corrección STAB-003 de diagnóstico de salida obsoleto | output_panel.js, tests semánticos, test Playwright de caracterización y documento 19 | Invalida el resultado ante mutaciones, diferencia revisión comprobada/actual y exige reconsulta | Node: 14 passed; Playwright STAB-003: 1 passed; dos recorridos existentes: 2 passed; caracterización: 3 passed y 2 xfailed; Navegador sin errores | Tercer bloque de Fase 19-B completado sin tocar el contrato ni la salida productiva |
 | 2026-09-05 | Corrección STAB-004 de doble creación de matriz | arrangement_panel.js, test unitario de matriz, test Playwright de caracterización y documento 19 | Bloquea la repetición accidental sobre la selección generada y conserva una repetición deliberada | Node: 10 passed; Playwright STAB-004: 1 passed; recorrido existente de matriz: 1 passed; caracterización: 4 passed y 1 xfailed; comprobación de carga en Navegador | Cuarto bloque de Fase 19-B completado sin cambiar motor, comandos ni contratos |
 | 2026-09-05 | Corrección STAB-005 de conflicto de revisión | canvas_renderer.js, CSS V2, tests semánticos, test Playwright de caracterización y documento 19 | Sustituye el error técnico por una explicación visible sobre conservación local y descarte al recargar | Node: 15 + 10 passed; Playwright STAB-005: 1 passed; flujo existente de guardado: 1 passed; caracterización: 5 passed; capturas 1440 × 900 y 820 × 900 revisadas | Quinto bloque de Fase 19-B completado sin cambiar concurrencia, persistencia ni contratos |
+| 2026-09-05 | Corrección STAB-006 de feedback temporal | store.js, command_registry.js, interactions.js, objects_panel.js, tests unitarios, test Playwright de caracterización y documento 19 | Clipboard acompaña paste/undo/redo; Limpiar medición retira solo su feedback; no cambia Layout V2 | Node V2: 108 passed; caracterización: 7 passed; dos recorridos Playwright productivos: 2 passed; Navegador integrado sin errores, revisión 52 y job Guardado | Fase 19-B completada; fundamentos visuales 19-C habilitados |
 
 Después de cada cambio futuro se debe agregar una fila con:
 
@@ -1317,6 +1381,6 @@ No actualizar documentación para afirmar funciones que no fueron validadas.
 
 ## 23. Próximo paso SAFE
 
-El próximo cambio no debe ser todavía la reorganización del template.
+La estabilización mínima terminó con STAB-001 a STAB-006 corregidos y validados. El siguiente paso recomendado es iniciar la Fase 19-C de fundamentos visuales sobre el diseño actual: tipografía, tamaños mínimos, contraste, espaciado, divisores y estados focus/hover/active/disabled.
 
-STAB-001 a STAB-005 ya están corregidos y validados. El siguiente paso recomendado es caracterizar STAB-006 de forma aislada: comprobar cómo se comporta el feedback temporal de clipboard y medición frente a undo, redo, limpiar y nuevas acciones. Con esa evidencia se debe aplicar una corrección pequeña o diferirlo explícitamente si no afecta decisiones del operador. Después de cerrar STAB-006 termina la estabilización mínima y puede comenzar el rediseño visual productivo por la Fase 19-C de fundamentos visuales, seguido de la reorganización progresiva de 19-D.
+19-C debe comenzar con una comparación visual controlada en los mismos viewports de 1440, 1050 y 820 px. Todavía no debe reorganizar el template, mover herramientas entre módulos, cambiar IDs ni introducir acciones nuevas. Cuando ese gate visual y funcional esté en verde podrá comenzar 19-D, donde sí se aplicará progresivamente la jerarquía Preparar -> Imponer -> Ajustar -> Validar -> Salida y se mostrará la medida persistida del pliego.

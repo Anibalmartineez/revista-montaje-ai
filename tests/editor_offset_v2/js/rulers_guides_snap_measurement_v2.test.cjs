@@ -128,6 +128,31 @@ test("precision actions are unique, centralized and never documentary", () => {
   assert.equal(store.undoStack.length, 0);
 });
 
+test("clear measurement removes owned feedback without erasing a later unrelated notice", () => {
+  const registry = new Registry.ActionRegistry();
+  Registry.registerEditorActions(registry);
+  const store = new Store.EditorStore(layoutWith([slot("a", 20, 20)]));
+  const context = { store, precisionTools: Precision };
+
+  store.startMeasurement({ x: 0, y: 0 });
+  store.finishMeasurement(Precision.measurement({ x: 0, y: 0 }, { x: 3, y: 4 }));
+  store.setFeedback("Medición: 5 mm.", "measurement");
+  assert.equal(
+    registry.execute(Registry.ACTION_IDS.PRECISION_MEASURE_CLEAR, context),
+    true,
+  );
+  assert.equal(store.feedback, null);
+  assert.equal(store.feedbackSource, null);
+
+  store.startMeasurement({ x: 1, y: 1 });
+  store.setFeedback("Aviso posterior no relacionado.");
+  registry.execute(Registry.ACTION_IDS.PRECISION_MEASURE_CLEAR, context);
+  assert.equal(store.feedback, "Aviso posterior no relacionado.");
+  assert.equal(store.feedbackSource, null);
+  assert.equal(store.changeVersion, 0);
+  assert.equal(store.undoStack.length, 0);
+});
+
 test("snap sources cover guide, printable, sheet and visible same-face slots only", () => {
   const layout = layoutWith([
     slot("moving", 20, 20),

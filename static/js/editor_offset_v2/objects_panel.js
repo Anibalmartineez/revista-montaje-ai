@@ -109,7 +109,9 @@
       this.refs.objectClipboard.textContent = !clipboard
         ? "Clipboard interno vacío."
         : validation.ok
-          ? `${clipboard.slots.length} slot(s) · ${clipboard.pasteCount} pegado(s) en este job.`
+          ? clipboard.pasteCount > 0
+            ? `${clipboard.slots.length} slot(s) · ${clipboard.pasteCount} pegado(s) en este job.`
+            : `${clipboard.slots.length} slot(s) · listo para pegar.`
           : validation.reason;
       this.refs.objectClipboard.dataset.state = validation.ok ? "ready" : "warning";
 
