@@ -231,16 +231,31 @@ def test_stab_002_delete_preserves_source_reference_integrity(
             page.keyboard.press("Control+D")
             expect(page.locator(".ev2-svg-slot")).to_have_count(2)
 
-            dependent_source = page.evaluate(
+            dependent = page.evaluate(
                 "() => { const store = window.__EDITOR_OFFSET_V2__.store; "
                 "const selected = store.layout.slots.find(slot => store.selection.has(slot.id)); "
-                "return selected.generated_by.source_slot_id; }"
+                "return { id: selected.id, sourceId: selected.generated_by.source_slot_id }; }"
             )
-            assert dependent_source == source_id
+            assert dependent["sourceId"] == source_id
+            page.evaluate("() => window.__EDITOR_OFFSET_V2__.saver.manualSave()")
+            page.wait_for_function(
+                "() => window.__EDITOR_OFFSET_V2__.store.saveState.status === 'clean'",
+                timeout=10_000,
+            )
 
             _select_slot(page, source_id)
+            history_before = page.evaluate(
+                "() => window.__EDITOR_OFFSET_V2__.store.undoStack.length"
+            )
+            page.locator("#ev2-canvas").focus()
             page.keyboard.press("Delete")
-            page.wait_for_timeout(1_200)
+            expect(page.locator("#ev2-status-message")).to_contain_text(
+                "1 slot dependiente quedaría sin origen"
+            )
+            expect(page.locator("#ev2-status-message")).to_contain_text(
+                "Selecciona también ese dependiente"
+            )
+            expect(page.locator(".ev2-svg-slot")).to_have_count(2)
 
             result = page.evaluate(
                 """() => {
@@ -253,17 +268,44 @@ def test_stab_002_delete_preserves_source_reference_integrity(
                   return {broken, saveStatus: store.saveState.status};
                 }"""
             )
-            _assert_no_console_errors(
-                errors,
-                allowed_fragments=("status of 400 (BAD REQUEST)",),
+            assert result == {"broken": [], "saveStatus": "clean"}
+            assert page.evaluate(
+                "() => window.__EDITOR_OFFSET_V2__.store.undoStack.length"
+            ) == history_before
+
+            page.evaluate(
+                "ids => window.__EDITOR_OFFSET_V2__.store.setSelection(ids, 'replace')",
+                [source_id, dependent["id"]],
             )
+            page.locator("#ev2-canvas").focus()
+            page.keyboard.press("Delete")
+            expect(page.locator(".ev2-svg-slot")).to_have_count(0)
+            assert page.evaluate(
+                "() => window.__EDITOR_OFFSET_V2__.store.undoStack.length"
+            ) == history_before + 1
+            page.keyboard.press("Control+Z")
+            expect(page.locator(".ev2-svg-slot")).to_have_count(2)
+            assert page.evaluate(
+                "() => [...window.__EDITOR_OFFSET_V2__.store.selection]"
+            ) == [source_id, dependent["id"]]
+
+            page.evaluate("() => window.__EDITOR_OFFSET_V2__.saver.manualSave()")
+            page.wait_for_function(
+                "() => window.__EDITOR_OFFSET_V2__.store.saveState.status === 'clean'",
+                timeout=10_000,
+            )
+            page.reload(wait_until="domcontentloaded")
+            expect(page.locator(".ev2-svg-slot")).to_have_count(2)
+            assert page.evaluate(
+                """() => {
+                  const store = window.__EDITOR_OFFSET_V2__.store;
+                  const ids = new Set(store.layout.slots.map(slot => slot.id));
+                  return store.layout.slots.every(slot => !slot.generated_by?.source_slot_id
+                    || ids.has(slot.generated_by.source_slot_id));
+                }"""
+            ) is True
+            _assert_no_console_errors(errors)
             assert not errors["page"], f"Pageerrors inesperados: {errors['page']}"
-            if result["broken"] and result["saveStatus"] == "save_error":
-                pytest.xfail(
-                    "STAB-002 confirmado: delete deja source_slot_id roto y autosave rechaza el Layout V2"
-                )
-            assert not result["broken"]
-            assert result["saveStatus"] != "save_error"
         finally:
             browser.close()
 

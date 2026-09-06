@@ -356,6 +356,77 @@ test("delete action is shared by keyboard, atomic, reversible and protected in e
   manager.dispose();
 });
 
+test("delete and cut block unselected dependents while collective delete stays atomic", () => {
+  const store = new EditorStore(layoutWithSlots(1));
+  const sourceId = store.layout.slots[0].id;
+  store.setSelection([sourceId], "replace");
+  store.executeCommand(new Commands.DuplicateSlotsCommand(
+    store.layout,
+    [sourceId],
+    { idFactory: () => "slot_dependent" },
+  ));
+  const dependentId = store.layout.slots.at(-1).id;
+  Objects.copySelection(store);
+  const clipboardBefore = structuredClone(store.clipboard);
+  store.setSelection([sourceId], "replace");
+  const layoutBefore = structuredClone(store.layout);
+  const historyBefore = store.undoStack.length;
+  const actionRegistry = registry();
+  const ctx = context(store);
+
+  assert.deepEqual(
+    Commands.unselectedDeleteDependents(store.layout, [sourceId]).map((slot) => slot.id),
+    [dependentId],
+  );
+  assert.throws(
+    () => new Commands.DeleteSlotsCommand(store.layout, [sourceId]),
+    /1 slot dependiente quedaría sin origen.*Selecciona también ese dependiente/,
+  );
+  assert.equal(actionRegistry.execute(RegistryModule.ACTION_IDS.DELETE, ctx), false);
+  assert.match(
+    store.feedback,
+    /1 slot dependiente quedaría sin origen.*Selecciona también ese dependiente/,
+  );
+  assert.equal(actionRegistry.execute(RegistryModule.ACTION_IDS.CUT, ctx), false);
+  assert.match(store.feedback, /1 slot dependiente quedaría sin origen/);
+  assert.deepEqual(store.layout, layoutBefore);
+  assert.deepEqual(store.clipboard, clipboardBefore);
+  assert.equal(store.undoStack.length, historyBefore);
+
+  store.setSelection([sourceId, dependentId], "replace");
+  actionRegistry.execute(RegistryModule.ACTION_IDS.DELETE, ctx);
+  assert.equal(store.layout.slots.length, 0);
+  assert.equal(store.undoStack.length, historyBefore + 1);
+  store.undo();
+  assert.deepEqual(store.layout.slots.map((slot) => slot.id), [sourceId, dependentId]);
+  assert.deepEqual([...store.selection], [sourceId, dependentId]);
+  store.redo();
+  assert.equal(store.layout.slots.length, 0);
+
+  store.undo();
+  store.setSelection([sourceId, dependentId], "replace");
+  actionRegistry.execute(RegistryModule.ACTION_IDS.CUT, ctx);
+  assert.equal(store.layout.slots.length, 0);
+  assert.deepEqual(store.clipboard.slots.map((slot) => slot.id), [sourceId, dependentId]);
+  assert.equal(store.undoStack.length, historyBefore + 1);
+  store.undo();
+  assert.deepEqual(store.layout.slots.map((slot) => slot.id), [sourceId, dependentId]);
+});
+
+test("delete rechecks dependencies at execution time before mutating layout", () => {
+  const layout = layoutWithSlots(2);
+  const [source, dependent] = layout.slots;
+  const command = new Commands.DeleteSlotsCommand(layout, [source.id]);
+  dependent.generated_by = { type: "duplicate", source_slot_id: source.id };
+  const before = structuredClone(layout.slots);
+
+  assert.throws(
+    () => command.execute(layout),
+    /1 slot dependiente quedaría sin origen/,
+  );
+  assert.deepEqual(layout.slots, before);
+});
+
 test("basic selections use active face, union works and effective asset without history or dirty", () => {
   const layout = layoutWithSlots(3);
   const secondWork = structuredClone(layout.works[0]);

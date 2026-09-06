@@ -8,7 +8,7 @@ Rama de trabajo prevista:
 
     codex/editor-offset-v2-ux-foundation
 
-Estado actual del documento: plan y dirección visual aprobados por el usuario el 2026-09-05; implementación de código todavía no iniciada.
+Estado actual del documento: plan y dirección visual aprobados por el usuario el 2026-09-05; Fase 19-A completada y Fase 19-B en curso con STAB-001 y STAB-002 corregidos y validados.
 
 Este documento define cómo mejorar la usabilidad y la organización visual del Editor Offset Visual V2 sin reescribir el editor ni adelantar funciones productivas que todavía no existen.
 
@@ -718,7 +718,7 @@ Gate de salida:
 
 ### Fase 19-B: estabilización mínima
 
-Estado: en curso. STAB-001 corregido y validado el 2026-09-05; STAB-002 a STAB-006 permanecen pendientes.
+Estado: en curso. STAB-001 y STAB-002 corregidos y validados el 2026-09-05; STAB-003 a STAB-006 permanecen pendientes.
 
 Orden recomendado:
 
@@ -776,6 +776,63 @@ Gate de salida:
 - pageerror y consola limpios;
 - sin cambio visual amplio;
 - cada corrección documentada por separado.
+
+#### Resultado 19-B.2: STAB-002 integridad de referencias al eliminar
+
+Fecha: 2026-09-05.
+
+Decisión de producto aprobada:
+
+- bloquear Delete y Cut cuando la selección contiene un slot origen y deja fuera uno o más dependientes;
+- informar cuántos dependientes quedarían sin origen e identificar hasta cinco de ellos;
+- permitir la eliminación cuando el origen y todos sus dependientes están seleccionados;
+- ejecutar el borrado colectivo como una sola operación atómica y reversible;
+- no aplicar eliminación en cascada silenciosa.
+
+Problema confirmado antes del cambio:
+
+- un slot duplicado conserva generated_by.source_slot_id hacia su origen;
+- Delete permitía eliminar solamente el origen y dejaba la referencia rota;
+- el layout pasaba a save_error al intentar persistir ese estado;
+- la regresión STAB-002 reproducía el fallo como xfailed.
+
+Cambio aplicado:
+
+- DeleteSlotsCommand comprueba la integridad en construcción y nuevamente justo antes de ejecutar;
+- el registro de acciones intercepta el bloqueo esperado para Delete y Cut y muestra feedback operativo sin generar pageerror;
+- Cut no modifica el clipboard cuando la eliminación se bloquea;
+- seleccionar el origen y sus dependientes permite eliminarlos en un único comando;
+- undo restaura todos los slots y la selección, y redo vuelve a eliminar el conjunto;
+- no se modificaron Layout V2, generated_by, IDs, autosave, backend, PDF, CTP ni reglas de locks.
+
+Archivos modificados:
+
+    static/js/editor_offset_v2/commands.js
+    static/js/editor_offset_v2/command_registry.js
+    tests/editor_offset_v2/js/object_operations_v2.test.cjs
+    tests/playwright/test_editor_offset_v2_ux_characterization.py
+
+Validación focalizada:
+
+- node --check de commands.js y command_registry.js: correcto;
+- tests unitarios de object_operations_v2.test.cjs: 17 passed;
+- STAB-002 antes del cambio: 1 xfailed por referencia rota y save_error;
+- STAB-002 después del cambio: 1 passed;
+- recorrido Playwright existente de clipboard, locks, Alt-drag y persistencia: 1 passed;
+- recorrido Playwright existente de locks de drag, delete y reemplazo de fuente: 1 passed;
+- archivo de caracterización completo: 2 passed y 3 xfailed conocidos;
+- STAB-003 a STAB-005 conservaron exactamente sus síntomas caracterizados;
+- consola y pageerror limpios en STAB-002;
+- warnings observados: tipos SWIG de PyMuPDF deprecados, sin fallo funcional;
+- suite completa no ejecutada.
+
+Resultado:
+
+- STAB-002 queda corregido y protegido en la interfaz y en el comando de dominio;
+- no se pueden persistir referencias huérfanas mediante Delete o Cut;
+- la operación colectiva mantiene atomicidad, historial, undo/redo, guardado y recarga;
+- no se detectaron regresiones nuevas en el alcance focalizado;
+- el siguiente defecto aislado es STAB-003, diagnóstico de salida obsoleto tras cambiar la revisión.
 
 ### Fase 19-C: fundamentos visuales
 
@@ -987,7 +1044,7 @@ Estados permitidos:
 | SHEET-002 | Permitir configurar medida y márgenes | Default fijo confirmado por código | 19-E | Propuesto | Contrato, comando, autosave y recarga |
 | SHEET-003 | No escalar o mover slots silenciosamente | Política SAFE | 19-E | Propuesto | Test de impacto con slots existentes |
 | STAB-001 | Nudge sin pageerror | Exploración 2 y tests Playwright 19-A.2/19-B.1 | 19-A/19-B | Corregido y validado | Playwright en verde; historial, undo/redo, guardado y recarga comprobados |
-| STAB-002 | Delete respeta source_slot_id | Exploración 1 y tests Playwright 19-A.2 | 19-A/19-B | Caracterizado automáticamente | XFAIL exacto por referencia rota y save_error |
+| STAB-002 | Delete y Cut respetan source_slot_id | Exploración 1 y tests Playwright 19-A.2/19-B.2 | 19-A/19-B | Corregido y validado | Bloqueo con feedback, borrado colectivo atómico, undo/redo, guardado y recarga comprobados |
 | STAB-003 | Output-capabilities no queda obsoleto sin aviso | Exploración 4 y tests Playwright 19-A.2 | 19-A/19-B | Caracterizado automáticamente | XFAIL exacto por revisión anterior sin aviso |
 | STAB-004 | Matriz evita segundo submit accidental | Exploración 3 y tests Playwright 19-A.2 | 19-A/19-B | Caracterizado automáticamente | XFAIL exacto por doble aplicación |
 | STAB-005 | Conflicto 409 comprensible | Exploración 3 y tests Playwright 19-A.2 | 19-A/19-B | Caracterizado automáticamente | XFAIL exacto por mensaje técnico sin guía |
@@ -1011,7 +1068,7 @@ Estados permitidos:
 | DEC-006 | 2026-09-05 | Conservar el documento 18 como snapshot | Mantiene evidencia histórica verificable | Aprobada |
 | DEC-007 | 2026-09-05 | Registrar el rediseño en un documento de fase separado | Permite trazabilidad sin reescribir historia | Aplicada |
 | DEC-008 | 2026-09-05 | Aprobar el documento 19 y avanzar a caracterización | Congela alcance y permite preparar el baseline antes de código | Aprobada |
-| DEC-009 | Pendiente | Política de eliminación con dependientes | Afecta integridad referencial | Abierta |
+| DEC-009 | 2026-09-05 | Bloquear Delete y Cut si quedan dependientes fuera de la selección; permitir borrado conjunto atómico y sin cascada silenciosa | Protege la integridad referencial y mantiene control explícito del operador | Aprobada y aplicada |
 | DEC-010 | Pendiente | Flujo exacto de configuración del pliego | Afecta creación, persistencia y geometría | Abierta |
 | DEC-011 | Pendiente | Modelo responsive de paneles | Afecta acceso y foco | Abierta |
 
@@ -1026,6 +1083,7 @@ Estados permitidos:
 | 2026-09-05 | Primera tanda interactiva de caracterización | Documento 19 y output/playwright/v2-redesign-phase-19a-20260905/ | Sin cambios de código; job restaurado semánticamente y revisión final 52 | Playwright CLI, HTTP, persistencia y consola | Se reprodujeron nudge, delete, output obsoleto, matriz, conflicto y riesgos responsive |
 | 2026-09-05 | Regresiones automatizadas focalizadas STAB-001 a STAB-005 | tests/playwright/test_editor_offset_v2_ux_characterization.py y documento 19 | Solo tests y trazabilidad; sin código productivo | Pytest Playwright focalizado: 5 xfailed, exit code 0 | Fase 19-A completada para los cinco defectos prioritarios |
 | 2026-09-05 | Corrección STAB-001 de temporizadores de nudge | nudge_controller.js, test_editor_offset_v2_ux_characterization.py y documento 19 | Las flechas mueven sin Illegal invocation; mismo batching, undo/redo y persistencia | Node: 18 passed; Playwright STAB-001: 1 passed; recorrido existente: 1 passed; caracterización: 1 passed y 4 xfailed | Primer bloque de Fase 19-B completado sin regresión focalizada |
+| 2026-09-05 | Corrección STAB-002 de integridad referencial en Delete y Cut | commands.js, command_registry.js, tests unitarios, test Playwright de caracterización y documento 19 | Bloquea orígenes con dependientes no seleccionados; permite borrado conjunto atómico y reversible | Node: 17 passed; Playwright STAB-002: 1 passed; dos recorridos existentes: 2 passed; caracterización: 2 passed y 3 xfailed | DEC-009 aplicada; segundo bloque de Fase 19-B completado sin regresión focalizada |
 
 Después de cada cambio futuro se debe agregar una fila con:
 
@@ -1094,4 +1152,4 @@ No actualizar documentación para afirmar funciones que no fueron validadas.
 
 El próximo cambio no debe ser todavía la reorganización del template.
 
-STAB-001 ya está corregido. El siguiente paso recomendado es cerrar DEC-009 y luego corregir STAB-002 de forma aislada. La política SAFE recomendada es impedir eliminar un slot origen cuando existen duplicados dependientes no incluidos en la selección, explicar qué objetos dependen de él y permitir la operación únicamente si el usuario selecciona también esos dependientes. No debe implementarse una eliminación en cascada silenciosa. Después se debe repetir el archivo Playwright focalizado y confirmar 2 passed y 3 xfailed. Solo después de completar la estabilización mínima debe comenzar el rediseño visual productivo de las Fases 19-C y 19-D.
+STAB-001 y STAB-002 ya están corregidos y validados. El siguiente paso recomendado es corregir STAB-003 de forma aislada: cuando el layout cambia de revisión después de consultar output-capabilities, el diagnóstico anterior debe dejar de presentarse como vigente y la interfaz debe indicar que requiere una nueva validación. Antes de implementarlo se debe mapear dónde se conserva la revisión diagnosticada, qué eventos del store la invalidan y cómo se representa visualmente el estado obsoleto sin tocar todavía preview, PDF ni CTP. Después se debe repetir el archivo Playwright focalizado y confirmar 3 passed y 2 xfailed. Solo después de completar la estabilización mínima debe comenzar el rediseño visual productivo de las Fases 19-C y 19-D.

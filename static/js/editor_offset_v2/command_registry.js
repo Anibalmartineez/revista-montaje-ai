@@ -171,6 +171,16 @@
     return context.store.layout.slots.filter((slot) => ids.has(slot.id));
   }
 
+  function blockUnselectedDeleteDependents(context) {
+    const dependents = context.commands.unselectedDeleteDependents(
+      context.store.layout,
+      selectedIds(context),
+    );
+    if (!dependents.length) return false;
+    context.store.setFeedback(context.commands.deleteDependencyMessage(dependents));
+    return true;
+  }
+
   function blockedMoveIds(context) {
     return context.editPolicy.blockedSlotIds(
       context.store.layout,
@@ -654,6 +664,7 @@
       disabledReason: (context) => objectDisabledReason(context, "delete", "cortar"),
       execute: (context) => {
         context.nudgeController?.finish();
+        if (blockUnselectedDeleteDependents(context)) return false;
         const command = new context.commands.DeleteSlotsCommand(
           context.store.layout,
           selectedIds(context),
@@ -714,6 +725,7 @@
       disabledReason: (context) => objectDisabledReason(context, "delete", "eliminar"),
       execute: (context) => {
         context.nudgeController?.finish();
+        if (blockUnselectedDeleteDependents(context)) return false;
         const command = new context.commands.DeleteSlotsCommand(
           context.store.layout,
           selectedIds(context),

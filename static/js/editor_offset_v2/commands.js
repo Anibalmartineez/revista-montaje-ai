@@ -100,6 +100,33 @@
     return prepareDuplicateSlotsFromSlots(layout, originals, offset, options);
   }
 
+  function unselectedDeleteDependents(layout, slotIds) {
+    const selected = new Set(slotIds || []);
+    return (layout?.slots || []).filter((slot) => {
+      const sourceSlotId = slot.generated_by?.source_slot_id;
+      return sourceSlotId && selected.has(sourceSlotId) && !selected.has(slot.id);
+    });
+  }
+
+  function deleteDependencyMessage(dependents) {
+    const count = dependents.length;
+    const visibleIds = dependents.slice(0, 5).map((slot) => slot.id);
+    const remaining = count - visibleIds.length;
+    const idSummary = `${visibleIds.join(", ")}${remaining ? ` y ${remaining} más` : ""}`;
+    return (
+      `No se puede eliminar: ${count} slot${count === 1 ? "" : "s"} `
+      + `dependiente${count === 1 ? "" : "s"} ${count === 1 ? "quedaría" : "quedarían"} `
+      + `sin origen (${idSummary}). Selecciona también `
+      + `${count === 1 ? "ese dependiente" : "esos dependientes"} para eliminar el conjunto.`
+    );
+  }
+
+  function assertDeleteReferenceIntegrity(layout, slotIds) {
+    const dependents = unselectedDeleteDependents(layout, slotIds);
+    if (!dependents.length) return;
+    throw new Error(deleteDependencyMessage(dependents));
+  }
+
   class CreateSlotCommand {
     constructor(bundle) {
       this.description = "Crear slot de prueba";
@@ -299,10 +326,12 @@
         throw new Error("DeleteSlotsCommand requires existing slots");
       }
       EditPolicy.assertCan(layout, this.affectedIds, "delete");
+      assertDeleteReferenceIntegrity(layout, this.affectedIds);
     }
 
     execute(layout) {
       EditPolicy.assertCan(layout, this.affectedIds, "delete");
+      assertDeleteReferenceIntegrity(layout, this.affectedIds);
       const ids = new Set(this.affectedIds);
       layout.slots = layout.slots.filter((slot) => !ids.has(slot.id));
     }
@@ -769,6 +798,8 @@
     normalizeCardinalRotation,
     prepareDuplicateSlots,
     prepareDuplicateSlotsFromSlots,
+    unselectedDeleteDependents,
+    deleteDependencyMessage,
     uniqueSlotId,
     USER_LOCK_SURFACES,
   });
