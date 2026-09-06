@@ -1434,6 +1434,7 @@
       allowDuringPointer: true,
       allowDuringPan: true,
       allowInEditable: (context, event) => Boolean(context.shortcutHelp?.isOpen())
+        || Boolean(context.responsivePanels?.isOpen())
         || Boolean(event.target?.closest?.("#ev2-position-form, .ev2-arrangement-form, .ev2-precision-form")),
       enabled: () => true,
       execute: (context) => {
@@ -1452,6 +1453,9 @@
         }
         if (context.arrangementPanel?.hasPendingDraft()) {
           return context.arrangementPanel.cancelDraft(true);
+        }
+        if (context.responsivePanels?.isOpen()) {
+          return context.responsivePanels.close({ restoreFocus: true });
         }
         return false;
       },

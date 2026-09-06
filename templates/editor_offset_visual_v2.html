@@ -61,6 +61,15 @@
       <p>PDF y CTP se incorporarán después de validar el flujo.</p>
     </nav>
 
+    <button
+      id="ev2-responsive-panel-backdrop"
+      class="ev2-responsive-panel-backdrop"
+      type="button"
+      aria-label="Cerrar panel lateral abierto"
+      tabindex="-1"
+      hidden
+    ></button>
+
     <aside class="ev2-tools" aria-label="Herramientas">
       <span class="ev2-region-label">Herramientas</span>
       <button class="ev2-tool is-active" id="ev2-select-tool" type="button" aria-pressed="true" {% if not editor_context.job_id %}disabled{% endif %}>
@@ -79,10 +88,13 @@
       </button>
     </aside>
 
-    <aside class="ev2-objects" aria-label="Assets y objetos del montaje">
-      <div class="ev2-panel-heading">
-        <span class="ev2-region-label">Assets PDF</span>
-        <small>Originales inmutables del job</small>
+    <aside id="ev2-objects-panel" class="ev2-objects" aria-label="Fuentes PDF y objetos del montaje" tabindex="-1">
+      <div class="ev2-panel-heading ev2-responsive-panel-heading">
+        <div>
+          <span class="ev2-region-label">Assets PDF</span>
+          <small>Originales inmutables del job</small>
+        </div>
+        <button id="ev2-responsive-sources-close" class="ev2-responsive-panel-close" type="button" aria-label="Cerrar Fuentes PDF">Cerrar</button>
       </div>
       <form class="ev2-upload-form" id="ev2-asset-upload-form">
         <label for="ev2-asset-file">Archivo PDF</label>
@@ -139,6 +151,10 @@
 
     <section class="ev2-workspace" aria-label="Canvas del montaje">
       <div class="ev2-canvas-toolbar" aria-label="Acciones frecuentes del montaje">
+        <div class="ev2-responsive-panel-controls" aria-label="Paneles del editor">
+          <button id="ev2-responsive-sources-toggle" type="button" aria-controls="ev2-objects-panel" aria-expanded="false">Fuentes</button>
+          <button id="ev2-responsive-inspector-toggle" type="button" aria-controls="ev2-inspector-panel" aria-expanded="false">Inspector</button>
+        </div>
         <div class="ev2-sheet-summary">
           <span>Pliego</span>
           <strong id="ev2-sheet-size-summary">—</strong>
@@ -168,10 +184,13 @@
       ></svg>
     </section>
 
-    <aside class="ev2-inspector" aria-label="Inspector del slot">
-      <div class="ev2-panel-heading ev2-inspector-mode">
-        <span class="ev2-region-label" id="ev2-inspector-mode-title">Ajustar</span>
-        <small id="ev2-inspector-mode-description">Posición y alineación</small>
+    <aside id="ev2-inspector-panel" class="ev2-inspector" aria-label="Inspector del montaje" tabindex="-1">
+      <div class="ev2-panel-heading ev2-inspector-mode ev2-responsive-panel-heading">
+        <div>
+          <span class="ev2-region-label" id="ev2-inspector-mode-title">Ajustar</span>
+          <small id="ev2-inspector-mode-description">Posición y alineación</small>
+        </div>
+        <button id="ev2-responsive-inspector-close" class="ev2-responsive-panel-close" type="button" aria-label="Cerrar Inspector">Cerrar</button>
       </div>
       <section id="ev2-stage-prepare" class="ev2-stage-context" data-ev2-stage-panel="prepare" role="tabpanel" aria-labelledby="ev2-stage-tab-prepare" hidden>
         <span class="ev2-region-label">PDF y origen</span>
@@ -638,6 +657,7 @@
   <script src="{{ url_for('static', filename='js/editor_offset_v2/arrangement_panel.js') }}" defer></script>
   <script src="{{ url_for('static', filename='js/editor_offset_v2/precision_panel.js') }}" defer></script>
   <script src="{{ url_for('static', filename='js/editor_offset_v2/sheet_panel.js') }}" defer></script>
+  <script src="{{ url_for('static', filename='js/editor_offset_v2/responsive_panels.js') }}" defer></script>
   <script src="{{ url_for('static', filename='js/editor_offset_v2/workflow_navigation.js') }}" defer></script>
   <script src="{{ url_for('static', filename='js/editor_offset_v2/bootstrap.js') }}" defer></script>
   <script src="{{ url_for('static', filename='js/editor_offset_visual_v2.js') }}" defer></script>

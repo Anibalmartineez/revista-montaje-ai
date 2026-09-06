@@ -896,49 +896,44 @@ def test_phase_19_c_visual_foundations_preserve_hierarchy_and_controls(
             medium = page.evaluate(
                 """() => {
                   const rect = selector => document.querySelector(selector).getBoundingClientRect();
-                  const inspector = document.querySelector('.ev2-inspector');
-                  const lockLabel = document.querySelector('.ev2-object-lock-row span').getBoundingClientRect();
-                  const lockAction = document.querySelector('.ev2-object-lock-row button').getBoundingClientRect();
                   return {
                     objectsVisible: getComputedStyle(document.querySelector('.ev2-objects')).display !== 'none',
+                    inspectorVisible: getComputedStyle(document.querySelector('.ev2-inspector')).display !== 'none',
+                    responsiveControlsVisible: getComputedStyle(document.querySelector('.ev2-responsive-panel-controls')).display !== 'none',
                     workspaceWidth: rect('.ev2-workspace').width,
-                    inspectorWidth: rect('.ev2-inspector').width,
-                    inspectorOverflow: inspector.scrollWidth - inspector.clientWidth,
                     documentOverflow: document.documentElement.scrollWidth - document.documentElement.clientWidth,
-                    lockActionsClearLabel: lockAction.top >= lockLabel.bottom - 1,
                   };
                 }"""
             )
-            assert medium["objectsVisible"] is True
-            assert medium["workspaceWidth"] > medium["inspectorWidth"]
-            assert medium["inspectorOverflow"] <= 1
+            assert medium["objectsVisible"] is False
+            assert medium["inspectorVisible"] is False
+            assert medium["responsiveControlsVisible"] is True
+            assert medium["workspaceWidth"] >= 980
             assert medium["documentOverflow"] <= 1
-            assert medium["lockActionsClearLabel"] is True
+            page.locator("#ev2-responsive-inspector-toggle").click()
+            expect(page.locator(".ev2-inspector")).to_be_visible()
+            expect(page.locator("#ev2-responsive-inspector-close")).to_be_focused()
+            page.locator("#ev2-responsive-inspector-close").click()
             page.screenshot(path=str(tmp_path / "phase-19-c-1050.png"), full_page=False)
 
             page.set_viewport_size({"width": 820, "height": 900})
             compact = page.evaluate(
                 """() => {
                   const rect = selector => document.querySelector(selector).getBoundingClientRect();
-                  const inspector = document.querySelector('.ev2-inspector');
-                  const lockLabel = document.querySelector('.ev2-object-lock-row span').getBoundingClientRect();
-                  const lockAction = document.querySelector('.ev2-object-lock-row button').getBoundingClientRect();
                   return {
                     objectsVisible: getComputedStyle(document.querySelector('.ev2-objects')).display !== 'none',
+                    inspectorVisible: getComputedStyle(document.querySelector('.ev2-inspector')).display !== 'none',
                     workspaceWidth: rect('.ev2-workspace').width,
-                    inspectorWidth: rect('.ev2-inspector').width,
-                    inspectorOverflow: inspector.scrollWidth - inspector.clientWidth,
                     documentOverflow: document.documentElement.scrollWidth - document.documentElement.clientWidth,
-                    lockActionsClearLabel: lockAction.top >= lockLabel.bottom - 1,
                   };
                 }"""
             )
             assert compact["objectsVisible"] is False
-            assert compact["workspaceWidth"] > compact["inspectorWidth"] * 2
-            assert compact["inspectorOverflow"] <= 1
+            assert compact["inspectorVisible"] is False
+            assert compact["workspaceWidth"] >= 750
             assert compact["documentOverflow"] <= 1
-            assert compact["lockActionsClearLabel"] is True
             expect(page.locator(".ev2-brand h1")).to_be_visible()
+            expect(page.locator("#ev2-shortcuts-help-button")).to_be_visible()
             page.screenshot(path=str(tmp_path / "phase-19-c-820.png"), full_page=False)
 
             _assert_no_console_errors(errors)
@@ -1272,6 +1267,173 @@ def test_phase_19_e_configures_sheet_with_safe_confirmation_undo_and_persistence
             expect(page.locator("#ev2-sheet-width")).to_have_value("80")
             expect(page.locator("#ev2-sheet-margin-left")).to_have_value("5")
             page.screenshot(path=str(tmp_path / "phase-19-e-sheet.png"), full_page=False)
+            _assert_no_console_errors(errors)
+            assert not errors["page"], f"Pageerrors inesperados: {errors['page']}"
+        finally:
+            browser.close()
+
+
+def test_phase_19_f_keeps_primary_panels_accessible_at_1440_1050_and_820(
+    v2_characterization_server,
+    tmp_path,
+):
+    pdf_path = tmp_path / "phase-19-f-responsive-accessibility.pdf"
+    _write_test_pdf(pdf_path)
+
+    with sync_playwright() as playwright:
+        browser = playwright.chromium.launch(headless=True)
+        page, errors = _new_page(browser, width=1440, height=900)
+        try:
+            _open_job_with_repeat(
+                page,
+                v2_characterization_server,
+                pdf_path,
+                quantity=2,
+            )
+            baseline = page.evaluate(
+                """() => {
+                  const store = window.__EDITOR_OFFSET_V2__.store;
+                  return {
+                    layout: JSON.stringify(store.layout),
+                    revision: store.revision,
+                    changeVersion: store.changeVersion,
+                    undo: store.undoStack.length,
+                    redo: store.redoStack.length,
+                    dirty: store.hasUnsavedChanges(),
+                  };
+                }"""
+            )
+
+            expect(page.locator("#ev2-responsive-sources-toggle")).to_be_hidden()
+            expect(page.locator("#ev2-responsive-inspector-toggle")).to_be_hidden()
+            expect(page.locator("#ev2-objects-panel")).to_be_visible()
+            expect(page.locator("#ev2-inspector-panel")).to_be_visible()
+            assert page.evaluate(
+                "() => document.documentElement.scrollWidth - document.documentElement.clientWidth"
+            ) <= 1
+            page.screenshot(path=str(tmp_path / "phase-19-f-1440.png"), full_page=False)
+
+            page.set_viewport_size({"width": 1050, "height": 900})
+            expect(page.locator("#ev2-responsive-sources-toggle")).to_be_visible()
+            expect(page.locator("#ev2-responsive-inspector-toggle")).to_be_visible()
+            expect(page.locator("#ev2-objects-panel")).to_be_hidden()
+            expect(page.locator("#ev2-inspector-panel")).to_be_hidden()
+            medium = page.evaluate(
+                """() => ({
+                  documentOverflow:
+                    document.documentElement.scrollWidth - document.documentElement.clientWidth,
+                  workspaceWidth:
+                    document.querySelector('.ev2-workspace').getBoundingClientRect().width,
+                  canvasWidth:
+                    document.querySelector('#ev2-canvas').getBoundingClientRect().width,
+                })"""
+            )
+            assert medium["documentOverflow"] <= 1
+            assert medium["workspaceWidth"] >= 980
+            assert medium["canvasWidth"] > 0
+
+            sources_toggle = page.locator("#ev2-responsive-sources-toggle")
+            sources_toggle.click()
+            expect(sources_toggle).to_have_attribute("aria-expanded", "true")
+            expect(page.locator("#ev2-objects-panel")).to_be_visible()
+            expect(page.locator("#ev2-asset-file")).to_be_visible()
+            expect(page.locator("#ev2-responsive-sources-close")).to_be_focused()
+            page.locator("#ev2-responsive-sources-close").click()
+            expect(sources_toggle).to_be_focused()
+            expect(page.locator("#ev2-objects-panel")).to_be_hidden()
+
+            page.locator("#ev2-stage-tab-impose").click()
+            expect(page.locator("#ev2-responsive-inspector-toggle")).to_have_attribute(
+                "aria-expanded", "true"
+            )
+            expect(page.locator("#ev2-sheet-panel")).to_be_visible()
+            page.keyboard.press("Escape")
+            expect(page.locator("#ev2-inspector-panel")).to_be_hidden()
+            expect(page.locator("#ev2-stage-tab-impose")).to_be_focused()
+
+            page.locator("#ev2-workspace-configure-sheet").click()
+            expect(page.locator("#ev2-sheet-width")).to_be_focused()
+            expect(page.locator("#ev2-inspector-panel")).to_be_visible()
+            page.keyboard.press("Escape")
+            expect(page.locator("#ev2-inspector-panel")).to_be_hidden()
+            expect(page.locator("#ev2-workspace-configure-sheet")).to_be_focused()
+            page.screenshot(path=str(tmp_path / "phase-19-f-1050.png"), full_page=False)
+
+            page.set_viewport_size({"width": 820, "height": 900})
+            expect(page.locator("#ev2-shortcuts-help-button")).to_be_visible()
+            compact_metrics = page.evaluate(
+                """() => {
+                  const rect = selector => document.querySelector(selector).getBoundingClientRect();
+                  return {
+                    documentOverflow:
+                      document.documentElement.scrollWidth - document.documentElement.clientWidth,
+                    sourcesHeight: rect('#ev2-responsive-sources-toggle').height,
+                    inspectorHeight: rect('#ev2-responsive-inspector-toggle').height,
+                    workspaceWidth: rect('.ev2-workspace').width,
+                  };
+                }"""
+            )
+            assert compact_metrics["documentOverflow"] <= 1
+            assert compact_metrics["sourcesHeight"] >= 44
+            assert compact_metrics["inspectorHeight"] >= 44
+            assert compact_metrics["workspaceWidth"] >= 750
+
+            page.locator("#ev2-responsive-sources-toggle").focus()
+            page.keyboard.press("Enter")
+            expect(page.locator("#ev2-objects-panel")).to_be_visible()
+            drawer = page.locator("#ev2-objects-panel").evaluate(
+                "element => ({left: element.getBoundingClientRect().left, right: element.getBoundingClientRect().right})"
+            )
+            assert drawer["left"] >= 64
+            assert drawer["right"] <= 820
+            page.keyboard.press("Escape")
+            expect(page.locator("#ev2-responsive-sources-toggle")).to_be_focused()
+
+            page.locator("#ev2-stage-tab-adjust").focus()
+            page.keyboard.press("Home")
+            expect(page.locator("#ev2-stage-tab-prepare")).to_be_focused()
+            expect(page.locator("#ev2-stage-tab-prepare")).to_have_attribute(
+                "aria-selected", "true"
+            )
+            expect(page.locator("#ev2-objects-panel")).to_be_visible()
+            page.keyboard.press("Escape")
+            expect(page.locator("#ev2-stage-tab-prepare")).to_be_focused()
+
+            page.set_viewport_size({"width": 656, "height": 720})
+            page.evaluate("() => { document.documentElement.style.fontSize = '20px'; }")
+            enlarged = page.evaluate(
+                """() => ({
+                  documentOverflow:
+                    document.documentElement.scrollWidth - document.documentElement.clientWidth,
+                  sourcesVisible:
+                    getComputedStyle(document.querySelector('#ev2-responsive-sources-toggle')).display !== 'none',
+                  canvasWidth: document.querySelector('#ev2-canvas').getBoundingClientRect().width,
+                })"""
+            )
+            assert enlarged["documentOverflow"] <= 1
+            assert enlarged["sourcesVisible"] is True
+            assert enlarged["canvasWidth"] > 0
+            page.evaluate("() => { document.documentElement.style.fontSize = ''; }")
+
+            assert page.evaluate(
+                """baseline => {
+                  const store = window.__EDITOR_OFFSET_V2__.store;
+                  return JSON.stringify(store.layout) === baseline.layout
+                    && store.revision === baseline.revision
+                    && store.changeVersion === baseline.changeVersion
+                    && store.undoStack.length === baseline.undo
+                    && store.redoStack.length === baseline.redo
+                    && store.hasUnsavedChanges() === baseline.dirty;
+                }""",
+                baseline,
+            ) is True
+            ids = page.evaluate(
+                "() => [...document.querySelectorAll('[id]')].map(element => element.id)"
+            )
+            assert len(ids) == len(set(ids))
+            page.set_viewport_size({"width": 820, "height": 900})
+            page.screenshot(path=str(tmp_path / "phase-19-f-820.png"), full_page=False)
+
             _assert_no_console_errors(errors)
             assert not errors["page"], f"Pageerrors inesperados: {errors['page']}"
         finally:

@@ -33,6 +33,7 @@
     const refs = modules.DomRefs.collect();
     const context = parseContext(refs.context);
     const api = new modules.ApiClient.EditorApiClient();
+    const responsivePanels = new modules.ResponsivePanels.Controller(refs);
 
     refs.newJob.addEventListener("click", async () => {
       refs.newJob.disabled = true;
@@ -50,6 +51,7 @@
       new modules.WorkflowNavigation.Controller(null, refs, {
         hasJob: false,
         initialStage: "prepare",
+        responsivePanels,
       });
       refs.statusMessage.textContent = "Crea un job para abrir el canvas V2.";
       return null;
@@ -101,6 +103,7 @@
       precisionPanel,
       objectTree,
       sheetPanel,
+      responsivePanels,
     });
     function runAction(actionId, payload) {
       try {
@@ -241,6 +244,7 @@
       duplicateActionId: modules.CommandRegistry.ACTION_IDS.DUPLICATE,
       runAction,
       isActionEnabled: (actionId) => actionRegistry.isEnabled(actionId, contextProvider()),
+      responsivePanels,
     });
 
     refs.save.addEventListener("click", () => runAction(modules.CommandRegistry.ACTION_IDS.SAVE));
@@ -302,6 +306,7 @@
       positionInspector,
       nudgeController,
       workflowNavigation,
+      responsivePanels,
       runAction,
     };
     root.__EDITOR_OFFSET_V2__ = instance;

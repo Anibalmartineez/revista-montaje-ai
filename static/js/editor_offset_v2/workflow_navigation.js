@@ -62,6 +62,7 @@
         ? this.options.isActionEnabled
         : () => false;
       this.duplicateActionId = this.options.duplicateActionId || null;
+      this.responsivePanels = this.options.responsivePanels || null;
       this.activeStage = normalizeStage(
         this.options.initialStage || refs.workflow.dataset.initialStage,
         this.hasJob ? "adjust" : "prepare",
@@ -73,7 +74,7 @@
       if (this.store) {
         this.unsubscribe = this.store.subscribe(() => this.renderContext());
       }
-      this.selectStage(this.activeStage);
+      this.selectStage(this.activeStage, { openResponsivePanel: false });
       this.renderContext();
     }
 
@@ -93,7 +94,10 @@
 
     bind() {
       for (const entry of this.stageEntries()) {
-        this.listen(entry.tab, "click", () => this.selectStage(entry.stage));
+        this.listen(entry.tab, "click", (event) => this.selectStage(entry.stage, {
+          openResponsivePanel: true,
+          trigger: event.currentTarget,
+        }));
         this.listen(entry.tab, "keydown", (event) => this.onTabKeydown(event, entry.stage));
       }
       this.listen(this.refs.workspaceDuplicate, "click", () => {
@@ -102,16 +106,32 @@
         }
       });
       this.listen(this.refs.workspaceConfigureSheet, "click", () => {
-        this.selectStage("impose", { focusSelector: "#ev2-sheet-width" });
+        this.selectStage("impose", {
+          focusSelector: "#ev2-sheet-width",
+          openResponsivePanel: true,
+          trigger: this.refs.workspaceConfigureSheet,
+        });
       });
       this.listen(this.refs.workspaceOpenAlign, "click", () => {
-        this.selectStage("adjust", { focusSelector: '[data-ev2-tool-anchor="align"]' });
+        this.selectStage("adjust", {
+          focusSelector: '[data-ev2-tool-anchor="align"]',
+          openResponsivePanel: true,
+          trigger: this.refs.workspaceOpenAlign,
+        });
       });
       this.listen(this.refs.workspaceOpenDistribute, "click", () => {
-        this.selectStage("adjust", { focusSelector: '[data-ev2-tool-anchor="distribute"]' });
+        this.selectStage("adjust", {
+          focusSelector: '[data-ev2-tool-anchor="distribute"]',
+          openResponsivePanel: true,
+          trigger: this.refs.workspaceOpenDistribute,
+        });
       });
       this.listen(this.refs.workspaceOpenRepeat, "click", () => {
-        this.selectStage("impose", { focusSelector: "#ev2-stage-impose" });
+        this.selectStage("impose", {
+          focusSelector: "#ev2-stage-impose",
+          openResponsivePanel: true,
+          trigger: this.refs.workspaceOpenRepeat,
+        });
       });
     }
 
@@ -128,7 +148,10 @@
       }
       if (!stage) return;
       event.preventDefault();
-      this.selectStage(stage, { focusTab: true });
+      this.selectStage(stage, {
+        focusTab: true,
+        openResponsivePanel: true,
+      });
     }
 
     selectStage(stage, options) {
@@ -151,6 +174,9 @@
       this.refs.inspectorModeDescription.textContent = meta.description;
 
       const settings = options || {};
+      if (settings.openResponsivePanel) {
+        this.responsivePanels?.openForStage(normalized, settings.trigger || targetTab.tab);
+      }
       if (settings.focusTab) targetTab.tab.focus();
       if (settings.focusSelector) {
         const target = document.querySelector(settings.focusSelector);

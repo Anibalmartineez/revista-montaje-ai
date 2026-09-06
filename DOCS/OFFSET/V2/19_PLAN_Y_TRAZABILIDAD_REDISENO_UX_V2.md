@@ -8,7 +8,7 @@ Rama de trabajo prevista:
 
     codex/editor-offset-v2-ux-foundation
 
-Estado actual del documento: plan y dirección visual aprobados por el usuario el 2026-09-05; Fases 19-A, 19-B, 19-C, 19-D y 19-E completadas. STAB-001 a STAB-006, los fundamentos visuales, la organización funcional por etapas y la configuración SAFE del pliego quedaron validados. El siguiente bloque previsto es la Fase 19-F de responsive y accesibilidad operativa.
+Estado actual del documento: plan y dirección visual aprobados por el usuario el 2026-09-05; Fases 19-A, 19-B, 19-C, 19-D, 19-E y 19-F completadas. STAB-001 a STAB-006, los fundamentos visuales, la organización funcional por etapas, la configuración SAFE del pliego y el acceso responsive quedaron validados. El siguiente bloque previsto es la Fase 19-G de cierre y documentación de estado.
 
 Este documento define cómo mejorar la usabilidad y la organización visual del Editor Offset Visual V2 sin reescribir el editor ni adelantar funciones productivas que todavía no existen.
 
@@ -62,12 +62,12 @@ El documento 18 debe conservarse como fotografía histórica previa al rediseño
 
 - las exploraciones originales no ejecutaron suites, pero las Fases 19-A a 19-C incorporaron y ejecutaron regresiones específicas;
 - todos los tests de tests/editor_offset_v2 pasaron: 331 passed y 1 skipped;
-- todos los tests JavaScript V2 pasaron: 115 passed;
-- los dos archivos Playwright V2 pasaron: 19 passed;
+- todos los tests JavaScript V2 pasaron: 117 passed;
+- los dos archivos Playwright V2 pasaron: 20 passed;
 - existe una caracterización específica para los fundamentos visuales en 1487, 1050 y 820 px;
 - existe una caracterización específica para cambiar medida y márgenes, validar su impacto, confirmar advertencias, deshacer, rehacer y recargar;
 - la dirección visual aprobada fue comparada con la implementación HTML/CSS real;
-- no se ejecutó la suite completa de todo el repositorio, fuera de la superficie V2 indicada.
+- la suite completa del repositorio se ejecutó al cerrar 19-F: 662 passed, 1 skipped y 14 fallos ajenos a los archivos de esta fase, concentrados en Presupuestos, Flexografía, una expectativa histórica de `AGENTS.md` y un bloqueo de archivo temporal Windows/ReportLab; no se corrigieron por quedar fuera del alcance aprobado.
 
 ## 3. Decisión principal del rediseño
 
@@ -1377,7 +1377,7 @@ Resultado:
 
 ### Fase 19-F: responsive y accesibilidad operativa
 
-Estado: pendiente.
+Estado: completada y validada el 2026-09-06.
 
 Alcance:
 
@@ -1396,6 +1396,79 @@ Gate de salida:
 - canvas no queda inutilizable;
 - no existen controles críticos inaccesibles;
 - sin nuevos errores de consola.
+
+Decisión aplicada:
+
+1. Por encima de 1180 px se conservan las cuatro áreas simultáneas de la propuesta aprobada: herramientas, fuentes, canvas e inspector.
+2. En 1180 px o menos permanecen en el grid únicamente la barra de herramientas y el canvas. Fuentes e Inspector pasan a cajones superpuestos, exclusivos entre sí y sin ocupar ancho permanente.
+3. Los cajones se abren desde dos controles visibles al inicio de la toolbar. Preparar abre Fuentes; Imponer, Ajustar, Validar y Salida abren Inspector. Configurar, Alinear, Distribuir y Repetir reutilizan el mismo enrutamiento contextual.
+4. Abrir o cerrar un cajón es estado temporal del controlador responsive: no entra en `EditorStore`, Layout V2, historial, revisión ni autosave.
+5. Un cajón cerrado queda fuera del orden de foco mediante `inert` y `aria-hidden`; el control de apertura refleja `aria-expanded`. Cerrar, el fondo y Escape restauran el foco al acceso que lo abrió.
+6. En 820 px se mantiene visible Atajos, los controles nuevos tienen un alto mínimo de 44 px y la toolbar puede desplazarse horizontalmente sin provocar overflow del documento.
+7. El cambio de breakpoint a escritorio elimina `inert`, cierra cualquier estado temporal y restituye ambos paneles normales sin duplicar DOM, controles ni listeners.
+
+#### Resultado 19-F.1: prioridad del canvas sin perder herramientas
+
+La caracterización previa mostró dos defectos complementarios: cerca de 1050 px la suma mínima de las cuatro columnas excedía el viewport y recortaba toolbar e inspector; en 820 px el CSS ocultaba Fuentes sin ofrecer otra entrada. La nueva política elimina ambos defectos sin crear una versión móvil separada.
+
+Resultados medidos:
+
+- 1440 px: Fuentes e Inspector permanecen simultáneamente visibles y los accesos responsive quedan ocultos;
+- 1050 px: el workspace ocupa al menos 980 px, no existe overflow horizontal del documento y ambos paneles se alcanzan como cajones;
+- 820 px: el workspace ocupa al menos 750 px, Fuentes, Inspector y Atajos siguen accesibles y los cajones quedan dentro del viewport;
+- 656 px con tamaño raíz ampliado a 20 px, usado como aproximación de viewport efectivo con ampliación: los accesos permanecen visibles, el canvas conserva ancho útil y no aparece overflow del documento.
+
+El fondo atenúa el canvas solo mientras un cajón está abierto y permite cerrarlo sin perder el contexto. Al cerrarlo, el canvas vuelve a ser inmediatamente la superficie dominante.
+
+#### Resultado 19-F.2: teclado, foco y semántica accesible
+
+Se conservaron las tabs y sus flechas, Home y End. La etapa seleccionada recibe el foco correcto incluso después de abrir y cerrar su cajón con Escape. Los accesos Fuentes e Inspector funcionan con Enter, las acciones rápidas llevan el foco al control contextual existente y Escape restaura el foco al botón de origen.
+
+Los dos paneles tienen regiones y nombres accesibles explícitos. Los nuevos controles usan `aria-controls` y `aria-expanded`; no se agregó ninguna región `aria-live`, por lo que abrir o cerrar paneles no duplica los anuncios de guardado, clipboard, medición o validación existentes. El template renderizado mantiene 201 IDs únicos.
+
+#### Resultado 19-F.3: límites y validación
+
+Archivos modificados o agregados:
+
+    templates/editor_offset_visual_v2.html
+    static/css/editor_offset_visual_v2.css
+    static/js/editor_offset_v2/dom_refs.js
+    static/js/editor_offset_v2/responsive_panels.js
+    static/js/editor_offset_v2/workflow_navigation.js
+    static/js/editor_offset_v2/bootstrap.js
+    static/js/editor_offset_v2/command_registry.js
+    tests/editor_offset_v2/js/responsive_panels_v2.test.cjs
+    tests/playwright/test_editor_offset_v2_ux_characterization.py
+    DOCS/OFFSET/V2/19_PLAN_Y_TRAZABILIDAD_REDISENO_UX_V2.md
+
+Validación ejecutada:
+
+- comprobación sintáctica de los módulos JavaScript modificados o agregados: correcta;
+- prueba Node focalizada de responsive y navegación: 5 passed;
+- suite Node completa V2: 117 passed;
+- suite Python V2: 331 passed y 1 skipped;
+- prueba Playwright 19-F: 1 passed;
+- regresión Playwright 19-C/19-D/19-E/19-F: 4 passed;
+- regresión completa de los dos archivos Playwright V2: 20 passed;
+- los tres viewports y la ampliación efectiva conservaron Layout V2, revisión, `changeVersion`, undo, redo y dirty exactamente iguales;
+- `git diff --check`: sin errores, con avisos informativos LF/CRLF;
+- Navegador integrado sobre `ev2_14d0c6f8f60e601aed51f833`: Fuentes, Inspector, cierre con Escape y foco funcionaron; consola sin warnings ni errores; el job quedó sin mutaciones, Guardar deshabilitado y revisión 52;
+- comparación visual directa con `19_propuesta_visual_redisenio_incremental_v2.png` y capturas de 1440, 1050 y 820 px: escritorio conserva la composición aprobada y los tamaños reducidos mantienen el canvas dominante.
+
+También se ejecutó `pytest -q` sobre todo el repositorio: 662 passed, 1 skipped y 14 failed. Los fallos están fuera de la superficie modificada: cinco en catálogos de `sistema_presupuesto`, siete en diagnóstico flexográfico por la firma simulada de `simular_riesgos`, uno por una expectativa histórica del contenido de `AGENTS.md` y uno por acceso de Windows a un `NamedTemporaryFile` usado por ReportLab. No se modificaron esos subsistemas.
+
+Riesgo residual:
+
+- a menos de 820 px el editor sigue siendo utilizable por acceso, pero no se declara optimizado para teléfonos; la herramienta continúa orientada a operación de escritorio o tablet horizontal;
+- no se ejecutó una auditoría WCAG completa con lector de pantalla real; sí se validaron nombres, estados, foco y teclado del alcance;
+- el scroll interno largo de Fuentes e Inspector conserva todos los controles existentes y deberá reevaluarse cuando se incorporen funciones productivas reales;
+- PDF, preview productivo y CTP continúan expresamente fuera de esta fase.
+
+Resultado:
+
+- el gate de 19-F queda cumplido;
+- DEC-011 queda aplicada y UX-008 validado;
+- la Fase 19-G puede comenzar como cierre separado, sin ampliar el rediseño con funciones productivas.
 
 ### Fase 19-G: cierre y documentación de estado
 
@@ -1500,8 +1573,8 @@ Estados permitidos:
 | UX-005 | Reducir longitud y densidad del inspector | Exploraciones 1-4 y Resultado 19-D.3 | 19-D | Validado | Paneles exclusivos por etapa; todos los controles e IDs conservados |
 | UX-006 | Dar acceso primario a Repeat y composición | Inventario del template y Resultado 19-D.2 | 19-D | Validado | Acceso Repetir abre el panel existente; calculate/apply y undo conservan cobertura |
 | UX-007 | Separar validación de salida productiva | Documento 18, output_panel.js y Resultado 19-D.1 | 19-D | Validado | Compatibilidad vive en Validar; Salida se presenta explícitamente pendiente y sin CTA productivo |
-| UX-008 | Mejorar responsive en 1050 y 820 px | Capturas de exploración, tanda 19-A.1 y Resultado 19-C.1 | 19-F | En caracterización | Sin overflow en 19-C; acceso completo por tarea sigue pendiente de 19-F |
-| UX-009 | Mantener barra de estado útil | Interfaz actual y Resultado 19-C.1 | 19-C/19-F | Validado | Zoom, cara, slots, etiquetas y estado visibles en los tres viewports; seguimiento de accesibilidad en 19-F |
+| UX-008 | Mejorar responsive en 1050 y 820 px | Capturas de exploración, tanda 19-A.1 y Resultado 19-F.1/19-F.2 | 19-F | Validado | Grid de dos áreas y cajones exclusivos; Fuentes, Inspector y tareas por etapa accesibles sin overflow ni mutación |
+| UX-009 | Mantener barra de estado útil | Interfaz actual y Resultado 19-C.1/19-F.1 | 19-C/19-F | Validado | Zoom, cara, slots, etiquetas y estado conservados; Atajos accesible en 820 px y canvas dominante en los tres viewports |
 | SHEET-001 | Mostrar medida del pliego junto al canvas | Falta observada por el usuario y Resultado 19-D.2 | 19-D | Validado | `layout.sheet.size_mm` renderizado como dato de solo lectura junto al canvas |
 | SHEET-002 | Permitir configurar medida y márgenes | Default fijo confirmado por código y Resultado 19-E.1/19-E.2 | 19-E | Validado | Formulario, validación, comando, autosave, undo/redo y recarga comprobados |
 | SHEET-003 | No escalar o mover slots silenciosamente | Política SAFE y Resultado 19-E.2 | 19-E | Validado | Igualdad exacta de `slots[]` comprobada en Node y Playwright antes, después, undo, redo y recarga |
@@ -1532,7 +1605,7 @@ Estados permitidos:
 | DEC-008 | 2026-09-05 | Aprobar el documento 19 y avanzar a caracterización | Congela alcance y permite preparar el baseline antes de código | Aprobada |
 | DEC-009 | 2026-09-05 | Bloquear Delete y Cut si quedan dependientes fuera de la selección; permitir borrado conjunto atómico y sin cascada silenciosa | Protege la integridad referencial y mantiene control explícito del operador | Aprobada y aplicada |
 | DEC-010 | 2026-09-06 | Configurar el pliego después de crear el job; conservar slots exactos; mostrar conteos y exigir segunda confirmación solo ante advertencias; no agregar presets ni preferencia global todavía | Evita ampliar el endpoint o el contrato, conserva control del operador y permite validar formatos reales antes de crear catálogo | Aplicada y validada |
-| DEC-011 | Pendiente | Modelo responsive de paneles | Afecta acceso y foco | Abierta |
+| DEC-011 | 2026-09-06 | Mantener cuatro áreas por encima de 1180 px y convertir Fuentes e Inspector en cajones temporales, exclusivos y accesibles en anchos menores | Evita recortar el canvas o esconder herramientas críticas; conserva un solo DOM y no persiste estado visual | Aplicada y validada |
 | DEC-012 | 2026-09-05 | Sincronizar el contador temporal de pegado con su comando y limpiar feedback por origen | Mantiene coherencia operativa sin persistir estado efímero ni borrar avisos ajenos | Aplicada |
 | DEC-013 | 2026-09-05 | Aplicar 19-C como una capa CSS reversible, sin mover controles ni modificar HTML o JavaScript | Permite mejorar legibilidad y jerarquía antes de alterar conexiones funcionales | Aplicada y validada |
 | DEC-014 | 2026-09-05 | Implementar las etapas como modos temporales exclusivos y hacer que los accesos frecuentes deleguen en paneles o comandos existentes | Reduce densidad sin alterar Layout V2 ni duplicar mutaciones | Aplicada y validada |
@@ -1556,6 +1629,7 @@ Estados permitidos:
 | 2026-09-05 | Fase 19-C de fundamentos visuales | CSS V2, test Playwright de caracterización y documento 19 | Mejora tipografía, controles, contraste, estados, espaciado y superficies; no cambia DOM, JS ni Layout V2 | Playwright V2: 17 passed; Python V2: 331 passed y 1 skipped; Node V2: 108 passed; node --check y diff correctos; Navegador sin errores | Fase 19-C completada; 19-D habilitada como fase separada |
 | 2026-09-05 | Fase 19-D de jerarquía y organización funcional | template y CSS V2, dom_refs.js, bootstrap.js, workflow_navigation.js, pruebas Node/Playwright y documento 19 | Añade cinco modos temporales, toolbar frecuente y lectura del pliego; conserva IDs, comandos, Layout V2, rutas y salida | Node V2: 111 passed; Python V2: 331 passed y 1 skipped; Playwright V2: 18 passed; 180 IDs únicos; node --check y diff correctos; Navegador real en revisión 52 y estado Guardado | Fase 19-D completada; 19-E queda condicionada a política de cambio de pliego |
 | 2026-09-06 | Fase 19-E de configuración funcional del pliego | template y CSS V2, sheet_panel.js, commands.js, command_registry.js, dom_refs.js, bootstrap.js, workflow_navigation.js, pruebas Node/Playwright y documento 19 | Edita medida y márgenes mediante un comando reversible; informa impacto y conserva todos los slots sin escalado ni movimiento | Node V2: 115 passed; Python V2: 331 passed y 1 skipped; Playwright V2: 19 passed; node --check y diff correctos; Navegador real en revisión 52 y estado Guardado | DEC-010 aplicada; Fase 19-E completada; 19-F habilitada |
+| 2026-09-06 | Fase 19-F de responsive y accesibilidad operativa | template y CSS V2, responsive_panels.js, dom_refs.js, bootstrap.js, workflow_navigation.js, command_registry.js, pruebas Node/Playwright y documento 19 | Conserva cuatro áreas en escritorio y ofrece Fuentes/Inspector como cajones temporales en ancho reducido; añade Escape, retorno de foco, `inert`, nombres y estados ARIA sin tocar Layout V2 | Node V2: 117 passed; Python V2: 331 passed y 1 skipped; Playwright V2: 20 passed; 201 IDs únicos; 1440/1050/820 y ampliación comprobados; Navegador sin errores, revisión 52 | DEC-011 aplicada; UX-008 validado; Fase 19-F completada y 19-G habilitada |
 
 Después de cada cambio futuro se debe agregar una fila con:
 
@@ -1611,16 +1685,16 @@ No actualizar documentación para afirmar funciones que no fueron validadas.
 
 1. Resuelta en 19-D: la navegación funciona como modos temporales exclusivos.
 2. Resuelta para 19-D: acciones de documento, medida del pliego y accesos Duplicar, Alinear, Distribuir y Repetir permanecen visibles.
-3. Resuelta provisionalmente para 19-D: el árbol de objetos vive en Validar; 19-F podrá revisar su acceso responsive sin cambiar su comportamiento.
+3. Resuelta en 19-F: el árbol de objetos sigue viviendo en Validar y se alcanza dentro del cajón Inspector en ancho reducido, sin cambiar su comportamiento.
 4. Resuelta en 19-D: Repeat permanece como el panel existente dentro de Imponer.
 5. Resuelta en 19-E: la configuración ocurre después de crear el job y conserva 700 × 500 mm como fallback.
 6. ¿Qué presets de pliego necesita realmente la imprenta? 19-E no inventó un catálogo ni guardó preferencias globales.
 7. ¿Qué advertencias deben bloquear salida y cuáles solo informar?
 8. Resuelta en 19-D: Salida se muestra como etapa pendiente, sin botones productivos y con explicación explícita.
-9. ¿Qué comportamiento responsive es prioritario para operación real?
+9. Resuelta en 19-F: conservar el canvas dominante y ofrecer Fuentes e Inspector como cajones exclusivos por debajo de 1180 px, con acceso por controles, etapas y teclado.
 
 ## 23. Próximo paso SAFE
 
-La Fase 19-E terminó con la configuración de pliego, sus contratos de interacción y las regresiones V2 en verde. El siguiente paso recomendado es la Fase 19-F de responsive y accesibilidad operativa.
+La Fase 19-F terminó con el acceso responsive, el foco, el teclado y las regresiones V2 en verde. El siguiente paso recomendado es la Fase 19-G de cierre y documentación de estado.
 
-19-F debe medir el flujo completo en 1440, 1050 y 820 px, incluyendo Configurar pliego, y decidir cómo se accede a Assets y al inspector cuando las cuatro columnas no caben. Debe revisar navegación por teclado, orden de foco, nombres accesibles, anuncios aria-live, zoom de navegador y targets táctiles. No debe mezclar esta adaptación con presets, reparación automática de slots, PDF, CTP ni cambios del contrato de salida.
+19-G debe revisar el diff acumulado de 19-A a 19-F contra la base de la rama, confirmar que cada archivo modificado corresponde a una decisión registrada, reconciliar el documento 18 como snapshot histórico con el estado real posterior al rediseño y crear el documento de estado posterior previsto por DOC-002. No debe ampliar el alcance con presets, reparación automática de slots, PDF, CTP ni cambios del contrato de salida.
