@@ -90,7 +90,7 @@
       y: -trim.height / 2,
       width: trim.width,
       height: trim.height,
-      href: `${assetsApiUrl}/${encodeURIComponent(asset.id)}/thumbnails/${page.number}`,
+      href: `${assetsApiUrl}/${encodeURIComponent(asset.id)}/thumbnails/${page.number}?box=${encodeURIComponent(slot.source.pdf_box)}`,
       preserveAspectRatio: "xMidYMid meet",
       class: "ev2-svg-artwork",
       "clip-path": `url(#${clipId})`,

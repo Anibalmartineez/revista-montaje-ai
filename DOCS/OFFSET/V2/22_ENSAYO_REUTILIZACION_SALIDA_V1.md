@@ -162,7 +162,12 @@ preprensa, sobreimpresión, transparencias, fuentes complejas, todas las cajas
 PDF, páginas preparadas o casos reales de producción. El canvas actual sigue
 mostrando miniaturas aproximadas.
 
-**Siguiente adaptación recomendada, todavía no implementada:**
+**Siguiente adaptación recomendada al cierre 22:**
+
+Actualización posterior: los puntos 1 a 4 se abordaron en el alcance acotado de
+[Fase 23](23_PREPARACION_FUENTES_Y_PARIDAD_SALIDA_V2.md). El invocador 22 y sus
+fixtures conservan los resultados legacy descritos aquí; la preparación V2 usa
+un invocador distinto. Paridad completa y habilitación productiva siguen pendientes.
 
 1. Preparar la página y caja seleccionadas por V2, incluyendo CropBox sin
    TrimBox, en derivados explícitos sin cambiar el original.

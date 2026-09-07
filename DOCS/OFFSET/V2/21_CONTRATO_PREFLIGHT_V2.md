@@ -367,6 +367,13 @@ El usuario aprobó la identificación de funciones útiles V1 y posteriormente s
 
 ### Gates posteriores, independientes
 
+Actualización posterior: el usuario autorizó y se implementó el ensayo preparado
+de [Fase 23](23_PREPARACION_FUENTES_Y_PARIDAD_SALIDA_V2.md), con página/caja,
+orientación, bleed fuente o espejo explícito y marcas por slot. Esa evidencia
+amplía el ensayo; no implementa el reporte canónico de este documento ni sustituye
+los gates siguientes. La aceptación documental y el cierre 21-A de este archivo
+conservan su alcance histórico.
+
 1. Preflight ejecutable nativo y publicación de reportes.
 2. Preview mínimo con representación fiel y capacidades explícitas.
 3. PDF final con verificación de artefactos.

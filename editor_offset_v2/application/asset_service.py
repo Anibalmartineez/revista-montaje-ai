@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import copy
+import hashlib
 import secrets
 from collections.abc import Callable
 from dataclasses import dataclass
@@ -169,6 +170,53 @@ class AssetService:
             if isinstance(exc, AssetRepositoryError):
                 raise self._map_repository_error(exc) from exc
             raise
+
+    def box_thumbnail(self, job_id, asset_id, page_number, pdf_box: str) -> bytes:
+        """Render the selected source box using the same V2 preparation as output.
+
+        No cached files, layout fields or source files are changed by this read.
+        The original thumbnail route remains available without the box option.
+        """
+        if pdf_box not in {"media", "crop", "trim", "bleed"}:
+            raise AssetServiceError("INVALID_PDF_BOX", "Unknown PDF box", 400)
+        thumbnail = self.thumbnail_path(job_id, asset_id, page_number)
+        current = self._jobs.get_job(job_id)
+        asset = next((item for item in current.layout["assets"] if item["id"] == asset_id), None)
+        if asset is None:
+            raise AssetServiceError("ASSET_NOT_FOUND", "The asset is no longer in this job", 404)
+        source = thumbnail.parent.parent / SOURCE_FILENAME
+        if source.is_symlink() or not source.resolve().is_relative_to(thumbnail.parent.parent):
+            raise AssetServiceError("UNSAFE_ASSET_PATH", "The source path is unsafe", 400)
+        try:
+            if source.stat().st_size > 50 * 1024 * 1024:
+                raise AssetServiceError("SOURCE_RESOURCE_LIMIT", "Source exceeds thumbnail limit", 413)
+            data = source.read_bytes()
+        except OSError as exc:
+            raise AssetServiceError("ASSET_FILE_NOT_FOUND", "Source PDF is unavailable", 404) from exc
+        if hashlib.sha256(data).hexdigest() != asset["sha256"]:
+            raise AssetServiceError("ASSET_HASH_MISMATCH", "Source identity differs from the saved asset", 409)
+        from editor_offset_v2.infrastructure.prepared_pdf_source import prepare_source, SourcePreparationError
+        from editor_offset_v2.infrastructure.thumbnail_renderer import render_prepared_thumbnail
+        try:
+            physical = inspect_pdf(data)
+            declared = next((page for page in asset["pages"] if page["number"] == page_number), None)
+            if declared is None:
+                raise AssetServiceError("THUMBNAIL_NOT_FOUND", "The page is no longer in this asset", 404)
+            if physical.page_count != asset["page_count"]:
+                raise AssetServiceError("PHYSICAL_METADATA_MISMATCH", "PDF page count differs", 409)
+            actual = physical.pages[page_number - 1]
+            expected_box = declared["boxes_mm"][pdf_box]
+            actual_box = getattr(actual, pdf_box)
+            if expected_box is None or actual_box is None:
+                raise AssetServiceError("MISSING_SOURCE_BOX", "The selected PDF box is absent", 422)
+            if actual.intrinsic_rotation_deg != declared["intrinsic_rotation_deg"] or any(
+                abs(value - expected_box[key]) > 0.01 for key, value in actual_box.as_layout().items()
+            ):
+                raise AssetServiceError("PHYSICAL_METADATA_MISMATCH", "PDF box or rotation differs", 409)
+            prepared = prepare_source(data, page_number=page_number, pdf_box=pdf_box)
+            return render_prepared_thumbnail(prepared.data)
+        except (PdfInspectionError, SourcePreparationError, ThumbnailRenderError) as exc:
+            raise AssetServiceError(getattr(exc, "code", "THUMBNAIL_RENDER_ERROR"), str(exc), 422) from exc
 
     def thumbnail_path(
         self,

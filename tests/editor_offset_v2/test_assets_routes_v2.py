@@ -5,6 +5,7 @@ import io
 from pathlib import Path
 
 import pytest
+from PIL import Image
 from flask import Flask
 
 from editor_offset_v2.blueprint import init_editor_offset_v2
@@ -43,6 +44,44 @@ def create_job(client):
     response = client.post("/api/editor-offset-v2/jobs", json={})
     assert response.status_code == 201
     return response.get_json()
+
+
+@pytest.mark.parametrize("rotation", [0, 90, 180, 270])
+def test_box_thumbnail_matches_selected_dimensions_and_is_read_only(
+    assets_app_factory, pdf_bytes_factory, rotation,
+):
+    app = assets_app_factory()
+    client = app.test_client()
+    created = create_job(client)
+    original = pdf_bytes_factory(trim=True, crop=True, rotation=rotation)
+    payload = upload(client, created["job_id"], original).get_json()
+    root = Path(app.config[EDITOR_OFFSET_V2_JOBS_ROOT]) / created["job_id"]
+    before = {p.relative_to(root): p.read_bytes() for p in root.rglob("*") if p.is_file()}
+    url = f"/api/editor-offset-v2/jobs/{created['job_id']}/assets/{payload['asset_id']}/thumbnails/1?box=trim"
+    response = client.get(url)
+    assert response.status_code == 200
+    with Image.open(io.BytesIO(response.data)) as image:
+        expected = (256, 544) if rotation in (90, 270) else (544, 256)
+        assert image.size == pytest.approx(expected, abs=1)
+    assert client.get(url, headers={"If-None-Match": response.headers["ETag"]}).status_code == 304
+    assert {p.relative_to(root): p.read_bytes() for p in root.rglob("*") if p.is_file()} == before
+
+
+def test_box_thumbnail_rejects_absent_boxes_and_changed_source(assets_app_factory, pdf_bytes_factory):
+    app = assets_app_factory()
+    client = app.test_client()
+    created = create_job(client)
+    payload = upload(client, created["job_id"], pdf_bytes_factory()).get_json()
+    base = f"/api/editor-offset-v2/jobs/{created['job_id']}/assets/{payload['asset_id']}/thumbnails/1"
+    assert client.get(base + "?box=invalid").status_code == 400
+    assert client.get(base + "?box=trim").status_code == 422
+    assert client.get(base + "?box=media").status_code == 200
+    root = Path(app.config[EDITOR_OFFSET_V2_JOBS_ROOT]) / created["job_id"]
+    source = root / payload["asset"]["storage_key"]
+    source.write_bytes(source.read_bytes() + b"\n%modified\n")
+    changed = client.get(base + "?box=media")
+    assert changed.status_code == 409
+    assert changed.get_json()["error"]["code"] == "ASSET_HASH_MISMATCH"
 
 
 def upload(client, job_id, data, *, revision=1, filename="diseño.pdf", mime="application/pdf"):

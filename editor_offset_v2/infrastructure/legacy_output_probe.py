@@ -73,12 +73,13 @@ def _render_face(designs: list, config):
     return realizar_montaje_inteligente(designs, config)
 
 
-def run_legacy_output_probe(
+def _run_output_probe(
     job_root: Path,
     output_directory: Path,
     *,
     expected_revision: int,
     observe_legacy_bleed: bool = False,
+    prepared_sources: bool = False,
 ) -> ProbeArtifacts:
     """Run a restricted offline trial against a saved Layout V2 revision.
 
@@ -101,7 +102,11 @@ def run_legacy_output_probe(
     layout = json.loads(layout_bytes)
     if layout.get("job", {}).get("revision") != expected_revision:
         raise ProbeRejected("STALE_REVISION", "Saved revision differs from the requested trial")
-    result = adapt_layout_v2_to_output(layout, root)
+    if prepared_sources:
+        from .prepared_output_adapter import adapt_prepared_trial
+        result = adapt_prepared_trial(layout, root)
+    else:
+        result = adapt_layout_v2_to_output(layout, root)
     if not result.success:
         raise ProbeRejected("ADAPTER_REJECTED", "Layout is outside the current bridge capabilities", result.issues)
     job = result.job
@@ -111,7 +116,7 @@ def run_legacy_output_probe(
     if len(layout["slots"]) > 200 or job.sheet_size.width > 1000 or job.sheet_size.height > 1400:
         raise ProbeRejected("TRIAL_RESOURCE_LIMIT", "Trial exceeds the offline fixture limits")
     positive_bleed = any(slot["geometry"]["bleed_mm"] > 0 for slot in layout["slots"])
-    if positive_bleed and not observe_legacy_bleed:
+    if positive_bleed and not observe_legacy_bleed and not prepared_sources:
         raise ProbeRejected("BLEED_POLICY_UNRESOLVED", "Explicit observation is required for legacy mirror bleed")
 
     # Capture bytes before calling the shared renderer; it never sees originals.
@@ -151,6 +156,14 @@ def run_legacy_output_probe(
         from montaje_offset import generar_vista_previa
 
         designs = [Diseno(ruta=str(design.source_path), cantidad=1) for design in staged_job.designs]
+        preparation_evidence = []
+        if prepared_sources:
+            from .prepared_output_adapter import prepare_renderer_inputs, overlay_slot_crop_marks
+            paths, payload, preparation_evidence = prepare_renderer_inputs(
+                staged_job, layout, snapshot_paths, stage,
+                allow_mirror_bleed=observe_legacy_bleed,
+            )
+            designs = [Diseno(ruta=str(path), cantidad=1) for path in paths]
         face_pdfs = []
         preview_names = []
         applied_positions = {}
@@ -170,10 +183,12 @@ def run_legacy_output_probe(
                 modo_manual=True, estrategia="manual", posiciones_manual=positions,
                 output_mode=job.export.render_mode, output_path=str(face_pdf),
                 preview_path=None, es_pdf_final=True, devolver_posiciones=True,
-                cutmarks_por_forma=payload["faces"][face]["cutmarks_por_forma"],
+                cutmarks_por_forma=False if prepared_sources else payload["faces"][face]["cutmarks_por_forma"],
                 ctp_config={"enabled": False}, export_area_util=False,
             )
             rendered = _render_face(designs, config)
+            if prepared_sources:
+                overlay_slot_crop_marks(face_pdf, job, face)
             applied_positions[face] = [
                 {key: value for key, value in pos.items() if key not in {"archivo", "ruta_pdf"}}
                 for pos in rendered["positions"]
@@ -208,10 +223,14 @@ def run_legacy_output_probe(
             raise ProbeRejected("INPUT_CHANGED_DURING_TRIAL", "Source job changed during rendering")
         notes = ["Experimental artifact: no production preflight or canvas parity certification.",
                  "Legacy per-slot crop-mark selection and zero-bleed marks are not faithful."]
-        if positive_bleed:
+        if positive_bleed and not prepared_sources:
             notes.append("Requested observation: V1 replaces original bleed with mirrored trim edges.")
             if job.export.render_mode == "vector_hybrid":
                 notes.append("Raster bleed frame and vector center use different rotation paths; parity is unproven.")
+        if prepared_sources:
+            notes = ["Experimental prepared-source artifact; production preflight remains pending.",
+                     "PDF boxes and pages are normalized before V1 placement; sources are unchanged.",
+                     "Crop marks follow each slot; zero-bleed ticks have an explicit trial length of 3 mm."]
         report = {
             "probe_version": 1, "production_ready": False,
             "job_id": job.id, "revision": expected_revision,
@@ -229,6 +248,8 @@ def run_legacy_output_probe(
             "issues": [issue.as_dict() for issue in result.issues], "notes": notes,
             "pdf": "trial.pdf", "previews": preview_names,
         }
+        if prepared_sources:
+            report.update(preparation=preparation_evidence, allow_mirror_bleed=observe_legacy_bleed)
         (stage / "layout_v2.snapshot.json").write_bytes(layout_bytes)
         (stage / "report.json").write_text(json.dumps(report, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
         # Recheck at publication; rename refuses to replace existing directories.
@@ -236,3 +257,15 @@ def run_legacy_output_probe(
             raise ProbeRejected("OUTPUT_ALREADY_EXISTS", "Trial destination appeared during rendering")
         stage.rename(destination)
     return ProbeArtifacts(destination / "trial.pdf", tuple(destination / name for name in preview_names), destination / "report.json")
+
+
+def run_legacy_output_probe(job_root, output_directory, *, expected_revision, observe_legacy_bleed=False):
+    """Original phase-22 characterization, with its strict legacy limitations."""
+    return _run_output_probe(job_root, output_directory, expected_revision=expected_revision,
+                             observe_legacy_bleed=observe_legacy_bleed)
+
+
+def run_prepared_output_probe(job_root, output_directory, *, expected_revision, allow_mirror_bleed=False):
+    """Phase-23 trial using V2 page/box preparation and per-slot marks."""
+    return _run_output_probe(job_root, output_directory, expected_revision=expected_revision,
+                             observe_legacy_bleed=allow_mirror_bleed, prepared_sources=True)

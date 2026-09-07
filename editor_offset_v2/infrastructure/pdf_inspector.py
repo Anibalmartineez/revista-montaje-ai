@@ -123,15 +123,18 @@ def _parse_pdf_box(value: str | None, name: str) -> PdfBox | None:
 
 
 def inspect_pdf(
-    pdf_path: str | Path,
+    pdf_path: str | Path | bytes,
     *,
     max_pages: int = DEFAULT_MAX_PAGES,
 ) -> PdfInspection:
     """Inspect page boxes without inventing absent TrimBox or BleedBox values."""
 
-    path = Path(pdf_path)
     try:
-        document = fitz.open(path)
+        document = (
+            fitz.open(stream=pdf_path, filetype="pdf")
+            if isinstance(pdf_path, bytes)
+            else fitz.open(Path(pdf_path))
+        )
     except (fitz.FileDataError, RuntimeError, ValueError, OSError) as exc:
         raise PdfInspectionError("The uploaded file is corrupt or is not a readable PDF") from exc
 

@@ -119,6 +119,8 @@ La paridad se mide contra geometría y fixtures esperados; comparar con legacy a
 
 ## 7. Decisiones que siguen abiertas
 
+Actualización aprobada e implementada en el ensayo de [Fase 23](23_PREPARACION_FUENTES_Y_PARIDAD_SALIDA_V2.md): permitir sangrado por espejo mediante una opción explícita. Con clipping bleed y cobertura física suficiente se conserva el bleed fuente; en los demás casos el ensayo exige `allow_mirror_bleed=True`. La opción todavía no tiene control productivo en UI ni campo nuevo en Layout V2. La preparación y adaptación del algoritmo de espejo pertenecen a V2; el renderer manual sigue compartido temporalmente. La aprobación de esa fase incluye tests y miniaturas por caja, y no acredita preflight ni PDF final productivos.
+
 - revisión de la especificación de reporte del documento 21, schema ejecutable y detalles de lectura estable/publicación;
 - política de bloqueos, tolerancias productivas y cobertura obligatoria por operación;
 - orden de transformaciones y semántica exacta de clipping;

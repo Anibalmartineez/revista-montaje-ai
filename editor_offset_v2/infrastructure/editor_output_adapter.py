@@ -225,6 +225,20 @@ def adapt_layout_v2_to_output(
     if any(issue.level == "error" for issue in issues):
         return OutputAdapterResult(success=False, job=None, issues=tuple(issues))
 
+    job = _build_output_job(typed_layout, resolved_paths)
+    return OutputAdapterResult(success=True, job=job, issues=tuple(issues))
+
+
+def _build_output_job(
+    typed_layout: Mapping[str, Any], resolved_paths: Mapping[str, Path],
+) -> OutputJob:
+    """Shared conversion after a caller has validated its output boundary.
+
+    Kept in infrastructure: both the original bridge and the prepared-source
+    trial use the same V2 geometry and identity conversion. No validation bypass
+    is added to the public adapter or the capabilities endpoint.
+    """
+    assets = {asset["id"]: asset for asset in typed_layout["assets"]}
     design_keys: list[tuple[str, int, str]] = []
     for slot in typed_layout["slots"]:
         key = _source_key(slot["source"])
@@ -365,7 +379,7 @@ def adapt_layout_v2_to_output(
         ),
         ctp=_build_ctp_config(typed_layout["ctp"]),
     )
-    return OutputAdapterResult(success=True, job=job, issues=tuple(issues))
+    return job
 
 
 def _serialize_position(position: OutputPosition) -> dict[str, object]:

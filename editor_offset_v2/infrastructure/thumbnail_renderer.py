@@ -19,6 +19,18 @@ class ThumbnailRenderError(RuntimeError):
     """Raised when a PDF page cannot be rasterized for UI use."""
 
 
+def render_prepared_thumbnail(pdf_data: bytes) -> bytes:
+    """Bounded RGB preview of a normalized source; returns PNG without writes."""
+    try:
+        with fitz.open(stream=pdf_data, filetype="pdf") as document:
+            page = document[0]
+            scale = min(THUMBNAIL_MAX_SCALE, THUMBNAIL_MAX_EDGE_PX / max(page.rect.width, page.rect.height))
+            return page.get_pixmap(matrix=fitz.Matrix(scale, scale),
+                                  colorspace=fitz.csRGB, alpha=False).tobytes("png")
+    except (fitz.FileDataError, RuntimeError, ValueError, OSError) as exc:
+        raise ThumbnailRenderError("Prepared source cannot be rendered") from exc
+
+
 def render_thumbnails(
     pdf_path: str | Path,
     output_directory: str | Path,

@@ -89,6 +89,39 @@ def _open_job_with_repeat(page, server_url: str, pdf_path: Path, quantity: int =
     _open_workflow_stage(page, "adjust")
 
 
+def test_v2_canvas_uses_selected_pdf_box(v2_server, tmp_path):
+    pdf_path = tmp_path / "box-colors.pdf"
+    with fitz.open() as document:
+        source = document.new_page(width=240, height=140)
+        source.draw_rect(source.rect, color=None, fill=(1, 0, 1))
+        source.draw_rect(fitz.Rect(20, 20, 220, 120), color=None, fill=(0, 1, 0))
+        source.set_trimbox(fitz.Rect(20, 20, 220, 120))
+        document.save(pdf_path)
+    with sync_playwright() as playwright:
+        browser = playwright.chromium.launch(headless=True)
+        try:
+            page = browser.new_page(viewport={"width": 1440, "height": 900})
+            _open_job_with_repeat(page, v2_server, pdf_path, quantity=1)
+            artwork = page.locator(".ev2-svg-artwork")
+            href = artwork.get_attribute("href")
+            assert href.endswith("?box=trim")
+            observed = page.evaluate("""async (url) => {
+                const img = new Image();
+                img.src = url;
+                await img.decode();
+                const canvas = document.createElement('canvas');
+                canvas.width = img.naturalWidth;
+                canvas.height = img.naturalHeight;
+                const ctx = canvas.getContext('2d');
+                ctx.drawImage(img, 0, 0);
+                return {width: canvas.width, height: canvas.height,
+                    pixel: [...ctx.getImageData(4, 4, 1, 1).data]};
+            }""", href)
+            assert observed == {"width": 400, "height": 200, "pixel": [0, 255, 0, 255]}
+        finally:
+            browser.close()
+
+
 def test_v2_visible_repeat_calculate_apply_undo_redo_save_and_reload(v2_server, tmp_path):
     console_errors: list[str] = []
     page_errors: list[str] = []

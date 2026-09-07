@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import hashlib
+import io
 from pathlib import Path
 from typing import Any
 
@@ -259,6 +261,10 @@ def upload_asset(job_id: str):
 def asset_thumbnail(job_id: str, asset_id: str, page: str):
     page_number: object = int(page) if page.isdecimal() else page
     try:
+        if "box" in request.args:
+            data = _asset_service().box_thumbnail(job_id, asset_id, page_number, request.args["box"])
+            return send_file(io.BytesIO(data), mimetype="image/png", conditional=True,
+                             etag=hashlib.sha256(data).hexdigest(), max_age=3600)
         path = _asset_service().thumbnail_path(job_id, asset_id, page_number)
     except (AssetServiceError, JobServiceError) as error:
         return _error_payload(error)

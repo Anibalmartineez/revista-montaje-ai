@@ -316,8 +316,12 @@ Riesgos adicionales confirmados por lectura: capabilities no inspecciona archivo
 ## 15. Fuera de alcance
 
 La aplicación todavía no implementa generación PDF o preview productivos, CTP,
-transformaciones de contenido ni preparación de páginas/cajas para salida. El
-invocador offline genera únicamente artefactos experimentales y copias byte a byte
-de fuentes para el ensayo 22. No modifica Editor V1 ni adapta layouts anteriores.
+ni transformaciones internas avanzadas. El ensayo 22 conserva su comportamiento
+original. La [Fase 23](23_PREPARACION_FUENTES_Y_PARIDAD_SALIDA_V2.md) incorpora
+preparación de páginas/cajas y sangrado explícito en infraestructura V2, antes del
+renderer manual, y marcas por slot. Reutiliza la conversión privada a OutputJob;
+el adaptador público y `output-capabilities` conservan sus restricciones y no
+anuncian las nuevas capacidades experimentales. El canvas sí usa miniaturas de
+la caja seleccionada. No se modifica Editor V1 ni se adaptan layouts anteriores.
 
 Los casos JSON de `output_adapter_cases.json` son independientes de Python y pueden reutilizarse como caracterización del puente y referencia geométrica. No son fixtures PDF renderizados ni obligan a implementar un adaptador TypeScript o una conexión productiva legacy.

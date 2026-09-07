@@ -8,6 +8,8 @@ Actualización posterior al cierre UX, también del 2026-09-06: la auditoría SA
 
 Actualización posterior de salida: el usuario autorizó reutilización temporal de funciones V1 y el ensayo controlado [22 — Reutilización de salida V1](22_ENSAYO_REUTILIZACION_SALIDA_V1.md). Existe un invocador offline V2 con snapshots de fuentes, PDF experimental y preview derivada del mismo PDF. La validación focalizada ejecutó 78 pruebas (23 nuevas de ensayo, 50 de adaptador y 5 de inspector). Se demostraron posiciones y giros sin bleed en ambos modos; se reprodujeron diferencias de bleed y marcas. No se modificaron rutas, canvas, contrato, jobs reales ni motor V1. Preview/PDF/CTP productivos continúan pendientes. La rama y evidencia que siguen corresponden al cierre UX histórico.
 
+Actualización vigente de salida — [Fase 23](23_PREPARACION_FUENTES_Y_PARIDAD_SALIDA_V2.md): preparación propia V2 de página/caja/rotación, bleed fuente o espejo explícito, marcas por slot y ensayo PDF con fuentes derivadas. El canvas solicita ahora miniaturas de la caja seleccionada. Se reutiliza la geometría V2 y el renderer manual V1 sin modificar módulos compartidos. Validación: 404 tests Python V2 y 1 skipped, 117 Node y 21 Playwright V2; copia del montaje real con ocho piezas comprobada. No hay rutas productivas nuevas ni cambios de contrato. Próximo gate: preflight mínimo ejecutable y preview limitada a capacidades demostradas; PDF final y CTP continúan pendientes. Los apartados de evidencia UX inferiores mantienen su corte histórico.
+
 Rama revisada:
 
     codex/editor-offset-v2-ux-foundation
@@ -119,7 +121,7 @@ El frontend sigue siendo JavaScript clásico cargado con `defer`. No se introduj
 | `GET /api/editor-offset-v2/jobs/<job_id>` | Activo. Lee Layout V2 persistido. |
 | `PUT /api/editor-offset-v2/jobs/<job_id>/layout` | Activo. Guarda con `base_revision` y conflicto 409. |
 | `POST /api/editor-offset-v2/jobs/<job_id>/assets` | Activo. Incorpora un PDF físico e inmutable. |
-| `GET /api/editor-offset-v2/jobs/<job_id>/assets/<asset_id>/thumbnails/<page>` | Activo. Sirve miniatura segura. |
+| `GET /api/editor-offset-v2/jobs/<job_id>/assets/<asset_id>/thumbnails/<page>` | Activo. Sirve miniatura segura; `?box=` usa la caja física elegida por el canvas desde Fase 23. |
 | `POST /api/editor-offset-v2/jobs/<job_id>/imposition/repeat` | Activo. Calcula Repeat sin persistir hasta Aplicar. |
 | `GET /api/editor-offset-v2/jobs/<job_id>/output-capabilities` | Activo, diagnóstico temporal. No genera salida. |
 
