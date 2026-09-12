@@ -554,3 +554,11 @@ transformación en el manifiesto. La vinculación al slot restablece el
 `content_transform` a identidad dentro del mismo comando reversible, por lo que
 Preview y PDF final no aplican dos veces la matriz. La salida continúa detrás de
 los gates existentes y requiere evidencia visual adicional antes de producción.
+
+### Fase 33 — Paridad de derivados, Preview y PDF
+
+Se añadió una prueba canónica con artwork asimétrico que compara el recorte de la
+Preview contra el PDF derivado transformado y la Preview completa contra el PDF
+candidato. La prueba fija tolerancias de caracterización para el fixture y DPI
+36; no habilita salida productiva. Color, preservación vectorial, CTP y perfiles
+de imprenta siguen pendientes.
