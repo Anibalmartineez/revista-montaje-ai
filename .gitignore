@@ -27,6 +27,7 @@ static/ia_jobs/
 
 # PDFs de prueba o generados
 *.pdf
+!tests/fixtures/editor_offset_v2/*.pdf
 
 # Archivos internos de pruebas
 

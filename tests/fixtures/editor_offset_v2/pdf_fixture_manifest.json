@@ -1,0 +1,300 @@
+{
+  "cases": [
+    {
+      "file": "boxes-offset.pdf",
+      "pages": [
+        {
+          "boxes": {
+            "bleed": {
+              "height": 40.922222,
+              "width": 77.611111,
+              "x": 3.527778,
+              "y": 4.233333
+            },
+            "crop": {
+              "height": 44.45,
+              "width": 81.138889,
+              "x": 1.763889,
+              "y": 2.469444
+            },
+            "media": {
+              "height": 49.388889,
+              "width": 84.666667,
+              "x": 0.0,
+              "y": 0.0
+            },
+            "trim": {
+              "height": 37.394444,
+              "width": 74.083333,
+              "x": 5.291667,
+              "y": 5.997222
+            }
+          },
+          "rotation": 0
+        }
+      ],
+      "title": "EV2 boxes offset"
+    },
+    {
+      "file": "boxes-missing.pdf",
+      "pages": [
+        {
+          "boxes": {
+            "bleed": null,
+            "crop": {
+              "height": 44.45,
+              "width": 81.138889,
+              "x": 1.763889,
+              "y": 2.469444
+            },
+            "media": {
+              "height": 49.388889,
+              "width": 84.666667,
+              "x": 0.0,
+              "y": 0.0
+            },
+            "trim": null
+          },
+          "rotation": 0
+        }
+      ],
+      "title": "EV2 missing trim and bleed"
+    },
+    {
+      "file": "multipage-rotations.pdf",
+      "pages": [
+        {
+          "boxes": {
+            "bleed": {
+              "height": 45.155556,
+              "width": 79.022222,
+              "x": 2.822222,
+              "y": 2.116667
+            },
+            "crop": {
+              "height": 46.566667,
+              "width": 81.844444,
+              "x": 1.411111,
+              "y": 1.411111
+            },
+            "media": {
+              "height": 49.388889,
+              "width": 84.666667,
+              "x": 0.0,
+              "y": 0.0
+            },
+            "trim": {
+              "height": 42.333333,
+              "width": 76.2,
+              "x": 4.233333,
+              "y": 3.527778
+            }
+          },
+          "rotation": 0
+        },
+        {
+          "boxes": {
+            "bleed": null,
+            "crop": {
+              "height": 46.566667,
+              "width": 81.844444,
+              "x": 1.411111,
+              "y": 1.411111
+            },
+            "media": {
+              "height": 49.388889,
+              "width": 84.666667,
+              "x": 0.0,
+              "y": 0.0
+            },
+            "trim": null
+          },
+          "rotation": 90
+        },
+        {
+          "boxes": {
+            "bleed": {
+              "height": 45.155556,
+              "width": 79.022222,
+              "x": 2.822222,
+              "y": 2.116667
+            },
+            "crop": {
+              "height": 46.566667,
+              "width": 81.844444,
+              "x": 1.411111,
+              "y": 1.411111
+            },
+            "media": {
+              "height": 49.388889,
+              "width": 84.666667,
+              "x": 0.0,
+              "y": 0.0
+            },
+            "trim": {
+              "height": 42.333333,
+              "width": 76.2,
+              "x": 4.233333,
+              "y": 3.527778
+            }
+          },
+          "rotation": 180
+        }
+      ],
+      "title": "EV2 multipage rotations"
+    },
+    {
+      "file": "marks-clipping.pdf",
+      "pages": [
+        {
+          "artwork": {
+            "asymmetric": true,
+            "crop_marks": true
+          },
+          "boxes": {
+            "bleed": {
+              "height": 52.916667,
+              "width": 91.722222,
+              "x": 7.055556,
+              "y": 5.291667
+            },
+            "crop": {
+              "height": 56.444444,
+              "width": 98.777778,
+              "x": 3.527778,
+              "y": 3.527778
+            },
+            "media": {
+              "height": 63.5,
+              "width": 105.833333,
+              "x": 0.0,
+              "y": 0.0
+            },
+            "trim": {
+              "height": 45.861111,
+              "width": 84.666667,
+              "x": 10.583333,
+              "y": 8.819444
+            }
+          },
+          "rotation": 0
+        }
+      ],
+      "title": "EV2 marks and clipping"
+    },
+    {
+      "file": "mirror-bleed-candidate.pdf",
+      "pages": [
+        {
+          "bleed_policy": "mirror_explicit_option",
+          "boxes": {
+            "bleed": null,
+            "crop": {
+              "height": 49.388889,
+              "width": 84.666667,
+              "x": 0.0,
+              "y": 0.0
+            },
+            "media": {
+              "height": 49.388889,
+              "width": 84.666667,
+              "x": 0.0,
+              "y": 0.0
+            },
+            "trim": null
+          },
+          "requires_future_stage": true,
+          "rotation": 0
+        }
+      ],
+      "title": "EV2 mirror bleed candidate"
+    },
+    {
+      "file": "front-back-flip.pdf",
+      "pages": [
+        {
+          "boxes": {
+            "bleed": {
+              "height": 45.155556,
+              "width": 79.022222,
+              "x": 2.822222,
+              "y": 2.116667
+            },
+            "crop": {
+              "height": 49.388889,
+              "width": 84.666667,
+              "x": 0.0,
+              "y": 0.0
+            },
+            "media": {
+              "height": 49.388889,
+              "width": 84.666667,
+              "x": 0.0,
+              "y": 0.0
+            },
+            "trim": {
+              "height": 42.333333,
+              "width": 76.2,
+              "x": 4.233333,
+              "y": 3.527778
+            }
+          },
+          "content_transform": {
+            "clip_to": "trim",
+            "offset_mm": {
+              "x": 0.0,
+              "y": 0.0
+            },
+            "rotation_deg": 0
+          },
+          "face": "front",
+          "flip": "none",
+          "rotation": 0
+        },
+        {
+          "boxes": {
+            "bleed": {
+              "height": 45.155556,
+              "width": 79.022222,
+              "x": 2.822222,
+              "y": 2.116667
+            },
+            "crop": {
+              "height": 49.388889,
+              "width": 84.666667,
+              "x": 0.0,
+              "y": 0.0
+            },
+            "media": {
+              "height": 49.388889,
+              "width": 84.666667,
+              "x": 0.0,
+              "y": 0.0
+            },
+            "trim": {
+              "height": 42.333333,
+              "width": 76.2,
+              "x": 4.233333,
+              "y": 3.527778
+            }
+          },
+          "content_transform": {
+            "clip_to": "trim",
+            "offset_mm": {
+              "x": 1.5,
+              "y": -2.0
+            },
+            "rotation_deg": 90
+          },
+          "face": "back",
+          "flip": "horizontal",
+          "rotation": 0
+        }
+      ],
+      "title": "EV2 front back flip"
+    }
+  ],
+  "point_to_mm": 0.35277777777777775,
+  "schema_version": 1,
+  "unit": "mm"
+}

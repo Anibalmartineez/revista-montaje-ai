@@ -12,6 +12,10 @@ Actualización vigente de salida — [Fase 23](23_PREPARACION_FUENTES_Y_PARIDAD_
 
 Actualización vigente de salida — [Fase 24](24_PREFLIGHT_EJECUTABLE_V2.md): preflight mínimo ejecutable y reporte inmutable bajo `reports/`, con comprobaciones de contrato, identidad física PDF, cajas, geometría, solapes y capacidades temporales. La UI puede ejecutarlo sobre la última revisión guardada y marca el reporte como desactualizado cuando cambia el Layout. Preview, PDF final y CTP permanecen bloqueados; todavía no hay renderer productivo V2. Los apartados de evidencia UX inferiores mantienen su corte histórico.
 
+Actualización vigente de salida — [Fase 26](26_FIXTURES_Y_PARIDAD_PDF_V2.md): fixtures PDF canónicos y prueba de contrato/paridad métrica incorporados bajo `tests/fixtures/editor_offset_v2/`. Se cubren cajas desplazadas y ausentes, multipágina, rotaciones intrínsecas, candidato de bleed por espejo explícito, marcas/clipping y expectativas declaradas de frente/dorso y transformaciones. La prueba focalizada pasa (4 tests), la suite Python V2 pasa (412 tests, 1 omitido) y los bytes se mantienen estables al regenerar. Preview, PDF final y CTP siguen bloqueados; la tolerancia visual final y el renderer V2 propio continúan pendientes.
+
+Actualización vigente de salida — [Fase 27](27_PREVIEW_MINIMA_GATED_V2.md): Preview V2 mínima propia implementada como PNG derivado por cara, con validación física, gate `EDITOR_OFFSET_V2_PREVIEW_ENABLED` apagado por defecto y publicación atómica bajo `previews/`. Solo admite transformación interna identidad y bloquea explícitamente marcas, flip dúplex y capacidades no resueltas. Sus 4 pruebas pasan y la suite Python V2 queda en 416 passed y 1 omitido. PDF final y CTP permanecen fuera de alcance.
+
 Rama revisada:
 
     codex/editor-offset-v2-ux-foundation
@@ -50,7 +54,7 @@ Estado general:
 - UX incremental de escritorio: implementada;
 - operación responsive en 1440, 1050 y 820 px: validada;
 - configuración de pliego por job: implementada y persistente;
-- preview productivo V2: no implementado;
+- preview mínima V2: implementada detrás de gate; Preview productiva completa: pendiente;
 - PDF final V2: no implementado;
 - preflight mínimo ejecutable: implementado en Fase 24; no equivale a preflight productivo completo;
 - CTP productivo V2: no implementado;
@@ -127,8 +131,9 @@ El frontend sigue siendo JavaScript clásico cargado con `defer`. No se introduj
 | `POST /api/editor-offset-v2/jobs/<job_id>/imposition/repeat` | Activo. Calcula Repeat sin persistir hasta Aplicar. |
 | `GET /api/editor-offset-v2/jobs/<job_id>/output-capabilities` | Activo, diagnóstico temporal. No genera salida. |
 | `POST /api/editor-offset-v2/jobs/<job_id>/preflight` | Activo. Publica un reporte mínimo inmutable; no genera salida. |
+| `POST /api/editor-offset-v2/jobs/<job_id>/preview` | Implementado detrás de `EDITOR_OFFSET_V2_PREVIEW_ENABLED`; apagado por defecto y limitado a la Preview mínima de la Fase 27. |
 
-No existen rutas V2 de preview productivo, PDF final, nesting, hybrid, preflight profundo completo o CTP productivo.
+No existe Preview productiva habilitada por defecto ni hay rutas V2 de PDF final, nesting, hybrid, preflight profundo completo o CTP productivo.
 
 ## 6. Mapa actualizado de conexiones frontend
 
@@ -348,6 +353,8 @@ La rama puede pasar a revisión focalizada de V2. Si el proceso de integración 
 | 21 | Contrato canónico de preflight; parcialmente ejecutado por la Fase 24. |
 | 24 | Implementación mínima ejecutable del preflight y su endpoint. |
 | 25 | Guía de pruebas amplias, hallazgos y recomendaciones de esta auditoría. |
+| 26 | Fixtures PDF canónicos y criterios de paridad; evidencia previa al renderer. |
+| 27 | Preview mínima V2 propia detrás de gate separado; no es PDF final. |
 
 Al cerrar el rediseño no se actualizaron 01, 02, 03 o el schema porque esa fase no cambió sus contratos. La fase documental posterior 21-A corrige descripciones auditadas en 02 y 03; conserva 01 y el schema sin cambios.
 
@@ -358,10 +365,11 @@ Al cerrar el rediseño no se actualizaron 01, 02, 03 o el schema porque esa fase
 1. Completar el preflight profundo sobre el contrato 21 y el reporte mínimo de la Fase 24; la ejecución básica ya está disponible.
 2. Resolver la matriz propuesta de advertencias/bloqueos y las decisiones PF-D01 a PF-D09 según el gate de cada una.
 3. Resolver archivos físicos, página, cajas PDF, CropBox/TrimBox, clipping y `actual_size`.
-4. Crear fixtures PDF de comparación visual y métrica.
-5. Diseñar el motor de salida propio V2 conforme a la independencia aprobada; el puente queda para diagnóstico/caracterización, sin ampliación productiva por defecto.
-6. Establecer coherencia demostrable entre canvas, preview y PDF final.
-7. Diseñar CTP, marcas, pinza, barras, texto técnico y caras como contrato específico.
+4. Definir y aprobar criterios de paridad visual sobre los fixtures de la Fase 26.
+5. Validar la Preview mínima de la Fase 27 contra canvas y fixtures, y cerrar transformaciones, clipping y marcas.
+6. Diseñar el motor de salida propio V2 conforme a la independencia aprobada; el puente queda para diagnóstico/caracterización, sin ampliación productiva por defecto.
+7. Establecer coherencia demostrable entre canvas, preview y PDF final.
+8. Diseñar CTP, marcas, pinza, barras, texto técnico y caras como contrato específico.
 
 ### Prioridad media: robustez y operación
 
@@ -469,14 +477,12 @@ La Fase 19 está cerrada. Actualización de 2026-09-06: la rama de salida/prefli
 
 Orden recomendado:
 
-1. revisar el contrato documental 21 y resolver las decisiones necesarias para la próxima tanda;
-2. aprobar una fase focalizada de fixtures PDF y criterios de paridad, sin usar el job real como fixture modificable;
-3. implementar preflight nativo y publicación de reportes bajo un gate separado;
-4. preview productivo mínimo propio V2 detrás de un gate explícito;
-5. PDF final V2;
-6. CTP, marcas y dúplex bajo sus fases correspondientes;
-7. independizar Repeat y demás código compartido mediante fases de extracción, sin ampliar el puente como arquitectura final;
-8. retomar Resize 8F únicamente cuando su efecto sobre exportación esté definido.
+1. validar la Preview mínima de la Fase 27 contra canvas y fixtures;
+2. cerrar transformaciones internas, clipping, marcas, flip dúplex y tolerancias visuales;
+3. implementar el renderer PDF final V2 propio con verificación de artefactos;
+4. CTP, marcas y dúplex productivo bajo sus fases correspondientes;
+5. independizar Repeat y demás código compartido mediante fases de extracción, sin ampliar el puente como arquitectura final;
+6. retomar Resize 8F únicamente cuando su efecto sobre exportación esté definido.
 
 No conviene comenzar directamente por botones de PDF o CTP. Primero debe existir un contrato capaz de decidir con evidencia si un montaje puede producirse y cómo se representa cada error o advertencia.
 

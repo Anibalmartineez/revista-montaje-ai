@@ -26,10 +26,16 @@ from editor_offset_v2.application.asset_service import (
 from editor_offset_v2.application.job_service import JobService, JobServiceError
 from editor_offset_v2.application.output_service import validate_output_capabilities
 from editor_offset_v2.application.preflight_service import PreflightService, PreflightServiceError
+from editor_offset_v2.application.preview_service import (
+    PREVIEW_DEFAULT_DPI,
+    PreviewService,
+    PreviewServiceError,
+)
 from editor_offset_v2.application.repeat_service import RepeatService, RepeatServiceError
 from editor_offset_v2.config import (
     EDITOR_OFFSET_V2_ENABLED,
     EDITOR_OFFSET_V2_DEV_TOOLS_ENABLED,
+    EDITOR_OFFSET_V2_PREVIEW_ENABLED,
     EDITOR_OFFSET_V2_JOBS_ROOT,
     EDITOR_OFFSET_V2_MAX_UPLOAD_BYTES,
     configure_editor_offset_v2,
@@ -68,7 +74,7 @@ def _repeat_service() -> RepeatService:
     return RepeatService(_job_service())
 
 
-def _error_payload(error: JobServiceError | AssetServiceError | RepeatServiceError | PreflightServiceError):
+def _error_payload(error: JobServiceError | AssetServiceError | RepeatServiceError | PreflightServiceError | PreviewServiceError):
     payload: dict[str, Any] = {
         "ok": False,
         "error": {
@@ -115,6 +121,7 @@ def editor_shell():
         "repeat_api_url": None,
         "output_capabilities_api_url": None,
         "preflight_api_url": None,
+        "preview_api_url": None,
         "dev_tools_enabled": current_app.config.get(
             EDITOR_OFFSET_V2_DEV_TOOLS_ENABLED
         ) is True,
@@ -158,6 +165,10 @@ def editor_with_job(job_id: str):
             "editor_offset_v2.preflight",
             job_id=result.job_id,
         ),
+        "preview_api_url": url_for(
+            "editor_offset_v2.preview",
+            job_id=result.job_id,
+        ) if current_app.config.get(EDITOR_OFFSET_V2_PREVIEW_ENABLED) is True else None,
         "dev_tools_enabled": current_app.config.get(
             EDITOR_OFFSET_V2_DEV_TOOLS_ENABLED
         ) is True,
@@ -348,6 +359,54 @@ def preflight(job_id: str):
     except PreflightServiceError as error:
         return _error_payload(error)
     return jsonify({"ok": True, "report": report}), 201
+
+
+@editor_offset_v2_bp.post("/api/editor-offset-v2/jobs/<job_id>/preview")
+def preview(job_id: str):
+    if current_app.config.get(EDITOR_OFFSET_V2_PREVIEW_ENABLED) is not True:
+        return _error_payload(
+            PreviewServiceError(
+                "PREVIEW_DISABLED",
+                "Editor Offset Visual V2 Preview is disabled",
+                404,
+            )
+        )
+    payload = request.get_json(silent=True)
+    if payload is None:
+        payload = {}
+    if not isinstance(payload, dict):
+        return _error_payload(
+            PreviewServiceError(
+                "INVALID_PREVIEW_REQUEST",
+                "Request body must be a JSON object",
+                400,
+            )
+        )
+    unexpected = set(payload) - {"face", "dpi", "allow_mirror_bleed"}
+    if unexpected:
+        return _error_payload(
+            PreviewServiceError(
+                "INVALID_PREVIEW_REQUEST",
+                "Request body contains unsupported fields",
+                400,
+            )
+        )
+    try:
+        result = PreviewService(_job_repository()).render(
+            job_id,
+            face=payload.get("face", "front"),
+            dpi=payload.get("dpi", PREVIEW_DEFAULT_DPI),
+            allow_mirror_bleed=payload.get("allow_mirror_bleed", False),
+        )
+    except PreviewServiceError as error:
+        return _error_payload(error)
+    return send_file(
+        result.path,
+        mimetype="image/png",
+        conditional=True,
+        etag=result.sha256,
+        max_age=3600,
+    )
 
 
 @editor_offset_v2_bp.put("/api/editor-offset-v2/jobs/<job_id>/layout")
