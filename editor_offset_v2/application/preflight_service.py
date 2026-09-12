@@ -10,7 +10,7 @@ import tempfile
 from collections import defaultdict
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any
+from typing import Any, Mapping
 
 from editor_offset_v2.domain.geometry import (
     Bounds,
@@ -112,7 +112,12 @@ class PreflightService:
         self._jobs = jobs
         self._assets = AssetRepository(jobs)
 
-    def run(self, job_id: str) -> dict[str, object]:
+    def run(
+        self,
+        job_id: str,
+        *,
+        enabled_operations: Mapping[str, bool] | None = None,
+    ) -> dict[str, object]:
         try:
             layout = self._jobs.read_layout(job_id)
             layout_path = self._jobs.layout_path(job_id)
@@ -260,14 +265,34 @@ class PreflightService:
         issues.extend(capability_issues)
 
         complete = all(check["status"] != "failed" and check["status"] != "not_run" for check in checks)
+        enabled = {
+            operation: bool((enabled_operations or {}).get(operation, False))
+            for operation in PREFLIGHT_OPERATIONS
+        }
         decisions = []
-        blocking = [issue["issue_id"] for issue in issues if issue["severity"] == "error"]
         for operation in PREFLIGHT_OPERATIONS:
+            blocking = [
+                issue["issue_id"]
+                for issue in issues
+                if issue["severity"] == "error" and operation in issue.get("blocks", [])
+            ]
+            if complete is False:
+                status = "blocked"
+                reason_codes = ["PREFLIGHT_INCOMPLETE"]
+            elif blocking:
+                status = "blocked"
+                reason_codes = ["PREFLIGHT_FINDINGS"]
+            elif not enabled[operation]:
+                status = "blocked"
+                reason_codes = ["CAPABILITY_GATE_NOT_ENABLED"]
+            else:
+                status = "eligible"
+                reason_codes = []
             decisions.append({
                 "operation": operation,
-                "status": "blocked",
+                "status": status,
                 "blocking_issue_ids": blocking,
-                "reason_codes": ["CAPABILITY_GATE_NOT_ENABLED"] if not blocking else ["PREFLIGHT_FINDINGS", "CAPABILITY_GATE_NOT_ENABLED"],
+                "reason_codes": reason_codes,
             })
         report = {
             "report_schema_version": PREFLIGHT_REPORT_SCHEMA_VERSION,
@@ -276,7 +301,11 @@ class PreflightService:
             "subject": {"job_id": job_id, "revision": layout["job"]["revision"], "layout_sha256": layout_hash},
             "inputs": {"assets": physical_evidence, "faces": list(layout["faces"]["enabled"]), "operations": list(PREFLIGHT_OPERATIONS)},
             "policy": {"id": PREFLIGHT_POLICY_ID, "version": PREFLIGHT_POLICY_VERSION, "tolerances": {"pdf_metadata_mm": PDF_METADATA_TOLERANCE_MM}},
-            "capabilities": {"id": PREFLIGHT_CAPABILITIES_ID, "version": PREFLIGHT_CAPABILITIES_VERSION, "enabled": False},
+            "capabilities": {
+                "id": PREFLIGHT_CAPABILITIES_ID,
+                "version": PREFLIGHT_CAPABILITIES_VERSION,
+                "enabled": [operation for operation, active in enabled.items() if active],
+            },
             "analyzer": {"id": PREFLIGHT_ANALYZER_ID, "version": PREFLIGHT_ANALYZER_VERSION, "pymupdf": self._pymupdf_version()},
             "started_at": started,
             "completed_at": _now(),
@@ -291,6 +320,56 @@ class PreflightService:
         except (PreflightContractError, OSError, TypeError, ValueError) as exc:
             raise PreflightServiceError("PREFLIGHT_PUBLISH_FAILED", "The preflight report could not be published") from exc
         report["report_path"] = report_path
+        return report
+
+    def consume(
+        self,
+        job_id: str,
+        report: Mapping[str, object],
+        operation: str,
+    ) -> Mapping[str, object]:
+        """Verify that a report still describes the exact saved layout."""
+        if operation not in PREFLIGHT_OPERATIONS:
+            raise PreflightServiceError("INVALID_PREFLIGHT_OPERATION", "The requested operation is not supported", 400)
+        try:
+            layout_path = self._jobs.layout_path(job_id)
+            current_layout = self._jobs.read_layout(job_id)
+            current_bytes = layout_path.read_bytes()
+        except JobRepositoryError as exc:
+            status = 404 if exc.code == "JOB_NOT_FOUND" else 400 if exc.code == "INVALID_JOB_ID" else 500
+            raise PreflightServiceError(exc.code, exc.message, status) from exc
+        except OSError as exc:
+            raise PreflightServiceError("PREFLIGHT_INPUT_UNAVAILABLE", "The saved V2 layout is unavailable") from exc
+        try:
+            subject = report["subject"]
+            expected_revision = subject["revision"]
+            expected_hash = subject["layout_sha256"]
+        except (KeyError, TypeError):
+            raise PreflightServiceError("PREFLIGHT_INVALID_REPORT", "The preflight report subject is invalid", 422)
+        actual_hash = hashlib.sha256(current_bytes).hexdigest()
+        if expected_revision != current_layout["job"]["revision"] or expected_hash != actual_hash:
+            raise PreflightServiceError(
+                "PREFLIGHT_STALE",
+                "The preflight report no longer matches the saved Layout V2 revision",
+                409,
+            )
+        decision = next((item for item in report.get("decisions", []) if item.get("operation") == operation), None)
+        if not isinstance(decision, Mapping):
+            raise PreflightServiceError("PREFLIGHT_INVALID_REPORT", "The preflight report has no operation decision", 422)
+        if decision.get("status") != "eligible":
+            blocking_ids = set(decision.get("blocking_issue_ids", []))
+            error = PreflightServiceError(
+                "PREFLIGHT_BLOCKED",
+                f"Preflight blocks {operation} for the saved Layout V2",
+                422,
+            )
+            error.issues = tuple(
+                issue for issue in report.get("issues", [])
+                if isinstance(issue, Mapping) and issue.get("issue_id") in blocking_ids
+            )
+            if not error.issues:
+                error.issues = tuple({"code": code} for code in decision.get("reason_codes", []))
+            raise error
         return report
 
     def _geometry_findings(self, layout: dict[str, Any]) -> tuple[list[dict[str, object]], list[dict[str, object]]]:

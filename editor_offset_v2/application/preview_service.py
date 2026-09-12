@@ -13,6 +13,7 @@ from typing import Any, Mapping
 import fitz
 from PIL import Image, ImageChops, ImageDraw, ImageOps
 
+from editor_offset_v2.application.preflight_service import PreflightService, PreflightServiceError
 from editor_offset_v2.domain.geometry import (
     Point,
     Size,
@@ -85,7 +86,19 @@ class PreviewService:
         face: str = "front",
         dpi: int = PREVIEW_DEFAULT_DPI,
         allow_mirror_bleed: bool = False,
+        require_preflight: bool = True,
     ) -> PreviewResult:
+        if require_preflight:
+            try:
+                preflight = PreflightService(self._jobs).run(
+                    job_id,
+                    enabled_operations={"preview": True},
+                )
+                PreflightService(self._jobs).consume(job_id, preflight, "preview")
+            except PreflightServiceError as exc:
+                error = PreviewServiceError(exc.code, exc.message, exc.status_code)
+                error.issues = exc.issues
+                raise error from exc
         try:
             layout = self._jobs.read_layout(job_id)
         except JobRepositoryError as exc:

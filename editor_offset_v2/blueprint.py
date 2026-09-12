@@ -371,7 +371,14 @@ def preflight(job_id: str):
             )
         )
     try:
-        report = PreflightService(_job_repository()).run(job_id)
+        report = PreflightService(_job_repository()).run(
+            job_id,
+            enabled_operations={
+                "preview": current_app.config.get(EDITOR_OFFSET_V2_PREVIEW_ENABLED) is True,
+                "pdf_final": current_app.config.get(EDITOR_OFFSET_V2_PDF_FINAL_ENABLED) is True,
+                "ctp": False,
+            },
+        )
     except PreflightServiceError as error:
         return _error_payload(error)
     return jsonify({"ok": True, "report": report}), 201

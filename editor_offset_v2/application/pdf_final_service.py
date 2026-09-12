@@ -12,6 +12,7 @@ from typing import Any
 import fitz
 
 from editor_offset_v2.application.preview_service import PreviewService, PreviewServiceError
+from editor_offset_v2.application.preflight_service import PreflightService, PreflightServiceError
 from editor_offset_v2.domain.validation import validate_layout_v2
 from editor_offset_v2.infrastructure.job_repository import JobRepository, JobRepositoryError
 
@@ -51,6 +52,16 @@ class PdfFinalService:
         allow_mirror_bleed: bool = False,
     ) -> PdfFinalResult:
         try:
+            preflight = PreflightService(self._jobs).run(
+                job_id,
+                enabled_operations={"pdf_final": True},
+            )
+            PreflightService(self._jobs).consume(job_id, preflight, "pdf_final")
+        except PreflightServiceError as exc:
+            error = PdfFinalServiceError(exc.code, exc.message, exc.status_code)
+            error.issues = exc.issues
+            raise error from exc
+        try:
             layout = self._jobs.read_layout(job_id)
         except JobRepositoryError as exc:
             status = 404 if exc.code == "JOB_NOT_FOUND" else 400 if exc.code == "INVALID_JOB_ID" else 500
@@ -78,6 +89,7 @@ class PdfFinalService:
                     face=item,
                     dpi=dpi,
                     allow_mirror_bleed=allow_mirror_bleed,
+                    require_preflight=False,
                 )
                 pngs.append(preview.path.read_bytes())
             except PreviewServiceError as exc:

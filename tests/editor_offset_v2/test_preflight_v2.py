@@ -11,7 +11,10 @@ import pytest
 from flask import Flask
 
 from editor_offset_v2.blueprint import init_editor_offset_v2
+from editor_offset_v2.application.preflight_service import PreflightService, PreflightServiceError
+from editor_offset_v2.config import EDITOR_OFFSET_V2_PDF_FINAL_ENABLED, EDITOR_OFFSET_V2_PREVIEW_ENABLED
 from editor_offset_v2.domain.preflight_contract import validate_preflight_report
+from editor_offset_v2.infrastructure.job_repository import JobRepository
 
 FIXTURE = Path(__file__).resolve().parents[1] / "fixtures" / "editor_offset_v2" / "layout_v2_complete.json"
 
@@ -91,7 +94,10 @@ def test_preflight_publishes_immutable_report_and_blocks_output_gate(app_factory
     assert report["subject"]["revision"] == saved.get_json()["revision"]
     assert report["execution"] == "complete"
     assert all(decision["status"] == "blocked" for decision in report["decisions"])
-    assert all("CAPABILITY_GATE_NOT_ENABLED" in decision["reason_codes"] for decision in report["decisions"])
+    decisions = {decision["operation"]: decision for decision in report["decisions"]}
+    assert "CAPABILITY_GATE_NOT_ENABLED" in decisions["preview"]["reason_codes"]
+    assert "PREFLIGHT_FINDINGS" in decisions["pdf_final"]["reason_codes"]
+    assert "PREFLIGHT_FINDINGS" in decisions["ctp"]["reason_codes"]
     assert report["report_path"].startswith("reports/")
     report_path = Path(app.config["EDITOR_OFFSET_V2_JOBS_ROOT"]) / created["job_id"] / report["report_path"]
     persisted = json.loads(report_path.read_text(encoding="utf-8"))
@@ -141,3 +147,70 @@ def test_preflight_missing_job_is_a_controlled_not_found(app_factory):
 
     assert response.status_code == 404
     assert response.get_json()["error"]["code"] == "JOB_NOT_FOUND"
+
+
+def test_preview_consumes_only_an_eligible_current_report(app_factory):
+    app = app_factory()
+    app.config[EDITOR_OFFSET_V2_PREVIEW_ENABLED] = True
+    client = app.test_client()
+    created = client.post("/api/editor-offset-v2/jobs", json={}).get_json()
+    uploaded = _upload(client, created["job_id"], _pdf_bytes()).get_json()
+    layout = _layout_with_real_slot(uploaded["layout"], uploaded["asset"])
+    saved = client.put(
+        f"/api/editor-offset-v2/jobs/{created['job_id']}/layout",
+        json={"base_revision": uploaded["revision"], "layout": layout},
+    )
+    assert saved.status_code == 200
+
+    report_response = client.post(f"/api/editor-offset-v2/jobs/{created['job_id']}/preflight", json={})
+    assert report_response.status_code == 201
+    report = report_response.get_json()["report"]
+    decisions = {decision["operation"]: decision for decision in report["decisions"]}
+    assert decisions["preview"]["status"] == "eligible"
+    preview = client.post(f"/api/editor-offset-v2/jobs/{created['job_id']}/preview", json={})
+    assert preview.status_code == 200
+
+
+def test_consuming_a_report_after_layout_revision_is_blocked(app_factory):
+    app = app_factory()
+    app.config[EDITOR_OFFSET_V2_PREVIEW_ENABLED] = True
+    client = app.test_client()
+    created = client.post("/api/editor-offset-v2/jobs", json={}).get_json()
+    uploaded = _upload(client, created["job_id"], _pdf_bytes()).get_json()
+    layout = _layout_with_real_slot(uploaded["layout"], uploaded["asset"])
+    saved = client.put(
+        f"/api/editor-offset-v2/jobs/{created['job_id']}/layout",
+        json={"base_revision": uploaded["revision"], "layout": layout},
+    ).get_json()
+    report = client.post(f"/api/editor-offset-v2/jobs/{created['job_id']}/preflight", json={}).get_json()["report"]
+    changed = copy.deepcopy(layout)
+    changed["job"]["revision"] = saved["revision"]
+    changed["sheet"]["size_mm"]["width"] += 1
+    updated = client.put(
+        f"/api/editor-offset-v2/jobs/{created['job_id']}/layout",
+        json={"base_revision": saved["revision"], "layout": changed},
+    )
+    assert updated.status_code == 200
+    service = PreflightService(JobRepository(Path(app.config["EDITOR_OFFSET_V2_JOBS_ROOT"])))
+    with pytest.raises(PreflightServiceError) as error:
+        service.consume(created["job_id"], report, "preview")
+    assert error.value.code == "PREFLIGHT_STALE"
+
+
+def test_pdf_final_blocks_with_report_findings_without_partial_output(app_factory):
+    app = app_factory()
+    app.config[EDITOR_OFFSET_V2_PDF_FINAL_ENABLED] = True
+    client = app.test_client()
+    created = client.post("/api/editor-offset-v2/jobs", json={}).get_json()
+    uploaded = _upload(client, created["job_id"], _pdf_bytes()).get_json()
+    layout = _layout_with_real_slot(uploaded["layout"], uploaded["asset"])
+    saved = client.put(
+        f"/api/editor-offset-v2/jobs/{created['job_id']}/layout",
+        json={"base_revision": uploaded["revision"], "layout": layout},
+    )
+    assert saved.status_code == 200
+    response = client.post(f"/api/editor-offset-v2/jobs/{created['job_id']}/pdf-final", json={})
+    assert response.status_code == 422
+    assert response.get_json()["error"]["code"] == "PREFLIGHT_BLOCKED"
+    output_dir = Path(app.config["EDITOR_OFFSET_V2_JOBS_ROOT"]) / created["job_id"] / "outputs"
+    assert not list(output_dir.glob("*.pdf"))
