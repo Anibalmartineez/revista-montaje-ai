@@ -18,6 +18,8 @@ Actualización vigente de salida — [Fase 27](27_PREVIEW_MINIMA_GATED_V2.md): P
 
 Actualización vigente de salida — [Fase 28](28_PARIDAD_PREVIEW_CANVAS_V2.md): se añadió evidencia automática de paridad geométrica Preview–canvas con un PDF asimétrico sintético, comprobando dimensiones de hoja, footprint del slot, orden izquierda/derecha y preservación de revisión. La prueba focalizada queda en 9 passed y la suite Python V2 en 417 passed y 1 omitido. La tolerancia visual completa, transformaciones internas, clipping, bleed por espejo, marcas y flip dúplex siguen pendientes; Preview continúa detrás de su gate.
 
+Actualización vigente de salida — [Fase 29](29_TRANSFORMACIONES_PREVIEW_V2.md): la Preview V2 propia admite `actual_size`, `contain`, `cover`, `stretch`, escalas, offsets, rotaciones internas, espejos y clipping a trim/bleed. El bleed por espejo requiere la opción explícita `allow_mirror_bleed`. La prueba focalizada queda en 9 passed y la suite Python V2 en 421 passed y 1 omitido. Marcas, flip dúplex, clipping sin límite, tolerancia visual final y PDF productivo permanecen pendientes.
+
 Rama revisada:
 
     codex/editor-offset-v2-ux-foundation

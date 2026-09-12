@@ -177,7 +177,7 @@ def test_gated_preview_renders_a_face_without_mutating_layout(preview_app_factor
     assert list(preview_dir.glob(f"preview_r{saved['revision']}_front_36.png"))
 
 
-def test_preview_rejects_marks_and_non_identity_internal_transforms(preview_app_factory):
+def test_preview_rejects_marks_and_supports_non_identity_internal_transforms(preview_app_factory):
     app = preview_app_factory()
     app.config[EDITOR_OFFSET_V2_PREVIEW_ENABLED] = True
     client = app.test_client()
@@ -211,8 +211,8 @@ def test_preview_rejects_marks_and_non_identity_internal_transforms(preview_app_
         json={},
     )
     assert updated["revision"] == saved["revision"] + 1
-    assert transformed.status_code == 422
-    assert transformed.get_json()["error"]["code"] == "PREVIEW_TRANSFORM_UNSUPPORTED"
+    assert transformed.status_code == 200
+    assert transformed.mimetype == "image/png"
 
 
 def test_preview_raster_bounds_and_orientation_match_canvas_geometry(preview_app_factory):
@@ -287,3 +287,77 @@ def test_preview_raster_bounds_and_orientation_match_canvas_geometry(preview_app
     assert saved["revision"] == client.get(
         f"/api/editor-offset-v2/jobs/{created['job_id']}"
     ).get_json()["revision"]
+
+
+@pytest.mark.parametrize("fit_mode", ["contain", "cover", "stretch"])
+def test_preview_supports_fit_modes_and_explicit_mirror_bleed(preview_app_factory, fit_mode):
+    app = preview_app_factory()
+    app.config[EDITOR_OFFSET_V2_PREVIEW_ENABLED] = True
+    client = app.test_client()
+    created = create_job(client, f"Preview {fit_mode}")
+    upload = client.post(
+        f"/api/editor-offset-v2/jobs/{created['job_id']}/assets",
+        data={
+            "base_revision": str(created["revision"]),
+            "file": (io.BytesIO(_source_pdf()), "preview.pdf"),
+        },
+        content_type="multipart/form-data",
+    )
+    assert upload.status_code == 201
+    asset = upload.get_json()["asset"]
+    layout = _preview_layout(upload.get_json()["layout"], asset)
+    slot = layout["slots"][0]
+    slot["content_transform"].update(
+        fit_mode=fit_mode,
+        scale_x=0.8,
+        scale_y=1.1,
+        offset_mm={"x": 1.0, "y": -0.5},
+        rotation_deg=90,
+        mirror_x=True,
+    )
+    saved = _save_preview_layout(client, upload.get_json(), layout)
+
+    response = client.post(
+        f"/api/editor-offset-v2/jobs/{created['job_id']}/preview",
+        json={},
+    )
+    assert response.status_code == 200
+    assert response.mimetype == "image/png"
+    assert saved["revision"] == client.get(
+        f"/api/editor-offset-v2/jobs/{created['job_id']}"
+    ).get_json()["revision"]
+
+
+def test_preview_requires_explicit_mirror_for_missing_source_bleed(preview_app_factory):
+    app = preview_app_factory()
+    app.config[EDITOR_OFFSET_V2_PREVIEW_ENABLED] = True
+    client = app.test_client()
+    created = create_job(client, "Preview mirror bleed")
+    upload = client.post(
+        f"/api/editor-offset-v2/jobs/{created['job_id']}/assets",
+        data={
+            "base_revision": str(created["revision"]),
+            "file": (io.BytesIO(_source_pdf()), "preview.pdf"),
+        },
+        content_type="multipart/form-data",
+    )
+    asset = upload.get_json()["asset"]
+    layout = _preview_layout(upload.get_json()["layout"], asset)
+    layout["works"][0]["bleed_mm"] = 3.0
+    layout["slots"][0]["geometry"]["bleed_mm"] = 3.0
+    layout["slots"][0]["content_transform"]["clip_to"] = "bleed_box"
+    _save_preview_layout(client, upload.get_json(), layout)
+
+    blocked = client.post(
+        f"/api/editor-offset-v2/jobs/{created['job_id']}/preview",
+        json={},
+    )
+    assert blocked.status_code == 422
+    assert blocked.get_json()["error"]["code"] == "BLEED_REQUIRES_EXPLICIT_MIRROR"
+
+    mirrored = client.post(
+        f"/api/editor-offset-v2/jobs/{created['job_id']}/preview",
+        json={"allow_mirror_bleed": True},
+    )
+    assert mirrored.status_code == 200
+    assert mirrored.mimetype == "image/png"
