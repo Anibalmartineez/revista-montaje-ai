@@ -87,6 +87,8 @@
       contentClipTo: byId("ev2-content-clip-to"),
       contentTransformApply: byId("ev2-content-transform-apply"),
       contentTransformReset: byId("ev2-content-transform-reset"),
+      contentAllowMirrorBleed: byId("ev2-content-allow-mirror-bleed"),
+      contentMaterialize: byId("ev2-content-materialize"),
       contentTransformError: byId("ev2-content-transform-error"),
       objectSelection: byId("ev2-object-selection"),
       objectRotateNegative: byId("ev2-object-rotate-negative"),

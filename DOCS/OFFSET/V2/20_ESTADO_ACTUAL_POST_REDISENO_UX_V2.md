@@ -534,3 +534,10 @@ Se añadió una infraestructura optativa y bloqueada para materializar una pági
 derivada con la preparación V2, hash y manifiesto atómico. El asset original y Layout
 V2 permanecen intactos; la conexión del derivado con slots y salida productiva requiere
 un contrato propio posterior.
+
+### Fase 32D — Integración de derivados
+
+`sourceRef` admite ahora una referencia derivada opcional y verificada. El inspector
+puede vincular una página derivada a un slot mediante un comando reversible. Preview y
+PDF final comprueban ruta, hash y legibilidad antes de consumirla; los gates de
+materialización, Preview y PDF final continúan separados y apagados por defecto.

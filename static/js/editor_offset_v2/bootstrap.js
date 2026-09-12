@@ -243,6 +243,8 @@
       store,
       refs,
       modules.Commands,
+      api,
+      context,
     );
     const workflowNavigation = new modules.WorkflowNavigation.Controller(store, refs, {
       hasJob: true,

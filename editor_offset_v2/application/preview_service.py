@@ -235,6 +235,9 @@ class PreviewService:
             source_width, source_height = source_height, source_width
         if not _same_number(source_width, trim["width"]) or not _same_number(source_height, trim["height"]):
             raise PreviewServiceError("PREVIEW_SOURCE_SIZE_MISMATCH", "Source box size differs from slot trim size")
+        derived = slot["source"].get("derived")
+        if derived is not None:
+            return self._read_derived_source(job_id, asset, derived)
         try:
             prepared = prepare_source(
                 source_data,
@@ -247,6 +250,46 @@ class PreviewService:
         except SourcePreparationError as exc:
             raise PreviewServiceError(exc.code, str(exc)) from exc
         return prepared.data
+
+    def _read_derived_source(
+        self,
+        job_id: str,
+        asset: Mapping[str, Any],
+        derived: Mapping[str, Any],
+    ) -> bytes:
+        if not isinstance(derived, Mapping):
+            raise PreviewServiceError("INVALID_DERIVED_SOURCE", "The derived source reference is invalid")
+        key = derived.get("derived_key")
+        expected_sha = derived.get("derived_sha256")
+        source_sha = derived.get("source_sha256")
+        if not isinstance(key, str) or not key.startswith("derived/") or "\\" in key:
+            raise PreviewServiceError("UNSAFE_DERIVED_PATH", "The derived source path is unsafe")
+        if not isinstance(expected_sha, str) or len(expected_sha) != 64:
+            raise PreviewServiceError("INVALID_DERIVED_SOURCE", "The derived source hash is invalid")
+        if source_sha != asset.get("sha256"):
+            raise PreviewServiceError("DERIVED_SOURCE_MISMATCH", "The derived source belongs to another asset")
+        try:
+            root = self._jobs.job_path(job_id).resolve(strict=True)
+            target = (root / Path(*key.split("/"))).resolve(strict=True)
+            target.relative_to((root / "derived").resolve(strict=True))
+            if target.is_symlink() or not target.is_file():
+                raise PreviewServiceError("UNSAFE_DERIVED_PATH", "The derived source path is unsafe")
+            data = target.read_bytes()
+        except PreviewServiceError:
+            raise
+        except (OSError, ValueError, JobRepositoryError) as exc:
+            raise PreviewServiceError("DERIVED_SOURCE_MISSING", "The derived source PDF is unavailable") from exc
+        if hashlib.sha256(data).hexdigest().lower() != expected_sha.lower():
+            raise PreviewServiceError("DERIVED_IDENTITY_MISMATCH", "The derived source hash differs from its reference")
+        try:
+            with fitz.open(stream=data, filetype="pdf") as document:
+                if document.needs_pass or document.page_count != 1:
+                    raise PreviewServiceError("INVALID_DERIVED_SOURCE", "The derived source must be one readable PDF page")
+        except PreviewServiceError:
+            raise
+        except (fitz.FileDataError, RuntimeError, ValueError) as exc:
+            raise PreviewServiceError("INVALID_DERIVED_SOURCE", "The derived source PDF is unreadable") from exc
+        return data
 
     def _paint_slot(
         self,

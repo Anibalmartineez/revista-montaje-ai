@@ -132,6 +132,7 @@ def editor_shell():
         "preflight_api_url": None,
         "preview_api_url": None,
         "pdf_final_api_url": None,
+        "derived_assets_enabled": False,
         "dev_tools_enabled": current_app.config.get(
             EDITOR_OFFSET_V2_DEV_TOOLS_ENABLED
         ) is True,
@@ -183,6 +184,7 @@ def editor_with_job(job_id: str):
             "editor_offset_v2.pdf_final",
             job_id=result.job_id,
         ) if current_app.config.get(EDITOR_OFFSET_V2_PDF_FINAL_ENABLED) is True else None,
+        "derived_assets_enabled": current_app.config.get(EDITOR_OFFSET_V2_DERIVED_ASSETS_ENABLED) is True,
         "dev_tools_enabled": current_app.config.get(
             EDITOR_OFFSET_V2_DEV_TOOLS_ENABLED
         ) is True,

@@ -269,6 +269,29 @@ def test_rejects_invalid_revision():
     assert "INTEGER_RANGE" in codes(layout)
 
 
+def test_accepts_optional_verified_derived_source_reference():
+    layout = load_fixture()
+    source = layout["slots"][0]["source"]
+    source["derived"] = {
+        "derived_key": "derived/assets/asset_card_front/page_1/r8_abc.pdf",
+        "derived_sha256": "a" * 64,
+        "source_sha256": layout["assets"][0]["sha256"],
+    }
+
+    assert validate_layout_v2(layout) == []
+
+
+def test_rejects_derived_source_from_another_asset():
+    layout = load_fixture()
+    layout["slots"][0]["source"]["derived"] = {
+        "derived_key": "derived/assets/asset_card_front/page_1/r8_abc.pdf",
+        "derived_sha256": "a" * 64,
+        "source_sha256": "b" * 64,
+    }
+
+    assert "DERIVED_SOURCE_MISMATCH" in codes(layout)
+
+
 def test_assert_valid_layout_raises_with_structured_issues():
     layout = load_fixture()
     layout["layout_schema_version"] = 1

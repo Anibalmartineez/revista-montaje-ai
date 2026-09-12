@@ -255,6 +255,29 @@
         },
         "pdf_box": {
           "enum": ["media", "trim", "bleed", "crop"]
+        },
+        "derived": {
+          "$ref": "#/$defs/derivedSource"
+        }
+      }
+    },
+    "derivedSource": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["derived_key", "derived_sha256", "source_sha256"],
+      "properties": {
+        "derived_key": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^derived/[^\\\\.][^\\\\]*$"
+        },
+        "derived_sha256": {
+          "type": "string",
+          "pattern": "^[A-Fa-f0-9]{64}$"
+        },
+        "source_sha256": {
+          "type": "string",
+          "pattern": "^[A-Fa-f0-9]{64}$"
         }
       }
     },

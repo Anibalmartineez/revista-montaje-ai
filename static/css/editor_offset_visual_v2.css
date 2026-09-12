@@ -1275,6 +1275,21 @@ button:disabled {
   font-size: 10px;
 }
 
+.ev2-content-transform-mirror-bleed {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  margin-top: 8px;
+  font-size: 10px;
+}
+
+#ev2-content-materialize {
+  width: 100%;
+  margin-top: 7px;
+  padding: 5px 8px;
+  font-size: 10px;
+}
+
 .ev2-form-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));

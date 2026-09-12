@@ -209,12 +209,30 @@ def _validate_source_ref(
 ) -> dict[str, Any] | None:
     if value is None and allow_null:
         return None
-    obj = validator.object(value, path, required={"asset_id", "page", "pdf_box"})
+    obj = validator.object(value, path, required={"asset_id", "page", "pdf_box"}, optional={"derived"})
     if obj is None:
         return None
     validator.string(obj.get("asset_id"), f"{path}.asset_id")
     validator.integer(obj.get("page"), f"{path}.page", minimum=1)
     validator.enum(obj.get("pdf_box"), f"{path}.pdf_box", VALID_PDF_BOXES)
+    if "derived" in obj:
+        derived = validator.object(
+            obj.get("derived"),
+            f"{path}.derived",
+            required={"derived_key", "derived_sha256", "source_sha256"},
+        )
+        if derived is not None:
+            for name in ("derived_key", "derived_sha256", "source_sha256"):
+                validator.string(derived.get(name), f"{path}.derived.{name}")
+            for name in ("derived_sha256", "source_sha256"):
+                digest = derived.get(name)
+                if isinstance(digest, str) and (
+                    len(digest) != 64 or any(char not in "0123456789abcdefABCDEF" for char in digest)
+                ):
+                    validator.issue("INVALID_SHA256", f"{path}.derived.{name}", "must contain 64 hexadecimal characters")
+            key = derived.get("derived_key")
+            if isinstance(key, str) and (not key.startswith("derived/") or "\\" in key or ".." in key.split("/")):
+                validator.issue("UNSAFE_DERIVED_KEY", f"{path}.derived.derived_key", "must remain under the job derived directory")
     return dict(obj)
 
 
@@ -807,6 +825,12 @@ def _validate_reference(
             f"{path}.pdf_box",
             "the selected PDF box is not present on the referenced page",
         )
+    derived = source.get("derived")
+    if isinstance(derived, Mapping):
+        source_sha = derived.get("source_sha256")
+        asset_sha = assets[asset_id].get("sha256")
+        if isinstance(source_sha, str) and isinstance(asset_sha, str) and source_sha.lower() != asset_sha.lower():
+            validator.issue("DERIVED_SOURCE_MISMATCH", f"{path}.derived.source_sha256", "does not match the referenced asset")
 
 
 def validate_layout_v2(layout: Any) -> list[ValidationIssue]:

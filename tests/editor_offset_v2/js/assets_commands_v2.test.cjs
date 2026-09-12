@@ -143,6 +143,29 @@ test("SetContentTransformCommand applies graphic corrections atomically and resp
   );
 });
 
+test("SetSlotDerivedSourceCommand connects and clears a versioned page without changing the original asset", () => {
+  const layout = fixture("layout_v2_complete.json");
+  const target = layout.slots[0];
+  const original = structuredClone(target.source);
+  const originalAssetHash = layout.assets[0].sha256;
+  const derived = {
+    derived_key: "derived/assets/asset_card_front/page_1/r8_deadbeef.pdf",
+    derived_sha256: "a".repeat(64),
+    source_sha256: layout.assets[0].sha256,
+  };
+  const command = new commands.SetSlotDerivedSourceCommand(layout, [target.id], derived);
+  command.execute(layout);
+  assert.deepEqual(target.source.derived, derived);
+  assert.equal(layout.assets[0].sha256, originalAssetHash);
+  command.undo(layout);
+  assert.deepEqual(target.source, original);
+  command.redo(layout);
+  assert.deepEqual(target.source.derived, derived);
+  const clear = new commands.SetSlotDerivedSourceCommand(layout, [target.id], null);
+  clear.execute(layout);
+  assert.deepEqual(target.source, original);
+});
+
 test("ReplaceSlotSourceCommand changes only one slot and undo restores source", () => {
   const layout = fixture("layout_v2_complete.json");
   const target = layout.slots[0];

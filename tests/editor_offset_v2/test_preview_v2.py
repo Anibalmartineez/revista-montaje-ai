@@ -216,6 +216,46 @@ def test_preview_rejects_marks_and_supports_non_identity_internal_transforms(pre
     assert transformed.mimetype == "image/png"
 
 
+def test_preview_uses_a_verified_derived_source_reference(preview_app_factory):
+    app = preview_app_factory()
+    app.config[EDITOR_OFFSET_V2_PREVIEW_ENABLED] = True
+    app.config["EDITOR_OFFSET_V2_DERIVED_ASSETS_ENABLED"] = True
+    client = app.test_client()
+    created = create_job(client)
+    upload = client.post(
+        f"/api/editor-offset-v2/jobs/{created['job_id']}/assets",
+        data={
+            "base_revision": str(created["revision"]),
+            "file": (io.BytesIO(_source_pdf()), "derived-preview.pdf"),
+        },
+        content_type="multipart/form-data",
+    )
+    assert upload.status_code == 201
+    uploaded = upload.get_json()
+    layout = _preview_layout(uploaded["layout"], uploaded["asset"])
+    derived_response = client.post(
+        f"/api/editor-offset-v2/jobs/{created['job_id']}/assets/{uploaded['asset_id']}/derived-page",
+        json={"page": 1, "pdf_box": "trim", "bleed_mm": 3, "allow_mirror_bleed": True},
+    )
+    assert derived_response.status_code == 201
+    derived = derived_response.get_json()["result"]
+    layout["slots"][0]["source"]["derived"] = {
+        "derived_key": derived["derived_key"],
+        "derived_sha256": derived["sha256"],
+        "source_sha256": uploaded["asset"]["sha256"],
+    }
+    layout["slots"][0]["geometry"]["bleed_mm"] = 3.0
+    layout["slots"][0]["content_transform"]["clip_to"] = "bleed_box"
+    saved = _save_preview_layout(client, uploaded, layout)
+    response = client.post(
+        f"/api/editor-offset-v2/jobs/{created['job_id']}/preview",
+        json={"face": "front", "dpi": 36},
+    )
+    assert saved["revision"] == uploaded["revision"] + 1
+    assert response.status_code == 200
+    assert response.data.startswith(b"\x89PNG\r\n\x1a\n")
+
+
 def test_preview_raster_bounds_and_orientation_match_canvas_geometry(preview_app_factory):
     """The preview's visible artwork must occupy the saved slot footprint."""
     from PIL import Image

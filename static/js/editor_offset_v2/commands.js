@@ -840,6 +840,51 @@
     };
   }
 
+  class SetSlotDerivedSourceCommand {
+    constructor(layout, slotIds, derived) {
+      const requested = [...new Set(slotIds || [])];
+      const slots = layout.slots.filter((slot) => requested.includes(slot.id));
+      if (!requested.length || slots.length !== requested.length) {
+        throw new Error("SetSlotDerivedSourceCommand requires existing slots");
+      }
+      if (derived !== null && (!derived || typeof derived !== "object")) {
+        throw new Error("A derived source reference is required");
+      }
+      this.description = derived ? "Usar página derivada" : "Quitar página derivada";
+      this.affectedIds = Object.freeze(requested);
+      this.beforeSources = Object.fromEntries(slots.map((slot) => [slot.id, clone(slot.source)]));
+      this.afterSources = Object.fromEntries(slots.map((slot) => {
+        const source = clone(slot.source);
+        if (derived === null) delete source.derived;
+        else source.derived = clone(derived);
+        return [slot.id, source];
+      }));
+      if (!this.affectedIds.some((id) => JSON.stringify(this.beforeSources[id])
+          !== JSON.stringify(this.afterSources[id]))) {
+        throw new Error("La referencia derivada no contiene cambios");
+      }
+      EditPolicy.assertCan(layout, this.affectedIds, "replace_content");
+    }
+
+    apply(layout, sources) {
+      const slotsById = new Map(layout.slots.map((slot) => [slot.id, slot]));
+      for (const id of this.affectedIds) {
+        const slot = slotsById.get(id);
+        if (!slot) throw new Error(`The slot ${id} no longer exists`);
+        slot.source = clone(sources[id]);
+      }
+    }
+
+    execute(layout) {
+      EditPolicy.assertCan(layout, this.affectedIds, "replace_content");
+      this.apply(layout, this.afterSources);
+    }
+
+    undo(layout) { this.apply(layout, this.beforeSources); }
+
+    redo(layout) { this.execute(layout); }
+  }
+
   function createWorksFromSources(layout, entries, defaults, tokenFactory) {
     if (!Array.isArray(entries) || !entries.length) {
       throw new Error("At least one PDF page must be selected");
@@ -1009,6 +1054,7 @@
     CreateWorksCommand,
     CreateSlotFromWorkCommand,
     ReplaceSlotSourceCommand,
+    SetSlotDerivedSourceCommand,
     ApplyRepeatCommand,
     createWorkFromSource,
     createWorksFromSources,

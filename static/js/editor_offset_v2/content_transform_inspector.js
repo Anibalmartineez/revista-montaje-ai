@@ -20,16 +20,19 @@
   }
 
   class Controller {
-    constructor(store, refs, commands) {
+    constructor(store, refs, commands, api, context) {
       this.store = store;
       this.refs = refs;
       this.commands = commands;
+      this.api = api;
+      this.context = context;
       this.dirty = false;
       refs.contentTransformForm.addEventListener("submit", (event) => {
         event.preventDefault();
         this.apply();
       });
       refs.contentTransformReset.addEventListener("click", () => this.reset());
+      refs.contentMaterialize.addEventListener("click", () => this.materialize());
       for (const element of [
         refs.contentFitMode, refs.contentScaleX, refs.contentScaleY,
         refs.contentOffsetX, refs.contentOffsetY, refs.contentRotation,
@@ -107,6 +110,8 @@
       this.refs.contentTransformApply.disabled = !slots.length || !this.dirty
         || this.store.saveState.status === "saving";
       this.refs.contentTransformReset.disabled = !slots.length;
+      this.refs.contentMaterialize.disabled = !this.context.derived_assets_enabled
+        || slots.length !== 1 || this.store.saveState.status === "saving";
     }
 
     reset() {
@@ -137,6 +142,43 @@
         this.dirty = false;
         this.store.setFeedback("Ajuste gráfico aplicado.", "content-transform");
         this.render();
+      } catch (error) {
+        this.refs.contentTransformError.textContent = error.message;
+        this.refs.contentTransformError.dataset.state = "error";
+      }
+    }
+
+    async materialize() {
+      try {
+        const slots = this.selectedSlots();
+        if (slots.length !== 1) throw new Error("Selecciona exactamente un slot.");
+        if (!this.context.derived_assets_enabled) {
+          throw new Error("La edición derivada está desactivada en este entorno.");
+        }
+        if (this.dirty) throw new Error("Aplica primero el ajuste gráfico pendiente.");
+        const slot = slots[0];
+        const response = await this.api.materializeDerivedPage(
+          this.context.assets_api_url,
+          slot.source.asset_id,
+          {
+            page: slot.source.page,
+            pdf_box: slot.source.pdf_box,
+            bleed_mm: slot.geometry.bleed_mm,
+            allow_mirror_bleed: this.refs.contentAllowMirrorBleed.checked,
+          },
+        );
+        const manifest = response.result.manifest;
+        const derived = {
+          derived_key: manifest.derived_key,
+          derived_sha256: manifest.derived_sha256,
+          source_sha256: manifest.source_sha256,
+        };
+        this.store.executeCommand(new this.commands.SetSlotDerivedSourceCommand(
+          this.store.layout,
+          [slot.id],
+          derived,
+        ));
+        this.store.setFeedback("Página derivada guardada y vinculada al slot.", "content-transform");
       } catch (error) {
         this.refs.contentTransformError.textContent = error.message;
         this.refs.contentTransformError.dataset.state = "error";
