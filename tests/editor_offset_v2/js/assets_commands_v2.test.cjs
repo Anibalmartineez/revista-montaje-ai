@@ -72,8 +72,12 @@ test("CreateWorksCommand creates one independent work per selected PDF page and 
   const works = commands.createWorksFromSources(
     layout,
     entries,
-    { width: 90, height: 50, bleed: 3, allowedRotations: [0], useSameSourceForBack: false },
+    { width: 90, height: 50, bleed: 3, allowedRotations: [0, 90, 180, 270], useSameSourceForBack: false },
     (entry) => `multi_${entry.source.page}`,
+  );
+  assert.deepEqual(
+    works.map((work) => work.allowed_rotations_deg),
+    [[0, 90, 180, 270], [0, 90, 180, 270], [0, 90, 180, 270]],
   );
   const command = new commands.CreateWorksCommand(works);
   const initialCount = layout.works.length;

@@ -151,6 +151,39 @@ def test_rotation_90_preserves_unrotated_trim_and_converts_productive_corner_to_
     assert first["geometry"]["position_mm"]["y_mm"] == pytest.approx(45)
 
 
+@pytest.mark.parametrize(
+    ("allowed", "engine_rotation", "expected"),
+    [([180], 0, 180), ([270], 0, 270)],
+)
+def test_repeat_preserves_the_selected_180_and_270_cardinal_rotations(
+    allowed, engine_rotation, expected,
+):
+    case = load_case("single_zero_bleed")
+    case = {**case, "requested": 1, "allowed_rotations_deg": allowed}
+    layout = make_layout(case)
+
+    adapter = RepeatEngineAdapter(
+        engine=lambda _layout: [{
+            "design_ref": "work_repeat",
+            "x_mm": 10,
+            "y_mm": 10,
+            "rotation_deg": engine_rotation,
+        }],
+    )
+    result = adapter.propose(
+        layout,
+        ["work_repeat"],
+        "front",
+        settings(case),
+        operation_id=OPERATION_ID,
+        generated_at=GENERATED_AT,
+        apply_mode="add",
+    )
+
+    assert result.success is True
+    assert [slot["geometry"]["rotation_deg"] for slot in result.slots] == [expected]
+
+
 def test_bleed_three_uses_productive_footprints_inside_printable_bounds():
     case = load_case("bleed_three")
     layout = make_layout(case)
