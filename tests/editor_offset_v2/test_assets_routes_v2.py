@@ -101,11 +101,22 @@ def test_derived_page_is_versioned_and_can_materialize_explicit_mirror_bleed(
         "pdf_box": "trim",
         "bleed_mm": 3,
         "allow_mirror_bleed": True,
+        "content_transform": {
+            "fit_mode": "actual_size",
+            "scale_x": 1,
+            "scale_y": 1,
+            "offset_mm": {"x": 0, "y": 0},
+            "rotation_deg": 0,
+            "mirror_x": False,
+            "mirror_y": False,
+            "clip_to": "trim_box",
+        },
     })
     assert response.status_code == 201
     result = response.get_json()["result"]
     assert result["manifest"]["source_sha256"] == uploaded["asset"]["sha256"]
     assert result["manifest"]["allow_mirror_bleed"] is True
+    assert result["manifest"]["content_transform"]["fit_mode"] == "actual_size"
     assert result["derived_key"].endswith(".pdf")
     derived = Path(app.config[EDITOR_OFFSET_V2_JOBS_ROOT]) / created["job_id"] / result["derived_key"]
     assert derived.is_file()
@@ -113,6 +124,33 @@ def test_derived_page_is_versioned_and_can_materialize_explicit_mirror_bleed(
         assert document.page_count == 1
         assert document[0].rect.width > 0
         assert document[0].rect.height > 0
+
+
+def test_derived_page_rejects_non_identity_transform_until_matrix_support_exists(
+    assets_app_factory, pdf_bytes_factory,
+):
+    app = assets_app_factory()
+    app.config[EDITOR_OFFSET_V2_DERIVED_ASSETS_ENABLED] = True
+    client = app.test_client()
+    created = create_job(client)
+    uploaded = upload(client, created["job_id"], pdf_bytes_factory(trim=True)).get_json()
+    route = f"/api/editor-offset-v2/jobs/{created['job_id']}/assets/{uploaded['asset_id']}/derived-page"
+    response = client.post(route, json={
+        "page": 1,
+        "pdf_box": "trim",
+        "content_transform": {
+            "fit_mode": "actual_size",
+            "scale_x": 1.1,
+            "scale_y": 1,
+            "offset_mm": {"x": 0, "y": 0},
+            "rotation_deg": 0,
+            "mirror_x": False,
+            "mirror_y": False,
+            "clip_to": "trim_box",
+        },
+    })
+    assert response.status_code == 422
+    assert response.get_json()["error"]["code"] == "DERIVED_TRANSFORM_UNSUPPORTED"
 
 
 def upload(client, job_id, data, *, revision=1, filename="diseño.pdf", mime="application/pdf"):

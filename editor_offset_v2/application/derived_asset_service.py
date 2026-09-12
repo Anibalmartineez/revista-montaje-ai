@@ -12,6 +12,7 @@ import os
 import tempfile
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Mapping
 
 from editor_offset_v2.application.job_service import JobService, JobServiceError
 from editor_offset_v2.infrastructure.asset_repository import AssetRepository, AssetRepositoryError, SOURCE_FILENAME
@@ -51,6 +52,7 @@ class DerivedAssetService:
         pdf_box: str = "trim",
         bleed_mm: float = 0,
         allow_mirror_bleed: bool = False,
+        content_transform: Mapping[str, object] | None = None,
     ) -> DerivedPageResult:
         try:
             job = self._jobs.get_job(job_id)
@@ -68,6 +70,7 @@ class DerivedAssetService:
             raise DerivedAssetServiceError("INVALID_DERIVED_OPTION", "bleed_mm must be non-negative", 400)
         if not isinstance(allow_mirror_bleed, bool):
             raise DerivedAssetServiceError("INVALID_DERIVED_OPTION", "allow_mirror_bleed must be boolean", 400)
+        clip_to = self._validate_materialization_transform(content_transform, pdf_box)
         source = asset_path / SOURCE_FILENAME
         try:
             data = source.read_bytes()
@@ -81,7 +84,7 @@ class DerivedAssetService:
                 page_number=page_number,
                 pdf_box=pdf_box,
                 bleed_mm=float(bleed_mm),
-                clip_to="bleed_box" if pdf_box == "bleed" else "trim_box",
+                clip_to=clip_to,
                 allow_mirror_bleed=allow_mirror_bleed,
             )
         except SourcePreparationError as exc:
@@ -103,6 +106,16 @@ class DerivedAssetService:
             "source_box": pdf_box,
             "bleed_mm": float(bleed_mm),
             "allow_mirror_bleed": allow_mirror_bleed,
+            "content_transform": {
+                "fit_mode": "actual_size",
+                "scale_x": 1.0,
+                "scale_y": 1.0,
+                "offset_mm": {"x": 0.0, "y": 0.0},
+                "rotation_deg": 0,
+                "mirror_x": False,
+                "mirror_y": False,
+                "clip_to": clip_to,
+            },
             "trim_size_mm": {"width": prepared.trim_size.width, "height": prepared.trim_size.height},
             "size_mm": {"width": prepared.size.width, "height": prepared.size.height},
             "layout_revision": revision,
@@ -110,6 +123,63 @@ class DerivedAssetService:
         }
         self._atomic_write(manifest_path, (json.dumps(manifest, ensure_ascii=False, indent=2) + "\n").encode())
         return DerivedPageResult(asset_id, page_number, manifest["derived_key"], digest, manifest)
+
+    @staticmethod
+    def _validate_materialization_transform(
+        transform: Mapping[str, object] | None,
+        pdf_box: str,
+    ) -> str:
+        """Allow only a transform the current one-page carrier can represent.
+
+        The V2 canvas supports richer transforms, but this service currently
+        materializes the source PDF without rasterizing or applying a matrix.
+        Rejecting non-identity input prevents a derived file from silently
+        diverging from the saved canvas.
+        """
+        expected_clip = "bleed_box" if pdf_box == "bleed" else "trim_box"
+        if transform is None:
+            return expected_clip
+        if not isinstance(transform, Mapping):
+            raise DerivedAssetServiceError(
+                "INVALID_DERIVED_TRANSFORM",
+                "content_transform must be an object",
+                400,
+            )
+        fit_mode = transform.get("fit_mode", "actual_size")
+        scale_x = transform.get("scale_x", 1.0)
+        scale_y = transform.get("scale_y", 1.0)
+        offset = transform.get("offset_mm", {"x": 0.0, "y": 0.0})
+        rotation = transform.get("rotation_deg", 0)
+        mirror_x = transform.get("mirror_x", False)
+        mirror_y = transform.get("mirror_y", False)
+        clip_to = transform.get("clip_to", expected_clip)
+        try:
+            identity = (
+                fit_mode == "actual_size"
+                and not isinstance(scale_x, bool)
+                and not isinstance(scale_y, bool)
+                and float(scale_x) == 1.0
+                and float(scale_y) == 1.0
+                and isinstance(offset, Mapping)
+                and not isinstance(offset.get("x", 0.0), bool)
+                and not isinstance(offset.get("y", 0.0), bool)
+                and float(offset.get("x", 0.0)) == 0.0
+                and float(offset.get("y", 0.0)) == 0.0
+                and not isinstance(rotation, bool)
+                and float(rotation) == 0.0
+                and mirror_x is False
+                and mirror_y is False
+                and clip_to in {"trim_box", "bleed_box"}
+            )
+        except (TypeError, ValueError, OverflowError):
+            identity = False
+        if not identity:
+            raise DerivedAssetServiceError(
+                "DERIVED_TRANSFORM_UNSUPPORTED",
+                "Only an identity content transform can be materialized safely in this phase",
+                422,
+            )
+        return str(clip_to)
 
     @staticmethod
     def _atomic_write(target: Path, data: bytes) -> None:

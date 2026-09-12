@@ -541,3 +541,12 @@ un contrato propio posterior.
 puede vincular una página derivada a un slot mediante un comando reversible. Preview y
 PDF final comprueban ruta, hash y legibilidad antes de consumirla; los gates de
 materialización, Preview y PDF final continúan separados y apagados por defecto.
+
+### Fase 32E — Guardia de paridad para derivados
+
+La materialización declara y valida la transformación efectiva. Mientras el
+materializador no aplica una matriz PDF completa, solo permite la identidad y
+clipping explícito coherente con la caja fuente. Escala, ajuste, offsets,
+rotación interna y espejos quedan bloqueados con un error explícito para evitar
+una página derivada distinta del canvas. El inspector refleja la misma regla y
+el manifiesto registra la transformación identidad aplicada.

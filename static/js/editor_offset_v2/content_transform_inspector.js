@@ -11,6 +11,22 @@
   const CLIP_TARGETS = Object.freeze(["none", "trim_box", "bleed_box"]);
   const ROTATIONS = Object.freeze([0, 90, 180, 270]);
 
+  function isMaterializationCompatible(slot) {
+    const transform = slot?.content_transform;
+    if (!transform) return false;
+    return transform.fit_mode === "actual_size"
+      && typeof transform.scale_x !== "boolean"
+      && typeof transform.scale_y !== "boolean"
+      && Number(transform.scale_x) === 1
+      && Number(transform.scale_y) === 1
+      && Number(transform.offset_mm?.x) === 0
+      && Number(transform.offset_mm?.y) === 0
+      && Number(transform.rotation_deg) === 0
+      && transform.mirror_x === false
+      && transform.mirror_y === false
+      && ["trim_box", "bleed_box"].includes(transform.clip_to);
+  }
+
   function parseNumber(value, label, positive) {
     const number = Number(String(value ?? "").replace(",", "."));
     if (!Number.isFinite(number) || (positive && number <= 0)) {
@@ -111,7 +127,8 @@
         || this.store.saveState.status === "saving";
       this.refs.contentTransformReset.disabled = !slots.length;
       this.refs.contentMaterialize.disabled = !this.context.derived_assets_enabled
-        || slots.length !== 1 || this.store.saveState.status === "saving";
+        || slots.length !== 1 || !isMaterializationCompatible(slots[0])
+        || this.store.saveState.status === "saving";
     }
 
     reset() {
@@ -157,6 +174,9 @@
         }
         if (this.dirty) throw new Error("Aplica primero el ajuste gráfico pendiente.");
         const slot = slots[0];
+        if (!isMaterializationCompatible(slot)) {
+          throw new Error("La página derivada requiere un ajuste gráfico identidad; restablece escala, offset, rotación y espejo antes de guardarla.");
+        }
         const response = await this.api.materializeDerivedPage(
           this.context.assets_api_url,
           slot.source.asset_id,
@@ -165,6 +185,7 @@
             pdf_box: slot.source.pdf_box,
             bleed_mm: slot.geometry.bleed_mm,
             allow_mirror_bleed: this.refs.contentAllowMirrorBleed.checked,
+            content_transform: slot.content_transform,
           },
         );
         const manifest = response.result.manifest;
@@ -190,5 +211,5 @@
     }
   }
 
-  return Object.freeze({ Controller, FIT_MODES, CLIP_TARGETS, ROTATIONS });
+  return Object.freeze({ Controller, FIT_MODES, CLIP_TARGETS, ROTATIONS, isMaterializationCompatible });
 });

@@ -442,7 +442,7 @@ def derived_page(job_id: str, asset_id: str):
         return _error_payload(DerivedAssetServiceError(
             "INVALID_DERIVED_REQUEST", "Request body must be a JSON object", 400,
         ))
-    unexpected = set(payload) - {"page", "pdf_box", "bleed_mm", "allow_mirror_bleed"}
+    unexpected = set(payload) - {"page", "pdf_box", "bleed_mm", "allow_mirror_bleed", "content_transform"}
     if unexpected:
         return _error_payload(DerivedAssetServiceError(
             "INVALID_DERIVED_REQUEST", "Request body contains unsupported fields", 400,
@@ -455,6 +455,7 @@ def derived_page(job_id: str, asset_id: str):
             pdf_box=payload.get("pdf_box", "trim"),
             bleed_mm=payload.get("bleed_mm", 0),
             allow_mirror_bleed=payload.get("allow_mirror_bleed", False),
+            content_transform=payload.get("content_transform"),
         )
     except DerivedAssetServiceError as error:
         return _error_payload(error)

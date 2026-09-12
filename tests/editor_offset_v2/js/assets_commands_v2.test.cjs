@@ -9,6 +9,7 @@ const repoRoot = path.resolve(__dirname, "../../..");
 const commands = require(path.join(repoRoot, "static/js/editor_offset_v2/commands.js"));
 const { EditorStore } = require(path.join(repoRoot, "static/js/editor_offset_v2/store.js"));
 const { thumbnailUrl } = require(path.join(repoRoot, "static/js/editor_offset_v2/assets_panel.js"));
+const { isMaterializationCompatible } = require(path.join(repoRoot, "static/js/editor_offset_v2/content_transform_inspector.js"));
 
 function fixture(name) {
   return JSON.parse(fs.readFileSync(
@@ -226,4 +227,28 @@ test("thumbnail URL is derived from the server-owned asset API boundary", () => 
     thumbnailUrl("/api/editor-offset-v2/jobs/ev2_x/assets", "asset_a b", 3),
     "/api/editor-offset-v2/jobs/ev2_x/assets/asset_a%20b/thumbnails/3",
   );
+});
+
+test("derived materialization only enables for the identity transform matching the source box", () => {
+  const slot = {
+    source: { pdf_box: "trim" },
+    content_transform: {
+      fit_mode: "actual_size",
+      scale_x: 1,
+      scale_y: 1,
+      offset_mm: { x: 0, y: 0 },
+      rotation_deg: 0,
+      mirror_x: false,
+      mirror_y: false,
+      clip_to: "trim_box",
+    },
+  };
+  assert.equal(isMaterializationCompatible(slot), true);
+  slot.content_transform.offset_mm.x = 0.01;
+  assert.equal(isMaterializationCompatible(slot), false);
+  slot.content_transform.offset_mm.x = 0;
+  slot.content_transform.clip_to = "bleed_box";
+  assert.equal(isMaterializationCompatible(slot), true);
+  slot.content_transform.clip_to = "none";
+  assert.equal(isMaterializationCompatible(slot), false);
 });
