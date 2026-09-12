@@ -26,6 +26,7 @@ from editor_offset_v2.application.asset_service import (
 from editor_offset_v2.application.job_service import JobService, JobServiceError
 from editor_offset_v2.application.output_service import validate_output_capabilities
 from editor_offset_v2.application.pdf_final_service import PdfFinalService, PdfFinalServiceError
+from editor_offset_v2.application.derived_asset_service import DerivedAssetService, DerivedAssetServiceError
 from editor_offset_v2.application.preflight_service import PreflightService, PreflightServiceError
 from editor_offset_v2.application.preview_service import (
     PREVIEW_DEFAULT_DPI,
@@ -38,6 +39,7 @@ from editor_offset_v2.config import (
     EDITOR_OFFSET_V2_DEV_TOOLS_ENABLED,
     EDITOR_OFFSET_V2_PREVIEW_ENABLED,
     EDITOR_OFFSET_V2_PDF_FINAL_ENABLED,
+    EDITOR_OFFSET_V2_DERIVED_ASSETS_ENABLED,
     EDITOR_OFFSET_V2_JOBS_ROOT,
     EDITOR_OFFSET_V2_MAX_UPLOAD_BYTES,
     configure_editor_offset_v2,
@@ -74,6 +76,11 @@ def _asset_service() -> AssetService:
 
 def _repeat_service() -> RepeatService:
     return RepeatService(_job_service())
+
+
+def _derived_asset_service() -> DerivedAssetService:
+    repository = _job_repository()
+    return DerivedAssetService(_job_service(), AssetRepository(repository), repository)
 
 
 def _error_payload(error: JobServiceError | AssetServiceError | RepeatServiceError | PreflightServiceError | PreviewServiceError):
@@ -414,6 +421,48 @@ def preview(job_id: str):
         etag=result.sha256,
         max_age=3600,
     )
+
+
+@editor_offset_v2_bp.post(
+    "/api/editor-offset-v2/jobs/<job_id>/assets/<asset_id>/derived-page"
+)
+def derived_page(job_id: str, asset_id: str):
+    if current_app.config.get(EDITOR_OFFSET_V2_DERIVED_ASSETS_ENABLED) is not True:
+        return _error_payload(
+            DerivedAssetServiceError(
+                "DERIVED_ASSETS_DISABLED",
+                "Derived V2 asset pages are disabled",
+                404,
+            )
+        )
+    payload = request.get_json(silent=True)
+    if not isinstance(payload, dict):
+        return _error_payload(DerivedAssetServiceError(
+            "INVALID_DERIVED_REQUEST", "Request body must be a JSON object", 400,
+        ))
+    unexpected = set(payload) - {"page", "pdf_box", "bleed_mm", "allow_mirror_bleed"}
+    if unexpected:
+        return _error_payload(DerivedAssetServiceError(
+            "INVALID_DERIVED_REQUEST", "Request body contains unsupported fields", 400,
+        ))
+    try:
+        result = _derived_asset_service().materialize_page(
+            job_id,
+            asset_id,
+            payload.get("page"),
+            pdf_box=payload.get("pdf_box", "trim"),
+            bleed_mm=payload.get("bleed_mm", 0),
+            allow_mirror_bleed=payload.get("allow_mirror_bleed", False),
+        )
+    except DerivedAssetServiceError as error:
+        return _error_payload(error)
+    return jsonify({"ok": True, "result": {
+        "asset_id": result.asset_id,
+        "page": result.page_number,
+        "derived_key": result.derived_key,
+        "sha256": result.sha256,
+        "manifest": result.manifest,
+    }}), 201
 
 
 @editor_offset_v2_bp.post("/api/editor-offset-v2/jobs/<job_id>/pdf-final")

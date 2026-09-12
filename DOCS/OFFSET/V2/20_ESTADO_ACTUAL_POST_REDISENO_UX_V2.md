@@ -527,3 +527,10 @@ El inspector V2 permite editar de forma reversible el `content_transform` de uno
 varios slots: ajuste, escala, offset interno, rotación cardinal, espejo y clipping.
 El PDF fuente sigue inmutable. Recorte físico, extensión de fondos y edición derivada
 de páginas quedan pendientes de 32C.
+
+### Fase 32C — Derivados de página
+
+Se añadió una infraestructura optativa y bloqueada para materializar una página PDF
+derivada con la preparación V2, hash y manifiesto atómico. El asset original y Layout
+V2 permanecen intactos; la conexión del derivado con slots y salida productiva requiere
+un contrato propio posterior.

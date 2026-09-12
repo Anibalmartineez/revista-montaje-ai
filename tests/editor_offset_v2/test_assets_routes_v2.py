@@ -4,12 +4,14 @@ import copy
 import io
 from pathlib import Path
 
+import fitz
 import pytest
 from PIL import Image
 from flask import Flask
 
 from editor_offset_v2.blueprint import init_editor_offset_v2
 from editor_offset_v2.config import (
+    EDITOR_OFFSET_V2_DERIVED_ASSETS_ENABLED,
     EDITOR_OFFSET_V2_JOBS_ROOT,
     EDITOR_OFFSET_V2_MAX_UPLOAD_BYTES,
 )
@@ -82,6 +84,35 @@ def test_box_thumbnail_rejects_absent_boxes_and_changed_source(assets_app_factor
     changed = client.get(base + "?box=media")
     assert changed.status_code == 409
     assert changed.get_json()["error"]["code"] == "ASSET_HASH_MISMATCH"
+
+
+def test_derived_page_is_versioned_and_can_materialize_explicit_mirror_bleed(
+    assets_app_factory, pdf_bytes_factory,
+):
+    app = assets_app_factory()
+    client = app.test_client()
+    created = create_job(client)
+    uploaded = upload(client, created["job_id"], pdf_bytes_factory(trim=True)).get_json()
+    route = f"/api/editor-offset-v2/jobs/{created['job_id']}/assets/{uploaded['asset_id']}/derived-page"
+    assert client.post(route, json={"page": 1, "bleed_mm": 3}).status_code == 404
+    app.config[EDITOR_OFFSET_V2_DERIVED_ASSETS_ENABLED] = True
+    response = client.post(route, json={
+        "page": 1,
+        "pdf_box": "trim",
+        "bleed_mm": 3,
+        "allow_mirror_bleed": True,
+    })
+    assert response.status_code == 201
+    result = response.get_json()["result"]
+    assert result["manifest"]["source_sha256"] == uploaded["asset"]["sha256"]
+    assert result["manifest"]["allow_mirror_bleed"] is True
+    assert result["derived_key"].endswith(".pdf")
+    derived = Path(app.config[EDITOR_OFFSET_V2_JOBS_ROOT]) / created["job_id"] / result["derived_key"]
+    assert derived.is_file()
+    with fitz.open(derived) as document:
+        assert document.page_count == 1
+        assert document[0].rect.width > 0
+        assert document[0].rect.height > 0
 
 
 def upload(client, job_id, data, *, revision=1, filename="diseño.pdf", mime="application/pdf"):
