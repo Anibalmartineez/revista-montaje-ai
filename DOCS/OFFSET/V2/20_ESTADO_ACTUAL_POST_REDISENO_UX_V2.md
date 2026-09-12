@@ -22,6 +22,8 @@ Actualización vigente de salida — [Fase 29](29_TRANSFORMACIONES_PREVIEW_V2.md
 
 Actualización vigente de salida — [Fase 30](30_MARCAS_Y_DUPLEX_PREVIEW_V2.md): la Preview V2 propia dibuja marcas de corte por slot y representa el flip dúplex horizontal o vertical de la cara posterior. Registro, texto técnico y barras siguen bloqueados explícitamente. La prueba focalizada queda en 10 passed y la suite Python V2 en 422 passed y 1 omitido. El PDF productivo continúa pendiente.
 
+Actualización vigente de salida — [Fase 31](31_PDF_FINAL_GATED_V2.md): se incorporó una ruta PDF V2 propia detrás de `EDITOR_OFFSET_V2_PDF_FINAL_ENABLED`, con páginas por cara, tamaño físico del pliego, publicación atómica y errores estructurados. El artefacto actual es un candidato rasterizado basado en el compositor V2; no declara preservación vectorial ni habilitación productiva. La prueba focalizada pasa (3 tests) y la suite Python V2 queda en 425 passed y 1 omitido.
+
 Rama revisada:
 
     codex/editor-offset-v2-ux-foundation

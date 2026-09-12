@@ -25,6 +25,7 @@ from editor_offset_v2.application.asset_service import (
 )
 from editor_offset_v2.application.job_service import JobService, JobServiceError
 from editor_offset_v2.application.output_service import validate_output_capabilities
+from editor_offset_v2.application.pdf_final_service import PdfFinalService, PdfFinalServiceError
 from editor_offset_v2.application.preflight_service import PreflightService, PreflightServiceError
 from editor_offset_v2.application.preview_service import (
     PREVIEW_DEFAULT_DPI,
@@ -36,6 +37,7 @@ from editor_offset_v2.config import (
     EDITOR_OFFSET_V2_ENABLED,
     EDITOR_OFFSET_V2_DEV_TOOLS_ENABLED,
     EDITOR_OFFSET_V2_PREVIEW_ENABLED,
+    EDITOR_OFFSET_V2_PDF_FINAL_ENABLED,
     EDITOR_OFFSET_V2_JOBS_ROOT,
     EDITOR_OFFSET_V2_MAX_UPLOAD_BYTES,
     configure_editor_offset_v2,
@@ -122,6 +124,7 @@ def editor_shell():
         "output_capabilities_api_url": None,
         "preflight_api_url": None,
         "preview_api_url": None,
+        "pdf_final_api_url": None,
         "dev_tools_enabled": current_app.config.get(
             EDITOR_OFFSET_V2_DEV_TOOLS_ENABLED
         ) is True,
@@ -169,6 +172,10 @@ def editor_with_job(job_id: str):
             "editor_offset_v2.preview",
             job_id=result.job_id,
         ) if current_app.config.get(EDITOR_OFFSET_V2_PREVIEW_ENABLED) is True else None,
+        "pdf_final_api_url": url_for(
+            "editor_offset_v2.pdf_final",
+            job_id=result.job_id,
+        ) if current_app.config.get(EDITOR_OFFSET_V2_PDF_FINAL_ENABLED) is True else None,
         "dev_tools_enabled": current_app.config.get(
             EDITOR_OFFSET_V2_DEV_TOOLS_ENABLED
         ) is True,
@@ -403,6 +410,54 @@ def preview(job_id: str):
     return send_file(
         result.path,
         mimetype="image/png",
+        conditional=True,
+        etag=result.sha256,
+        max_age=3600,
+    )
+
+
+@editor_offset_v2_bp.post("/api/editor-offset-v2/jobs/<job_id>/pdf-final")
+def pdf_final(job_id: str):
+    if current_app.config.get(EDITOR_OFFSET_V2_PDF_FINAL_ENABLED) is not True:
+        return _error_payload(
+            PdfFinalServiceError(
+                "PDF_FINAL_DISABLED",
+                "Editor Offset Visual V2 PDF final is disabled",
+                404,
+            )
+        )
+    payload = request.get_json(silent=True)
+    if payload is None:
+        payload = {}
+    if not isinstance(payload, dict):
+        return _error_payload(
+            PdfFinalServiceError(
+                "INVALID_PDF_FINAL_REQUEST",
+                "Request body must be a JSON object",
+                400,
+            )
+        )
+    unexpected = set(payload) - {"face", "dpi", "allow_mirror_bleed"}
+    if unexpected:
+        return _error_payload(
+            PdfFinalServiceError(
+                "INVALID_PDF_FINAL_REQUEST",
+                "Request body contains unsupported fields",
+                400,
+            )
+        )
+    try:
+        result = PdfFinalService(_job_repository()).render(
+            job_id,
+            face=payload.get("face", "front"),
+            dpi=payload.get("dpi", PREVIEW_DEFAULT_DPI),
+            allow_mirror_bleed=payload.get("allow_mirror_bleed", False),
+        )
+    except PdfFinalServiceError as error:
+        return _error_payload(error)
+    return send_file(
+        result.path,
+        mimetype="application/pdf",
         conditional=True,
         etag=result.sha256,
         max_age=3600,
