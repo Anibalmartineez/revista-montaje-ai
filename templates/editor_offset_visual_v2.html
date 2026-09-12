@@ -589,6 +589,14 @@
         <p id="ev2-output-status" class="ev2-inline-status" role="status" aria-live="polite">Corresponde a la última revisión guardada.</p>
         <ul id="ev2-output-issues" class="ev2-repeat-issues"></ul>
       </details>
+      <details id="ev2-preflight-panel" class="ev2-output-panel" data-ev2-stage-panel="validate" role="region" aria-labelledby="ev2-preflight-title" hidden>
+        <summary id="ev2-preflight-title">Preflight V2</summary>
+        <p class="ev2-repeat-note">Analiza la revisión guardada, los PDF físicos y la geometría. No genera PDF ni habilita producción.</p>
+        <button id="ev2-preflight-run" type="button" {% if not editor_context.job_id or not editor_context.preflight_api_url %}disabled{% endif %}>Ejecutar preflight</button>
+        <p id="ev2-preflight-status" class="ev2-inline-status" role="status" aria-live="polite">Todavía no se ha ejecutado.</p>
+        <p id="ev2-preflight-summary" class="ev2-repeat-note"></p>
+        <ul id="ev2-preflight-issues" class="ev2-repeat-issues"></ul>
+      </details>
       <section id="ev2-stage-output" class="ev2-stage-context ev2-stage-output-pending" data-ev2-stage-panel="output" role="tabpanel" aria-labelledby="ev2-stage-tab-output" hidden>
         <span class="ev2-region-label">Salida · pendiente</span>
         <h2>PDF y producción CTP</h2>

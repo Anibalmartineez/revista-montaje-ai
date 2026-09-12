@@ -8,7 +8,9 @@ Actualización posterior al cierre UX, también del 2026-09-06: la auditoría SA
 
 Actualización posterior de salida: el usuario autorizó reutilización temporal de funciones V1 y el ensayo controlado [22 — Reutilización de salida V1](22_ENSAYO_REUTILIZACION_SALIDA_V1.md). Existe un invocador offline V2 con snapshots de fuentes, PDF experimental y preview derivada del mismo PDF. La validación focalizada ejecutó 78 pruebas (23 nuevas de ensayo, 50 de adaptador y 5 de inspector). Se demostraron posiciones y giros sin bleed en ambos modos; se reprodujeron diferencias de bleed y marcas. No se modificaron rutas, canvas, contrato, jobs reales ni motor V1. Preview/PDF/CTP productivos continúan pendientes. La rama y evidencia que siguen corresponden al cierre UX histórico.
 
-Actualización vigente de salida — [Fase 23](23_PREPARACION_FUENTES_Y_PARIDAD_SALIDA_V2.md): preparación propia V2 de página/caja/rotación, bleed fuente o espejo explícito, marcas por slot y ensayo PDF con fuentes derivadas. El canvas solicita ahora miniaturas de la caja seleccionada. Se reutiliza la geometría V2 y el renderer manual V1 sin modificar módulos compartidos. Validación: 404 tests Python V2 y 1 skipped, 117 Node y 21 Playwright V2; copia del montaje real con ocho piezas comprobada. No hay rutas productivas nuevas ni cambios de contrato. Próximo gate: preflight mínimo ejecutable y preview limitada a capacidades demostradas; PDF final y CTP continúan pendientes. Los apartados de evidencia UX inferiores mantienen su corte histórico.
+Actualización vigente de salida — [Fase 23](23_PREPARACION_FUENTES_Y_PARIDAD_SALIDA_V2.md): preparación propia V2 de página/caja/rotación, bleed fuente o espejo explícito, marcas por slot y ensayo PDF con fuentes derivadas. El canvas solicita ahora miniaturas de la caja seleccionada. Se reutiliza la geometría V2 y el renderer manual V1 sin modificar módulos compartidos. Validación: 404 tests Python V2 y 1 skipped, 117 Node y 21 Playwright V2; copia del montaje real con ocho piezas comprobada.
+
+Actualización vigente de salida — [Fase 24](24_PREFLIGHT_EJECUTABLE_V2.md): preflight mínimo ejecutable y reporte inmutable bajo `reports/`, con comprobaciones de contrato, identidad física PDF, cajas, geometría, solapes y capacidades temporales. La UI puede ejecutarlo sobre la última revisión guardada y marca el reporte como desactualizado cuando cambia el Layout. Preview, PDF final y CTP permanecen bloqueados; todavía no hay renderer productivo V2. Los apartados de evidencia UX inferiores mantienen su corte histórico.
 
 Rama revisada:
 
@@ -50,7 +52,7 @@ Estado general:
 - configuración de pliego por job: implementada y persistente;
 - preview productivo V2: no implementado;
 - PDF final V2: no implementado;
-- preflight productivo: no implementado;
+- preflight mínimo ejecutable: implementado en Fase 24; no equivale a preflight productivo completo;
 - CTP productivo V2: no implementado;
 - Resize 8F y transformaciones internas 8G: no implementados.
 

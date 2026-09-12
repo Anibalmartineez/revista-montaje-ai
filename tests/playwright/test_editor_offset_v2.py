@@ -122,6 +122,28 @@ def test_v2_canvas_uses_selected_pdf_box(v2_server, tmp_path):
             browser.close()
 
 
+def test_v2_preflight_runs_on_saved_revision_and_keeps_output_blocked(v2_server, tmp_path):
+    pdf_path = tmp_path / "preflight-ui.pdf"
+    _write_test_pdf(pdf_path)
+    with sync_playwright() as playwright:
+        browser = playwright.chromium.launch(headless=True)
+        try:
+            page = browser.new_page(viewport={"width": 1440, "height": 900})
+            _open_job_with_repeat(page, v2_server, pdf_path, quantity=1)
+            _open_workflow_stage(page, "validate")
+            page.locator("#ev2-preflight-panel > summary").click()
+            with page.expect_response(
+                lambda response: response.request.method == "POST" and "/preflight" in response.url,
+            ) as response_info:
+                page.locator("#ev2-preflight-run").click()
+            assert response_info.value.status == 201
+            expect(page.locator("#ev2-preflight-status")).to_contain_text("Preflight completo")
+            expect(page.locator("#ev2-preflight-summary")).to_contain_text("Operaciones bloqueadas")
+            expect(page.locator("#ev2-preflight-issues li")).to_have_count(0)
+        finally:
+            browser.close()
+
+
 def test_v2_visible_repeat_calculate_apply_undo_redo_save_and_reload(v2_server, tmp_path):
     console_errors: list[str] = []
     page_errors: list[str] = []

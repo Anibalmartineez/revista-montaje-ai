@@ -78,6 +78,14 @@
     async getOutputCapabilities(url) {
       return requestJson(url, { method: "GET" });
     }
+
+    async runPreflight(url) {
+      return requestJson(url, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({}),
+      });
+    }
   }
 
   return Object.freeze({ ApiError, EditorApiClient, requestJson });

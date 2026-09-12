@@ -207,6 +207,10 @@
       outputCheck: byId("ev2-output-check"),
       outputStatus: byId("ev2-output-status"),
       outputIssues: byId("ev2-output-issues"),
+      preflightRun: byId("ev2-preflight-run"),
+      preflightStatus: byId("ev2-preflight-status"),
+      preflightSummary: byId("ev2-preflight-summary"),
+      preflightIssues: byId("ev2-preflight-issues"),
     };
   }
 

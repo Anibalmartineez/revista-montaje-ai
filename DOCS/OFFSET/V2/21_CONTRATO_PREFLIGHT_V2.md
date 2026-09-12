@@ -6,7 +6,7 @@ Fecha: 2026-09-06.
 
 Fase: 21-A, definición documental de preflight, independiente del rediseño cerrado. No existe una Fase 19-H.
 
-Estado: especificación documental preparada para revisión. La autorización original de 21-A cubrió documentación, no la implementación del preflight. Posteriormente el usuario aclaró que permite reutilizar temporalmente las funciones V1 y aprobó código y pruebas del ensayo offline [22](22_ENSAYO_REUTILIZACION_SALIDA_V1.md). Ese ensayo no implementa el reporte canónico propuesto aquí ni habilita salida productiva. V2 principal e independiente sigue siendo el destino.
+Estado: contrato implementado parcialmente en la Fase 24 como reporte mínimo ejecutable. La implementación no habilita salida productiva ni sustituye las decisiones pendientes de PDF, preview, marcas o CTP. Posteriormente el usuario aclaró que permite reutilizar temporalmente las funciones V1 y aprobó código y pruebas del ensayo offline [22](22_ENSAYO_REUTILIZACION_SALIDA_V1.md). V2 principal e independiente sigue siendo el destino.
 
 Clasificación de las afirmaciones:
 
@@ -24,7 +24,7 @@ Fuentes relacionadas:
 - [03 — Adaptador temporal](03_ADAPTADOR_SALIDA_V2.md): capacidades del puente existente, no capacidades objetivo de V2.
 - [11 — Decisiones arquitectónicas](11_DECISIONES_ARQUITECTONICAS_PENDIENTES_V2.md): dirección aprobada y pendientes transversales.
 
-Este documento es la referencia única de diseño del nuevo reporte. No convierte una intención documental en comportamiento ejecutable. El schema del reporte, su validador, sus rutas y su almacenamiento todavía no están implementados.
+Este documento es la referencia de diseño del nuevo reporte. La forma ejecutable y la persistencia mínima están descritas en [24](24_PREFLIGHT_EJECUTABLE_V2.md). Las reglas de salida productiva siguen siendo intención documental hasta cerrar sus fases correspondientes.
 
 ## 2. Dirección arquitectónica aprobada: V2 principal e independiente
 

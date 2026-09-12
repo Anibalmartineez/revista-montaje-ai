@@ -25,6 +25,7 @@ from editor_offset_v2.application.asset_service import (
 )
 from editor_offset_v2.application.job_service import JobService, JobServiceError
 from editor_offset_v2.application.output_service import validate_output_capabilities
+from editor_offset_v2.application.preflight_service import PreflightService, PreflightServiceError
 from editor_offset_v2.application.repeat_service import RepeatService, RepeatServiceError
 from editor_offset_v2.config import (
     EDITOR_OFFSET_V2_ENABLED,
@@ -49,6 +50,10 @@ def _job_service() -> JobService:
     return JobService(JobRepository(jobs_root))
 
 
+def _job_repository() -> JobRepository:
+    return JobRepository(Path(current_app.config[EDITOR_OFFSET_V2_JOBS_ROOT]))
+
+
 def _asset_service() -> AssetService:
     jobs_root = Path(current_app.config[EDITOR_OFFSET_V2_JOBS_ROOT])
     repository = JobRepository(jobs_root)
@@ -63,7 +68,7 @@ def _repeat_service() -> RepeatService:
     return RepeatService(_job_service())
 
 
-def _error_payload(error: JobServiceError | AssetServiceError | RepeatServiceError):
+def _error_payload(error: JobServiceError | AssetServiceError | RepeatServiceError | PreflightServiceError):
     payload: dict[str, Any] = {
         "ok": False,
         "error": {
@@ -109,6 +114,7 @@ def editor_shell():
         "assets_api_url": None,
         "repeat_api_url": None,
         "output_capabilities_api_url": None,
+        "preflight_api_url": None,
         "dev_tools_enabled": current_app.config.get(
             EDITOR_OFFSET_V2_DEV_TOOLS_ENABLED
         ) is True,
@@ -146,6 +152,10 @@ def editor_with_job(job_id: str):
         ),
         "output_capabilities_api_url": url_for(
             "editor_offset_v2.output_capabilities",
+            job_id=result.job_id,
+        ),
+        "preflight_api_url": url_for(
+            "editor_offset_v2.preflight",
             job_id=result.job_id,
         ),
         "dev_tools_enabled": current_app.config.get(
@@ -310,6 +320,34 @@ def output_capabilities(job_id: str):
             "issues": [issue.as_dict() for issue in issues],
         }
     )
+
+
+@editor_offset_v2_bp.post(
+    "/api/editor-offset-v2/jobs/<job_id>/preflight"
+)
+def preflight(job_id: str):
+    payload = request.get_json(silent=True)
+    if payload is not None and not isinstance(payload, dict):
+        return _error_payload(
+            PreflightServiceError(
+                "INVALID_PREFLIGHT_REQUEST",
+                "Request body must be a JSON object",
+                400,
+            )
+        )
+    if isinstance(payload, dict) and payload:
+        return _error_payload(
+            PreflightServiceError(
+                "INVALID_PREFLIGHT_REQUEST",
+                "Preflight does not accept options in this phase",
+                400,
+            )
+        )
+    try:
+        report = PreflightService(_job_repository()).run(job_id)
+    except PreflightServiceError as error:
+        return _error_payload(error)
+    return jsonify({"ok": True, "report": report}), 201
 
 
 @editor_offset_v2_bp.put("/api/editor-offset-v2/jobs/<job_id>/layout")

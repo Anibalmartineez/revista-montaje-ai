@@ -1,0 +1,9 @@
+warning: in the working copy of 'DOCS/OFFSET/V2/20_ESTADO_ACTUAL_POST_REDISENO_UX_V2.md', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'DOCS/OFFSET/V2/21_CONTRATO_PREFLIGHT_V2.md', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'editor_offset_v2/blueprint.py', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'static/js/editor_offset_v2/api_client.js', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'static/js/editor_offset_v2/dom_refs.js', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'static/js/editor_offset_v2/output_panel.js', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'templates/editor_offset_visual_v2.html', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'tests/editor_offset_v2/test_routes_v2.py', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'tests/playwright/test_editor_offset_v2.py', LF will be replaced by CRLF the next time Git touches it

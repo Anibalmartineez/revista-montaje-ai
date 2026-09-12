@@ -1,0 +1,50 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://revista-montaje-ai.local/editor-offset-v2/preflight-report.schema.json",
+  "title": "Editor Offset Visual V2 preflight report",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "report_schema_version", "report_id", "scope", "subject", "inputs",
+    "policy", "capabilities", "analyzer", "started_at", "completed_at",
+    "execution", "checks", "issues", "decisions"
+  ],
+  "properties": {
+    "report_schema_version": { "const": 1 },
+    "report_id": { "type": "string", "minLength": 1 },
+    "scope": { "const": "layout" },
+    "subject": {
+      "type": "object",
+      "required": ["job_id", "revision", "layout_sha256"],
+      "properties": {
+        "job_id": { "type": "string" },
+        "revision": { "type": "integer", "minimum": 1 },
+        "layout_sha256": { "type": "string", "pattern": "^[a-f0-9]{64}$" }
+      },
+      "additionalProperties": false
+    },
+    "inputs": { "type": "object" },
+    "policy": { "type": "object" },
+    "capabilities": { "type": "object" },
+    "analyzer": { "type": "object" },
+    "started_at": { "type": "string" },
+    "completed_at": { "type": "string" },
+    "execution": { "enum": ["complete", "incomplete"] },
+    "checks": { "type": "array" },
+    "issues": { "type": "array" },
+    "decisions": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["operation", "status", "blocking_issue_ids", "reason_codes"],
+        "properties": {
+          "operation": { "enum": ["preview", "pdf_final", "ctp"] },
+          "status": { "enum": ["eligible", "blocked"] },
+          "blocking_issue_ids": { "type": "array", "items": { "type": "string" } },
+          "reason_codes": { "type": "array", "items": { "type": "string" } }
+        },
+        "additionalProperties": false
+      }
+    }
+  }
+}

@@ -358,6 +358,7 @@ def test_template_embeds_parseable_context_json(app_factory):
     assert context["assets_api_url"] is None
     assert context["repeat_api_url"] is None
     assert context["output_capabilities_api_url"] is None
+    assert context["preflight_api_url"] is None
     assert context["dev_tools_enabled"] is False
 
 
@@ -380,6 +381,9 @@ def test_template_context_has_canonical_get_and_save_urls(app_factory):
     )
     assert context["output_capabilities_api_url"] == (
         f"/api/editor-offset-v2/jobs/{job_id}/output-capabilities"
+    )
+    assert context["preflight_api_url"] == (
+        f"/api/editor-offset-v2/jobs/{job_id}/preflight"
     )
 
 

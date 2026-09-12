@@ -19,6 +19,17 @@
     UNSUPPORTED_CONTENT_CLIP: "Recorte interno no soportado",
     SOURCE_TRIM_SIZE_MISMATCH: "Tamaño fuente/trim incompatible",
     ASSET_NOT_READY: "Asset no listo o placeholder",
+    ASSET_IDENTITY_MISMATCH: "Identidad física del asset distinta",
+    ASSET_MISSING: "Asset usado no encontrado",
+    ASSET_UNSAFE_PATH: "Ruta física de asset no segura",
+    PDF_UNREADABLE: "PDF físico no legible",
+    PDF_METADATA_MISMATCH: "Metadata física del PDF distinta",
+    PDF_SEMANTICS_UNSUPPORTED: "Página o caja PDF ausente",
+    TRIM_OUTSIDE_SHEET: "Trim fuera del pliego",
+    BLEED_OUTSIDE_PRINTABLE: "Bleed fuera del área imprimible",
+    TRIM_OVERLAP: "Trim superpuesto",
+    BLEED_OVERLAP: "Bleed superpuesto",
+    OUTPUT_FEATURE_UNSUPPORTED: "Función de salida no soportada todavía",
   });
 
   const DIAGNOSIS_INVALIDATING_EVENTS = Object.freeze([
@@ -100,6 +111,35 @@
     return item;
   }
 
+  function groupPreflightIssues(issues) {
+    const groups = new Map();
+    for (const issue of issues || []) {
+      const refs = issue.references || {};
+      const key = [issue.severity, issue.code, refs.path || ""].join("|");
+      if (!groups.has(key)) {
+        groups.set(key, {
+          code: issue.code,
+          level: issue.severity,
+          message: issue.message,
+          path: refs.path || null,
+          assetId: (refs.asset_ids || [])[0] || null,
+          workId: (refs.work_ids || [])[0] || null,
+          slotIds: [...(refs.slot_ids || [])],
+          count: 0,
+        });
+      }
+      const group = groups.get(key);
+      group.count += 1;
+      for (const slotId of refs.slot_ids || []) {
+        if (!group.slotIds.includes(slotId)) group.slotIds.push(slotId);
+      }
+    }
+    return [...groups.values()].map((group) => ({
+      ...group,
+      slotIds: [...group.slotIds].sort(),
+    }));
+  }
+
   class Panel {
     constructor(store, refs, api, saver, context) {
       this.store = store;
@@ -109,19 +149,26 @@
       this.context = context;
       this.checkedRevision = null;
       this.diagnosisStale = false;
+      this.preflightReport = null;
+      this.preflightStale = false;
       this.unsubscribe = this.store.subscribe((event) => this.onStoreEvent(event));
       this.refs.outputCheck.addEventListener("click", () => this.check());
+      this.refs.preflightRun?.addEventListener("click", () => this.runPreflight());
     }
 
     onStoreEvent(event) {
       if (DIAGNOSIS_INVALIDATING_EVENTS.includes(event.type)) {
         this.invalidate();
+        this.invalidatePreflight();
         return;
       }
       if (event.type === "save_success"
           && this.checkedRevision !== null
           && (this.diagnosisStale || this.checkedRevision !== this.store.revision)) {
         this.invalidate();
+      }
+      if (event.type === "save_success" && this.preflightReport && this.preflightReport.subject.revision !== this.store.revision) {
+        this.invalidatePreflight();
       }
     }
 
@@ -146,6 +193,58 @@
       this.refs.outputStatus.dataset.state = "warning";
       this.refs.outputIssues.replaceChildren();
       return true;
+    }
+
+    invalidatePreflight() {
+      if (!this.preflightReport || !this.refs.preflightStatus) return false;
+      this.preflightStale = true;
+      this.refs.preflightStatus.textContent = "Preflight desactualizado · guarda y vuelve a ejecutarlo.";
+      this.refs.preflightStatus.dataset.state = "warning";
+      this.refs.preflightIssues?.replaceChildren();
+      if (this.refs.preflightSummary) this.refs.preflightSummary.textContent = "El reporte corresponde a una revisión anterior.";
+      return true;
+    }
+
+    async runPreflight() {
+      if (!this.refs.preflightRun || !this.context.preflight_api_url) return;
+      this.refs.preflightRun.disabled = true;
+      this.refs.preflightStatus.textContent = "Analizando la revisión guardada y sus fuentes físicas…";
+      this.refs.preflightStatus.dataset.state = "pending";
+      this.refs.preflightIssues?.replaceChildren();
+      if (this.refs.preflightSummary) this.refs.preflightSummary.textContent = "";
+      this.preflightReport = null;
+      this.preflightStale = false;
+      try {
+        if (this.store.hasUnsavedChanges()) await this.saver.manualSave();
+        if (this.store.saveState.status !== "clean") {
+          throw new Error("Guarda o resuelve el conflicto antes de ejecutar el preflight.");
+        }
+        const result = await this.api.runPreflight(this.context.preflight_api_url);
+        const report = result.report;
+        this.preflightReport = report;
+        if (this.store.hasUnsavedChanges() || this.store.revision !== report.subject.revision) {
+          this.invalidatePreflight();
+          return result;
+        }
+        const blocked = (report.decisions || []).filter((decision) => decision.status === "blocked").map((decision) => decision.operation);
+        const errorCount = (report.issues || []).filter((issue) => issue.severity === "error").length;
+        this.refs.preflightStatus.textContent = `Preflight completo · revisión ${report.subject.revision} · reporte ${report.report_id}`;
+        this.refs.preflightStatus.dataset.state = errorCount ? "error" : "success";
+        if (this.refs.preflightSummary) {
+          this.refs.preflightSummary.textContent = blocked.length
+            ? `Operaciones bloqueadas: ${blocked.join(", ")}. ${errorCount} error${errorCount === 1 ? "" : "es"} encontrado${errorCount === 1 ? "" : "s"}.`
+            : "No hay operaciones bloqueadas.";
+        }
+        for (const group of groupPreflightIssues(report.issues)) {
+          this.refs.preflightIssues?.append(renderIssueGroup(group));
+        }
+        return result;
+      } catch (error) {
+        this.refs.preflightStatus.textContent = error.message || "No se pudo ejecutar el preflight.";
+        this.refs.preflightStatus.dataset.state = "error";
+      } finally {
+        this.refs.preflightRun.disabled = false;
+      }
     }
 
     async check() {
@@ -194,6 +293,7 @@
     DIAGNOSIS_INVALIDATING_EVENTS,
     Panel,
     groupIssues,
+    groupPreflightIssues,
     issueLabel,
     renderIssueGroup,
   });
