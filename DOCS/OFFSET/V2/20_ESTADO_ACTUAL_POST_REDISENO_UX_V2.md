@@ -33,7 +33,7 @@ Jerarquía documental:
 - `18_ESTADO_ACTUAL_POST_EXPLORACIONES_1_A_4_V2.md` es el snapshot histórico previo a las correcciones;
 - `19_PLAN_Y_TRAZABILIDAD_REDISENO_UX_V2.md` conserva plan, decisiones, pruebas y bitácora del rediseño;
 - este documento 20 resume el estado actual y debe consultarse primero para planificar cambios nuevos;
-- el documento 21 define el diseño propuesto del reporte canónico de preflight y sus gates; no modifica Layout V2 ni acredita una implementación.
+- el documento 21 define el contrato canónico del reporte; la implementación mínima y su evidencia están registradas en los documentos 24 y 25.
 
 No se reescribió el contenido histórico del documento 18. Solo se le agregó una advertencia que dirige a este estado vigente.
 
@@ -126,8 +126,9 @@ El frontend sigue siendo JavaScript clásico cargado con `defer`. No se introduj
 | `GET /api/editor-offset-v2/jobs/<job_id>/assets/<asset_id>/thumbnails/<page>` | Activo. Sirve miniatura segura; `?box=` usa la caja física elegida por el canvas desde Fase 23. |
 | `POST /api/editor-offset-v2/jobs/<job_id>/imposition/repeat` | Activo. Calcula Repeat sin persistir hasta Aplicar. |
 | `GET /api/editor-offset-v2/jobs/<job_id>/output-capabilities` | Activo, diagnóstico temporal. No genera salida. |
+| `POST /api/editor-offset-v2/jobs/<job_id>/preflight` | Activo. Publica un reporte mínimo inmutable; no genera salida. |
 
-No existen rutas V2 de preview productivo, PDF final, nesting, hybrid, preflight profundo o CTP productivo.
+No existen rutas V2 de preview productivo, PDF final, nesting, hybrid, preflight profundo completo o CTP productivo.
 
 ## 6. Mapa actualizado de conexiones frontend
 
@@ -151,6 +152,7 @@ No existen rutas V2 de preview productivo, PDF final, nesting, hybrid, preflight
 | Precisión | `precision_panel.js` | Reglas, guías, snap y medición | Temporal salvo movimiento ejecutado |
 | Selección avanzada | `object_tree.js` | Árbol, visibilidad y selección | Temporal |
 | Compatibilidad | `output_panel.js` | Consulta e invalida diagnóstico por revisión | Diagnóstico temporal |
+| Preflight mínimo | `output_panel.js` + `preflight_service.py` | Comprueba revisión guardada, fuentes físicas y geometría | Reporte inmutable en `reports/` |
 
 Regla central: un control nuevo no debe mutar Layout V2 directamente. Debe delegar en una acción registrada y, cuando corresponda, en un comando reversible.
 
@@ -343,7 +345,9 @@ La rama puede pasar a revisión focalizada de V2. Si el proceso de integración 
 | 18 | Snapshot histórico de exploraciones 1 a 4. |
 | 19 | Plan, decisiones y bitácora completa del rediseño. |
 | 20 | Estado operativo vigente. |
-| 21 | Especificación documental de preflight preparada después del cierre UX; dirección de independencia aprobada, detalles nuevos para revisión y ejecución pendiente. |
+| 21 | Contrato canónico de preflight; parcialmente ejecutado por la Fase 24. |
+| 24 | Implementación mínima ejecutable del preflight y su endpoint. |
+| 25 | Guía de pruebas amplias, hallazgos y recomendaciones de esta auditoría. |
 
 Al cerrar el rediseño no se actualizaron 01, 02, 03 o el schema porque esa fase no cambió sus contratos. La fase documental posterior 21-A corrige descripciones auditadas en 02 y 03; conserva 01 y el schema sin cambios.
 
@@ -351,7 +355,7 @@ Al cerrar el rediseño no se actualizaron 01, 02, 03 o el schema porque esa fase
 
 ### Prioridad alta: preparación productiva
 
-1. Revisar la especificación canónica de preflight preparada en el documento 21; schema y ejecución todavía pendientes.
+1. Completar el preflight profundo sobre el contrato 21 y el reporte mínimo de la Fase 24; la ejecución básica ya está disponible.
 2. Resolver la matriz propuesta de advertencias/bloqueos y las decisiones PF-D01 a PF-D09 según el gate de cada una.
 3. Resolver archivos físicos, página, cajas PDF, CropBox/TrimBox, clipping y `actual_size`.
 4. Crear fixtures PDF de comparación visual y métrica.
@@ -494,4 +498,4 @@ Antes de modificar código nuevamente:
 - no usar el job real como fixture destructivo;
 - no mezclar preflight, PDF, CTP, resize e IA en un mismo bloque.
 
-La autorización recibida cubre la fase documental actual. Los detalles de política, clipping, tolerancias, perfiles, API y lectura física estable están identificados en la sección 14 del documento 21; cada uno debe resolverse antes de implementar su superficie dependiente. La existencia del documento no habilita salida ni autoriza ejecutar las pruebas planificadas.
+La Fase 24 habilita únicamente diagnóstico y publicación de reportes. Los detalles de política productiva, clipping, perfiles, caras, preview, PDF y CTP siguen sujetos a fases propias y no están habilitados por este endpoint.
