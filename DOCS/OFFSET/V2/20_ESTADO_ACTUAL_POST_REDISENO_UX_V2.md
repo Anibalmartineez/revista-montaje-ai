@@ -520,3 +520,10 @@ La interfaz V2 incorpora un planificador temporal por página para el asset sele
 Permite seleccionar varias páginas, asignar cantidades independientes y crear un work
 por página mediante un comando único reversible. El contrato Layout V2 no cambia; firmas,
 encuadernaciones y edición derivada de assets permanecen fuera de esta fase.
+
+### Fase 32B — Correcciones gráficas
+
+El inspector V2 permite editar de forma reversible el `content_transform` de uno o
+varios slots: ajuste, escala, offset interno, rotación cardinal, espejo y clipping.
+El PDF fuente sigue inmutable. Recorte físico, extensión de fondos y edición derivada
+de páginas quedan pendientes de 32C.

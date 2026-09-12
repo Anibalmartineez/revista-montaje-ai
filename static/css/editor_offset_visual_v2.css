@@ -1211,6 +1211,70 @@ button:disabled {
   font-weight: 700;
 }
 
+.ev2-content-transform-panel {
+  margin-top: 10px;
+  padding: 10px;
+  border: 1px solid var(--ev2-line);
+  border-radius: var(--ev2-radius-md, 8px);
+  background: var(--ev2-surface-deep, #111821);
+}
+
+.ev2-content-transform-heading,
+.ev2-content-transform-heading > div {
+  display: grid;
+  gap: 2px;
+}
+
+.ev2-content-transform-heading small {
+  color: var(--ev2-muted);
+  font-size: 10px;
+}
+
+.ev2-content-transform-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 7px;
+  margin-top: 8px;
+}
+
+.ev2-content-transform-grid label,
+.ev2-content-transform-checks label {
+  display: grid;
+  gap: 3px;
+  font-size: 10px;
+}
+
+.ev2-content-transform-grid input,
+.ev2-content-transform-grid select {
+  min-width: 0;
+  padding: 4px;
+  font-size: 11px;
+}
+
+.ev2-content-transform-checks {
+  display: flex;
+  gap: 12px;
+  margin-top: 8px;
+}
+
+.ev2-content-transform-checks label {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.ev2-content-transform-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 6px;
+  margin-top: 9px;
+}
+
+.ev2-content-transform-actions button {
+  padding: 5px 8px;
+  font-size: 10px;
+}
+
 .ev2-form-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));

@@ -514,6 +514,83 @@
     }
   }
 
+  const CONTENT_FIT_MODES = Object.freeze(["actual_size", "contain", "cover", "stretch"]);
+  const CONTENT_CLIP_TARGETS = Object.freeze(["none", "trim_box", "bleed_box"]);
+
+  function normalizeContentTransform(transform) {
+    const value = transform || {};
+    const fitMode = String(value.fit_mode || "actual_size");
+    const clipTo = String(value.clip_to || "none");
+    const scaleX = Number(value.scale_x ?? 1);
+    const scaleY = Number(value.scale_y ?? 1);
+    const offsetX = Number(value.offset_mm?.x ?? 0);
+    const offsetY = Number(value.offset_mm?.y ?? 0);
+    if (!CONTENT_FIT_MODES.includes(fitMode)) throw new Error("Modo de ajuste de contenido inválido");
+    if (!CONTENT_CLIP_TARGETS.includes(clipTo)) throw new Error("Destino de clipping inválido");
+    if (!Number.isFinite(scaleX) || scaleX <= 0 || !Number.isFinite(scaleY) || scaleY <= 0) {
+      throw new Error("La escala del contenido debe ser mayor que cero");
+    }
+    if (!Number.isFinite(offsetX) || !Number.isFinite(offsetY)) {
+      throw new Error("El desplazamiento del contenido debe ser finito");
+    }
+    return {
+      fit_mode: fitMode,
+      scale_x: scaleX,
+      scale_y: scaleY,
+      offset_mm: { x: offsetX, y: offsetY },
+      rotation_deg: normalizeCardinalRotation(Number(value.rotation_deg ?? 0)),
+      mirror_x: Boolean(value.mirror_x),
+      mirror_y: Boolean(value.mirror_y),
+      clip_to: clipTo,
+    };
+  }
+
+  class SetContentTransformCommand {
+    constructor(layout, slotIds, patch) {
+      const requested = [...new Set(slotIds || [])];
+      const slots = layout.slots.filter((slot) => requested.includes(slot.id));
+      if (!requested.length || slots.length !== requested.length) {
+        throw new Error("SetContentTransformCommand requires existing slots");
+      }
+      this.description = "Ajustar contenido gráfico";
+      this.affectedIds = Object.freeze(requested);
+      this.beforeTransforms = Object.fromEntries(
+        slots.map((slot) => [slot.id, clone(slot.content_transform)]),
+      );
+      this.afterTransforms = Object.fromEntries(slots.map((slot) => {
+        const next = normalizeContentTransform({ ...slot.content_transform, ...(patch || {}) });
+        return [slot.id, next];
+      }));
+      if (!this.affectedIds.some((id) => JSON.stringify(this.beforeTransforms[id])
+          !== JSON.stringify(this.afterTransforms[id]))) {
+        throw new Error("El ajuste de contenido no contiene cambios");
+      }
+      EditPolicy.assertCan(layout, this.affectedIds, "replace_content");
+    }
+
+    apply(layout, transforms) {
+      const slotsById = new Map(layout.slots.map((slot) => [slot.id, slot]));
+      for (const id of this.affectedIds) {
+        const slot = slotsById.get(id);
+        if (!slot) throw new Error(`The slot ${id} no longer exists`);
+        slot.content_transform = clone(transforms[id]);
+      }
+    }
+
+    execute(layout) {
+      EditPolicy.assertCan(layout, this.affectedIds, "replace_content");
+      this.apply(layout, this.afterTransforms);
+    }
+
+    undo(layout) {
+      this.apply(layout, this.beforeTransforms);
+    }
+
+    redo(layout) {
+      this.execute(layout);
+    }
+  }
+
   class CreateWorksCommand {
     constructor(works) {
       if (!Array.isArray(works) || !works.length) {
@@ -924,6 +1001,7 @@
     CreateSlotCommand,
     MoveSlotsCommand,
     RotateSlotsCommand,
+    SetContentTransformCommand,
     DuplicateSlotsCommand,
     DeleteSlotsCommand,
     SetSlotUserLocksCommand,
@@ -939,6 +1017,7 @@
     createDevelopmentPlaceholderBundle,
     defaultSlotIdFactory,
     normalizeCardinalRotation,
+    normalizeContentTransform,
     prepareDuplicateSlots,
     prepareDuplicateSlotsFromSlots,
     unselectedDeleteDependents,

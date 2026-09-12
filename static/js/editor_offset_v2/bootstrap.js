@@ -72,6 +72,7 @@
     let precisionPanel = null;
     let objectTree = null;
     let sheetPanel = null;
+    let contentTransformInspector = null;
     const contextProvider = () => ({
       store,
       layout: store.layout,
@@ -238,6 +239,11 @@
       runAction,
       (actionId) => actionRegistry.isEnabled(actionId, contextProvider()),
     );
+    contentTransformInspector = new modules.ContentTransformInspector.Controller(
+      store,
+      refs,
+      modules.Commands,
+    );
     const workflowNavigation = new modules.WorkflowNavigation.Controller(store, refs, {
       hasJob: true,
       initialStage: refs.workflow.dataset.initialStage,
@@ -300,6 +306,7 @@
       precisionPanel,
       objectTree,
       sheetPanel,
+      contentTransformInspector,
       actionRegistry,
       shortcutManager,
       shortcutHelp,

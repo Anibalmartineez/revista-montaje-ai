@@ -114,6 +114,35 @@ test("CreateSlotFromWorkCommand creates a real cardinal slot at visible center",
   assert.equal(layout.slots.some((item) => item.id === "slot_real_slot"), false);
 });
 
+test("SetContentTransformCommand applies graphic corrections atomically and respects content locks", () => {
+  const layout = fixture("layout_v2_complete.json");
+  const target = layout.slots[0];
+  const before = structuredClone(target.content_transform);
+  const patch = {
+    fit_mode: "cover",
+    scale_x: 1.25,
+    scale_y: 0.8,
+    offset_mm: { x: 2.5, y: -1.5 },
+    rotation_deg: 90,
+    mirror_x: true,
+    mirror_y: false,
+    clip_to: "bleed_box",
+  };
+  const command = new commands.SetContentTransformCommand(layout, [target.id], patch);
+  command.execute(layout);
+  assert.deepEqual(target.content_transform, patch);
+  command.undo(layout);
+  assert.deepEqual(target.content_transform, before);
+  command.redo(layout);
+  assert.deepEqual(target.content_transform, patch);
+
+  target.locks.content = ["user"];
+  assert.throws(
+    () => new commands.SetContentTransformCommand(layout, [target.id], { scale_x: 2 }),
+    /slots bloqueados/,
+  );
+});
+
 test("ReplaceSlotSourceCommand changes only one slot and undo restores source", () => {
   const layout = fixture("layout_v2_complete.json");
   const target = layout.slots[0];
