@@ -16,6 +16,8 @@ Actualización vigente de salida — [Fase 26](26_FIXTURES_Y_PARIDAD_PDF_V2.md):
 
 Actualización vigente de salida — [Fase 27](27_PREVIEW_MINIMA_GATED_V2.md): Preview V2 mínima propia implementada como PNG derivado por cara, con validación física, gate `EDITOR_OFFSET_V2_PREVIEW_ENABLED` apagado por defecto y publicación atómica bajo `previews/`. Solo admite transformación interna identidad y bloquea explícitamente marcas, flip dúplex y capacidades no resueltas. Sus 4 pruebas pasan y la suite Python V2 queda en 416 passed y 1 omitido. PDF final y CTP permanecen fuera de alcance.
 
+Actualización vigente de salida — [Fase 28](28_PARIDAD_PREVIEW_CANVAS_V2.md): se añadió evidencia automática de paridad geométrica Preview–canvas con un PDF asimétrico sintético, comprobando dimensiones de hoja, footprint del slot, orden izquierda/derecha y preservación de revisión. La prueba focalizada queda en 9 passed y la suite Python V2 en 417 passed y 1 omitido. La tolerancia visual completa, transformaciones internas, clipping, bleed por espejo, marcas y flip dúplex siguen pendientes; Preview continúa detrás de su gate.
+
 Rama revisada:
 
     codex/editor-offset-v2-ux-foundation

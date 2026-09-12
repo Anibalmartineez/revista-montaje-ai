@@ -55,6 +55,20 @@ def _source_pdf() -> bytes:
     return data
 
 
+def _asymmetric_parity_source_pdf() -> bytes:
+    points = 1 / POINT_TO_MM
+    width, height = 40 * points, 20 * points
+    document = fitz.open()
+    page = document.new_page(width=width, height=height)
+    midpoint = width / 2
+    page.draw_rect(fitz.Rect(0, 0, midpoint, height), color=(0.8, 0.05, 0.05), fill=(0.9, 0.1, 0.1), width=0.2)
+    page.draw_rect(fitz.Rect(midpoint, 0, width, height), color=(0.05, 0.1, 0.8), fill=(0.1, 0.2, 0.9), width=0.2)
+    document.xref_set_key(page.xref, "TrimBox", f"[0 0 {width} {height}]")
+    data = document.tobytes(garbage=4, deflate=False, no_new_id=True)
+    document.close()
+    return data
+
+
 def _preview_layout(base: dict, asset: dict) -> dict:
     complete = json.loads(COMPLETE_FIXTURE.read_text(encoding="utf-8"))
     layout = copy.deepcopy(base)
@@ -199,3 +213,77 @@ def test_preview_rejects_marks_and_non_identity_internal_transforms(preview_app_
     assert updated["revision"] == saved["revision"] + 1
     assert transformed.status_code == 422
     assert transformed.get_json()["error"]["code"] == "PREVIEW_TRANSFORM_UNSUPPORTED"
+
+
+def test_preview_raster_bounds_and_orientation_match_canvas_geometry(preview_app_factory):
+    """The preview's visible artwork must occupy the saved slot footprint."""
+    from PIL import Image
+
+    app = preview_app_factory()
+    app.config[EDITOR_OFFSET_V2_PREVIEW_ENABLED] = True
+    client = app.test_client()
+    created = create_job(client, "Preview parity")
+    upload = client.post(
+        f"/api/editor-offset-v2/jobs/{created['job_id']}/assets",
+        data={
+            "base_revision": str(created["revision"]),
+            "file": (io.BytesIO(_asymmetric_parity_source_pdf()), "parity.pdf"),
+        },
+        content_type="multipart/form-data",
+    )
+    assert upload.status_code == 201
+    asset = upload.get_json()["asset"]
+    layout = _preview_layout(upload.get_json()["layout"], asset)
+    layout["sheet"]["size_mm"] = {"width": 120.0, "height": 80.0}
+    layout["sheet"]["printable_margins_mm"] = {
+        "left": 0.0,
+        "right": 0.0,
+        "bottom": 0.0,
+        "top": 0.0,
+    }
+    layout["works"][0]["trim_size_mm"] = {"width": 40.0, "height": 20.0}
+    layout["works"][0]["bleed_mm"] = 0.0
+    slot = layout["slots"][0]
+    slot["geometry"]["position_mm"] = {"anchor": "trim_center", "x_mm": 60.0, "y_mm": 40.0}
+    slot["geometry"]["trim_size_mm"] = {"width": 40.0, "height": 20.0}
+    slot["geometry"]["bleed_mm"] = 0.0
+    saved = _save_preview_layout(client, upload.get_json(), layout)
+
+    response = client.post(
+        f"/api/editor-offset-v2/jobs/{created['job_id']}/preview",
+        json={"face": "front", "dpi": 36},
+    )
+
+    assert response.status_code == 200
+    image = Image.open(io.BytesIO(response.data)).convert("RGB")
+    expected_sheet_size = (round(120 * 36 / 25.4), round(80 * 36 / 25.4))
+    assert all(abs(actual - expected) <= 1 for actual, expected in zip(image.size, expected_sheet_size))
+    pixels = image.load()
+    red = []
+    blue = []
+    for y in range(image.height):
+        for x in range(image.width):
+            r, g, b = pixels[x, y]
+            if r > 170 and g < 130 and b < 130:
+                red.append((x, y))
+            if b > 170 and r < 130 and g < 150:
+                blue.append((x, y))
+    assert len(red) > 100
+    assert len(blue) > 100
+
+    scale_x = image.width / 120
+    scale_y = image.height / 80
+    expected = (
+        round(40 * scale_x),
+        round((80 - 50) * scale_y),
+        round(80 * scale_x),
+        round((80 - 30) * scale_y),
+    )
+    tolerance_px = 2
+    for point in red + blue:
+        assert expected[0] - tolerance_px <= point[0] <= expected[2] + tolerance_px
+        assert expected[1] - tolerance_px <= point[1] <= expected[3] + tolerance_px
+    assert sum(x for x, _ in red) / len(red) < sum(x for x, _ in blue) / len(blue)
+    assert saved["revision"] == client.get(
+        f"/api/editor-offset-v2/jobs/{created['job_id']}"
+    ).get_json()["revision"]
