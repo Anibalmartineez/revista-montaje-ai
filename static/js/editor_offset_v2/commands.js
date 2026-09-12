@@ -841,7 +841,7 @@
   }
 
   class SetSlotDerivedSourceCommand {
-    constructor(layout, slotIds, derived) {
+    constructor(layout, slotIds, derived, options = {}) {
       const requested = [...new Set(slotIds || [])];
       const slots = layout.slots.filter((slot) => requested.includes(slot.id));
       if (!requested.length || slots.length !== requested.length) {
@@ -853,34 +853,53 @@
       this.description = derived ? "Usar página derivada" : "Quitar página derivada";
       this.affectedIds = Object.freeze(requested);
       this.beforeSources = Object.fromEntries(slots.map((slot) => [slot.id, clone(slot.source)]));
+      this.beforeTransforms = Object.fromEntries(slots.map((slot) => [slot.id, clone(slot.content_transform)]));
+      const resetTransform = Boolean(options.resetContentTransform && derived);
       this.afterSources = Object.fromEntries(slots.map((slot) => {
         const source = clone(slot.source);
         if (derived === null) delete source.derived;
         else source.derived = clone(derived);
         return [slot.id, source];
       }));
+      this.afterTransforms = Object.fromEntries(slots.map((slot) => [
+        slot.id,
+        resetTransform
+          ? normalizeContentTransform({
+            ...slot.content_transform,
+            fit_mode: "actual_size",
+            scale_x: 1,
+            scale_y: 1,
+            offset_mm: { x: 0, y: 0 },
+            rotation_deg: 0,
+            mirror_x: false,
+            mirror_y: false,
+          })
+          : clone(slot.content_transform),
+      ]));
       if (!this.affectedIds.some((id) => JSON.stringify(this.beforeSources[id])
-          !== JSON.stringify(this.afterSources[id]))) {
+          !== JSON.stringify(this.afterSources[id])
+          || JSON.stringify(this.beforeTransforms[id]) !== JSON.stringify(this.afterTransforms[id]))) {
         throw new Error("La referencia derivada no contiene cambios");
       }
       EditPolicy.assertCan(layout, this.affectedIds, "replace_content");
     }
 
-    apply(layout, sources) {
+    apply(layout, sources, transforms) {
       const slotsById = new Map(layout.slots.map((slot) => [slot.id, slot]));
       for (const id of this.affectedIds) {
         const slot = slotsById.get(id);
         if (!slot) throw new Error(`The slot ${id} no longer exists`);
         slot.source = clone(sources[id]);
+        slot.content_transform = clone(transforms[id]);
       }
     }
 
     execute(layout) {
       EditPolicy.assertCan(layout, this.affectedIds, "replace_content");
-      this.apply(layout, this.afterSources);
+      this.apply(layout, this.afterSources, this.afterTransforms);
     }
 
-    undo(layout) { this.apply(layout, this.beforeSources); }
+    undo(layout) { this.apply(layout, this.beforeSources, this.beforeTransforms); }
 
     redo(layout) { this.execute(layout); }
   }

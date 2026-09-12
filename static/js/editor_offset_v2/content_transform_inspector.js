@@ -14,16 +14,18 @@
   function isMaterializationCompatible(slot) {
     const transform = slot?.content_transform;
     if (!transform) return false;
-    return transform.fit_mode === "actual_size"
+    return FIT_MODES.includes(transform.fit_mode)
       && typeof transform.scale_x !== "boolean"
       && typeof transform.scale_y !== "boolean"
-      && Number(transform.scale_x) === 1
-      && Number(transform.scale_y) === 1
-      && Number(transform.offset_mm?.x) === 0
-      && Number(transform.offset_mm?.y) === 0
-      && Number(transform.rotation_deg) === 0
-      && transform.mirror_x === false
-      && transform.mirror_y === false
+      && Number.isFinite(Number(transform.scale_x))
+      && Number(transform.scale_x) > 0
+      && Number.isFinite(Number(transform.scale_y))
+      && Number(transform.scale_y) > 0
+      && Number.isFinite(Number(transform.offset_mm?.x))
+      && Number.isFinite(Number(transform.offset_mm?.y))
+      && ROTATIONS.includes(Number(transform.rotation_deg))
+      && typeof transform.mirror_x === "boolean"
+      && typeof transform.mirror_y === "boolean"
       && ["trim_box", "bleed_box"].includes(transform.clip_to);
   }
 
@@ -175,7 +177,7 @@
         if (this.dirty) throw new Error("Aplica primero el ajuste gráfico pendiente.");
         const slot = slots[0];
         if (!isMaterializationCompatible(slot)) {
-          throw new Error("La página derivada requiere un ajuste gráfico identidad; restablece escala, offset, rotación y espejo antes de guardarla.");
+          throw new Error("La configuración gráfica del slot no se puede materializar todavía.");
         }
         const response = await this.api.materializeDerivedPage(
           this.context.assets_api_url,
@@ -198,8 +200,9 @@
           this.store.layout,
           [slot.id],
           derived,
+          { resetContentTransform: true },
         ));
-        this.store.setFeedback("Página derivada guardada y vinculada al slot.", "content-transform");
+        this.store.setFeedback("Página derivada guardada; el ajuste gráfico quedó incorporado.", "content-transform");
       } catch (error) {
         this.refs.contentTransformError.textContent = error.message;
         this.refs.contentTransformError.dataset.state = "error";

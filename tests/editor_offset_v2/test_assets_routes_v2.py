@@ -126,7 +126,7 @@ def test_derived_page_is_versioned_and_can_materialize_explicit_mirror_bleed(
         assert document[0].rect.height > 0
 
 
-def test_derived_page_rejects_non_identity_transform_until_matrix_support_exists(
+def test_derived_page_bakes_non_identity_transform_and_records_manifest(
     assets_app_factory, pdf_bytes_factory,
 ):
     app = assets_app_factory()
@@ -139,18 +139,46 @@ def test_derived_page_rejects_non_identity_transform_until_matrix_support_exists
         "page": 1,
         "pdf_box": "trim",
         "content_transform": {
-            "fit_mode": "actual_size",
+            "fit_mode": "cover",
             "scale_x": 1.1,
-            "scale_y": 1,
-            "offset_mm": {"x": 0, "y": 0},
-            "rotation_deg": 0,
-            "mirror_x": False,
+            "scale_y": 0.9,
+            "offset_mm": {"x": 2, "y": -1},
+            "rotation_deg": 90,
+            "mirror_x": True,
             "mirror_y": False,
             "clip_to": "trim_box",
         },
     })
-    assert response.status_code == 422
-    assert response.get_json()["error"]["code"] == "DERIVED_TRANSFORM_UNSUPPORTED"
+    assert response.status_code == 201
+    result = response.get_json()["result"]
+    assert result["manifest"]["content_transform"]["scale_x"] == 1.1
+    assert result["manifest"]["content_transform"]["rotation_deg"] == 90
+    assert result["manifest"]["content_transform"]["mirror_x"] is True
+    assert result["manifest"]["content_transform"]["offset_mm"] == {"x": 2.0, "y": -1.0}
+    derived = Path(app.config[EDITOR_OFFSET_V2_JOBS_ROOT]) / created["job_id"] / result["derived_key"]
+    with fitz.open(derived) as document:
+        assert document.page_count == 1
+        trim = result["manifest"]["trim_size_mm"]
+        assert round(document[0].rect.width, 3) == round(trim["width"] / 25.4 * 72, 3)
+        assert round(document[0].rect.height, 3) == round(trim["height"] / 25.4 * 72, 3)
+    identity = client.post(route, json={"page": 1, "pdf_box": "trim"})
+    assert identity.status_code == 201
+    assert identity.get_json()["result"]["sha256"] != result["sha256"]
+
+
+def test_derived_page_rejects_invalid_transform_values(assets_app_factory, pdf_bytes_factory):
+    app = assets_app_factory()
+    app.config[EDITOR_OFFSET_V2_DERIVED_ASSETS_ENABLED] = True
+    client = app.test_client()
+    created = create_job(client)
+    uploaded = upload(client, created["job_id"], pdf_bytes_factory(trim=True)).get_json()
+    route = f"/api/editor-offset-v2/jobs/{created['job_id']}/assets/{uploaded['asset_id']}/derived-page"
+    response = client.post(route, json={
+        "page": 1,
+        "content_transform": {"fit_mode": "actual_size", "scale_x": 0},
+    })
+    assert response.status_code == 400
+    assert response.get_json()["error"]["code"] == "INVALID_DERIVED_TRANSFORM"
 
 
 def upload(client, job_id, data, *, revision=1, filename="diseño.pdf", mime="application/pdf"):

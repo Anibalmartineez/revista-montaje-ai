@@ -1,5 +1,8 @@
 # Fase 32E — Guardia de paridad para páginas derivadas V2
 
+> Fase cerrada y superada por 32F. Se conserva como registro de la protección
+> intermedia que bloqueaba transformaciones no identidad.
+
 ## Objetivo
 
 Evitar que una página derivada se publique con una representación distinta del

@@ -544,9 +544,13 @@ materialización, Preview y PDF final continúan separados y apagados por defect
 
 ### Fase 32E — Guardia de paridad para derivados
 
-La materialización declara y valida la transformación efectiva. Mientras el
-materializador no aplica una matriz PDF completa, solo permite la identidad y
-clipping explícito coherente con la caja fuente. Escala, ajuste, offsets,
-rotación interna y espejos quedan bloqueados con un error explícito para evitar
-una página derivada distinta del canvas. El inspector refleja la misma regla y
-el manifiesto registra la transformación identidad aplicada.
+Fase intermedia cerrada: protegió la materialización mientras el servicio aún no
+aplicaba una matriz PDF completa. Su resultado queda sustituido por 32F.
+
+### Fase 32F — Materialización transformada
+
+La página derivada hornea la transformación gráfica V2 a 300 DPI y registra la
+transformación en el manifiesto. La vinculación al slot restablece el
+`content_transform` a identidad dentro del mismo comando reversible, por lo que
+Preview y PDF final no aplican dos veces la matriz. La salida continúa detrás de
+los gates existentes y requiere evidencia visual adicional antes de producción.

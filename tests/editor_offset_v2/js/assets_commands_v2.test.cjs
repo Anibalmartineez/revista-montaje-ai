@@ -167,6 +167,40 @@ test("SetSlotDerivedSourceCommand connects and clears a versioned page without c
   assert.deepEqual(target.source, original);
 });
 
+test("derived source binding can atomically bake and restore the slot transform", () => {
+  const layout = fixture("layout_v2_complete.json");
+  const target = layout.slots[0];
+  target.content_transform = {
+    fit_mode: "cover",
+    scale_x: 1.2,
+    scale_y: 0.8,
+    offset_mm: { x: 2, y: -1 },
+    rotation_deg: 90,
+    mirror_x: true,
+    mirror_y: false,
+    clip_to: "bleed_box",
+  };
+  const before = structuredClone(target.content_transform);
+  const derived = {
+    derived_key: "derived/assets/asset_card_front/page_1/r8_baked.pdf",
+    derived_sha256: "b".repeat(64),
+    source_sha256: layout.assets[0].sha256,
+  };
+  const command = new commands.SetSlotDerivedSourceCommand(
+    layout,
+    [target.id],
+    derived,
+    { resetContentTransform: true },
+  );
+  command.execute(layout);
+  assert.equal(target.content_transform.fit_mode, "actual_size");
+  assert.equal(target.content_transform.scale_x, 1);
+  assert.equal(target.content_transform.rotation_deg, 0);
+  assert.equal(target.content_transform.clip_to, "bleed_box");
+  command.undo(layout);
+  assert.deepEqual(target.content_transform, before);
+});
+
 test("ReplaceSlotSourceCommand changes only one slot and undo restores source", () => {
   const layout = fixture("layout_v2_complete.json");
   const target = layout.slots[0];
@@ -229,7 +263,7 @@ test("thumbnail URL is derived from the server-owned asset API boundary", () => 
   );
 });
 
-test("derived materialization only enables for the identity transform matching the source box", () => {
+test("derived materialization enables for valid transforms and rejects invalid clipping", () => {
   const slot = {
     source: { pdf_box: "trim" },
     content_transform: {
@@ -245,7 +279,7 @@ test("derived materialization only enables for the identity transform matching t
   };
   assert.equal(isMaterializationCompatible(slot), true);
   slot.content_transform.offset_mm.x = 0.01;
-  assert.equal(isMaterializationCompatible(slot), false);
+  assert.equal(isMaterializationCompatible(slot), true);
   slot.content_transform.offset_mm.x = 0;
   slot.content_transform.clip_to = "bleed_box";
   assert.equal(isMaterializationCompatible(slot), true);
