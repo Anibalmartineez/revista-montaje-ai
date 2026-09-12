@@ -481,16 +481,17 @@ Revisar:
 
 ## 19. Próximo paso SAFE recomendado
 
-La Fase 19 está cerrada. Actualización de 2026-09-06: la rama de salida/preflight ya es `codex/editor-offset-v2-output-preflight`; la auditoría se presentó y la fase documental 21-A fue autorizada. Se preparó el documento 21 sin modificar código, schema, pruebas ni jobs. La siguiente implementación requiere su propio gate; no es 19-H.
+La Fase 19 está cerrada. Actualización de 2026-09-12: las fases 34, 35 y 36 quedaron implementadas y verificadas en `codex/editor-offset-v2-output-preflight`. Repeat multipágina conserva las cuatro orientaciones cardinales; Preview y PDF final consumen preflight vigente por operación; la regeneración y los fallos de publicación tienen cobertura específica. La siguiente prioridad SAFE es cerrar la concurrencia multiproceso y la retención antes de habilitar producción amplia; no es 19-H.
 
 Orden recomendado:
 
-1. validar la Preview mínima de la Fase 27 contra canvas y fixtures;
-2. cerrar transformaciones internas, clipping, marcas, flip dúplex y tolerancias visuales;
-3. implementar el renderer PDF final V2 propio con verificación de artefactos;
-4. CTP, marcas y dúplex productivo bajo sus fases correspondientes;
-5. independizar Repeat y demás código compartido mediante fases de extracción, sin ampliar el puente como arquitectura final;
-6. retomar Resize 8F únicamente cuando su efecto sobre exportación esté definido.
+1. cerrar concurrencia multiproceso, retención y recuperación operativa;
+2. ampliar fixtures y tolerancias de color/vector antes de producción;
+3. habilitar Preview productiva mínima detrás de su gate explícito;
+4. implementar el renderer PDF final V2 propio con verificación de artefactos;
+5. CTP, marcas y dúplex productivo bajo sus fases correspondientes;
+6. independizar Repeat y demás código compartido mediante fases de extracción, sin ampliar el puente como arquitectura final;
+7. retomar Resize 8F únicamente cuando su efecto sobre exportación esté definido.
 
 No conviene comenzar directamente por botones de PDF o CTP. Primero debe existir un contrato capaz de decidir con evidencia si un montaje puede producirse y cómo se representa cada error o advertencia.
 
@@ -562,3 +563,21 @@ Preview contra el PDF derivado transformado y la Preview completa contra el PDF
 candidato. La prueba fija tolerancias de caracterización para el fixture y DPI
 36; no habilita salida productiva. Color, preservación vectorial, CTP y perfiles
 de imprenta siguen pendientes.
+
+### Fase 34 — Repeat multipágina y orientaciones cardinales
+
+El planificador de páginas activa 0°, 90°, 180° y 270° por defecto y conserva la
+selección por work. El adaptador V2 traduce explícitamente las clases 180°/270°;
+el motor compartido V1 no se modificó.
+
+### Fase 35 — Preflight obligatorio
+
+Preview y PDF final generan y consumen un reporte con hash y revisión del layout,
+decisión por operación y gate explícito. Un reporte incompleto, obsoleto o con
+hallazgos bloqueantes impide la salida y no deja PDF parcial.
+
+### Fase 36 — Endurecimiento operativo
+
+Se verificaron cantidades altas, documentos multipágina, Repeat, regeneración
+determinista y limpieza de temporales. La concurrencia multiproceso y la política
+de retención automática siguen pendientes de una prueba operativa dedicada.

@@ -10,7 +10,9 @@ import pytest
 from flask import Flask
 
 from editor_offset_v2.blueprint import init_editor_offset_v2
+from editor_offset_v2.application.preview_service import PreviewService, PreviewServiceError
 from editor_offset_v2.config import EDITOR_OFFSET_V2_PREVIEW_ENABLED
+from editor_offset_v2.infrastructure.job_repository import JobRepository
 from editor_offset_v2.infrastructure.pdf_inspector import POINT_TO_MM
 
 
@@ -175,6 +177,62 @@ def test_gated_preview_renders_a_face_without_mutating_layout(preview_app_factor
     assert client.get(f"/api/editor-offset-v2/jobs/{created['job_id']}").get_json() == before
     preview_dir = Path(app.config["EDITOR_OFFSET_V2_JOBS_ROOT"]) / created["job_id"] / "previews"
     assert list(preview_dir.glob(f"preview_r{saved['revision']}_front_36.png"))
+
+
+def test_preview_regeneration_is_deterministic_and_leaves_one_revision_artifact(preview_app_factory):
+    app = preview_app_factory()
+    app.config[EDITOR_OFFSET_V2_PREVIEW_ENABLED] = True
+    client = app.test_client()
+    created = create_job(client)
+    upload = client.post(
+        f"/api/editor-offset-v2/jobs/{created['job_id']}/assets",
+        data={
+            "base_revision": str(created["revision"]),
+            "file": (io.BytesIO(_source_pdf()), "repeatable.pdf"),
+        },
+        content_type="multipart/form-data",
+    ).get_json()
+    saved = _save_preview_layout(client, upload, _preview_layout(upload["layout"], upload["asset"]))
+
+    first = client.post(f"/api/editor-offset-v2/jobs/{created['job_id']}/preview", json={"dpi": 36})
+    first_data = first.data
+    first.close()
+    second = client.post(f"/api/editor-offset-v2/jobs/{created['job_id']}/preview", json={"dpi": 36})
+
+    assert first.status_code == second.status_code == 200
+    assert first_data == second.data
+    preview_dir = Path(app.config["EDITOR_OFFSET_V2_JOBS_ROOT"]) / created["job_id"] / "previews"
+    assert len(list(preview_dir.glob(f"preview_r{saved['revision']}_front_36.png"))) == 1
+    assert not list(preview_dir.glob(".preview-*.tmp"))
+
+
+def test_preview_publish_failure_cleans_temporary_file(preview_app_factory, monkeypatch):
+    app = preview_app_factory()
+    client = app.test_client()
+    created = create_job(client)
+    upload = client.post(
+        f"/api/editor-offset-v2/jobs/{created['job_id']}/assets",
+        data={
+            "base_revision": str(created["revision"]),
+            "file": (io.BytesIO(_source_pdf()), "publish-failure.pdf"),
+        },
+        content_type="multipart/form-data",
+    ).get_json()
+    saved = _save_preview_layout(client, upload, _preview_layout(upload["layout"], upload["asset"]))
+    service = PreviewService(JobRepository(Path(app.config["EDITOR_OFFSET_V2_JOBS_ROOT"])))
+
+    def fail_replace(_source, _target):
+        raise OSError("simulated publish failure")
+
+    import editor_offset_v2.application.preview_service as preview_module
+    monkeypatch.setattr(preview_module.os, "replace", fail_replace)
+    with pytest.raises(PreviewServiceError) as error:
+        service.render(created["job_id"], dpi=36, require_preflight=False)
+
+    assert error.value.code == "PREVIEW_PUBLISH_FAILED"
+    preview_dir = Path(app.config["EDITOR_OFFSET_V2_JOBS_ROOT"]) / created["job_id"] / "previews"
+    assert not list(preview_dir.glob(f"preview_r{saved['revision']}_front_36.png"))
+    assert not list(preview_dir.glob(".preview-*.tmp"))
 
 
 def test_preview_rejects_marks_and_supports_non_identity_internal_transforms(preview_app_factory):

@@ -92,6 +92,25 @@ def test_gated_pdf_final_writes_one_sheet_page_with_physical_size(tmp_path):
     assert list(output_dir.glob(f"pdf_final_r{saved['revision']}_front_36.pdf"))
 
 
+def test_pdf_final_regeneration_replaces_same_artifact_deterministically(tmp_path):
+    app = app_factory(tmp_path, enabled=True)
+    client = app.test_client()
+    created = create_job(client, "PDF regeneration V2")
+    uploaded = _upload_source(client, created)
+    saved = _save_preview_layout(client, uploaded, _ready_layout(uploaded["layout"], uploaded["asset"]))
+
+    first = client.post(f"/api/editor-offset-v2/jobs/{created['job_id']}/pdf-final", json={"dpi": 36})
+    first_data = first.data
+    first.close()
+    second = client.post(f"/api/editor-offset-v2/jobs/{created['job_id']}/pdf-final", json={"dpi": 36})
+
+    assert first.status_code == second.status_code == 200
+    assert first_data == second.data
+    output_dir = Path(app.config["EDITOR_OFFSET_V2_JOBS_ROOT"]) / created["job_id"] / "outputs"
+    assert len(list(output_dir.glob(f"pdf_final_r{saved['revision']}_front_36.pdf"))) == 1
+    assert not list(output_dir.glob(".pdf-final-*.tmp"))
+
+
 def test_gated_pdf_final_combines_front_and_back_in_layout_order(tmp_path):
     app = app_factory(tmp_path, enabled=True)
     client = app.test_client()
