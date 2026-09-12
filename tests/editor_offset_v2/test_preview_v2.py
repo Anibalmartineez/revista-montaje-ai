@@ -192,7 +192,7 @@ def test_preview_rejects_marks_and_supports_non_identity_internal_transforms(pre
     )
     asset = upload.get_json()["asset"]
     layout = _preview_layout(upload.get_json()["layout"], asset)
-    layout["export"]["marks_profiles"][0]["crop_marks"] = True
+    layout["export"]["marks_profiles"][0]["registration_marks"] = True
     saved = _save_preview_layout(client, upload.get_json(), layout)
 
     marked = client.post(
@@ -204,6 +204,7 @@ def test_preview_rejects_marks_and_supports_non_identity_internal_transforms(pre
 
     layout["job"]["revision"] = saved["revision"]
     layout["export"]["marks_profiles"][0]["crop_marks"] = False
+    layout["export"]["marks_profiles"][0]["registration_marks"] = False
     layout["slots"][0]["content_transform"]["offset_mm"]["x"] = 1.0
     updated = _save_preview_layout(client, saved, layout)
     transformed = client.post(
@@ -361,3 +362,55 @@ def test_preview_requires_explicit_mirror_for_missing_source_bleed(preview_app_f
     )
     assert mirrored.status_code == 200
     assert mirrored.mimetype == "image/png"
+
+
+def test_preview_draws_crop_marks_and_applies_back_long_edge_flip(preview_app_factory):
+    from PIL import Image
+
+    app = preview_app_factory()
+    app.config[EDITOR_OFFSET_V2_PREVIEW_ENABLED] = True
+    client = app.test_client()
+    created = create_job(client, "Preview marks and duplex")
+    upload = client.post(
+        f"/api/editor-offset-v2/jobs/{created['job_id']}/assets",
+        data={
+            "base_revision": str(created["revision"]),
+            "file": (io.BytesIO(_asymmetric_parity_source_pdf()), "parity.pdf"),
+        },
+        content_type="multipart/form-data",
+    )
+    asset = upload.get_json()["asset"]
+    layout = _preview_layout(upload.get_json()["layout"], asset)
+    layout["sheet"]["size_mm"] = {"width": 120.0, "height": 80.0}
+    layout["sheet"]["printable_margins_mm"] = {"left": 0.0, "right": 0.0, "bottom": 0.0, "top": 0.0}
+    layout["works"][0]["trim_size_mm"] = {"width": 40.0, "height": 20.0}
+    slot = layout["slots"][0]
+    slot["face"] = "back"
+    slot["geometry"]["position_mm"] = {"anchor": "trim_center", "x_mm": 40.0, "y_mm": 40.0}
+    slot["geometry"]["trim_size_mm"] = {"width": 40.0, "height": 20.0}
+    layout["faces"] = {"enabled": ["back"], "duplex": {"enabled": True, "flip": "long_edge"}}
+    layout["export"]["faces"] = {"front": False, "back": True, "combine_in_single_pdf": False, "order": ["back"]}
+    layout["export"]["marks_profiles"][0]["crop_marks"] = True
+    saved = _save_preview_layout(client, upload.get_json(), layout)
+
+    response = client.post(
+        f"/api/editor-offset-v2/jobs/{created['job_id']}/preview",
+        json={"face": "back", "dpi": 36},
+    )
+    assert response.status_code == 200
+    image = Image.open(io.BytesIO(response.data)).convert("RGB")
+    red, blue, black = [], [], []
+    for y in range(image.height):
+        for x in range(image.width):
+            r, g, b = image.getpixel((x, y))
+            if r > 170 and g < 130 and b < 130:
+                red.append(x)
+            if b > 170 and r < 130 and g < 150:
+                blue.append(x)
+            if r < 50 and g < 50 and b < 50:
+                black.append((x, y))
+    assert red and blue and black
+    assert sum(red) / len(red) > sum(blue) / len(blue)
+    assert saved["revision"] == client.get(
+        f"/api/editor-offset-v2/jobs/{created['job_id']}"
+    ).get_json()["revision"]

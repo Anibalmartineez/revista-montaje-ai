@@ -20,6 +20,8 @@ Actualización vigente de salida — [Fase 28](28_PARIDAD_PREVIEW_CANVAS_V2.md):
 
 Actualización vigente de salida — [Fase 29](29_TRANSFORMACIONES_PREVIEW_V2.md): la Preview V2 propia admite `actual_size`, `contain`, `cover`, `stretch`, escalas, offsets, rotaciones internas, espejos y clipping a trim/bleed. El bleed por espejo requiere la opción explícita `allow_mirror_bleed`. La prueba focalizada queda en 9 passed y la suite Python V2 en 421 passed y 1 omitido. Marcas, flip dúplex, clipping sin límite, tolerancia visual final y PDF productivo permanecen pendientes.
 
+Actualización vigente de salida — [Fase 30](30_MARCAS_Y_DUPLEX_PREVIEW_V2.md): la Preview V2 propia dibuja marcas de corte por slot y representa el flip dúplex horizontal o vertical de la cara posterior. Registro, texto técnico y barras siguen bloqueados explícitamente. La prueba focalizada queda en 10 passed y la suite Python V2 en 422 passed y 1 omitido. El PDF productivo continúa pendiente.
+
 Rama revisada:
 
     codex/editor-offset-v2-ux-foundation

@@ -111,11 +111,9 @@ class PreviewService:
         slots = [slot for slot in layout["slots"] if slot["face"] == face]
         if not slots:
             raise PreviewServiceError("PREVIEW_NO_SLOTS", "The requested face has no slots", 422)
-        if layout["faces"]["duplex"]["enabled"] and face == "back" and layout["faces"]["duplex"]["flip"] != "none":
-            raise PreviewServiceError(
-                "PREVIEW_DUPLEX_FLIP_UNSUPPORTED",
-                "Back-face duplex flip requires its own approved preview contract",
-            )
+        duplex_flip = "none"
+        if face == "back" and layout["faces"]["duplex"]["enabled"]:
+            duplex_flip = layout["faces"]["duplex"]["flip"]
         used_profile_ids = {slot["production"]["marks_profile_id"] for slot in slots}
         profiles = {
             profile["id"]: profile
@@ -123,10 +121,10 @@ class PreviewService:
             if profile["id"] in used_profile_ids
         }
         for profile in profiles.values():
-            if any(profile[name] for name in ("crop_marks", "registration_marks", "technical_text", "color_bar")):
+            if any(profile[name] for name in ("registration_marks", "technical_text", "color_bar")):
                 raise PreviewServiceError(
                     "PREVIEW_MARKS_UNSUPPORTED",
-                    "Preview is blocked while output marks are requested; marks require a dedicated contract",
+                    "Preview is blocked while registration, technical or color marks are requested",
                 )
 
         sheet = layout["sheet"]["size_mm"]
@@ -150,7 +148,10 @@ class PreviewService:
                 prepared_data,
                 sheet_size_mm=sheet,
                 dpi=dpi,
+                duplex_flip=duplex_flip,
             )
+        if any(profiles[slot["production"]["marks_profile_id"]]["crop_marks"] for slot in slots):
+            self._paint_crop_marks(sheet_image, slots, profiles, sheet_size_mm=sheet, dpi=dpi, duplex_flip=duplex_flip)
         output = io.BytesIO()
         sheet_image.save(output, format="PNG", optimize=False)
         png_data = output.getvalue()
@@ -255,6 +256,7 @@ class PreviewService:
         *,
         sheet_size_mm: Mapping[str, Any],
         dpi: int,
+        duplex_flip: str,
     ) -> None:
         """Paint one transformed source and clip it to its V2 slot polygon.
 
@@ -277,6 +279,22 @@ class PreviewService:
             bleed=geometry["bleed_mm"],
             rotation_deg=geometry["rotation_deg"],
         )
+        sheet_width_mm = float(sheet_size_mm["width"])
+        sheet_height_mm = float(sheet_size_mm["height"])
+        if duplex_flip == "long_edge":
+            slot_geometry = SlotGeometry(
+                center=Point(sheet_width_mm - slot_geometry.center.x, slot_geometry.center.y),
+                trim_size=slot_geometry.trim_size,
+                bleed=slot_geometry.bleed,
+                rotation_deg=(-slot_geometry.rotation_deg) % 360,
+            )
+        elif duplex_flip == "short_edge":
+            slot_geometry = SlotGeometry(
+                center=Point(slot_geometry.center.x, sheet_height_mm - slot_geometry.center.y),
+                trim_size=slot_geometry.trim_size,
+                bleed=slot_geometry.bleed,
+                rotation_deg=(-slot_geometry.rotation_deg) % 360,
+            )
         with fitz.open(stream=prepared_data, filetype="pdf") as prepared:
             page = prepared[0]
             pixmap = page.get_pixmap(dpi=dpi, colorspace=fitz.csRGB, alpha=False)
@@ -333,13 +351,14 @@ class PreviewService:
         slot_rotation = int(slot_geometry.rotation_deg)
         if slot_rotation:
             resized = resized.rotate(slot_rotation, expand=True, resample=Image.Resampling.BICUBIC)
-
-        sheet_width_mm = float(sheet_size_mm["width"])
-        sheet_height_mm = float(sheet_size_mm["height"])
+        if duplex_flip == "long_edge":
+            resized = ImageOps.mirror(resized)
+        elif duplex_flip == "short_edge":
+            resized = ImageOps.flip(resized)
         sheet_scale = dpi / 25.4
         center = Point(
-            slot_geometry.center.x + float(transform["offset_mm"]["x"]),
-            slot_geometry.center.y + float(transform["offset_mm"]["y"]),
+            slot_geometry.center.x + (float(transform["offset_mm"]["x"]) if duplex_flip != "long_edge" else -float(transform["offset_mm"]["x"])),
+            slot_geometry.center.y + (float(transform["offset_mm"]["y"]) if duplex_flip != "short_edge" else -float(transform["offset_mm"]["y"])),
         )
         center_px = (
             round(center.x * sheet_scale),
@@ -370,6 +389,72 @@ class PreviewService:
         alpha = ImageChops.multiply(layer.getchannel("A"), clip_mask)
         layer.putalpha(alpha)
         sheet_image.paste(layer.convert("RGB"), (0, 0), alpha)
+
+    def _paint_crop_marks(
+        self,
+        sheet_image: Image.Image,
+        slots: list[Mapping[str, Any]],
+        profiles: Mapping[str, Mapping[str, Any]],
+        *,
+        sheet_size_mm: Mapping[str, Any],
+        dpi: int,
+        duplex_flip: str,
+    ) -> None:
+        """Draw deterministic four-corner crop ticks outside each trim."""
+        sheet_width_mm = float(sheet_size_mm["width"])
+        sheet_height_mm = float(sheet_size_mm["height"])
+        sheet_scale = dpi / 25.4
+        drawing = ImageDraw.Draw(sheet_image)
+        length_mm = 3.0
+        gap_mm = 1.0
+        width_px = max(1, round(0.2 * sheet_scale))
+        for slot in slots:
+            profile = profiles[slot["production"]["marks_profile_id"]]
+            if not profile["crop_marks"]:
+                continue
+            geometry = slot["geometry"]
+            slot_geometry = SlotGeometry(
+                center=Point(geometry["position_mm"]["x_mm"], geometry["position_mm"]["y_mm"]),
+                trim_size=Size(geometry["trim_size_mm"]["width"], geometry["trim_size_mm"]["height"]),
+                bleed=geometry["bleed_mm"],
+                rotation_deg=geometry["rotation_deg"],
+            )
+            if duplex_flip == "long_edge":
+                slot_geometry = SlotGeometry(
+                    center=Point(sheet_width_mm - slot_geometry.center.x, slot_geometry.center.y),
+                    trim_size=slot_geometry.trim_size,
+                    bleed=slot_geometry.bleed,
+                    rotation_deg=(-slot_geometry.rotation_deg) % 360,
+                )
+            elif duplex_flip == "short_edge":
+                slot_geometry = SlotGeometry(
+                    center=Point(slot_geometry.center.x, sheet_height_mm - slot_geometry.center.y),
+                    trim_size=slot_geometry.trim_size,
+                    bleed=slot_geometry.bleed,
+                    rotation_deg=(-slot_geometry.rotation_deg) % 360,
+                )
+            polygon = trim_polygon(slot_geometry)
+            for index, point in enumerate(polygon.points):
+                previous = polygon.points[index - 1]
+                following = polygon.points[(index + 1) % len(polygon.points)]
+                for other in (previous, following):
+                    dx = point.x - other.x
+                    dy = point.y - other.y
+                    norm = (dx * dx + dy * dy) ** 0.5
+                    if norm == 0:
+                        continue
+                    start = (point.x + dx / norm * gap_mm, point.y + dy / norm * gap_mm)
+                    end = (point.x + dx / norm * (gap_mm + length_mm), point.y + dy / norm * (gap_mm + length_mm))
+                    drawing.line(
+                        (
+                            round(start[0] * sheet_scale),
+                            round((sheet_height_mm - start[1]) * sheet_scale),
+                            round(end[0] * sheet_scale),
+                            round((sheet_height_mm - end[1]) * sheet_scale),
+                        ),
+                        fill=(0, 0, 0),
+                        width=width_px,
+                    )
 
 
 __all__ = [

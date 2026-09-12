@@ -47,10 +47,10 @@ Resultados:
 
 ```text
 venv\Scripts\python.exe -m pytest tests/editor_offset_v2/test_preview_v2.py -q
-9 passed
+10 passed
 
 venv\Scripts\python.exe -m pytest tests/editor_offset_v2 -q
-421 passed, 1 omitido
+422 passed, 1 omitido
 ```
 
 ## 4. Límites pendientes
