@@ -513,3 +513,10 @@ Antes de modificar código nuevamente:
 - no mezclar preflight, PDF, CTP, resize e IA en un mismo bloque.
 
 La Fase 24 habilita únicamente diagnóstico y publicación de reportes. Los detalles de política productiva, clipping, perfiles, caras, preview, PDF y CTP siguen sujetos a fases propias y no están habilitados por este endpoint.
+
+### Fase 32A — Trabajos multipágina
+
+La interfaz V2 incorpora un planificador temporal por página para el asset seleccionado.
+Permite seleccionar varias páginas, asignar cantidades independientes y crear un work
+por página mediante un comando único reversible. El contrato Layout V2 no cambia; firmas,
+encuadernaciones y edición derivada de assets permanecen fuera de esta fase.

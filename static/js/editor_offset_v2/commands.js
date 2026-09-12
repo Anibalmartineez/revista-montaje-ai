@@ -514,6 +514,45 @@
     }
   }
 
+  class CreateWorksCommand {
+    constructor(works) {
+      if (!Array.isArray(works) || !works.length) {
+        throw new Error("CreateWorksCommand requires at least one work");
+      }
+      const ids = works.map((work) => work?.id);
+      if (ids.some((id) => !id) || new Set(ids).size !== ids.length) {
+        throw new Error("CreateWorksCommand requires unique work ids");
+      }
+      this.description = "Crear trabajos desde páginas PDF";
+      this.works = clone(works);
+      this.affectedIds = Object.freeze(ids);
+    }
+
+    execute(layout) {
+      const existingIds = new Set(layout.works.map((work) => work.id));
+      if (this.works.some((work) => existingIds.has(work.id))) {
+        throw new Error("A work in the batch already exists");
+      }
+      for (const work of this.works) {
+        sourcePage(layout, work.front_source);
+        if (work.back_source) sourcePage(layout, work.back_source);
+      }
+      layout.works.push(...clone(this.works));
+    }
+
+    undo(layout) {
+      const ids = new Set(this.affectedIds);
+      if (layout.slots.some((slot) => ids.has(slot.work_id))) {
+        throw new Error("Undo the work slots before removing their works");
+      }
+      layout.works = layout.works.filter((work) => !ids.has(work.id));
+    }
+
+    redo(layout) {
+      this.execute(layout);
+    }
+  }
+
   class CreateSlotFromWorkCommand {
     constructor(slot) {
       this.description = "Crear slot real desde trabajo";
@@ -724,6 +763,36 @@
     };
   }
 
+  function createWorksFromSources(layout, entries, defaults, tokenFactory) {
+    if (!Array.isArray(entries) || !entries.length) {
+      throw new Error("At least one PDF page must be selected");
+    }
+    const values = defaults || {};
+    const makeToken = typeof tokenFactory === "function"
+      ? tokenFactory
+      : (entry, index) => `${tokenFactory || "batch"}_${entry.source.page}_${index}`;
+    const works = entries.map((entry, index) => {
+      if (!entry || !entry.source) throw new Error("Each page entry requires a source");
+      const page = Number(entry.source.page);
+      const pageValues = {
+        ...values,
+        ...entry.values,
+        name: entry.values?.name || `${values.name || "Work"} · pág. ${page}`,
+        requestedForms: entry.values?.requestedForms ?? values.requestedForms,
+      };
+      return createWorkFromSource(
+        layout,
+        entry.source,
+        pageValues,
+        makeToken(entry, index),
+      );
+    });
+    if (new Set(works.map((work) => work.id)).size !== works.length) {
+      throw new Error("Batch work identifiers must be unique");
+    }
+    return works;
+  }
+
   function createSlotFromWork(layout, workId, token, center) {
     const work = layout.works.find((item) => item.id === workId);
     if (!work || !work.front_source) throw new Error("An existing work with a front source is required");
@@ -859,10 +928,12 @@
     DeleteSlotsCommand,
     SetSlotUserLocksCommand,
     CreateWorkCommand,
+    CreateWorksCommand,
     CreateSlotFromWorkCommand,
     ReplaceSlotSourceCommand,
     ApplyRepeatCommand,
     createWorkFromSource,
+    createWorksFromSources,
     createSlotFromWork,
     sourcePage,
     createDevelopmentPlaceholderBundle,

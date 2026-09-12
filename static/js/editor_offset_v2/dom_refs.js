@@ -167,6 +167,8 @@
       assetUploadButton: byId("ev2-asset-upload-button"),
       assetUploadStatus: byId("ev2-asset-upload-status"),
       assetsList: byId("ev2-assets-list"),
+      assetPagePlanner: byId("ev2-asset-page-planner"),
+      createPageWorks: byId("ev2-create-page-works"),
       assetSelect: byId("ev2-asset-select"),
       assetPage: byId("ev2-asset-page"),
       assetBox: byId("ev2-asset-box"),

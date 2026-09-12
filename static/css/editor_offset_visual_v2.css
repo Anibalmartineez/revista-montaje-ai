@@ -1083,6 +1083,67 @@ button:disabled {
   border-bottom: 1px solid var(--ev2-line);
 }
 
+.ev2-page-planner {
+  padding: 10px;
+  border-bottom: 1px solid var(--ev2-line);
+  background: #0f161e;
+}
+
+.ev2-page-planner-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.ev2-page-planner-heading > div {
+  display: grid;
+  gap: 2px;
+}
+
+.ev2-page-planner-heading strong {
+  font-size: 11px;
+}
+
+.ev2-page-planner-heading small {
+  color: var(--ev2-muted);
+  font-size: 9px;
+}
+
+.ev2-page-planner-heading button {
+  padding: 5px 7px;
+  font-size: 9px;
+}
+
+.ev2-page-plan-grid {
+  display: grid;
+  gap: 4px;
+}
+
+.ev2-page-plan-row {
+  display: grid;
+  grid-template-columns: 18px 1fr 68px;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 5px;
+  border: 1px solid var(--ev2-line);
+  border-radius: 5px;
+  color: var(--ev2-text);
+  font-size: 10px;
+}
+
+.ev2-page-plan-row:has(input[type="checkbox"]:checked) {
+  border-color: #438c72;
+  background: rgba(67, 140, 114, 0.12);
+}
+
+.ev2-page-plan-row input[type="number"] {
+  min-width: 0;
+  padding: 3px 4px;
+  font-size: 10px;
+}
+
 .ev2-asset-card {
   padding: 8px;
   border: 1px solid var(--ev2-line);

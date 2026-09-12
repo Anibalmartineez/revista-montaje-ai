@@ -36,6 +36,7 @@
       this.commands = commands;
       this.editPolicy = editPolicy;
       this.uploading = false;
+      this.pagePlans = new Map();
       this.bind();
       this.unsubscribe = store.subscribe((event) => this.onStoreEvent(event));
       this.renderAll(true);
@@ -44,6 +45,8 @@
     bind() {
       this.refs.assetUploadForm.addEventListener("submit", (event) => this.upload(event));
       this.refs.assetsList.addEventListener("click", (event) => this.selectThumbnail(event));
+      this.refs.assetPagePlanner.addEventListener("change", (event) => this.changePagePlan(event));
+      this.refs.createPageWorks.addEventListener("click", () => this.createPageWorks());
       this.refs.assetSelect.addEventListener("change", () => this.changeAsset());
       this.refs.assetPage.addEventListener("change", () => this.changePage());
       this.refs.assetBox.addEventListener("change", () => this.changeBox());
@@ -72,6 +75,7 @@
 
     renderAll(resetDefaults) {
       this.renderAssets();
+      this.renderPagePlanner();
       this.renderSourceControls(resetDefaults);
       this.renderWorks();
       this.renderUploadState();
@@ -168,6 +172,77 @@
         this.refs.workBleed.value = "0";
         this.refs.workQuantity.value = "1";
       }
+    }
+
+    pagePlanFor(asset, page) {
+      const key = `${asset.id}:${page.number}`;
+      if (!this.pagePlans.has(key)) {
+        this.pagePlans.set(key, {
+          selected: page.number === this.store.assetPanel.selectedPage,
+          quantity: 1,
+        });
+      }
+      return this.pagePlans.get(key);
+    }
+
+    renderPagePlanner() {
+      const asset = this.store.layout.assets.find(
+        (item) => item.id === this.store.assetPanel.selectedAssetId && isReadyAsset(item),
+      );
+      this.refs.assetPagePlanner.replaceChildren();
+      this.refs.createPageWorks.disabled = !asset;
+      if (!asset) {
+        const empty = document.createElement("p");
+        empty.className = "ev2-list-empty";
+        empty.textContent = "Sube un PDF para planificar sus páginas.";
+        this.refs.assetPagePlanner.append(empty);
+        return;
+      }
+      const table = document.createElement("div");
+      table.className = "ev2-page-plan-grid";
+      for (const page of asset.pages) {
+        const plan = this.pagePlanFor(asset, page);
+        const row = document.createElement("label");
+        row.className = "ev2-page-plan-row";
+        const checkbox = document.createElement("input");
+        checkbox.type = "checkbox";
+        checkbox.dataset.pagePlanSelected = "true";
+        checkbox.dataset.page = String(page.number);
+        checkbox.checked = plan.selected;
+        const title = document.createElement("span");
+        title.textContent = `Página ${page.number}`;
+        const quantity = document.createElement("input");
+        quantity.type = "number";
+        quantity.min = "1";
+        quantity.step = "1";
+        quantity.value = String(plan.quantity);
+        quantity.title = "Cantidad de formas";
+        quantity.setAttribute("aria-label", `Cantidad de formas para página ${page.number}`);
+        quantity.dataset.pagePlanQuantity = "true";
+        quantity.dataset.page = String(page.number);
+        row.append(checkbox, title, quantity);
+        table.append(row);
+      }
+      this.refs.assetPagePlanner.append(table);
+    }
+
+    changePagePlan(event) {
+      const target = event.target;
+      const page = Number(target.dataset.page);
+      const asset = this.store.layout.assets.find(
+        (item) => item.id === this.store.assetPanel.selectedAssetId && isReadyAsset(item),
+      );
+      if (!asset || !Number.isInteger(page)) return;
+      const selectedPage = asset.pages.find((item) => item.number === page);
+      if (!selectedPage) return;
+      const plan = this.pagePlanFor(asset, selectedPage);
+      if (target.dataset.pagePlanSelected) plan.selected = target.checked;
+      if (target.dataset.pagePlanQuantity) {
+        const quantity = Number(target.value);
+        plan.quantity = Number.isInteger(quantity) && quantity > 0 ? quantity : 1;
+        if (plan.quantity !== Number(target.value)) target.value = String(plan.quantity);
+      }
+      this.refs.createPageWorks.disabled = ![...this.pagePlans.values()].some((item) => item.selected);
     }
 
     renderWorks() {
@@ -301,6 +376,50 @@
         this.store.executeCommand(new this.commands.CreateWorkCommand(work));
         this.store.setSelectedWork(work.id);
         this.store.setUploadState("success", `Work ${work.name} creado.`);
+      } catch (error) {
+        this.store.setUploadState("error", null, error.message);
+      }
+    }
+
+    createPageWorks() {
+      try {
+        const asset = this.store.layout.assets.find(
+          (item) => item.id === this.store.assetPanel.selectedAssetId && isReadyAsset(item),
+        );
+        if (!asset) throw new Error("Selecciona un asset PDF.");
+        const entries = asset.pages
+          .map((page) => ({ page, plan: this.pagePlanFor(asset, page) }))
+          .filter(({ plan }) => plan.selected)
+          .map(({ page, plan }) => {
+            const boxName = page.boxes_mm[this.store.assetPanel.selectedPdfBox]
+              ? this.store.assetPanel.selectedPdfBox
+              : (page.boxes_mm.trim ? "trim" : page.boxes_mm.crop ? "crop" : "media");
+            const box = page.boxes_mm[boxName];
+            const rotated = [90, 270].includes(page.intrinsic_rotation_deg);
+            return {
+              source: { asset_id: asset.id, page: page.number, pdf_box: boxName },
+              values: {
+                name: `${asset.original_filename.replace(/\.pdf$/i, "")} · pág. ${page.number}`,
+                width: (rotated ? box.height : box.width).toFixed(3),
+                height: (rotated ? box.width : box.height).toFixed(3),
+                bleed: this.refs.workBleed.value,
+                requestedForms: plan.quantity,
+                allowedRotations: [...this.refs.workRotations]
+                  .filter((item) => item.checked)
+                  .map((item) => Number(item.value)),
+                useSameSourceForBack: this.refs.workBack.checked,
+              },
+            };
+          });
+        const works = this.commands.createWorksFromSources(
+          this.store.layout,
+          entries,
+          {},
+          (entry, index) => `page_${entry.source.page}_${token()}_${index}`,
+        );
+        this.store.executeCommand(new this.commands.CreateWorksCommand(works));
+        this.store.setSelectedWork(works.at(-1).id);
+        this.store.setUploadState("success", `${works.length} works creados desde las páginas seleccionadas.`);
       } catch (error) {
         this.store.setUploadState("error", null, error.message);
       }

@@ -54,6 +54,40 @@ test("CreateWorkCommand builds a valid real-source work and reverses cleanly", (
   assert.equal(layout.works.at(-1).id, "work_asset_work");
 });
 
+test("CreateWorksCommand creates one independent work per selected PDF page and undoes atomically", () => {
+  const layout = fixture("layout_v2_complete.json");
+  const asset = layout.assets[0];
+  const page1 = structuredClone(asset.pages[0]);
+  asset.pages = [
+    page1,
+    { ...structuredClone(page1), number: 2, preview_key: "assets/asset_card_front/thumbnails/page_2.png" },
+    { ...structuredClone(page1), number: 3, preview_key: "assets/asset_card_front/thumbnails/page_3.png" },
+  ];
+  asset.page_count = asset.pages.length;
+  const entries = asset.pages.map((page, index) => ({
+    source: { asset_id: asset.id, page: page.number, pdf_box: "trim" },
+    values: { name: `Revista · pág. ${page.number}`, requestedForms: index + 1 },
+  }));
+  const works = commands.createWorksFromSources(
+    layout,
+    entries,
+    { width: 90, height: 50, bleed: 3, allowedRotations: [0], useSameSourceForBack: false },
+    (entry) => `multi_${entry.source.page}`,
+  );
+  const command = new commands.CreateWorksCommand(works);
+  const initialCount = layout.works.length;
+  command.execute(layout);
+  assert.equal(layout.works.length, initialCount + 3);
+  assert.deepEqual(layout.works.slice(-3).map((work) => work.front_source.page), [1, 2, 3]);
+  assert.deepEqual(layout.works.slice(-3).map((work) => work.requested_forms), [1, 2, 3]);
+  command.undo(layout);
+  assert.equal(layout.works.length, initialCount);
+  command.redo(layout);
+  assert.deepEqual(layout.works.slice(-3).map((work) => work.id), [
+    "work_multi_1", "work_multi_2", "work_multi_3",
+  ]);
+});
+
 test("CreateSlotFromWorkCommand creates a real cardinal slot at visible center", () => {
   const layout = fixture("layout_v2_complete.json");
   const workId = layout.works[0].id;
