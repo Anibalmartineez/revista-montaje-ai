@@ -15,6 +15,12 @@ from editor_offset_v2.config import (
     EDITOR_OFFSET_V2_PDF_FINAL_ENABLED,
     EDITOR_OFFSET_V2_PREVIEW_ENABLED,
 )
+from editor_offset_v2.domain.output_parity_contract import (
+    DERIVED_PREVIEW_MAX_CHANGED_RATIO,
+    DERIVED_PREVIEW_MAX_MEAN_CHANNEL_DELTA,
+    PREVIEW_PDF_MAX_CHANGED_RATIO,
+    PREVIEW_PDF_MAX_MEAN_CHANNEL_DELTA,
+)
 from test_preview_v2 import _preview_layout, _save_preview_layout, create_job
 
 
@@ -159,8 +165,8 @@ def test_transformed_derived_preview_and_pdf_share_one_representation(parity_app
         pdf_image = Image.frombytes("RGB", (pdf_pixmap.width, pdf_pixmap.height), pdf_pixmap.samples)
 
     full_ratio, full_mean = _image_difference(preview_image, pdf_image)
-    assert full_ratio <= 0.02
-    assert full_mean <= 8
+    assert full_ratio <= PREVIEW_PDF_MAX_CHANGED_RATIO
+    assert full_mean <= PREVIEW_PDF_MAX_MEAN_CHANNEL_DELTA
 
     with fitz.open(
         app.config["EDITOR_OFFSET_V2_JOBS_ROOT"]
@@ -177,6 +183,6 @@ def test_transformed_derived_preview_and_pdf_share_one_representation(parity_app
     top = center_y - derived_image.height // 2
     preview_crop = preview_image.crop((left, top, left + derived_image.width, top + derived_image.height))
     crop_ratio, crop_mean = _image_difference(preview_crop, derived_image)
-    assert crop_ratio <= 0.08
-    assert crop_mean <= 12
+    assert crop_ratio <= DERIVED_PREVIEW_MAX_CHANGED_RATIO
+    assert crop_mean <= DERIVED_PREVIEW_MAX_MEAN_CHANNEL_DELTA
     assert linked["revision"] == saved["revision"] + 1

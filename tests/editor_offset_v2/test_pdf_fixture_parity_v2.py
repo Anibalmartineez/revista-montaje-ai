@@ -7,11 +7,12 @@ import fitz
 import pytest
 
 from editor_offset_v2.infrastructure.pdf_inspector import inspect_pdf
+from editor_offset_v2.domain.output_parity_contract import PDF_BOX_TOLERANCE_MM
 
 
 FIXTURE_ROOT = Path(__file__).parents[1] / "fixtures" / "editor_offset_v2"
 MANIFEST_PATH = FIXTURE_ROOT / "pdf_fixture_manifest.json"
-BOX_TOLERANCE_MM = 0.001
+BOX_TOLERANCE_MM = PDF_BOX_TOLERANCE_MM
 
 
 def _assert_box(actual: dict[str, float] | None, expected: dict[str, float] | None) -> None:

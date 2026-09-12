@@ -481,7 +481,7 @@ Revisar:
 
 ## 19. Próximo paso SAFE recomendado
 
-La Fase 19 está cerrada. Actualización de 2026-09-12: las fases 34, 35 y 36 quedaron implementadas y verificadas en `codex/editor-offset-v2-output-preflight`. Repeat multipágina conserva las cuatro orientaciones cardinales; Preview y PDF final consumen preflight vigente por operación; la regeneración y los fallos de publicación tienen cobertura específica. La siguiente prioridad SAFE es cerrar la concurrencia multiproceso y la retención antes de habilitar producción amplia; no es 19-H.
+La Fase 19 está cerrada. Actualización de 2026-09-12: las fases 34, 35 y 36 quedaron implementadas y verificadas en `codex/editor-offset-v2-output-preflight`, y la Fase 37 centraliza el contrato de paridad en `codex/editor-offset-v2-output-contract-parity`. Repeat multipágina conserva las cuatro orientaciones cardinales; Preview y PDF final consumen preflight vigente por operación; la regeneración y los fallos de publicación tienen cobertura específica. La siguiente prioridad SAFE es cerrar la concurrencia multiproceso y la retención antes de habilitar producción amplia; no es 19-H.
 
 Orden recomendado:
 
@@ -581,3 +581,11 @@ hallazgos bloqueantes impide la salida y no deja PDF parcial.
 Se verificaron cantidades altas, documentos multipágina, Repeat, regeneración
 determinista y limpieza de temporales. La concurrencia multiproceso y la política
 de retención automática siguen pendientes de una prueba operativa dedicada.
+
+### Fase 37 — Contrato canónico de paridad de salida
+
+Se centralizaron versión y tolerancias métricas/visuales para cajas PDF,
+geometría del canvas y comparaciones Preview/PDF. Los fixtures existentes
+continúan cubriendo cajas, páginas, rotaciones, bleed, clipping, marcas y
+frente/dorso. La captura DOM SVG, color/vector y CTP permanecen fuera de esta
+fase.

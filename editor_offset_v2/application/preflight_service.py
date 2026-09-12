@@ -23,6 +23,7 @@ from editor_offset_v2.domain.geometry import (
     sheet_bounds,
     trim_polygon,
 )
+from editor_offset_v2.domain.output_parity_contract import PDF_BOX_TOLERANCE_MM
 from editor_offset_v2.domain.preflight_contract import (
     PREFLIGHT_ANALYZER_ID,
     PREFLIGHT_ANALYZER_VERSION,
@@ -45,7 +46,7 @@ from editor_offset_v2.infrastructure.pdf_inspector import PdfInspectionError, in
 from editor_offset_v2.infrastructure.job_repository import JobRepository, JobRepositoryError
 
 
-PDF_METADATA_TOLERANCE_MM = 0.01
+PDF_METADATA_TOLERANCE_MM = PDF_BOX_TOLERANCE_MM
 
 
 class PreflightServiceError(Exception):
