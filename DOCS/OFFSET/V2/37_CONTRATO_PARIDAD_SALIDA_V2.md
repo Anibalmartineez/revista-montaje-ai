@@ -29,6 +29,10 @@ bleed por espejo explícito, clipping, marcas y expectativas frente/dorso.
 La prueba de paridad transformada compara Preview, página derivada y PDF
 usando las tolerancias centralizadas.
 
+Las pruebas específicas del contrato comprueban que las tolerancias estén
+acotadas, que el manifiesto conserve la matriz completa de riesgos y que las
+expectativas de frente/dorso y transformación sigan siendo explícitas.
+
 ## Límites declarados
 
 La comparación actual usa rasterización controlada de Preview/PDF; todavía no
