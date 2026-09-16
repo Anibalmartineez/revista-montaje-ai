@@ -30,6 +30,7 @@ from editor_offset_v2.infrastructure.asset_repository import (
     SOURCE_FILENAME,
 )
 from editor_offset_v2.infrastructure.job_repository import JobRepository, JobRepositoryError
+from editor_offset_v2.infrastructure.process_lock import exclusive_file_lock
 from editor_offset_v2.infrastructure.pdf_inspector import PdfInspectionError, inspect_pdf
 from editor_offset_v2.infrastructure.prepared_pdf_source import (
     SourcePreparationError,
@@ -174,13 +175,14 @@ class PreviewService:
         target = previews / f"preview_r{layout['job']['revision']}_{face}_{dpi}.png"
         temporary: Path | None = None
         try:
-            with tempfile.NamedTemporaryFile(mode="wb", dir=previews, prefix=".preview-", suffix=".tmp", delete=False) as stream:
-                temporary = Path(stream.name)
-                stream.write(png_data)
-                stream.flush()
-                os.fsync(stream.fileno())
-            os.replace(temporary, target)
-            temporary = None
+            with exclusive_file_lock(previews / ".publish.lock"):
+                with tempfile.NamedTemporaryFile(mode="wb", dir=previews, prefix=".preview-", suffix=".tmp", delete=False) as stream:
+                    temporary = Path(stream.name)
+                    stream.write(png_data)
+                    stream.flush()
+                    os.fsync(stream.fileno())
+                os.replace(temporary, target)
+                temporary = None
         except OSError as exc:
             raise PreviewServiceError("PREVIEW_PUBLISH_FAILED", "The preview could not be published", 500) from exc
         finally:

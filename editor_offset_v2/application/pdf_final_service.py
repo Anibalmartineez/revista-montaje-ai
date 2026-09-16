@@ -15,6 +15,7 @@ from editor_offset_v2.application.preview_service import PreviewService, Preview
 from editor_offset_v2.application.preflight_service import PreflightService, PreflightServiceError
 from editor_offset_v2.domain.validation import validate_layout_v2
 from editor_offset_v2.infrastructure.job_repository import JobRepository, JobRepositoryError
+from editor_offset_v2.infrastructure.process_lock import exclusive_file_lock
 
 
 class PdfFinalServiceError(Exception):
@@ -122,13 +123,14 @@ class PdfFinalService:
         target = outputs / f"pdf_final_r{layout['job']['revision']}_{face_key}_{dpi}.pdf"
         temporary: Path | None = None
         try:
-            with tempfile.NamedTemporaryFile(mode="wb", dir=outputs, prefix=".pdf-final-", suffix=".tmp", delete=False) as stream:
-                temporary = Path(stream.name)
-                stream.write(pdf_data)
-                stream.flush()
-                os.fsync(stream.fileno())
-            os.replace(temporary, target)
-            temporary = None
+            with exclusive_file_lock(outputs / ".publish.lock"):
+                with tempfile.NamedTemporaryFile(mode="wb", dir=outputs, prefix=".pdf-final-", suffix=".tmp", delete=False) as stream:
+                    temporary = Path(stream.name)
+                    stream.write(pdf_data)
+                    stream.flush()
+                    os.fsync(stream.fileno())
+                os.replace(temporary, target)
+                temporary = None
         except OSError as exc:
             raise PdfFinalServiceError("PDF_FINAL_PUBLISH_FAILED", "The PDF could not be published", 500) from exc
         finally:

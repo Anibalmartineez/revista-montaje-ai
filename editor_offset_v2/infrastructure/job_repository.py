@@ -11,6 +11,8 @@ from collections.abc import Mapping
 from pathlib import Path
 from typing import Any, Final
 
+from editor_offset_v2.infrastructure.process_lock import exclusive_file_lock
+
 
 LAYOUT_FILENAME: Final = "layout_v2.json"
 JOB_DIRECTORIES: Final = ("assets", "derived", "previews", "outputs", "reports")
@@ -77,6 +79,9 @@ class JobRepository:
     def layout_path(self, job_id: object) -> Path:
         return self.job_path(job_id) / LAYOUT_FILENAME
 
+    def job_lock_path(self, job_id: object) -> Path:
+        return self.job_path(job_id) / ".job.lock"
+
     def job_exists(self, job_id: object) -> bool:
         return self.job_path(job_id).is_dir()
 
@@ -134,7 +139,7 @@ class JobRepository:
         layout: Mapping[str, Any],
     ) -> None:
         safe_id = validate_job_id(job_id)
-        with _job_lock(self._root, safe_id):
+        with _job_lock(self._root, safe_id), exclusive_file_lock(self.job_lock_path(safe_id)):
             persisted = self.read_layout(safe_id)
             revision = (persisted.get("job") or {}).get("revision")
             if revision != expected_revision:

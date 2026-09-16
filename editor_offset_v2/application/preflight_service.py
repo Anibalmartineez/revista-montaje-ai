@@ -44,6 +44,7 @@ from editor_offset_v2.infrastructure.asset_repository import (
 )
 from editor_offset_v2.infrastructure.pdf_inspector import PdfInspectionError, inspect_pdf
 from editor_offset_v2.infrastructure.job_repository import JobRepository, JobRepositoryError
+from editor_offset_v2.infrastructure.process_lock import exclusive_file_lock
 
 
 PDF_METADATA_TOLERANCE_MM = PDF_BOX_TOLERANCE_MM
@@ -436,16 +437,19 @@ class PreflightService:
         reports.mkdir(exist_ok=True)
         relative = f"reports/{report['report_id']}.json"
         target = reports / f"{report['report_id']}.json"
-        with tempfile.NamedTemporaryFile(mode="w", encoding="utf-8", newline="\n", dir=reports, delete=False, prefix=".preflight-", suffix=".tmp") as stream:
-            temporary = Path(stream.name)
-            json.dump(report, stream, ensure_ascii=False, allow_nan=False, indent=2, sort_keys=True)
-            stream.write("\n")
-            stream.flush()
-            os.fsync(stream.fileno())
+        temporary: Path | None = None
         try:
-            os.replace(temporary, target)
+            with exclusive_file_lock(reports / ".publish.lock"):
+                with tempfile.NamedTemporaryFile(mode="w", encoding="utf-8", newline="\n", dir=reports, delete=False, prefix=".preflight-", suffix=".tmp") as stream:
+                    temporary = Path(stream.name)
+                    json.dump(report, stream, ensure_ascii=False, allow_nan=False, indent=2, sort_keys=True)
+                    stream.write("\n")
+                    stream.flush()
+                    os.fsync(stream.fileno())
+                os.replace(temporary, target)
         except OSError:
-            temporary.unlink(missing_ok=True)
+            if temporary is not None:
+                temporary.unlink(missing_ok=True)
             raise
         return relative
 

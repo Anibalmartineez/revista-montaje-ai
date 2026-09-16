@@ -481,17 +481,16 @@ Revisar:
 
 ## 19. Próximo paso SAFE recomendado
 
-La Fase 19 está cerrada. Actualización de 2026-09-12: las fases 34, 35 y 36 quedaron implementadas y verificadas en `codex/editor-offset-v2-output-preflight`, y la Fase 37 centraliza el contrato de paridad en `codex/editor-offset-v2-output-contract-parity`. Repeat multipágina conserva las cuatro orientaciones cardinales; Preview y PDF final consumen preflight vigente por operación; la regeneración y los fallos de publicación tienen cobertura específica. La siguiente prioridad SAFE es cerrar la concurrencia multiproceso y la retención antes de habilitar producción amplia; no es 19-H.
+La Fase 19 está cerrada. Actualización de 2026-09-16: las fases 34, 35 y 36 quedaron implementadas y verificadas en `codex/editor-offset-v2-output-preflight`; las fases 37 y 38 quedaron implementadas y verificadas en `codex/editor-offset-v2-output-contract-parity`. Repeat multipágina conserva las cuatro orientaciones cardinales; Preview y PDF final consumen preflight vigente por operación; la regeneración, los fallos de publicación, la concurrencia multiproceso y la limpieza conservadora tienen cobertura específica. La siguiente prioridad SAFE es ampliar fixtures y tolerancias de color/vector antes de habilitar producción amplia; no es 19-H.
 
 Orden recomendado:
 
-1. cerrar concurrencia multiproceso, retención y recuperación operativa;
-2. ampliar fixtures y tolerancias de color/vector antes de producción;
-3. habilitar Preview productiva mínima detrás de su gate explícito;
-4. implementar el renderer PDF final V2 propio con verificación de artefactos;
-5. CTP, marcas y dúplex productivo bajo sus fases correspondientes;
-6. independizar Repeat y demás código compartido mediante fases de extracción, sin ampliar el puente como arquitectura final;
-7. retomar Resize 8F únicamente cuando su efecto sobre exportación esté definido.
+1. ampliar fixtures y tolerancias de color/vector antes de producción;
+2. habilitar Preview productiva mínima detrás de su gate explícito;
+3. implementar el renderer PDF final V2 propio con verificación de artefactos;
+4. CTP, marcas y dúplex productivo bajo sus fases correspondientes;
+5. independizar Repeat y demás código compartido mediante fases de extracción, sin ampliar el puente como arquitectura final;
+6. retomar Resize 8F únicamente cuando su efecto sobre exportación esté definido.
 
 No conviene comenzar directamente por botones de PDF o CTP. Primero debe existir un contrato capaz de decidir con evidencia si un montaje puede producirse y cómo se representa cada error o advertencia.
 
@@ -589,3 +588,11 @@ geometría del canvas y comparaciones Preview/PDF. Los fixtures existentes
 continúan cubriendo cajas, páginas, rotaciones, bleed, clipping, marcas y
 frente/dorso. La captura DOM SVG, color/vector y CTP permanecen fuera de esta
 fase.
+
+### Fase 38 — Concurrencia, retención y recuperación operativa
+
+Se añadió un lock de archivo multiplataforma para escrituras de layout y
+publicación de artefactos, además de recuperación conservadora de temporales y
+retención explícita de previews, reports y outputs. Los assets fuente y
+derivados inmutables quedan fuera de la limpieza automática; la ejecución
+programada de retención requiere una decisión operativa posterior.

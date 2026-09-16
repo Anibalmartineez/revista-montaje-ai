@@ -22,6 +22,7 @@ from PIL import Image, ImageOps
 from editor_offset_v2.application.job_service import JobService, JobServiceError
 from editor_offset_v2.infrastructure.asset_repository import AssetRepository, AssetRepositoryError, SOURCE_FILENAME
 from editor_offset_v2.infrastructure.job_repository import JobRepository
+from editor_offset_v2.infrastructure.process_lock import exclusive_file_lock
 from editor_offset_v2.infrastructure.prepared_pdf_source import prepare_source, SourcePreparationError
 
 
@@ -275,13 +276,14 @@ class DerivedAssetService:
     def _atomic_write(target: Path, data: bytes) -> None:
         temporary: Path | None = None
         try:
-            with tempfile.NamedTemporaryFile(dir=target.parent, prefix=".derived-", suffix=".tmp", delete=False) as stream:
-                temporary = Path(stream.name)
-                stream.write(data)
-                stream.flush()
-                os.fsync(stream.fileno())
-            os.replace(temporary, target)
-            temporary = None
+            with exclusive_file_lock(target.parent / ".publish.lock"):
+                with tempfile.NamedTemporaryFile(dir=target.parent, prefix=".derived-", suffix=".tmp", delete=False) as stream:
+                    temporary = Path(stream.name)
+                    stream.write(data)
+                    stream.flush()
+                    os.fsync(stream.fileno())
+                os.replace(temporary, target)
+                temporary = None
         except OSError as exc:
             raise DerivedAssetServiceError("DERIVED_PUBLISH_FAILED", "The derived PDF could not be published", 500) from exc
         finally:
