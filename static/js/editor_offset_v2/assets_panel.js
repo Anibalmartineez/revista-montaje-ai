@@ -45,7 +45,7 @@
     bind() {
       this.refs.assetUploadForm.addEventListener("submit", (event) => this.upload(event));
       this.refs.assetsList.addEventListener("click", (event) => this.selectThumbnail(event));
-      this.refs.assetPagePlanner.addEventListener("change", (event) => this.changePagePlan(event));
+      this.refs.assetPagePlanner.addEventListener("input", (event) => this.changePagePlan(event));
       this.refs.createPageWorks.addEventListener("click", () => this.createPageWorks());
       this.refs.assetSelect.addEventListener("change", () => this.changeAsset());
       this.refs.assetPage.addEventListener("change", () => this.changePage());
@@ -63,6 +63,7 @@
         this.renderAll(false);
       } else if (event.type === "asset_selection") {
         this.renderAssets();
+        this.renderPagePlanner();
         this.renderSourceControls(true);
       } else if (event.type === "work_selection") {
         this.renderWorks();

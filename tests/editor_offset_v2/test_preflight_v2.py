@@ -97,7 +97,7 @@ def test_preflight_publishes_immutable_report_and_blocks_output_gate(app_factory
     decisions = {decision["operation"]: decision for decision in report["decisions"]}
     assert "CAPABILITY_GATE_NOT_ENABLED" in decisions["preview"]["reason_codes"]
     assert "PREFLIGHT_FINDINGS" in decisions["pdf_final"]["reason_codes"]
-    assert "PREFLIGHT_FINDINGS" in decisions["ctp"]["reason_codes"]
+    assert "CAPABILITY_GATE_NOT_ENABLED" in decisions["ctp"]["reason_codes"]
     assert report["report_path"].startswith("reports/")
     report_path = Path(app.config["EDITOR_OFFSET_V2_JOBS_ROOT"]) / created["job_id"] / report["report_path"]
     persisted = json.loads(report_path.read_text(encoding="utf-8"))

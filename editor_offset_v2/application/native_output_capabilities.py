@@ -1,0 +1,45 @@
+"""Capabilities of V2's own renderer; never imports the legacy bridge."""
+from editor_offset_v2.domain.output_contract import OutputIssue
+
+NATIVE_VECTOR_AVAILABLE = False  # Enabled only with the phase 39B compositor.
+MAX_INTERMEDIATE_PIXELS = 24_000_000
+
+def native_output_issues(layout, options=None):
+    options = options or {}
+    result = []
+    def add(code, message, path, blocks=('preview','pdf_final'), slot=None):
+        result.append((OutputIssue(code=code,level='error',message=message,path=path,
+            slot_id=slot['id'] if slot else None,asset_id=slot['source']['asset_id'] if slot else None),list(blocks)))
+    export = layout['export']
+    if layout['ctp']['enabled']:
+        add('CTP_NOT_SUPPORTED','La salida CTP todavía no está soportada.','$.ctp')
+    if export['crop_to_content']:
+        add('OUTPUT_CROP_UNSUPPORTED','El perfil conserva el tamaño completo del pliego.','$.export.crop_to_content')
+    if export['preserve_vector_content'] and not NATIVE_VECTOR_AVAILABLE:
+        add('NATIVE_VECTOR_PENDING','La preservación vectorial requiere el compositor PDF nativo; el candidato raster no satisface este perfil.','$.export.preserve_vector_content',('pdf_final',))
+    faces = [options['face']] if options.get('face') in ('front','back') else [f for f in export['faces']['order'] if export['faces'].get(f)]
+    for face in faces:
+        if face not in layout['faces']['enabled'] or not export['faces'].get(face):
+            add('OUTPUT_FACE_DISABLED','La cara solicitada no está habilitada.','$.export.faces')
+        if not any(s['face']==face for s in layout['slots']):
+            add('OUTPUT_NO_SLOTS','La cara solicitada no tiene piezas.','$.slots')
+    profiles = {p['id']:p for p in export['marks_profiles']}
+    for i, slot in enumerate(layout['slots']):
+        if slot['face'] not in faces: continue
+        path = f'$.slots[{i}]'
+        transform = slot['content_transform']
+        if transform['clip_to']=='none':
+            add('UNSUPPORTED_CONTENT_CLIP','Selecciona clipping TrimBox o BleedBox antes de generar salida.',path+'.content_transform.clip_to',slot=slot)
+        if slot['geometry']['bleed_mm']>0 and transform['clip_to']=='trim_box':
+            # Preview can illustrate an intentional trim clip; final cannot claim bleed.
+            add('BLEED_CLIPPED_TO_TRIM','El clipping TrimBox descarta el sangrado solicitado; cambia a BleedBox explícitamente.',path+'.content_transform.clip_to',('pdf_final',),slot)
+        profile = profiles[slot['production']['marks_profile_id']]
+        if any(profile[k] for k in ('registration_marks','technical_text','color_bar')):
+            add('PREVIEW_MARKS_UNSUPPORTED','Registros, barras de color y texto técnico aún no están soportados.',path+'.production',slot=slot)
+        width, height = (slot['geometry']['trim_size_mm'][k]+2*slot['geometry']['bleed_mm'] for k in ('width','height'))
+        # Bound both source raster and scaled intermediates before allocating.
+        dpi = options.get('dpi',150)
+        pixels = width*height*(dpi/25.4)**2
+        if max(pixels,pixels*transform['scale_x']*transform['scale_y'])>MAX_INTERMEDIATE_PIXELS:
+            add('OUTPUT_RESOURCE_LIMIT','La pieza o su transformación supera el presupuesto de imagen; reduce resolución o escala.',path+'.content_transform',slot=slot)
+    return result

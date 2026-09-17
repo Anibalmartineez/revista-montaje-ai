@@ -31,6 +31,7 @@ from editor_offset_v2.infrastructure.asset_repository import (
 )
 from editor_offset_v2.infrastructure.job_repository import JobRepository, JobRepositoryError
 from editor_offset_v2.infrastructure.process_lock import exclusive_file_lock
+from editor_offset_v2.infrastructure.output_snapshot import OutputSnapshot, snapshot_operation
 from editor_offset_v2.infrastructure.pdf_inspector import PdfInspectionError, inspect_pdf
 from editor_offset_v2.infrastructure.prepared_pdf_source import (
     SourcePreparationError,
@@ -63,6 +64,7 @@ class PreviewResult:
     face: str
     dpi: int
     sha256: str
+    data: bytes = b""
 
 
 def _same_number(left: object, right: object) -> bool:
@@ -80,6 +82,7 @@ class PreviewService:
         self._jobs = jobs
         self._assets = AssetRepository(jobs)
 
+    @snapshot_operation(PreviewServiceError)
     def render(
         self,
         job_id: str,
@@ -172,10 +175,10 @@ class PreviewService:
 
         previews = self._jobs.job_path(job_id) / "previews"
         previews.mkdir(exist_ok=True)
-        target = previews / f"preview_r{layout['job']['revision']}_{face}_{dpi}.png"
+        target = previews / f"preview_r{layout['job']['revision']}_{face}_{dpi}_{self._jobs.request_key}.png"
         temporary: Path | None = None
         try:
-            with exclusive_file_lock(previews / ".publish.lock"):
+            with self._jobs.publication(previews):
                 with tempfile.NamedTemporaryFile(mode="wb", dir=previews, prefix=".preview-", suffix=".tmp", delete=False) as stream:
                     temporary = Path(stream.name)
                     stream.write(png_data)
@@ -195,6 +198,7 @@ class PreviewService:
             face=face,
             dpi=dpi,
             sha256=hashlib.sha256(png_data).hexdigest(),
+            data=png_data,
         )
 
     def _prepared_slot(
@@ -204,6 +208,8 @@ class PreviewService:
         job_id: str,
         allow_mirror_bleed: bool,
     ) -> bytes:
+        if isinstance(self._jobs,OutputSnapshot) and slot['id'] in self._jobs.prepared:
+            return self._jobs.prepared[slot['id']]
         transform = slot["content_transform"]
         asset_id = slot["source"]["asset_id"]
         asset = assets.get(asset_id)
@@ -214,7 +220,7 @@ class PreviewService:
             source_path = asset_dir / SOURCE_FILENAME
             if source_path.is_symlink() or not source_path.resolve().is_relative_to(asset_dir.resolve()):
                 raise AssetRepositoryError("ASSET_UNSAFE_PATH", "The source PDF path is unsafe")
-            source_data = source_path.read_bytes()
+            source_data = self._jobs.read_source(source_path) if isinstance(self._jobs,OutputSnapshot) else source_path.read_bytes()
         except (AssetRepositoryError, OSError) as exc:
             code = exc.code if isinstance(exc, AssetRepositoryError) else "ASSET_MISSING"
             raise PreviewServiceError(code, "The selected source PDF is unavailable") from exc
@@ -252,7 +258,14 @@ class PreviewService:
             raise PreviewServiceError("PREVIEW_SOURCE_SIZE_MISMATCH", "Source box size differs from slot trim size")
         derived = slot["source"].get("derived")
         if derived is not None:
-            return self._read_derived_source(job_id, asset, derived)
+            data = self._read_derived_source(job_id, asset, derived)
+            with fitz.open(stream=data,filetype='pdf') as document:
+                bleed = slot['geometry']['bleed_mm'] if transform['clip_to']=='bleed_box' else 0
+                expected = (trim['width']+2*bleed, trim['height']+2*bleed)
+                actual = (document[0].rect.width / POINTS_PER_MM, document[0].rect.height / POINTS_PER_MM)
+                if any(abs(a-b)>0.01 for a,b in zip(actual,expected)):
+                    raise PreviewServiceError('DERIVED_SIZE_MISMATCH','Derived page dimensions do not match the selected trim and clipping')
+            return data
         try:
             prepared = prepare_source(
                 source_data,
@@ -285,11 +298,14 @@ class PreviewService:
             raise PreviewServiceError("DERIVED_SOURCE_MISMATCH", "The derived source belongs to another asset")
         try:
             root = self._jobs.job_path(job_id).resolve(strict=True)
-            target = (root / Path(*key.split("/"))).resolve(strict=True)
+            candidate = root / Path(*key.split('/'))
+            if any(p.is_symlink() for p in (candidate, *candidate.parents)):
+                raise PreviewServiceError('UNSAFE_DERIVED_PATH','Symlinks are not valid derived sources')
+            target = candidate.resolve(strict=True)
             target.relative_to((root / "derived").resolve(strict=True))
             if target.is_symlink() or not target.is_file():
                 raise PreviewServiceError("UNSAFE_DERIVED_PATH", "The derived source path is unsafe")
-            data = target.read_bytes()
+            data = self._jobs.read_source(target) if isinstance(self._jobs,OutputSnapshot) else target.read_bytes()
         except PreviewServiceError:
             raise
         except (OSError, ValueError, JobRepositoryError) as exc:

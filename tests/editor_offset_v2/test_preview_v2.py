@@ -176,7 +176,7 @@ def test_gated_preview_renders_a_face_without_mutating_layout(preview_app_factor
     assert response.content_length == len(response.data)
     assert client.get(f"/api/editor-offset-v2/jobs/{created['job_id']}").get_json() == before
     preview_dir = Path(app.config["EDITOR_OFFSET_V2_JOBS_ROOT"]) / created["job_id"] / "previews"
-    assert list(preview_dir.glob(f"preview_r{saved['revision']}_front_36.png"))
+    assert list(preview_dir.glob(f"preview_r{saved['revision']}_front_36_*.png"))
 
 
 def test_preview_regeneration_is_deterministic_and_leaves_one_revision_artifact(preview_app_factory):
@@ -202,7 +202,7 @@ def test_preview_regeneration_is_deterministic_and_leaves_one_revision_artifact(
     assert first.status_code == second.status_code == 200
     assert first_data == second.data
     preview_dir = Path(app.config["EDITOR_OFFSET_V2_JOBS_ROOT"]) / created["job_id"] / "previews"
-    assert len(list(preview_dir.glob(f"preview_r{saved['revision']}_front_36.png"))) == 1
+    assert len(list(preview_dir.glob(f"preview_r{saved['revision']}_front_36_*.png"))) == 1
     assert not list(preview_dir.glob(".preview-*.tmp"))
 
 
@@ -231,7 +231,7 @@ def test_preview_publish_failure_cleans_temporary_file(preview_app_factory, monk
 
     assert error.value.code == "PREVIEW_PUBLISH_FAILED"
     preview_dir = Path(app.config["EDITOR_OFFSET_V2_JOBS_ROOT"]) / created["job_id"] / "previews"
-    assert not list(preview_dir.glob(f"preview_r{saved['revision']}_front_36.png"))
+    assert not list(preview_dir.glob(f"preview_r{saved['revision']}_front_36_*.png"))
     assert not list(preview_dir.glob(".preview-*.tmp"))
 
 
@@ -258,7 +258,8 @@ def test_preview_rejects_marks_and_supports_non_identity_internal_transforms(pre
         json={},
     )
     assert marked.status_code == 422
-    assert marked.get_json()["error"]["code"] == "PREVIEW_MARKS_UNSUPPORTED"
+    assert marked.get_json()["error"]["code"] == "PREFLIGHT_BLOCKED"
+    assert any(i["code"] == "PREVIEW_MARKS_UNSUPPORTED" for i in marked.get_json()["error"]["issues"])
 
     layout["job"]["revision"] = saved["revision"]
     layout["export"]["marks_profiles"][0]["crop_marks"] = False
@@ -452,7 +453,8 @@ def test_preview_requires_explicit_mirror_for_missing_source_bleed(preview_app_f
         json={},
     )
     assert blocked.status_code == 422
-    assert blocked.get_json()["error"]["code"] == "BLEED_REQUIRES_EXPLICIT_MIRROR"
+    assert blocked.get_json()["error"]["code"] == "PREFLIGHT_BLOCKED"
+    assert any(i["code"] == "BLEED_REQUIRES_EXPLICIT_MIRROR" for i in blocked.get_json()["error"]["issues"])
 
     mirrored = client.post(
         f"/api/editor-offset-v2/jobs/{created['job_id']}/preview",

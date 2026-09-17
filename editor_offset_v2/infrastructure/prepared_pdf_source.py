@@ -131,6 +131,8 @@ def _compose_mirror(normalized_data, trim_size, full_size, bleed_mm):
         source_page = trim_doc[0]
         width = max(1, math.ceil(trim_size.width * 300 / 25.4))
         height = max(1, math.ceil(trim_size.height * 300 / 25.4))
+        if width * height > 24_000_000:
+            raise SourcePreparationError('SOURCE_RESOURCE_LIMIT', 'Mirror preparation exceeds the 24 megapixel budget')
         pix = source_page.get_pixmap(matrix=fitz.Matrix(
             width / source_page.rect.width, height / source_page.rect.height,
         ), alpha=False, colorspace=fitz.csRGB)

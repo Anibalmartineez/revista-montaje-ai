@@ -96,7 +96,7 @@
     render() {
       const slots = this.selectedSlots();
       const enabled = slots.length > 0 && this.store.saveState.status !== "saving";
-      this.refs.contentTransformPanel.hidden = false;
+      // WorkflowNavigation owns stage visibility; store events must not reopen it.
       this.refs.contentTransformEmpty.hidden = slots.length > 0;
       this.refs.contentTransformForm.hidden = slots.length === 0;
       if (!slots.length) {

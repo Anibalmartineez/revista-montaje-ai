@@ -424,7 +424,8 @@ def preview(job_id: str):
     except PreviewServiceError as error:
         return _error_payload(error)
     return send_file(
-        result.path,
+        io.BytesIO(result.data),
+        download_name=result.path.name,
         mimetype="image/png",
         conditional=True,
         etag=result.sha256,
@@ -515,7 +516,8 @@ def pdf_final(job_id: str):
     except PdfFinalServiceError as error:
         return _error_payload(error)
     return send_file(
-        result.path,
+        io.BytesIO(result.data),
+        download_name=result.path.name,
         mimetype="application/pdf",
         conditional=True,
         etag=result.sha256,

@@ -40,7 +40,7 @@
   ]);
 
   function issueLabel(issue) {
-    return ISSUE_LABELS[issue.code] || issue.message || issue.code;
+    return (issue.code === "OUTPUT_FEATURE_UNSUPPORTED" && issue.message) || ISSUE_LABELS[issue.code] || issue.message || issue.code;
   }
 
   function groupIssues(issues, layout) {
@@ -115,7 +115,7 @@
     const groups = new Map();
     for (const issue of issues || []) {
       const refs = issue.references || {};
-      const key = [issue.severity, issue.code, refs.path || ""].join("|");
+      const key = [issue.severity, issue.code, issue.message, refs.path || ""].join("|");
       if (!groups.has(key)) {
         groups.set(key, {
           code: issue.code,

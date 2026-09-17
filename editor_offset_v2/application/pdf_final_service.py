@@ -16,6 +16,7 @@ from editor_offset_v2.application.preflight_service import PreflightService, Pre
 from editor_offset_v2.domain.validation import validate_layout_v2
 from editor_offset_v2.infrastructure.job_repository import JobRepository, JobRepositoryError
 from editor_offset_v2.infrastructure.process_lock import exclusive_file_lock
+from editor_offset_v2.infrastructure.output_snapshot import OutputSnapshot, snapshot_operation
 
 
 class PdfFinalServiceError(Exception):
@@ -35,6 +36,7 @@ class PdfFinalResult:
     faces: tuple[str, ...]
     dpi: int
     sha256: str
+    data: bytes = b""
 
 
 class PdfFinalService:
@@ -44,6 +46,7 @@ class PdfFinalService:
         self._jobs = jobs
         self._preview = PreviewService(jobs)
 
+    @snapshot_operation(PdfFinalServiceError)
     def render(
         self,
         job_id: str,
@@ -69,7 +72,7 @@ class PdfFinalService:
             raise PdfFinalServiceError(exc.code, exc.message, status) from exc
         if validate_layout_v2(layout):
             raise PdfFinalServiceError("INVALID_LAYOUT", "The saved Layout V2 is invalid", 500)
-        if face not in {"front", "back", "both"}:
+        if not isinstance(face,str) or face not in {"front", "back", "both"}:
             raise PdfFinalServiceError("INVALID_PDF_FINAL_FACE", "face must be front, back or both", 400)
         if isinstance(allow_mirror_bleed, bool) is False:
             raise PdfFinalServiceError("INVALID_PDF_FINAL_OPTION", "allow_mirror_bleed must be boolean", 400)
@@ -92,7 +95,7 @@ class PdfFinalService:
                     allow_mirror_bleed=allow_mirror_bleed,
                     require_preflight=False,
                 )
-                pngs.append(preview.path.read_bytes())
+                pngs.append(preview.data)
             except PreviewServiceError as exc:
                 raise PdfFinalServiceError(
                     f"PDF_FINAL_{exc.code}",
@@ -120,10 +123,10 @@ class PdfFinalService:
         outputs = self._jobs.job_path(job_id) / "outputs"
         outputs.mkdir(exist_ok=True)
         face_key = "both" if len(faces) == 2 else faces[0]
-        target = outputs / f"pdf_final_r{layout['job']['revision']}_{face_key}_{dpi}.pdf"
+        target = outputs / f"pdf_final_r{layout['job']['revision']}_{face_key}_{dpi}_{self._jobs.request_key}.pdf"
         temporary: Path | None = None
         try:
-            with exclusive_file_lock(outputs / ".publish.lock"):
+            with self._jobs.publication(outputs):
                 with tempfile.NamedTemporaryFile(mode="wb", dir=outputs, prefix=".pdf-final-", suffix=".tmp", delete=False) as stream:
                     temporary = Path(stream.name)
                     stream.write(pdf_data)
@@ -143,6 +146,7 @@ class PdfFinalService:
             faces=faces,
             dpi=dpi,
             sha256=hashlib.sha256(pdf_data).hexdigest(),
+            data=pdf_data,
         )
 
 

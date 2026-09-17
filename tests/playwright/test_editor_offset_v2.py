@@ -139,7 +139,8 @@ def test_v2_preflight_runs_on_saved_revision_and_keeps_output_blocked(v2_server,
             assert response_info.value.status == 201
             expect(page.locator("#ev2-preflight-status")).to_contain_text("Preflight completo")
             expect(page.locator("#ev2-preflight-summary")).to_contain_text("Operaciones bloqueadas")
-            expect(page.locator("#ev2-preflight-issues li")).to_have_count(0)
+            from editor_offset_v2.application.native_output_capabilities import NATIVE_VECTOR_AVAILABLE
+            expect(page.locator("#ev2-preflight-issues li")).to_have_count(0 if NATIVE_VECTOR_AVAILABLE else 1)
         finally:
             browser.close()
 

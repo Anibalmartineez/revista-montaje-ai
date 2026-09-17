@@ -75,7 +75,7 @@ class DerivedAssetService:
             raise DerivedAssetServiceError("INVALID_SOURCE_PAGE", "Selected PDF page does not exist", 400)
         if not isinstance(pdf_box, str) or pdf_box not in {"media", "crop", "trim", "bleed"}:
             raise DerivedAssetServiceError("INVALID_SOURCE_BOX", "Unknown PDF source box", 400)
-        if isinstance(bleed_mm, bool) or not isinstance(bleed_mm, (int, float)) or bleed_mm < 0:
+        if isinstance(bleed_mm, bool) or not isinstance(bleed_mm, (int, float)) or not math.isfinite(bleed_mm) or bleed_mm < 0:
             raise DerivedAssetServiceError("INVALID_DERIVED_OPTION", "bleed_mm must be non-negative", 400)
         if not isinstance(allow_mirror_bleed, bool):
             raise DerivedAssetServiceError("INVALID_DERIVED_OPTION", "allow_mirror_bleed must be boolean", 400)
@@ -182,8 +182,8 @@ class DerivedAssetService:
         try:
             valid = (
                 fit_mode in {"actual_size", "contain", "cover", "stretch"}
-                and not isinstance(scale_x, bool) and float(scale_x) > 0
-                and not isinstance(scale_y, bool) and float(scale_y) > 0
+                and not isinstance(scale_x, bool) and math.isfinite(float(scale_x)) and 0 < float(scale_x) <= 100
+                and not isinstance(scale_y, bool) and math.isfinite(float(scale_y)) and 0 < float(scale_y) <= 100
                 and isinstance(offset, Mapping)
                 and not isinstance(offset.get("x", 0.0), bool)
                 and not isinstance(offset.get("y", 0.0), bool)
@@ -225,6 +225,8 @@ class DerivedAssetService:
         """Rasterize and bake the V2 content transform into a one-page PDF."""
         with fitz.open(stream=pdf_data, filetype="pdf") as source:
             page = source[0]
+            if page.rect.width * page.rect.height * (DERIVED_RENDER_DPI / 72)**2 > 24_000_000:
+                raise ValueError('Derived source exceeds the image budget')
             pixmap = page.get_pixmap(dpi=DERIVED_RENDER_DPI, colorspace=fitz.csRGB, alpha=False)
             image = Image.frombytes("RGB", (pixmap.width, pixmap.height), pixmap.samples)
         points_per_mm = 72.0 / 25.4
@@ -247,6 +249,8 @@ class DerivedAssetService:
         else:
             fit_x = clip_width_px / oriented_width
             fit_y = clip_height_px / oriented_height
+        if image.width*image.height*max(1, fit_x*fit_y*float(transform['scale_x'])*float(transform['scale_y'])) > 24_000_000:
+            raise ValueError('Derived transform exceeds the image budget')
         image = image.resize(
             (max(1, round(image.width * fit_x * float(transform["scale_x"]))),
              max(1, round(image.height * fit_y * float(transform["scale_y"]))),

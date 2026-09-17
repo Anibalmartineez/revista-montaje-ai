@@ -230,7 +230,7 @@ Rutas V2 activas:
 - `POST /api/editor-offset-v2/jobs/<job_id>/imposition/repeat`;
 - `GET /api/editor-offset-v2/jobs/<job_id>/output-capabilities`.
 
-No existen todavía rutas V2 productivas de preview, PDF final, nesting, hybrid, preflight profundo o CTP.
+Existen rutas V2 de preflight y candidatos Preview/PDF detrás de gates separados, además de derivados. Consultar documento 20 y plan 39 para el perfil aceptado; no confundir rutas experimentales con aceptación productiva. Nesting, hybrid y CTP siguen pendientes.
 
 ## 9. Contrato e invariantes de Layout V2
 
@@ -329,10 +329,10 @@ Esta es una superficie de alto riesgo.
 
 Estado vigente:
 
-- `output-capabilities` compara Layout V2 con las restricciones del puente temporal;
+- `output-capabilities` diagnostica el puente temporal; preflight evalúa capacidades nativas propias;
 - no equivale a preflight productivo;
 - `editor_output_adapter.py` no ejecuta el renderer;
-- Preview y PDF final V2 no están conectados;
+- Preview/PDF V2 tienen servicios y rutas con gates separados; su perfil y aceptación se documentan en 20/39;
 - CTP habilitado continúa bloqueado;
 - el destino arquitectónico previsto es un motor de salida V2 propio;
 - el puente legacy puede servir para caracterización, no para contaminar el dominio V2.

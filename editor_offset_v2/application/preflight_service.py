@@ -45,6 +45,7 @@ from editor_offset_v2.infrastructure.asset_repository import (
 from editor_offset_v2.infrastructure.pdf_inspector import PdfInspectionError, inspect_pdf
 from editor_offset_v2.infrastructure.job_repository import JobRepository, JobRepositoryError
 from editor_offset_v2.infrastructure.process_lock import exclusive_file_lock
+from editor_offset_v2.infrastructure.output_snapshot import OutputSnapshot, OutputSnapshotError
 
 
 PDF_METADATA_TOLERANCE_MM = PDF_BOX_TOLERANCE_MM
@@ -121,9 +122,10 @@ class PreflightService:
         enabled_operations: Mapping[str, bool] | None = None,
     ) -> dict[str, object]:
         try:
+            if not isinstance(self._jobs, OutputSnapshot):
+                return PreflightService(OutputSnapshot(self._jobs, job_id)).run(job_id, enabled_operations=enabled_operations)
             layout = self._jobs.read_layout(job_id)
-            layout_path = self._jobs.layout_path(job_id)
-            layout_bytes = layout_path.read_bytes()
+            layout_bytes = self._jobs.layout_bytes
         except JobRepositoryError as exc:
             status = 404 if exc.code == "JOB_NOT_FOUND" else 400 if exc.code == "INVALID_JOB_ID" else 500
             raise PreflightServiceError(exc.code, exc.message, status) from exc
@@ -165,7 +167,7 @@ class PreflightService:
                 source = asset_dir / SOURCE_FILENAME
                 if asset_dir.is_symlink() or source.is_symlink() or not source.resolve().is_relative_to(asset_dir.resolve()):
                     raise AssetRepositoryError("ASSET_UNSAFE_PATH", "The asset source path is unsafe")
-                data = source.read_bytes()
+                data = self._jobs.read_source(source)
             except (AssetRepositoryError, OSError, ValueError) as exc:
                 physical_issues.append(_issue(
                     issue_id=self._next_issue("asset-path"), check_id=check_id,
@@ -252,18 +254,29 @@ class PreflightService:
         issues.extend(geometry_issues)
 
         capability_issues = []
-        from editor_offset_v2.application.output_service import validate_output_capabilities
-        for original in validate_output_capabilities(layout):
-            if original.code in {"ASSET_PREFLIGHT_WARNING"}:
+        from editor_offset_v2.application.native_output_capabilities import native_output_issues
+        from editor_offset_v2.application.preview_service import PreviewService, PreviewServiceError
+        # Resolve the exact source representation now; render reuses immutable bytes.
+        resolver = PreviewService(self._jobs)
+        native_findings = native_output_issues(layout, self._jobs.options)
+        resource_blocked = {item.slot_id for item, _ in native_findings if item.code == 'OUTPUT_RESOURCE_LIMIT'}
+        for slot in layout['slots']:
+            if slot['id'] in resource_blocked:
                 continue
-            mapped = "OUTPUT_FEATURE_UNSUPPORTED" if original.code.startswith("UNSUPPORTED_") else original.code
+            try:
+                prepared = resolver._prepared_slot(slot, assets, job_id, self._jobs.options.get('allow_mirror_bleed',False))
+                self._jobs.prepared[slot['id']] = prepared
+            except PreviewServiceError as exc:
+                capability_issues.append(_issue(issue_id=self._next_issue('source'), check_id='capabilities', code=exc.code,
+                    severity='error', message=exc.message, slot_ids=[slot['id']], asset_ids=[slot['source']['asset_id']],
+                    faces=[slot['face']], path='$.slots[].source', blocks=list(PREFLIGHT_OPERATIONS)))
+        for original, blocks in native_findings:
             capability_issues.append(_issue(
-                issue_id=self._next_issue("capability"), check_id="capabilities",
-                code=mapped, severity="error" if original.level == "error" else "warning",
-                message=original.message, path=original.path, asset_ids=[original.asset_id] if original.asset_id else [],
-                slot_ids=[original.slot_id] if original.slot_id else [], blocks=["pdf_final", "ctp"],
-            ))
-        self._append_check(checks, "capabilities", "Current output capabilities", capability_issues, {"source": "output-capabilities"})
+                issue_id=self._next_issue('capability'), check_id='capabilities', code=original.code,
+                severity=original.level, message=original.message, path=original.path,
+                asset_ids=[original.asset_id] if original.asset_id else [],
+                slot_ids=[original.slot_id] if original.slot_id else [], blocks=blocks))
+        self._append_check(checks, 'capabilities', 'Native V2 output capabilities', capability_issues, {'source':'native-v2'})
         issues.extend(capability_issues)
 
         complete = all(check["status"] != "failed" and check["status"] != "not_run" for check in checks)
@@ -301,7 +314,11 @@ class PreflightService:
             "report_id": f"pfr_{secrets.token_hex(12)}",
             "scope": "layout",
             "subject": {"job_id": job_id, "revision": layout["job"]["revision"], "layout_sha256": layout_hash},
-            "inputs": {"assets": physical_evidence, "faces": list(layout["faces"]["enabled"]), "operations": list(PREFLIGHT_OPERATIONS)},
+            "inputs": {"options": self._jobs.options,
+                       "effective_files": [{"key": Path(path).relative_to(self._jobs.job_path(job_id)).as_posix(),
+                                            "sha256": hashlib.sha256(data).hexdigest()}
+                                           for path, data in sorted(self._jobs.sources.items())],
+                       "assets": physical_evidence, "faces": list(layout["faces"]["enabled"]), "operations": list(PREFLIGHT_OPERATIONS)},
             "policy": {"id": PREFLIGHT_POLICY_ID, "version": PREFLIGHT_POLICY_VERSION, "tolerances": {"pdf_metadata_mm": PDF_METADATA_TOLERANCE_MM}},
             "capabilities": {
                 "id": PREFLIGHT_CAPABILITIES_ID,
@@ -319,6 +336,8 @@ class PreflightService:
         try:
             validate_preflight_report(report)
             report_path = self._publish_report(job_id, report)
+        except OutputSnapshotError as exc:
+            raise PreflightServiceError(exc.code, exc.message, exc.status_code) from exc
         except (PreflightContractError, OSError, TypeError, ValueError) as exc:
             raise PreflightServiceError("PREFLIGHT_PUBLISH_FAILED", "The preflight report could not be published") from exc
         report["report_path"] = report_path
@@ -334,9 +353,37 @@ class PreflightService:
         if operation not in PREFLIGHT_OPERATIONS:
             raise PreflightServiceError("INVALID_PREFLIGHT_OPERATION", "The requested operation is not supported", 400)
         try:
-            layout_path = self._jobs.layout_path(job_id)
-            current_layout = self._jobs.read_layout(job_id)
-            current_bytes = layout_path.read_bytes()
+            envelope = {k:v for k,v in report.items() if k != 'report_path'}
+            validate_preflight_report(envelope)
+            if report['execution'] != 'complete' or any(c['status'] in ('not_run','failed') for c in report['checks']):
+                raise PreflightContractError('Incomplete report')
+            if report['policy']['version'] != PREFLIGHT_POLICY_VERSION or report['capabilities']['version'] != PREFLIGHT_CAPABILITIES_VERSION:
+                raise PreflightContractError('Obsolete output policy')
+            if report['subject']['job_id'] != job_id:
+                raise PreflightContractError('Wrong report subject')
+            if report['policy']['id'] != PREFLIGHT_POLICY_ID or report['capabilities']['id'] != PREFLIGHT_CAPABILITIES_ID:
+                raise PreflightContractError('Wrong output policy')
+            if {c['check_id'] for c in report['checks']} != {'layout_contract','asset_identity','geometry','capabilities'}:
+                raise PreflightContractError('Missing required checks')
+            files = report['inputs']['effective_files']
+            if not isinstance(files, list) or any(not isinstance(f, dict) or not isinstance(f.get('key'), str) or not isinstance(f.get('sha256'), str) for f in files):
+                raise PreflightContractError('Invalid effective files')
+        except (PreflightContractError, KeyError, TypeError, ValueError) as exc:
+            raise PreflightServiceError('PREFLIGHT_INVALID_REPORT', 'A complete current-policy report is required',422) from exc
+        try:
+            snapshot = self._jobs if isinstance(self._jobs,OutputSnapshot) else OutputSnapshot(self._jobs,job_id)
+            if isinstance(self._jobs,OutputSnapshot) and report['inputs'].get('options',{}) != snapshot.options:
+                raise PreflightServiceError('PREFLIGHT_OPTIONS_MISMATCH','Report describes different output options',409)
+            snapshot.assert_current()
+            for source in report['inputs'].get('effective_files', []):
+                root = snapshot.job_path(job_id)
+                path = root / source['key']
+                if path.is_symlink() or not path.resolve().is_relative_to(root) or hashlib.sha256(path.read_bytes()).hexdigest() != source['sha256']:
+                    raise PreflightServiceError('PREFLIGHT_STALE','A physical preflight input changed',409)
+            current_layout = snapshot.read_layout(job_id)
+            current_bytes = snapshot.layout_bytes
+        except OutputSnapshotError as exc:
+            raise PreflightServiceError(exc.code,exc.message,exc.status_code) from exc
         except JobRepositoryError as exc:
             status = 404 if exc.code == "JOB_NOT_FOUND" else 400 if exc.code == "INVALID_JOB_ID" else 500
             raise PreflightServiceError(exc.code, exc.message, status) from exc
@@ -439,7 +486,7 @@ class PreflightService:
         target = reports / f"{report['report_id']}.json"
         temporary: Path | None = None
         try:
-            with exclusive_file_lock(reports / ".publish.lock"):
+            with self._jobs.publication(reports, sources=False):
                 with tempfile.NamedTemporaryFile(mode="w", encoding="utf-8", newline="\n", dir=reports, delete=False, prefix=".preflight-", suffix=".tmp") as stream:
                     temporary = Path(stream.name)
                     json.dump(report, stream, ensure_ascii=False, allow_nan=False, indent=2, sort_keys=True)

@@ -1,6 +1,6 @@
 # Plan SAFE — Cierre de salida V2 en tres fases
 
-**Estado: propuesta pendiente de aprobación. No implementado.**
+**Estado: plan completo aprobado; ejecución secuencial 39A–39C.**
 
 ## 1. Objetivo y autorización
 
@@ -218,9 +218,18 @@ Si aparece una necesidad contractual fuera de las decisiones aprobadas, preparar
 
 | Fase | Estado | Commit de cierre | Pruebas/artefactos |
 |---|---|---|---|
-| Plan | Pendiente de aprobación | — | Solo documento; baseline de auditoría referido |
-| 39A | No iniciada | — | Pendiente |
+| Plan | Aprobado por el usuario | `1647be8` | Documento aprobado y guardado antes del código |
+| 39A | Implementada y validada | Commit de esta entrega | 461 Python + 1 omitida; 122 Node; 23 Playwright V2 (21 iniciales + 2 focalizados); QA local |
 | 39B | No iniciada | — | Pendiente |
 | 39C | No iniciada | — | Pendiente |
 
 Actualizar esta tabla con evidencia real al ejecutar. No sustituir pendientes por afirmaciones de éxito anticipadas.
+
+### Evidencia 39A
+
+- Trece regresiones nuevas de snapshot, fuente efectiva, tipos/finitud, completitud, limpieza activa, retención y capacidad nativa; ocho iniciales reprodujeron siete fallos antes del arreglo. Política 2 obliga a regenerar reportes anteriores; el envelope 1 sigue siendo compatible estructuralmente (inputs permite evidencia adicional).
+- Prueba de navegador añadida: assets 1→3→1, cantidades 2/7, selección, creación, undo/redo, guardado y recarga; inspector oculto fuera de Ajustar. El test anterior de preflight se corrigió para exigir el aviso de vector pendiente.
+- Flask V2 reiniciado mediante la skill, dev tools=0; raíz y shell HTTP 200. CUA verificó planner 1→3→1→3 y conservación de 7 formas en página 2 en el job QA de auditoría, sin modificar sus slots/revisión.
+- Regresión Python 461 aprobadas/1 omitida, Node 122. Playwright completo: 21 aprobadas y una expectativa histórica fallida; corregida y reejecutada junto con la regresión nueva, ambas aprobadas. Tras el límite preventivo del espejo: 46 pruebas focalizadas aprobadas.
+- Se mantiene el renderer raster experimental hasta 39B; sin controles de descarga hasta 39C. No se ejecutó suite global ni V1. La carga extensa y aceptación final de salida pertenecen a 39C.
+- No cambió Layout V2, CAS, originales, motores compartidos ni rutas V1. Recuperación y retención siguen siendo explícitas.

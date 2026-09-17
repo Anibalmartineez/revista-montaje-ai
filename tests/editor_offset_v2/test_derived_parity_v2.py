@@ -97,6 +97,7 @@ def test_transformed_derived_preview_and_pdf_share_one_representation(parity_app
     uploaded = _upload_fixture(client, created)
     asset = uploaded["asset"]
     layout = _preview_layout(uploaded["layout"], asset)
+    layout["export"].update(render_mode="raster", preserve_vector_content=False)
     trim = asset["pages"][0]["boxes_mm"]["trim"]
     assert trim is not None
     layout["sheet"]["size_mm"] = {"width": 200.0, "height": 120.0}

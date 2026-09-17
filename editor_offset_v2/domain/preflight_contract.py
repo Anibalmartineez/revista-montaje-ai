@@ -8,9 +8,9 @@ from typing import Final
 
 PREFLIGHT_REPORT_SCHEMA_VERSION: Final = 1
 PREFLIGHT_POLICY_ID: Final = "editor-offset-v2-minimal"
-PREFLIGHT_POLICY_VERSION: Final = "1"
-PREFLIGHT_CAPABILITIES_ID: Final = "diagnostic-only"
-PREFLIGHT_CAPABILITIES_VERSION: Final = "1"
+PREFLIGHT_POLICY_VERSION: Final = "2"
+PREFLIGHT_CAPABILITIES_ID: Final = "native-v2"
+PREFLIGHT_CAPABILITIES_VERSION: Final = "2"
 PREFLIGHT_ANALYZER_ID: Final = "editor-offset-v2-preflight"
 PREFLIGHT_ANALYZER_VERSION: Final = "1"
 PREFLIGHT_OPERATIONS: Final = ("preview", "pdf_final", "ctp")
@@ -60,6 +60,8 @@ def validate_preflight_report(report: Mapping[str, object]) -> None:
             raise PreflightContractError("Every check requires a check_id")
         if check["status"] not in PREFLIGHT_CHECK_STATUSES:
             raise PreflightContractError("Invalid preflight check status")
+        if check['check_id'] in check_ids:
+            raise PreflightContractError('Duplicate check')
         check_ids.add(check["check_id"])
     for issue in issues:
         if not isinstance(issue, Mapping) or not isinstance(issue.get("issue_id"), str):
@@ -70,6 +72,8 @@ def validate_preflight_report(report: Mapping[str, object]) -> None:
             raise PreflightContractError("Issue references an unknown check")
         if not isinstance(issue.get("blocks"), list):
             raise PreflightContractError("Issue blocks must be an array")
+        if issue['issue_id'] in issue_ids:
+            raise PreflightContractError('Duplicate issue')
         issue_ids.add(issue["issue_id"])
     for check in checks:
         if any(issue_id not in issue_ids for issue_id in check.get("issue_ids", [])):
@@ -81,6 +85,13 @@ def validate_preflight_report(report: Mapping[str, object]) -> None:
             raise PreflightContractError("Invalid preflight decision status")
         if any(issue_id not in issue_ids for issue_id in decision.get("blocking_issue_ids", [])):
             raise PreflightContractError("Decision references an unknown issue")
+        blocking = {i['issue_id'] for i in issues if i['severity']=='error' and decision['operation'] in i['blocks']}
+        if blocking != set(decision.get('blocking_issue_ids',[])):
+            raise PreflightContractError('Decision omits blocking findings')
+        if decision['status']=='eligible' and (blocking or report['execution']!='complete' or any(c['status'] in ('failed','not_run') for c in checks)):
+            raise PreflightContractError('Incomplete or blocked report cannot be eligible')
+    if sorted(d['operation'] for d in decisions) != sorted(PREFLIGHT_OPERATIONS):
+        raise PreflightContractError('One decision per operation is required')
 
 
 __all__ = [

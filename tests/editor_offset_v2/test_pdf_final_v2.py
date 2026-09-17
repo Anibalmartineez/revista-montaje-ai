@@ -36,6 +36,8 @@ def app_factory(tmp_path: Path, *, enabled: bool) -> Flask:
 
 def _ready_layout(base: dict, asset: dict) -> dict:
     layout = _preview_layout(base, asset)
+    # This suite characterizes the explicitly requested experimental raster profile.
+    layout['export'].update(render_mode='raster', preserve_vector_content=False)
     layout["export"]["marks_profiles"][0].update(
         crop_marks=False,
         registration_marks=False,
@@ -89,7 +91,7 @@ def test_gated_pdf_final_writes_one_sheet_page_with_physical_size(tmp_path):
         assert page.rect.height == pytest.approx(500 * 72 / 25.4, abs=0.01)
         assert page.get_images(full=True)
     output_dir = Path(app.config["EDITOR_OFFSET_V2_JOBS_ROOT"]) / created["job_id"] / "outputs"
-    assert list(output_dir.glob(f"pdf_final_r{saved['revision']}_front_36.pdf"))
+    assert list(output_dir.glob(f"pdf_final_r{saved['revision']}_front_36_*.pdf"))
 
 
 def test_pdf_final_regeneration_replaces_same_artifact_deterministically(tmp_path):
@@ -107,7 +109,7 @@ def test_pdf_final_regeneration_replaces_same_artifact_deterministically(tmp_pat
     assert first.status_code == second.status_code == 200
     assert first_data == second.data
     output_dir = Path(app.config["EDITOR_OFFSET_V2_JOBS_ROOT"]) / created["job_id"] / "outputs"
-    assert len(list(output_dir.glob(f"pdf_final_r{saved['revision']}_front_36.pdf"))) == 1
+    assert len(list(output_dir.glob(f"pdf_final_r{saved['revision']}_front_36_*.pdf"))) == 1
     assert not list(output_dir.glob(".pdf-final-*.tmp"))
 
 
@@ -141,4 +143,4 @@ def test_gated_pdf_final_combines_front_and_back_in_layout_order(tmp_path):
         assert document.page_count == 2
         assert all(page.rect.width == pytest.approx(700 * 72 / 25.4, abs=0.01) for page in document)
     output_dir = Path(app.config["EDITOR_OFFSET_V2_JOBS_ROOT"]) / created["job_id"] / "outputs"
-    assert list(output_dir.glob(f"pdf_final_r{saved['revision']}_both_36.pdf"))
+    assert list(output_dir.glob(f"pdf_final_r{saved['revision']}_both_36_*.pdf"))
