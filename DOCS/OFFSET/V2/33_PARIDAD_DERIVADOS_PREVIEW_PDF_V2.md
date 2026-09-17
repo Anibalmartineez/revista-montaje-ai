@@ -1,5 +1,7 @@
 # Fase 33 — Paridad de derivados, Preview y PDF V2
 
+> Corte posterior 39B: compositor PDF nativo y artwork transformado; capacidades v3. Perfil, marcas, limites y evidencia actual en [plan 39](39_PLAN_SAFE_CIERRE_SALIDA_PRODUCTIVA_V2.md). Este documento conserva la evidencia de su fase.
+
 ## Objetivo
 
 Demostrar que una transformación gráfica materializada por 32F se representa una

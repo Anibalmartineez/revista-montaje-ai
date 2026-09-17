@@ -96,7 +96,7 @@ def test_preflight_publishes_immutable_report_and_blocks_output_gate(app_factory
     assert all(decision["status"] == "blocked" for decision in report["decisions"])
     decisions = {decision["operation"]: decision for decision in report["decisions"]}
     assert "CAPABILITY_GATE_NOT_ENABLED" in decisions["preview"]["reason_codes"]
-    assert "PREFLIGHT_FINDINGS" in decisions["pdf_final"]["reason_codes"]
+    assert "CAPABILITY_GATE_NOT_ENABLED" in decisions["pdf_final"]["reason_codes"]
     assert "CAPABILITY_GATE_NOT_ENABLED" in decisions["ctp"]["reason_codes"]
     assert report["report_path"].startswith("reports/")
     report_path = Path(app.config["EDITOR_OFFSET_V2_JOBS_ROOT"]) / created["job_id"] / report["report_path"]
@@ -204,6 +204,7 @@ def test_pdf_final_blocks_with_report_findings_without_partial_output(app_factor
     created = client.post("/api/editor-offset-v2/jobs", json={}).get_json()
     uploaded = _upload(client, created["job_id"], _pdf_bytes()).get_json()
     layout = _layout_with_real_slot(uploaded["layout"], uploaded["asset"])
+    layout['slots'][0]['content_transform']['clip_to']='none'
     saved = client.put(
         f"/api/editor-offset-v2/jobs/{created['job_id']}/layout",
         json={"base_revision": uploaded["revision"], "layout": layout},

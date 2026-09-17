@@ -85,6 +85,10 @@ def prepare_source(
 
     with fitz.open(stream=pdf_data, filetype="pdf") as source, fitz.open() as normalized:
         page = source.load_page(page_number - 1)
+        if source.xref_get_key(source.pdf_catalog(), 'OCProperties')[0] != 'null':
+            raise SourcePreparationError('UNSUPPORTED_PDF_LAYERS', 'PDF layers require an explicit flattening policy')
+        if source.xref_get_key(source.pdf_catalog(), 'OutputIntents')[0] != 'null':
+            raise SourcePreparationError('UNSUPPORTED_OUTPUT_INTENT', 'An embedded output intent requires a color-managed output profile')
         kind, unit = source.xref_get_key(page.xref, "UserUnit")
         if kind != "null" and float(unit) != 1:
             raise SourcePreparationError("UNSUPPORTED_USER_UNIT", "Non-default UserUnit is not supported")

@@ -151,27 +151,14 @@ class PreviewService:
             raise PreviewServiceError("PREVIEW_RESOURCE_LIMIT", "The requested preview exceeds the pixel limit")
 
         assets = {asset["id"]: asset for asset in layout["assets"]}
-        sheet_scale = dpi / 25.4
-        sheet_size_px = (
-            round(float(sheet["width"]) * sheet_scale),
-            round(float(sheet["height"]) * sheet_scale),
-        )
-        sheet_image = Image.new("RGB", sheet_size_px, (255, 255, 255))
-        for slot in slots:
-            prepared_data = self._prepared_slot(slot, assets, job_id, allow_mirror_bleed)
-            self._paint_slot(
-                sheet_image,
-                slot,
-                prepared_data,
-                sheet_size_mm=sheet,
-                dpi=dpi,
-                duplex_flip=duplex_flip,
-            )
-        if any(profiles[slot["production"]["marks_profile_id"]]["crop_marks"] for slot in slots):
-            self._paint_crop_marks(sheet_image, slots, profiles, sheet_size_mm=sheet, dpi=dpi, duplex_flip=duplex_flip)
-        output = io.BytesIO()
-        sheet_image.save(output, format="PNG", optimize=False)
-        png_data = output.getvalue()
+        from editor_offset_v2.infrastructure.pdf_compositor import compose_pdf
+        pdf_data = compose_pdf(layout, (face,), lambda slot:self._prepared_slot(slot,assets,job_id,allow_mirror_bleed))
+        with fitz.open(stream=pdf_data,filetype='pdf') as document:
+            # Exact requested raster size; physical PDF remains independent of DPI.
+            matrix=fitz.Matrix(sheet_width_px/document[0].rect.width,sheet_height_px/document[0].rect.height)
+            pix=document[0].get_pixmap(matrix=matrix,colorspace=fitz.csRGB,alpha=False)
+            image=Image.frombytes('RGB',(pix.width,pix.height),pix.samples).crop((0,0,sheet_width_px,sheet_height_px))
+            output=io.BytesIO(); image.save(output,format='PNG'); png_data=output.getvalue()
 
         previews = self._jobs.job_path(job_id) / "previews"
         previews.mkdir(exist_ok=True)
@@ -210,6 +197,9 @@ class PreviewService:
     ) -> bytes:
         if isinstance(self._jobs,OutputSnapshot) and slot['id'] in self._jobs.prepared:
             return self._jobs.prepared[slot['id']]
+        cache_key = __import__('json').dumps([slot['source'],slot['geometry']['trim_size_mm'],slot['geometry']['bleed_mm'],slot['content_transform']['clip_to'],allow_mirror_bleed],sort_keys=True)
+        if isinstance(self._jobs,OutputSnapshot) and cache_key in self._jobs.prepared_by_source:
+            return self._jobs.prepared_by_source[cache_key]
         transform = slot["content_transform"]
         asset_id = slot["source"]["asset_id"]
         asset = assets.get(asset_id)
@@ -277,6 +267,7 @@ class PreviewService:
             )
         except SourcePreparationError as exc:
             raise PreviewServiceError(exc.code, str(exc)) from exc
+        if isinstance(self._jobs,OutputSnapshot): self._jobs.prepared_by_source[cache_key]=prepared.data
         return prepared.data
 
     def _read_derived_source(
@@ -322,213 +313,6 @@ class PreviewService:
             raise PreviewServiceError("INVALID_DERIVED_SOURCE", "The derived source PDF is unreadable") from exc
         return data
 
-    def _paint_slot(
-        self,
-        sheet_image: Image.Image,
-        slot: Mapping[str, Any],
-        prepared_data: bytes,
-        *,
-        sheet_size_mm: Mapping[str, Any],
-        dpi: int,
-        duplex_flip: str,
-    ) -> None:
-        """Paint one transformed source and clip it to its V2 slot polygon.
-
-        The preview is raster output, so applying the content transform to an
-        in-memory image keeps the persisted Layout untouched while preserving
-        the order: source orientation, fit, scale, internal rotation/mirror,
-        slot rotation, then placement and clipping.
-        """
-        transform = slot["content_transform"]
-        geometry = slot["geometry"]
-        slot_geometry = SlotGeometry(
-            center=Point(
-                geometry["position_mm"]["x_mm"],
-                geometry["position_mm"]["y_mm"],
-            ),
-            trim_size=Size(
-                geometry["trim_size_mm"]["width"],
-                geometry["trim_size_mm"]["height"],
-            ),
-            bleed=geometry["bleed_mm"],
-            rotation_deg=geometry["rotation_deg"],
-        )
-        sheet_width_mm = float(sheet_size_mm["width"])
-        sheet_height_mm = float(sheet_size_mm["height"])
-        if duplex_flip == "long_edge":
-            slot_geometry = SlotGeometry(
-                center=Point(sheet_width_mm - slot_geometry.center.x, slot_geometry.center.y),
-                trim_size=slot_geometry.trim_size,
-                bleed=slot_geometry.bleed,
-                rotation_deg=(-slot_geometry.rotation_deg) % 360,
-            )
-        elif duplex_flip == "short_edge":
-            slot_geometry = SlotGeometry(
-                center=Point(slot_geometry.center.x, sheet_height_mm - slot_geometry.center.y),
-                trim_size=slot_geometry.trim_size,
-                bleed=slot_geometry.bleed,
-                rotation_deg=(-slot_geometry.rotation_deg) % 360,
-            )
-        with fitz.open(stream=prepared_data, filetype="pdf") as prepared:
-            page = prepared[0]
-            pixmap = page.get_pixmap(dpi=dpi, colorspace=fitz.csRGB, alpha=False)
-            source = Image.frombytes("RGB", (pixmap.width, pixmap.height), pixmap.samples)
-
-        source_size = Size(
-            float(source.width) / (dpi / 25.4),
-            float(source.height) / (dpi / 25.4),
-        )
-        internal_rotation = int(transform["rotation_deg"])
-        oriented = Size(
-            source_size.height if internal_rotation in (90, 270) else source_size.width,
-            source_size.width if internal_rotation in (90, 270) else source_size.height,
-        )
-        clip_size = (
-            slot_geometry.trim_size
-            if transform["clip_to"] == "trim_box"
-            else productive_size(slot_geometry.trim_size, slot_geometry.bleed)
-        )
-        fit_mode = transform["fit_mode"]
-        if fit_mode == "actual_size":
-            fit_scale_x = fit_scale_y = 1.0
-        elif fit_mode == "contain":
-            fit_scale_x = fit_scale_y = min(
-                clip_size.width / oriented.width,
-                clip_size.height / oriented.height,
-            )
-        elif fit_mode == "cover":
-            fit_scale_x = fit_scale_y = max(
-                clip_size.width / oriented.width,
-                clip_size.height / oriented.height,
-            )
-        elif fit_mode == "stretch":
-            fit_scale_x = clip_size.width / oriented.width
-            fit_scale_y = clip_size.height / oriented.height
-        else:  # pragma: no cover - contract validation owns this enum
-            raise PreviewServiceError("PREVIEW_TRANSFORM_UNSUPPORTED", "Unknown content fit mode")
-
-        resize_x = fit_scale_x * float(transform["scale_x"])
-        resize_y = fit_scale_y * float(transform["scale_y"])
-        resized = source.resize(
-            (
-                max(1, round(source.width * resize_x)),
-                max(1, round(source.height * resize_y)),
-            ),
-            Image.Resampling.LANCZOS,
-        )
-        if transform["mirror_x"]:
-            resized = ImageOps.mirror(resized)
-        if transform["mirror_y"]:
-            resized = ImageOps.flip(resized)
-        if internal_rotation:
-            resized = resized.rotate(internal_rotation, expand=True, resample=Image.Resampling.BICUBIC)
-        slot_rotation = int(slot_geometry.rotation_deg)
-        if slot_rotation:
-            resized = resized.rotate(slot_rotation, expand=True, resample=Image.Resampling.BICUBIC)
-        if duplex_flip == "long_edge":
-            resized = ImageOps.mirror(resized)
-        elif duplex_flip == "short_edge":
-            resized = ImageOps.flip(resized)
-        sheet_scale = dpi / 25.4
-        center = Point(
-            slot_geometry.center.x + (float(transform["offset_mm"]["x"]) if duplex_flip != "long_edge" else -float(transform["offset_mm"]["x"])),
-            slot_geometry.center.y + (float(transform["offset_mm"]["y"]) if duplex_flip != "short_edge" else -float(transform["offset_mm"]["y"])),
-        )
-        center_px = (
-            round(center.x * sheet_scale),
-            round((sheet_height_mm - center.y) * sheet_scale),
-        )
-        left = center_px[0] - resized.width // 2
-        top = center_px[1] - resized.height // 2
-        layer = Image.new("RGBA", sheet_image.size, (0, 0, 0, 0))
-        layer.paste(resized, (left, top))
-
-        clip_polygon = (
-            trim_polygon(slot_geometry)
-            if transform["clip_to"] == "trim_box"
-            else bleed_polygon(slot_geometry)
-        )
-        clip_mask = Image.new("L", sheet_image.size, 0)
-        draw = ImageDraw.Draw(clip_mask)
-        draw.polygon(
-            [
-                (
-                    round(point.x * sheet_scale),
-                    round((sheet_height_mm - point.y) * sheet_scale),
-                )
-                for point in clip_polygon.points
-            ],
-            fill=255,
-        )
-        alpha = ImageChops.multiply(layer.getchannel("A"), clip_mask)
-        layer.putalpha(alpha)
-        sheet_image.paste(layer.convert("RGB"), (0, 0), alpha)
-
-    def _paint_crop_marks(
-        self,
-        sheet_image: Image.Image,
-        slots: list[Mapping[str, Any]],
-        profiles: Mapping[str, Mapping[str, Any]],
-        *,
-        sheet_size_mm: Mapping[str, Any],
-        dpi: int,
-        duplex_flip: str,
-    ) -> None:
-        """Draw deterministic four-corner crop ticks outside each trim."""
-        sheet_width_mm = float(sheet_size_mm["width"])
-        sheet_height_mm = float(sheet_size_mm["height"])
-        sheet_scale = dpi / 25.4
-        drawing = ImageDraw.Draw(sheet_image)
-        length_mm = 3.0
-        gap_mm = 1.0
-        width_px = max(1, round(0.2 * sheet_scale))
-        for slot in slots:
-            profile = profiles[slot["production"]["marks_profile_id"]]
-            if not profile["crop_marks"]:
-                continue
-            geometry = slot["geometry"]
-            slot_geometry = SlotGeometry(
-                center=Point(geometry["position_mm"]["x_mm"], geometry["position_mm"]["y_mm"]),
-                trim_size=Size(geometry["trim_size_mm"]["width"], geometry["trim_size_mm"]["height"]),
-                bleed=geometry["bleed_mm"],
-                rotation_deg=geometry["rotation_deg"],
-            )
-            if duplex_flip == "long_edge":
-                slot_geometry = SlotGeometry(
-                    center=Point(sheet_width_mm - slot_geometry.center.x, slot_geometry.center.y),
-                    trim_size=slot_geometry.trim_size,
-                    bleed=slot_geometry.bleed,
-                    rotation_deg=(-slot_geometry.rotation_deg) % 360,
-                )
-            elif duplex_flip == "short_edge":
-                slot_geometry = SlotGeometry(
-                    center=Point(slot_geometry.center.x, sheet_height_mm - slot_geometry.center.y),
-                    trim_size=slot_geometry.trim_size,
-                    bleed=slot_geometry.bleed,
-                    rotation_deg=(-slot_geometry.rotation_deg) % 360,
-                )
-            polygon = trim_polygon(slot_geometry)
-            for index, point in enumerate(polygon.points):
-                previous = polygon.points[index - 1]
-                following = polygon.points[(index + 1) % len(polygon.points)]
-                for other in (previous, following):
-                    dx = point.x - other.x
-                    dy = point.y - other.y
-                    norm = (dx * dx + dy * dy) ** 0.5
-                    if norm == 0:
-                        continue
-                    start = (point.x + dx / norm * gap_mm, point.y + dy / norm * gap_mm)
-                    end = (point.x + dx / norm * (gap_mm + length_mm), point.y + dy / norm * (gap_mm + length_mm))
-                    drawing.line(
-                        (
-                            round(start[0] * sheet_scale),
-                            round((sheet_height_mm - start[1]) * sheet_scale),
-                            round(end[0] * sheet_scale),
-                            round((sheet_height_mm - end[1]) * sheet_scale),
-                        ),
-                        fill=(0, 0, 0),
-                        width=width_px,
-                    )
 
 
 __all__ = [

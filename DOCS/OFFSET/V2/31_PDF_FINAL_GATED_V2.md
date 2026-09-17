@@ -1,5 +1,7 @@
 # Fase 31 — PDF V2 propio detrás de gate
 
+> Corte posterior 39B: compositor PDF nativo y artwork transformado; capacidades v3. Perfil, marcas, limites y evidencia actual en [plan 39](39_PLAN_SAFE_CIERRE_SALIDA_PRODUCTIVA_V2.md). Este documento conserva la evidencia de su fase.
+
 Fecha de corte: 2026-09-11.
 
 Esta fase incorpora una ruta PDF propia de V2, separada del puente y del renderer legacy. El gate `EDITOR_OFFSET_V2_PDF_FINAL_ENABLED` queda apagado por defecto.

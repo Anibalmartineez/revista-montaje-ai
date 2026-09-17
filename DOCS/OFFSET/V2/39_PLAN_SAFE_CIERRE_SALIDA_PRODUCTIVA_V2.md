@@ -220,7 +220,7 @@ Si aparece una necesidad contractual fuera de las decisiones aprobadas, preparar
 |---|---|---|---|
 | Plan | Aprobado por el usuario | `1647be8` | Documento aprobado y guardado antes del código |
 | 39A | Implementada y validada | Commit de esta entrega | 461 Python + 1 omitida; 122 Node; 23 Playwright V2 (21 iniciales + 2 focalizados); QA local |
-| 39B | No iniciada | — | Pendiente |
+| 39B | Implementada y validada | Commit de esta entrega | 528 Python + 1 omitida; 122 Node; 26 Playwright entre suite y repetición focalizada |
 | 39C | No iniciada | — | Pendiente |
 
 Actualizar esta tabla con evidencia real al ejecutar. No sustituir pendientes por afirmaciones de éxito anticipadas.
@@ -233,3 +233,17 @@ Actualizar esta tabla con evidencia real al ejecutar. No sustituir pendientes po
 - Regresión Python 461 aprobadas/1 omitida, Node 122. Playwright completo: 21 aprobadas y una expectativa histórica fallida; corregida y reejecutada junto con la regresión nueva, ambas aprobadas. Tras el límite preventivo del espejo: 46 pruebas focalizadas aprobadas.
 - Se mantiene el renderer raster experimental hasta 39B; sin controles de descarga hasta 39C. No se ejecutó suite global ni V1. La carga extensa y aceptación final de salida pertenecen a 39C.
 - No cambió Layout V2, CAS, originales, motores compartidos ni rutas V1. Recuperación y retención siguen siendo explícitas.
+
+### Evidencia y contrato de composición 39B
+
+- 39A quedó guardada en `e85a29e`. El compositor propio importa formularios PDF y preserva objetos; Preview rasteriza la misma composición. No depende del renderer V1. El perfil raster explícito continúa rasterizando con presupuesto de 24 megapíxeles; vector_hybrid conserva objetos fuente. No hay certificación PDF/X ni conversión de color.
+- El orden del documento 29 se mantiene: orientación física, fit calculado, escala/espejo, rotación interna, rotación del slot, offset en ejes del pliego y clipping. El flip posterior se aplica a la composición completa. El canvas conserva coordenadas de edición del dorso; para cotejar el PDF de dorso debe registrarse el flip declarado. No se cambió la semántica de interacción del dorso.
+- Canvas usa una representación acotada por fuente y opciones para contenido transformado/derivado; el SVG rota el slot y dibuja marcas. La URL identifica opciones, de modo que una imagen tardía no sustituye la de otro ajuste. Fuente sin bleed muestra cobertura ausente; no sintetiza sin permiso.
+- Marcas: ocho trazos por trim, longitud 3 mm, separación de trim igual a bleed + 1 mm y ancho 0.2 mm, negro K en PDF. Marcas fuera del pliego bloquean salida; si invaden otro trim bloquean PDF. El canvas representa esos trazos para revisión. Un montaje con poco gap puede requerir mayor separación o desactivar marcas; no se corrige automáticamente su imposición.
+- MediaBox/CropBox representan el pliego completo. No se inventan TrimBox/BleedBox globales por pieza. Las capas PDF y OutputIntents exigen una política adicional y se bloquean; anotaciones/widgets/UserUnit no estándar conservan sus bloqueos. El RGB del canvas/Preview no es prueba certificada de color.
+- 67 pruebas Python nuevas: 64 combinaciones cardinales/espejos con oráculo independiente de posición y color; texto seleccionable, vectores, cajas, marcas, pliego 700×500 a 300 dpi y artwork con cobertura explícita. Fixtures históricos mantienen sus casos de cajas, multipágina, rotaciones, derivados y bleed.
+- Tres pruebas nuevas capturan el SVG real con sus imágenes cargadas (escala, espejo, rotación/offset), eliminan overlays de edición y comparan una ROI centrada en contenido/marcas a 144 dpi: máximo 2% de píxeles con delta >32 y media ≤8. Un desplazamiento deliberado de 25 px debe fallar. Se verifican además los dibujos PDF; no se usa el fondo blanco total como denominador.
+- Regresión: 528 Python aprobadas/1 omitida; 122 Node; suite de navegador 25 aprobadas y una expectativa antigua corregida/repetida con éxito (26 casos). Las esperas nuevas verifican finalización real del guardado antes de recargar.
+- QA local CUA: escala X 0.8 aplicada en una pieza del job de auditoría, imagen SVG actualizada y comprobada visualmente, seguida de Deshacer; consola sin errores. Flask reiniciado mediante skill y HTTP 200, dev tools=0.
+- Artefactos locales privados: `.codex-runtime/phase39/torrente-native.pdf` (317724 bytes, 383 caracteres, 453 dibujos incluyendo 8 marcas, 10 imágenes incluyendo bandas) y `cupon-native.pdf` (916971 bytes, 8 marcas, 9 imágenes). Fuentes del escritorio sin cambios. Estos archivos no se versionan.
+- Capacidades nativas pasan a versión 3; reportes anteriores requieren regeneración. Los derivados horneados siguen siendo raster y no recuperan vectores.

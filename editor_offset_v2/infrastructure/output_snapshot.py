@@ -33,6 +33,7 @@ class OutputSnapshot(JobRepository):
         self.options = deepcopy(options or {})
         self.sources = {}
         self.prepared = {}
+        self.prepared_by_source = {}
 
     def read_layout(self, job_id):
         if job_id != self.job_id:

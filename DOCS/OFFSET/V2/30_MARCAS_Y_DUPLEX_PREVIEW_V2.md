@@ -1,5 +1,7 @@
 # Fase 30 — Marcas de corte y dúplex en Preview V2
 
+> Corte posterior 39B: compositor PDF nativo y artwork transformado; capacidades v3. Perfil, marcas, limites y evidencia actual en [plan 39](39_PLAN_SAFE_CIERRE_SALIDA_PRODUCTIVA_V2.md). Este documento conserva la evidencia de su fase.
+
 Fecha de corte: 2026-09-11.
 
 Esta fase completa la representación diagnóstica de marcas de corte por slot y el volteo dúplex básico en la Preview propia de V2. No habilita PDF final ni CTP.

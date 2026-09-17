@@ -142,7 +142,7 @@
       this.refs.contentRotation.value = "0";
       this.refs.contentMirrorX.checked = false;
       this.refs.contentMirrorY.checked = false;
-      this.refs.contentClipTo.value = "none";
+      this.refs.contentClipTo.value = this.selectedSlots().some((slot) => slot.geometry.bleed_mm > 0) ? "bleed_box" : "trim_box";
       this.dirty = true;
       this.renderState();
     }

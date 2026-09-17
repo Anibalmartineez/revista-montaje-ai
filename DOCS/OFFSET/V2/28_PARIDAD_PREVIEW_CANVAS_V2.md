@@ -1,5 +1,7 @@
 # Fase 28 — Evidencia de paridad Preview–canvas V2
 
+> Corte posterior 39B: compositor PDF nativo y artwork transformado; capacidades v3. Perfil, marcas, limites y evidencia actual en [plan 39](39_PLAN_SAFE_CIERRE_SALIDA_PRODUCTIVA_V2.md). Este documento conserva la evidencia de su fase.
+
 Fecha de corte: 2026-09-11.
 
 Esta fase valida la Preview mínima de la Fase 27 contra la geometría persistida de Layout V2. Es una fase de evidencia y contrato de prueba; no habilita Preview por defecto, PDF final ni CTP.

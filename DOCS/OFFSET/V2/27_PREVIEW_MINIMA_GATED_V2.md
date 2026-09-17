@@ -1,5 +1,7 @@
 # Fase 27 — Preview mínima V2 detrás de gate
 
+> Corte posterior 39B: compositor PDF nativo y artwork transformado; capacidades v3. Perfil, marcas, limites y evidencia actual en [plan 39](39_PLAN_SAFE_CIERRE_SALIDA_PRODUCTIVA_V2.md). Este documento conserva la evidencia de su fase.
+
 Fecha de corte: 2026-09-11.
 
 Esta fase incorpora una primera superficie de Preview propia de V2 para comprobar el recorrido canvas → representación física, usando los fixtures y criterios de la Fase 26. Es una salida derivada PNG por cara; no es PDF final ni CTP.

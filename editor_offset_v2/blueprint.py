@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import io
+import json
 from pathlib import Path
 from typing import Any
 
@@ -311,6 +312,26 @@ def asset_thumbnail(job_id: str, asset_id: str, page: str):
         conditional=True,
         max_age=3600,
     )
+
+
+@editor_offset_v2_bp.get('/api/editor-offset-v2/jobs/<job_id>/assets/<asset_id>/artwork/<int:page>')
+def slot_artwork(job_id, asset_id, page):
+    from editor_offset_v2.application.artwork_service import render_artwork
+    from editor_offset_v2.infrastructure.output_snapshot import OutputSnapshotError
+    from editor_offset_v2.infrastructure.job_repository import JobRepositoryError
+    raw=request.args.get('spec','{}')
+    if len(raw)>4096:
+        return _error_payload(PreviewServiceError('INVALID_ARTWORK','Artwork options too large',400))
+    try:
+        data,coverage=render_artwork(_job_repository(),job_id,asset_id,page,json.loads(raw))
+    except (PreviewServiceError,DerivedAssetServiceError,OutputSnapshotError) as error:
+        return _error_payload(error)
+    except (ValueError,TypeError,KeyError,JobRepositoryError) as error:
+        return _error_payload(PreviewServiceError('INVALID_ARTWORK','Invalid source or artwork options',400))
+    response=send_file(io.BytesIO(data),mimetype='image/png',download_name='artwork.png')
+    response.headers['X-V2-Coverage']=coverage
+    response.headers['Cache-Control']='private, max-age=60'
+    return response
 
 
 @editor_offset_v2_bp.post(

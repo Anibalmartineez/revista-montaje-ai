@@ -1,5 +1,7 @@
 # Fase 37 — Contrato canónico de paridad de salida V2
 
+> Corte posterior 39B: compositor PDF nativo y artwork transformado; capacidades v3. Perfil, marcas, limites y evidencia actual en [plan 39](39_PLAN_SAFE_CIERRE_SALIDA_PRODUCTIVA_V2.md). Este documento conserva la evidencia de su fase.
+
 ## Objetivo
 
 Fijar las reglas de aceptación que deben compartir el canvas SVG, Preview y

@@ -36,8 +36,7 @@ def app_factory(tmp_path: Path, *, enabled: bool) -> Flask:
 
 def _ready_layout(base: dict, asset: dict) -> dict:
     layout = _preview_layout(base, asset)
-    # This suite characterizes the explicitly requested experimental raster profile.
-    layout['export'].update(render_mode='raster', preserve_vector_content=False)
+    layout['export'].update(render_mode='vector_hybrid', preserve_vector_content=True)
     layout["export"]["marks_profiles"][0].update(
         crop_marks=False,
         registration_marks=False,
@@ -89,7 +88,8 @@ def test_gated_pdf_final_writes_one_sheet_page_with_physical_size(tmp_path):
         page = document[0]
         assert page.rect.width == pytest.approx(700 * 72 / 25.4, abs=0.01)
         assert page.rect.height == pytest.approx(500 * 72 / 25.4, abs=0.01)
-        assert page.get_images(full=True)
+        assert 'PREVIEW-V2' in page.get_text()
+        assert not page.get_images(full=True)  # A vector source must remain vector.
     output_dir = Path(app.config["EDITOR_OFFSET_V2_JOBS_ROOT"]) / created["job_id"] / "outputs"
     assert list(output_dir.glob(f"pdf_final_r{saved['revision']}_front_36_*.pdf"))
 

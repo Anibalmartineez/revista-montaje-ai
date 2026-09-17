@@ -77,7 +77,7 @@
     };
   }
 
-  function artworkForSlot(slot, layout, assetsApiUrl, clipId) {
+  function artworkForSlot(slot, layout, assetsApiUrl, clipId, allowMirrorBleed = false) {
     const asset = layout.assets.find((item) => item.id === slot.source.asset_id);
     const page = asset?.pages.find((item) => item.number === slot.source.page);
     const sourceBox = page?.boxes_mm?.[slot.source.pdf_box];
@@ -85,13 +85,22 @@
       return null;
     }
     const trim = slot.geometry.trim_size_mm;
+    const t = slot.content_transform;
+    const bleed = t.clip_to === "bleed_box" ? slot.geometry.bleed_mm : 0;
+    const prepared = Boolean(slot.source.derived || slot.geometry.bleed_mm || t.scale_x !== 1 || t.scale_y !== 1
+      || t.rotation_deg || t.mirror_x || t.mirror_y || t.offset_mm.x || t.offset_mm.y || t.fit_mode !== "actual_size");
+    const spec = { box: slot.source.pdf_box, bleed: slot.geometry.bleed_mm,
+      rotation: slot.geometry.rotation_deg, transform: t, derived: slot.source.derived, mirror: allowMirrorBleed };
+    const url = prepared
+      ? `${assetsApiUrl}/${encodeURIComponent(asset.id)}/artwork/${page.number}?spec=${encodeURIComponent(JSON.stringify(spec))}`
+      : `${assetsApiUrl}/${encodeURIComponent(asset.id)}/thumbnails/${page.number}?box=${encodeURIComponent(slot.source.pdf_box)}`;
     const image = svgElement("image", {
-      x: -trim.width / 2,
-      y: -trim.height / 2,
-      width: trim.width,
-      height: trim.height,
-      href: `${assetsApiUrl}/${encodeURIComponent(asset.id)}/thumbnails/${page.number}?box=${encodeURIComponent(slot.source.pdf_box)}`,
-      preserveAspectRatio: "xMidYMid meet",
+      x: -(trim.width + 2 * bleed) / 2,
+      y: -(trim.height + 2 * bleed) / 2,
+      width: trim.width + 2 * bleed,
+      height: trim.height + 2 * bleed,
+      href: url,
+      preserveAspectRatio: "none",
       class: "ev2-svg-artwork",
       "clip-path": `url(#${clipId})`,
       "data-slot-id": slot.id,
@@ -242,11 +251,12 @@
           id: clipId,
           clipPathUnits: "userSpaceOnUse",
         });
+        const clipBleed = slot.content_transform.clip_to === "bleed_box" ? bleed : 0;
         clipPath.append(svgElement("rect", {
-          x: -trim.width / 2,
-          y: -trim.height / 2,
-          width: trim.width,
-          height: trim.height,
+          x: -trim.width / 2 - clipBleed,
+          y: -trim.height / 2 - clipBleed,
+          width: trim.width + 2 * clipBleed,
+          height: trim.height + 2 * clipBleed,
         }));
         definitions.append(clipPath);
         const artwork = artworkForSlot(
@@ -254,8 +264,20 @@
           state.layout,
           this.assetsApiUrl,
           clipId,
+          Boolean(this.store.outputOptions?.allow_mirror_bleed),
         );
         if (artwork) group.append(artwork);
+        const marks = state.layout.export.marks_profiles.find((p) => p.id === slot.production.marks_profile_id);
+        if (marks?.crop_marks) {
+          const gap = bleed + 1;
+          for (const sx of [-1, 1]) for (const sy of [-1, 1]) {
+            const x = sx * trim.width / 2, y = sy * trim.height / 2;
+            group.append(svgElement("line", { x1: x + sx * gap, y1: y, x2: x + sx * (gap + 3), y2: y,
+              stroke: "black", "stroke-width": 0.2, class: "ev2-svg-crop-mark", "pointer-events": "none" }));
+            group.append(svgElement("line", { x1: x, y1: y + sy * gap, x2: x, y2: y + sy * (gap + 3),
+              stroke: "black", "stroke-width": 0.2, class: "ev2-svg-crop-mark", "pointer-events": "none" }));
+          }
+        }
         group.append(
           svgElement("rect", {
             x: -(trim.width + 2 * bleed) / 2,

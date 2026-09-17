@@ -77,7 +77,7 @@ class PdfFinalService:
         if isinstance(allow_mirror_bleed, bool) is False:
             raise PdfFinalServiceError("INVALID_PDF_FINAL_OPTION", "allow_mirror_bleed must be boolean", 400)
         faces = (
-            tuple(item for item in ("front", "back") if layout["export"]["faces"].get(item))
+            tuple(item for item in layout["export"]["faces"]["order"] if layout["export"]["faces"].get(item))
             if face == "both" else (face,)
         )
         if not faces or any(item not in layout["faces"]["enabled"] for item in faces):
@@ -85,40 +85,22 @@ class PdfFinalService:
         if face == "both" and len(faces) != 2:
             raise PdfFinalServiceError("PDF_FINAL_FACE_DISABLED", "Both output faces must be enabled", 422)
 
-        pngs: list[bytes] = []
-        for item in faces:
-            try:
-                preview = self._preview.render(
-                    job_id,
-                    face=item,
-                    dpi=dpi,
-                    allow_mirror_bleed=allow_mirror_bleed,
-                    require_preflight=False,
-                )
-                pngs.append(preview.data)
-            except PreviewServiceError as exc:
-                raise PdfFinalServiceError(
-                    f"PDF_FINAL_{exc.code}",
-                    f"PDF final is blocked by Preview validation: {exc.message}",
-                    exc.status_code,
-                ) from exc
+        from editor_offset_v2.infrastructure.pdf_compositor import compose_pdf
+        assets = {a['id']:a for a in layout['assets']}
+        try:
+            pdf_data = compose_pdf(layout, faces, lambda slot:self._preview._prepared_slot(slot,assets,job_id,allow_mirror_bleed))
+        except PreviewServiceError as exc:
+            raise PdfFinalServiceError(exc.code,exc.message,exc.status_code) from exc
 
-        sheet = layout["sheet"]["size_mm"]
-        points_per_mm = 72.0 / 25.4
-        with fitz.open() as output:
-            for png_data in pngs:
-                page = output.new_page(
-                    width=float(sheet["width"]) * points_per_mm,
-                    height=float(sheet["height"]) * points_per_mm,
-                )
-                page.insert_image(page.rect, stream=png_data, keep_proportion=False)
-            output.set_metadata({
-                "format": "PDF 1.7",
-                "title": f"Editor Offset V2 {layout['job']['name']}",
-                "author": "Editor Offset Visual V2",
-                "subject": "Gated V2 PDF candidate",
-            })
-            pdf_data = output.tobytes(garbage=4, deflate=True, no_new_id=True)
+        if layout['export']['render_mode']=='raster':
+            with fitz.open(stream=pdf_data,filetype='pdf') as source,fitz.open() as raster:
+                for page in source:
+                    if page.rect.width*page.rect.height*(dpi/72)**2>24_000_000:
+                        raise PdfFinalServiceError('OUTPUT_RESOURCE_LIMIT','Explicit raster sheet exceeds 24 megapixels')
+                    png=page.get_pixmap(dpi=dpi,alpha=False).tobytes('png')
+                    target_page=raster.new_page(width=page.rect.width,height=page.rect.height)
+                    target_page.insert_image(target_page.rect,stream=png)
+                pdf_data=raster.tobytes(garbage=4,deflate=True,no_new_id=True)
 
         outputs = self._jobs.job_path(job_id) / "outputs"
         outputs.mkdir(exist_ok=True)

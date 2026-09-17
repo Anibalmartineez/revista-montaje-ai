@@ -1,7 +1,7 @@
 """Capabilities of V2's own renderer; never imports the legacy bridge."""
 from editor_offset_v2.domain.output_contract import OutputIssue
 
-NATIVE_VECTOR_AVAILABLE = False  # Enabled only with the phase 39B compositor.
+NATIVE_VECTOR_AVAILABLE = True  # Native form compositor, covered by phase 39B object tests.
 MAX_INTERMEDIATE_PIXELS = 24_000_000
 
 def native_output_issues(layout, options=None):
@@ -11,6 +11,8 @@ def native_output_issues(layout, options=None):
         result.append((OutputIssue(code=code,level='error',message=message,path=path,
             slot_id=slot['id'] if slot else None,asset_id=slot['source']['asset_id'] if slot else None),list(blocks)))
     export = layout['export']
+    if export['render_mode']=='raster' and export['preserve_vector_content']:
+        add('OUTPUT_PROFILE_CONFLICT','Un perfil raster no puede preservar vectores.','$.export',('pdf_final',))
     if layout['ctp']['enabled']:
         add('CTP_NOT_SUPPORTED','La salida CTP todavía no está soportada.','$.ctp')
     if export['crop_to_content']:
@@ -34,6 +36,20 @@ def native_output_issues(layout, options=None):
             # Preview can illustrate an intentional trim clip; final cannot claim bleed.
             add('BLEED_CLIPPED_TO_TRIM','El clipping TrimBox descarta el sangrado solicitado; cambia a BleedBox explícitamente.',path+'.content_transform.clip_to',('pdf_final',),slot)
         profile = profiles[slot['production']['marks_profile_id']]
+        if profile['crop_marks']:
+            from editor_offset_v2.infrastructure.pdf_compositor import crop_segments, slot_geometry
+            from editor_offset_v2.domain.geometry import trim_bounds
+            lines=crop_segments(slot)
+            sheet=layout['sheet']['size_mm']
+            if any(not (0<=x<=sheet['width'] and 0<=y<=sheet['height']) for line in lines for x,y in line):
+                add('CROP_MARK_OUTSIDE_SHEET','Las marcas de corte exceden el pliego; mueve la pieza o desactiva sus marcas.',path+'.production',slot=slot)
+            for other in layout['slots']:
+                if other['id']==slot['id'] or other['face']!=slot['face']: continue
+                bounds=trim_bounds(slot_geometry(other))
+                if any(max(a[0],b[0])+.1>bounds.left and min(a[0],b[0])-.1<bounds.right and
+                       max(a[1],b[1])+.1>bounds.bottom and min(a[1],b[1])-.1<bounds.top for a,b in lines):
+                    add('CROP_MARK_OVERPRINT','Una marca invade el trim de otra pieza; aumenta la separación o desactiva las marcas.',path+'.production',('pdf_final',),slot)
+                    break
         if any(profile[k] for k in ('registration_marks','technical_text','color_bar')):
             add('PREVIEW_MARKS_UNSUPPORTED','Registros, barras de color y texto técnico aún no están soportados.',path+'.production',slot=slot)
         width, height = (slot['geometry']['trim_size_mm'][k]+2*slot['geometry']['bleed_mm'] for k in ('width','height'))

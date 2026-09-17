@@ -507,7 +507,7 @@ def test_preview_draws_crop_marks_and_applies_back_long_edge_flip(preview_app_fa
                 red.append(x)
             if b > 170 and r < 130 and g < 150:
                 blue.append(x)
-            if r < 50 and g < 50 and b < 50:
+            if max(r,g,b)-min(r,g,b) < 12 and max(r,g,b) < 220:
                 black.append((x, y))
     assert red and blue and black
     assert sum(red) / len(red) > sum(blue) / len(blue)

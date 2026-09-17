@@ -1,5 +1,7 @@
 # Fase 29 — Transformaciones y clipping en Preview V2
 
+> Corte posterior 39B: compositor PDF nativo y artwork transformado; capacidades v3. Perfil, marcas, limites y evidencia actual en [plan 39](39_PLAN_SAFE_CIERRE_SALIDA_PRODUCTIVA_V2.md). Este documento conserva la evidencia de su fase.
+
 Fecha de corte: 2026-09-11.
 
 Esta fase amplía la Preview propia de V2 para representar el contenido transformado dentro de cada slot. El cambio sigue detrás de `EDITOR_OFFSET_V2_PREVIEW_ENABLED`; no habilita PDF final ni CTP.

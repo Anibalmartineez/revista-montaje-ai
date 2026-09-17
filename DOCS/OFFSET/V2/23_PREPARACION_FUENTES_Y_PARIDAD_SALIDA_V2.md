@@ -1,5 +1,7 @@
 # Fase 23 — Preparación de fuentes y ensayo de salida V2
 
+> Corte posterior 39B: compositor PDF nativo y artwork transformado; capacidades v3. Perfil, marcas, limites y evidencia actual en [plan 39](39_PLAN_SAFE_CIERRE_SALIDA_PRODUCTIVA_V2.md). Este documento conserva la evidencia de su fase.
+
 Fecha: 2026-09-06. Estado: adaptación implementada y validada en alcance
 experimental; Preview/PDF final productivos todavía no habilitados.
 
