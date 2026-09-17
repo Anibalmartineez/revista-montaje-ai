@@ -230,7 +230,7 @@ Rutas V2 activas:
 - `POST /api/editor-offset-v2/jobs/<job_id>/imposition/repeat`;
 - `GET /api/editor-offset-v2/jobs/<job_id>/output-capabilities`.
 
-Existen rutas V2 de preflight y candidatos Preview/PDF detrás de gates separados, además de derivados. Consultar documento 20 y plan 39 para el perfil aceptado; no confundir rutas experimentales con aceptación productiva. Nesting, hybrid y CTP siguen pendientes.
+Existen rutas V2 de preflight, Preview/PDF propios detrás de gates separados y derivados. El cierre 39C incorpora controles Preview/descarga y aceptación del perfil nativo limitado: consultar documentos 20/39 para evidencia y exclusiones. No confundir este perfil con certificación PDF/X o CTP. Nesting, hybrid y CTP siguen pendientes.
 
 ## 9. Contrato e invariantes de Layout V2
 

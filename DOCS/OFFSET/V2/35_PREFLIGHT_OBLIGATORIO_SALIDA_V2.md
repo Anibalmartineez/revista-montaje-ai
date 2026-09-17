@@ -1,5 +1,7 @@
 # Fase 35 — Preflight obligatorio para Preview y PDF final V2
 
+> Cierre 39C: `run(..., options=...)` incluye cara, resolución y mirror explícito; `consume` exige reporte completo, checks obligatorios, política 2/capacidades 3, revisión, opciones y fuentes efectivas coincidentes. UI y backend comprueban por separado; una aprobación visual anterior no autoriza un snapshot nuevo. `expected_revision` cancela con 409 una revisión que ya no es actual. La entrega usa bytes inmutables, `X-V2-Revision`, `X-V2-Filename` sin rutas físicas y `Cache-Control: no-store`. Ver [39](39_PLAN_SAFE_CIERRE_SALIDA_PRODUCTIVA_V2.md); el listado histórico inferior no enumera todas las comprobaciones actuales.
+
 > Actualización 39A (2026-09-16): preflight nativo V2, política/capacidades versión 2; snapshot de layout, opciones y archivos efectivos. Se rechazan reportes incompletos, obsoletos o incompatibles y derivados ausentes/alterados. Publicación y limpieza coordinadas; entrega desde bytes de la petición. El candidato PDF raster bloquea preservación vectorial hasta 39B. Gates globales apagados. Evidencia y continuación: [plan 39](39_PLAN_SAFE_CIERRE_SALIDA_PRODUCTIVA_V2.md). Lo que sigue conserva el corte histórico indicado.
 
 ## Objetivo

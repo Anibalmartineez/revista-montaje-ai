@@ -1,5 +1,7 @@
 # Fase 38 — Concurrencia, retención y recuperación operativa V2
 
+> Vigente tras 39C: publicación y limpieza adquieren lock de job y después lock del directorio; las respuestas entregan bytes de la petición. Se limitan Preview/PDF a dos generaciones simultáneas **por proceso**, con 429 `OUTPUT_BUSY` y recuperación del permiso incluso ante errores. Esto no constituye un límite global entre varios workers. Snapshot de fuentes limitado a 128 MiB; perfil limitado a 500 slots y raster a 24 MP. La retención y recuperación se invocan explícitamente: no hay scheduler, purga automática ni limpieza al arrancar. Pruebas de cuatro peticiones y fallo de publicación conservan layout/originales y no dejan PDF parcial. Carga y límites detallados en [39](39_PLAN_SAFE_CIERRE_SALIDA_PRODUCTIVA_V2.md).
+
 > Actualización 39A (2026-09-16): preflight nativo V2, política/capacidades versión 2; snapshot de layout, opciones y archivos efectivos. Se rechazan reportes incompletos, obsoletos o incompatibles y derivados ausentes/alterados. Publicación y limpieza coordinadas; entrega desde bytes de la petición. El candidato PDF raster bloquea preservación vectorial hasta 39B. Gates globales apagados. Evidencia y continuación: [plan 39](39_PLAN_SAFE_CIERRE_SALIDA_PRODUCTIVA_V2.md). Lo que sigue conserva el corte histórico indicado.
 
 ## Objetivo

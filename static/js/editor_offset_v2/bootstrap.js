@@ -73,6 +73,7 @@
     let objectTree = null;
     let sheetPanel = null;
     let contentTransformInspector = null;
+    let outputPanel = null;
     const contextProvider = () => ({
       store,
       layout: store.layout,
@@ -105,6 +106,7 @@
       objectTree,
       sheetPanel,
       responsivePanels,
+      outputPanel,
     });
     function runAction(actionId, payload) {
       try {
@@ -187,12 +189,13 @@
       modules.Commands,
       modules.EditPolicy,
     );
-    const outputPanel = new modules.OutputPanel.Panel(
+    outputPanel = new modules.OutputPanel.Panel(
       store,
       refs,
       api,
       saver,
       context,
+      runAction,
     );
     objectsPanel = new modules.ObjectsPanel.Panel(
       store,

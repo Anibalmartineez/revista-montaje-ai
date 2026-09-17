@@ -8,6 +8,16 @@
   "use strict";
 
   const ISSUE_LABELS = Object.freeze({
+    BLEED_REQUIRES_EXPLICIT_MIRROR: "Falta sangrado real: activa la opción de espejo si deseas generarlo",
+    BLEED_CLIPPED_TO_TRIM: "TrimBox recorta el sangrado: selecciona BleedBox en Corrección gráfica",
+    CROP_MARK_OVERPRINT: "Una marca invade otra pieza: aumenta la separación o desactiva las marcas",
+    CROP_MARK_OUTSIDE_SHEET: "Marcas fuera del pliego: mueve las piezas hacia dentro",
+    DERIVED_SOURCE_MISSING: "No se encuentra la página derivada: vuelve a prepararla",
+    NATIVE_VECTOR_PENDING: "El renderer disponible no conserva vectores",
+    OUTPUT_RESOURCE_LIMIT: "La petición supera el límite de recursos del perfil",
+    PREVIEW_RESOURCE_LIMIT: "La Preview es demasiado grande: selecciona una resolución menor",
+    UNSUPPORTED_PDF_LAYERS: "El PDF contiene capas: requiere una política de aplanado",
+    UNSUPPORTED_OUTPUT_INTENT: "El PDF contiene un perfil de salida: requiere un flujo de color compatible",
     UNSUPPORTED_SOURCE_PAGE: "Página distinta de 1 no soportada",
     UNSUPPORTED_PDF_BOX: "Caja PDF distinta de TrimBox no soportada",
     UNSUPPORTED_INTRINSIC_ROTATION: "Rotación intrínseca no soportada",
@@ -115,7 +125,7 @@
     const groups = new Map();
     for (const issue of issues || []) {
       const refs = issue.references || {};
-      const key = [issue.severity, issue.code, issue.message, refs.path || ""].join("|");
+      const key = [issue.severity, issue.code, issue.message, (refs.asset_ids || []).join(","), (refs.path || "").replace(/\[\d+\]/g,"[]")].join("|");
       if (!groups.has(key)) {
         groups.set(key, {
           code: issue.code,
@@ -141,7 +151,7 @@
   }
 
   class Panel {
-    constructor(store, refs, api, saver, context) {
+    constructor(store, refs, api, saver, context, runAction) {
       this.store = store;
       this.refs = refs;
       this.api = api;
@@ -151,13 +161,138 @@
       this.diagnosisStale = false;
       this.preflightReport = null;
       this.preflightStale = false;
+      this.generating = false;
+      this.outputEpoch = 0;
+      this.artifactUrl = null;
+      this.downloadUrls = [];
+      this.artifactRevision = null;
+      this.store.outputOptions = {face: "front", dpi: 150, allow_mirror_bleed: false};
       this.unsubscribe = this.store.subscribe((event) => this.onStoreEvent(event));
       this.refs.outputCheck.addEventListener("click", () => this.check());
       this.refs.preflightRun?.addEventListener("click", () => this.runPreflight());
+      this.refs.outputPreview?.addEventListener("click", () => runAction("output.preview"));
+      this.refs.outputPdf?.addEventListener("click", () => runAction("output.pdf"));
+      for (const control of [refs.outputFace, refs.outputDpi, refs.outputMirror]) {
+        control?.addEventListener("change", () => runAction("output.options"));
+      }
+      this.renderOutputControls();
+    }
+
+    readOutputOptions() {
+      return {face: this.refs.outputFace?.value || "front", dpi: Number(this.refs.outputDpi?.value || 150),
+        allow_mirror_bleed: Boolean(this.refs.outputMirror?.checked)};
+    }
+
+    changeOutputOptions() {
+      this.store.outputOptions = this.readOutputOptions();
+      this.invalidateArtifact();
+      this.invalidatePreflight();
+      this.renderOutputControls();
+      this.store.setFeedback("Opciones de salida actualizadas; regenera la Preview o el PDF.");
+    }
+
+    renderOutputControls() {
+      if (!this.refs.outputFace) return;
+      if (this.refs.outputProfile) {
+        const profile = this.store.layout.export.render_mode === "raster"
+          ? "Perfil raster: rasteriza el pliego a la resolución seleccionada."
+          : "Perfil PDF nativo: conserva objetos fuente; las imágenes y los derivados mantienen su resolución.";
+        this.refs.outputProfile.textContent = `${profile} El espejo añade bandas raster a 300 dpi. Sin conversión de color ni certificación PDF/X. CTP pendiente.`;
+      }
+      const faces = this.store.layout.faces.enabled.filter((face) => this.store.layout.export.faces[face]);
+      for (const option of this.refs.outputFace.options) option.disabled = option.value === "both" ? faces.length !== 2 : !faces.includes(option.value);
+      if (this.refs.outputFace.selectedOptions[0]?.disabled) this.refs.outputFace.value = faces[0] || "front";
+      this.refs.outputPreview.disabled = this.generating || !this.context.preview_api_url || this.refs.outputFace.value === "both";
+      this.refs.outputPdf.disabled = this.generating || !this.context.pdf_final_api_url;
+    }
+
+    invalidateArtifact() {
+      this.outputEpoch += 1;
+      this.refs.outputFindings?.replaceChildren();
+      if (this.artifactUrl) URL.revokeObjectURL(this.artifactUrl);
+      this.artifactUrl = null;
+      if (this.refs.outputImage) { this.refs.outputImage.hidden = true; this.refs.outputImage.removeAttribute("src"); }
+      if (this.artifactRevision !== null && this.refs.outputResult) {
+        this.refs.outputResult.textContent = `Resultado desactualizado (revisión ${this.artifactRevision}). Vuelve a generar con las opciones actuales.`;
+        this.refs.outputResult.dataset.state = "warning";
+      } else if (this.refs.outputResult?.dataset.state === "error") {
+        this.refs.outputResult.textContent = "El montaje o las opciones cambiaron. Vuelve a comprobar la salida.";
+        this.refs.outputResult.dataset.state = "warning";
+      }
+      this.artifactRevision = null;
+    }
+
+    showOutputFindings(issues) {
+      this.refs.outputFindings?.replaceChildren();
+      for (const group of groupPreflightIssues(issues).slice(0,100)) {
+        const item = renderIssueGroup(group);
+        const operations = [...new Set((issues || []).filter(i => i.code === group.code).flatMap(i => i.blocks || []))];
+        const label = document.createElement("small");
+        label.textContent = ` ${group.level} · Afecta: ${operations.join(", ") || "revisión del operador"}`;
+        item.append(label);
+        this.refs.outputFindings?.append(item);
+      }
+    }
+
+    async generate(operation) {
+      if (this.generating) return;
+      const url = operation === "preview" ? this.context.preview_api_url : this.context.pdf_final_api_url;
+      if (!url) return;
+      this.invalidateArtifact();
+      this.generating = true;
+      this.renderOutputControls();
+      this.refs.outputResult.textContent = "Guardando y comprobando fuentes, geometría y opciones…";
+      this.refs.outputResult.dataset.state = "pending";
+      this.showOutputFindings([]);
+      try {
+        await this.saver.manualSave();
+        if (this.store.hasUnsavedChanges() || this.store.saveState.status !== "clean" || this.store.pointerSession) {
+          throw new Error("Guarda o resuelve el conflicto antes de generar salida.");
+        }
+        const revision = this.store.revision, epoch = this.outputEpoch;
+        const options = this.readOutputOptions();
+        const current = () => !this.disposed && this.outputEpoch === epoch && !this.store.hasUnsavedChanges() && this.store.revision === revision;
+        const {report} = await this.api.runPreflight(this.context.preflight_api_url, options);
+        if (!current() || report.subject.revision !== revision) throw new Error("El montaje cambió durante el preflight. Vuelve a generar.");
+        this.showOutputFindings(report.issues);
+        const decision = report.decisions.find(item => item.operation === operation);
+        if (report.execution !== "complete" || decision?.status !== "eligible") {
+          throw new Error(`Salida bloqueada para ${operation === "preview" ? "Preview" : "PDF"}. Revisa los motivos indicados; un gate deshabilitado se habilita al iniciar el servidor.`);
+        }
+        this.refs.outputResult.textContent = `Generando ${operation === "preview" ? "Preview" : "PDF"} de la revisión ${revision}…`;
+        const result = await this.api.requestArtifact(url, {...options, expected_revision: revision});
+        if (!current() || result.revision !== revision) throw new Error("Resultado desactualizado: el montaje cambió. Vuelve a generar.");
+        const expectedType = operation === "preview" ? "image/png" : "application/pdf";
+        if (result.blob.type !== expectedType || !result.blob.size) throw new Error("El servidor no entregó un archivo válido.");
+        const blobUrl = URL.createObjectURL(result.blob);
+        this.artifactRevision = revision;
+        if (operation === "preview") {
+          this.artifactUrl = blobUrl;
+          this.refs.outputImage.src = blobUrl;
+          this.refs.outputImage.hidden = false;
+        } else {
+          const link = document.createElement("a"); link.href = blobUrl;
+          link.download = result.filename || `montaje-v2-r${revision}.pdf`;
+          document.body.append(link); link.click(); link.remove();
+          this.downloadUrls.push(blobUrl);
+          if (this.downloadUrls.length > 2) URL.revokeObjectURL(this.downloadUrls.shift());
+        }
+        this.refs.outputResult.textContent = `${operation === "preview" ? "Preview lista" : "PDF listo; descarga iniciada"} · revisión ${revision} · ${options.face} · ${options.dpi} dpi · espejo ${options.allow_mirror_bleed ? "permitido" : "desactivado"}. ${report.issues.filter(i=>i.severity==="warning").length} advertencia(s).`;
+        this.refs.outputResult.dataset.state = "success";
+      } catch (error) {
+        if (error.issues?.length) this.showOutputFindings(error.issues);
+        this.refs.outputResult.textContent = error.message || "No se pudo completar la salida. Vuelve a intentarlo.";
+        this.refs.outputResult.dataset.state = "error";
+      } finally {
+        this.generating = false;
+        this.renderOutputControls();
+      }
     }
 
     onStoreEvent(event) {
       if (DIAGNOSIS_INVALIDATING_EVENTS.includes(event.type)) {
+        this.invalidateArtifact();
+        this.renderOutputControls();
         this.invalidate();
         this.invalidatePreflight();
         return;
@@ -219,7 +354,7 @@
         if (this.store.saveState.status !== "clean") {
           throw new Error("Guarda o resuelve el conflicto antes de ejecutar el preflight.");
         }
-        const result = await this.api.runPreflight(this.context.preflight_api_url);
+        const result = await this.api.runPreflight(this.context.preflight_api_url, this.readOutputOptions());
         const report = result.report;
         this.preflightReport = report;
         if (this.store.hasUnsavedChanges() || this.store.revision !== report.subject.revision) {
@@ -283,6 +418,9 @@
     }
 
     dispose() {
+      this.disposed = true;
+      this.invalidateArtifact();
+      this.downloadUrls.forEach(url => URL.revokeObjectURL(url));
       this.unsubscribe?.();
       this.unsubscribe = null;
     }

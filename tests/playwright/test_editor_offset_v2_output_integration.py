@@ -145,3 +145,46 @@ def test_page_planner_switch_quantities_and_inspector_stage(v2_server, tmp_path)
             assert not errors
         finally:
             browser.close()
+
+
+def test_operator_preview_download_retry_and_stale_result(output_server,tmp_path):
+    from test_editor_offset_v2 import _write_test_pdf, _open_job_with_repeat
+    path=tmp_path/'operator.pdf';_write_test_pdf(path)
+    with sync_playwright() as pw:
+        browser=pw.chromium.launch();page=browser.new_page(viewport={'width':1440,'height':900})
+        errors=[];page.on('pageerror',lambda e:errors.append(str(e)))
+        try:
+            _open_job_with_repeat(page,output_server,path,1)
+            page.get_by_label('Centro X',exact=True).fill('150')
+            page.get_by_label('Centro Y',exact=True).fill('150')
+            page.get_by_role('button',name='Aplicar posición',exact=True).click()
+            _open_workflow_stage(page,'output')
+            page.locator('#ev2-output-dpi').select_option('72')
+            page.locator('#ev2-output-preview').click()
+            expect(page.locator('#ev2-output-result')).to_contain_text('Preview lista',timeout=20000)
+            expect(page.locator('#ev2-output-image')).to_be_visible()
+            with page.expect_download() as download:
+                page.locator('#ev2-output-pdf').click()
+            target=tmp_path/'downloaded.pdf';download.value.save_as(target)
+            with fitz.open(target) as doc:
+                assert 'EDITOR OFFSET V2' in doc[0].get_text()
+                assert doc[0].get_drawings() and not doc[0].get_images()
+            expect(page.locator('#ev2-output-result')).to_contain_text('PDF listo; descarga iniciada')
+            # A controlled network failure can be retried without duplicating output.
+            page.route('**/preview',lambda route:route.fulfill(status=503,content_type='application/json',body=json.dumps({'ok':False,'error':{'message':'Prueba de red interrumpida','code':'TEST_UNAVAILABLE'}})))
+            page.locator('#ev2-output-preview').click()
+            expect(page.locator('#ev2-output-result')).to_contain_text('Prueba de red interrumpida')
+            page.unroute('**/preview')
+            page.locator('#ev2-output-preview').click()
+            expect(page.locator('#ev2-output-result')).to_contain_text('Preview lista',timeout=20000)
+            def late(route):
+                response=route.fetch()
+                page.locator('#ev2-output-mirror').check()
+                route.fulfill(response=response)
+            page.route('**/pdf-final',late)
+            page.locator('#ev2-output-pdf').click()
+            expect(page.locator('#ev2-output-result')).to_contain_text('Resultado desactualizado',timeout=20000)
+            expect(page.locator('#ev2-output-image')).to_be_hidden()
+            page.unroute('**/pdf-final')
+            assert not errors
+        finally:browser.close()

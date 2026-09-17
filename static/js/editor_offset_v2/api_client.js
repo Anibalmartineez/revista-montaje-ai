@@ -90,11 +90,21 @@
       );
     }
 
-    async runPreflight(url) {
+    async requestArtifact(url, payload) {
+      const response = await fetch(url, { method: "POST", headers: {"Content-Type":"application/json"}, body: JSON.stringify(payload) });
+      if (!response.ok) {
+        const result = await response.json();
+        throw new ApiError(result.error?.message || "No se pudo generar el archivo.", response.status, result.error?.code, result.error?.issues);
+      }
+      return { blob: await response.blob(), revision: Number(response.headers.get("X-V2-Revision")),
+        filename: response.headers.get("X-V2-Filename") };
+    }
+
+    async runPreflight(url, options = {}) {
       return requestJson(url, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({}),
+        body: JSON.stringify(options),
       });
     }
   }

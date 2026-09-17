@@ -9,9 +9,13 @@ from functools import wraps
 import hashlib
 import json
 from pathlib import Path
+from threading import BoundedSemaphore
 
 from .job_repository import JobRepository, JobRepositoryError
 from .process_lock import exclusive_file_lock
+
+_OUTPUT_WORKERS = BoundedSemaphore(2)
+MAX_SOURCE_BYTES = 128 * 1024 * 1024
 
 
 class OutputSnapshotError(ValueError):
@@ -43,6 +47,8 @@ class OutputSnapshot(JobRepository):
     def read_source(self, path):
         key = str(path)
         if key not in self.sources:
+            if Path(path).stat().st_size + sum(len(data) for data in self.sources.values()) > MAX_SOURCE_BYTES:
+                raise OutputSnapshotError('OUTPUT_RESOURCE_LIMIT','The request exceeds the 128 MiB source budget',422)
             self.sources[key] = Path(path).read_bytes()
         return self.sources[key]
 
@@ -74,6 +80,9 @@ def snapshot_operation(error_type):
     def decorate(method):
         @wraps(method)
         def execute(self, job_id, **kwargs):
+            if not isinstance(self._jobs,OutputSnapshot):
+                if not _OUTPUT_WORKERS.acquire(blocking=False):
+                    raise error_type('OUTPUT_BUSY','Ya hay dos salidas en proceso. Espera y vuelve a intentarlo.',429)
             try:
                 if isinstance(self._jobs, OutputSnapshot):
                     return method(self, job_id, **kwargs)
@@ -88,10 +97,18 @@ def snapshot_operation(error_type):
                 if not isinstance(mirror,bool):
                     raise OutputSnapshotError('INVALID_OUTPUT_OPTION', 'allow_mirror_bleed must be boolean',400)
                 snapshot = OutputSnapshot(self._jobs,job_id, {'face':face,'dpi':dpi,'allow_mirror_bleed':mirror})
+                expected = kwargs.pop('expected_revision',None)
+                if expected is not None:
+                    if isinstance(expected,bool) or not isinstance(expected,int) or expected<1:
+                        raise OutputSnapshotError('INVALID_OUTPUT_REVISION','expected_revision must be a positive integer',400)
+                    if snapshot.read_layout(job_id)['job']['revision']!=expected:
+                        raise OutputSnapshotError('PREFLIGHT_STALE','The requested revision is no longer current')
                 return method(type(self)(snapshot),job_id,**kwargs)
             except OutputSnapshotError as exc:
                 raise error_type(exc.code,exc.message,exc.status_code) from exc
             except JobRepositoryError as exc:
                 raise error_type(exc.code,exc.message,404 if exc.code=='JOB_NOT_FOUND' else 400 if exc.code=='INVALID_JOB_ID' else 500) from exc
+            finally:
+                if not isinstance(self._jobs,OutputSnapshot): _OUTPUT_WORKERS.release()
         return execute
     return decorate

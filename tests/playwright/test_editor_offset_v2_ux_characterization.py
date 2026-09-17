@@ -1028,7 +1028,7 @@ def test_phase_19_d_workflow_navigation_groups_tools_without_layout_mutation(
             page.keyboard.press("End")
             expect(page.locator("#ev2-stage-tab-output")).to_be_focused()
             expect(page.locator("#ev2-stage-output")).to_contain_text(
-                "todavía no genera archivos"
+                "funciones están deshabilitadas en este servidor"
             )
 
             page.locator("#ev2-workspace-open-align").click()

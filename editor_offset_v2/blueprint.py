@@ -383,17 +383,21 @@ def preflight(job_id: str):
                 400,
             )
         )
-    if isinstance(payload, dict) and payload:
+    if isinstance(payload, dict) and (set(payload)-{'face','dpi','allow_mirror_bleed'} or
+            ('face' in payload and (not isinstance(payload['face'],str) or payload['face'] not in ('front','back','both'))) or
+            ('dpi' in payload and (isinstance(payload['dpi'],bool) or not isinstance(payload['dpi'],int) or not 36<=payload['dpi']<=300)) or
+            ('allow_mirror_bleed' in payload and not isinstance(payload['allow_mirror_bleed'],bool))):
         return _error_payload(
             PreflightServiceError(
                 "INVALID_PREFLIGHT_REQUEST",
-                "Preflight does not accept options in this phase",
+                "Preflight options are invalid",
                 400,
             )
         )
     try:
         report = PreflightService(_job_repository()).run(
             job_id,
+            options=payload or {},
             enabled_operations={
                 "preview": current_app.config.get(EDITOR_OFFSET_V2_PREVIEW_ENABLED) is True,
                 "pdf_final": current_app.config.get(EDITOR_OFFSET_V2_PDF_FINAL_ENABLED) is True,
@@ -426,7 +430,7 @@ def preview(job_id: str):
                 400,
             )
         )
-    unexpected = set(payload) - {"face", "dpi", "allow_mirror_bleed"}
+    unexpected = set(payload) - {"face", "dpi", "allow_mirror_bleed", "expected_revision"}
     if unexpected:
         return _error_payload(
             PreviewServiceError(
@@ -441,10 +445,11 @@ def preview(job_id: str):
             face=payload.get("face", "front"),
             dpi=payload.get("dpi", PREVIEW_DEFAULT_DPI),
             allow_mirror_bleed=payload.get("allow_mirror_bleed", False),
+            expected_revision=payload.get("expected_revision"),
         )
     except PreviewServiceError as error:
         return _error_payload(error)
-    return send_file(
+    response = send_file(
         io.BytesIO(result.data),
         download_name=result.path.name,
         mimetype="image/png",
@@ -452,6 +457,10 @@ def preview(job_id: str):
         etag=result.sha256,
         max_age=3600,
     )
+    response.headers["X-V2-Revision"]=str(result.revision)
+    response.headers["X-V2-Filename"]=result.path.name
+    response.headers["Cache-Control"]="no-store"
+    return response
 
 
 @editor_offset_v2_bp.post(
@@ -518,7 +527,7 @@ def pdf_final(job_id: str):
                 400,
             )
         )
-    unexpected = set(payload) - {"face", "dpi", "allow_mirror_bleed"}
+    unexpected = set(payload) - {"face", "dpi", "allow_mirror_bleed", "expected_revision"}
     if unexpected:
         return _error_payload(
             PdfFinalServiceError(
@@ -533,10 +542,11 @@ def pdf_final(job_id: str):
             face=payload.get("face", "front"),
             dpi=payload.get("dpi", PREVIEW_DEFAULT_DPI),
             allow_mirror_bleed=payload.get("allow_mirror_bleed", False),
+            expected_revision=payload.get("expected_revision"),
         )
     except PdfFinalServiceError as error:
         return _error_payload(error)
-    return send_file(
+    response = send_file(
         io.BytesIO(result.data),
         download_name=result.path.name,
         mimetype="application/pdf",
@@ -544,6 +554,10 @@ def pdf_final(job_id: str):
         etag=result.sha256,
         max_age=3600,
     )
+    response.headers["X-V2-Revision"]=str(result.revision)
+    response.headers["X-V2-Filename"]=result.path.name
+    response.headers["Cache-Control"]="no-store"
+    return response
 
 
 @editor_offset_v2_bp.put("/api/editor-offset-v2/jobs/<job_id>/layout")

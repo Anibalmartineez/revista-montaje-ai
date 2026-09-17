@@ -61,6 +61,29 @@ function outputRefs() {
   };
 }
 
+test("preflight groups repeated placements but keeps different assets distinct", () => {
+  const issues = ["a", "b", "c"].map((slot, index) => ({
+    severity: "error", code: "BLEED_REQUIRES_EXPLICIT_MIRROR", message: "Missing bleed",
+    references: {slot_ids: [slot], asset_ids: [index === 2 ? "asset2" : "asset1"], path: `slots[${index}].bleed`},
+  }));
+  const groups = OutputPanel.groupPreflightIssues(issues);
+  assert.equal(groups.length, 2);
+  assert.deepEqual(groups[0].slotIds, ["a", "b"]);
+  assert.deepEqual(groups[1].slotIds, ["c"]);
+});
+
+test("layout changes clear obsolete output findings after a blocked generation", () => {
+  const refs = outputRefs();
+  refs.outputResult = {textContent: "Salida bloqueada", dataset: {state: "error"}};
+  refs.outputFindings = {replaceChildren() { this.cleared = true; }};
+  const panel = new OutputPanel.Panel(new EditorStore(fixture()), refs, {}, {}, {});
+  panel.invalidateArtifact();
+  assert.equal(refs.outputFindings.cleared, true);
+  assert.equal(refs.outputResult.dataset.state, "warning");
+  assert.match(refs.outputResult.textContent, /Vuelve a comprobar/);
+  panel.dispose();
+});
+
 function repeatResult(slot) {
   const proposed = structuredClone(slot);
   proposed.id = "slot_repeat_editable";

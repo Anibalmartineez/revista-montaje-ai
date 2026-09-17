@@ -1,5 +1,7 @@
 # Contrato canónico de preflight del Editor Offset Visual V2
 
+> Vigente tras 39C: política 2, capacidades nativas 3, envelope 1. `POST preflight` admite `face`, `dpi` entero 36–300 y `allow_mirror_bleed` booleano; rechaza opciones desconocidas o tipos inválidos. El reporte incluye opciones y hashes de archivos efectivos. Preview/PDF regeneran y consumen su propio reporte sobre el mismo snapshot y aceptan `expected_revision` para cancelar una revisión distinta. La UI guarda primero, agrupa hallazgos e invalida resultados ante cambios. La autoridad es V2 nativo, no las restricciones del puente. Gates separados; CTP bloqueado. Evidencia y perfil: [39](39_PLAN_SAFE_CIERRE_SALIDA_PRODUCTIVA_V2.md). Los apartados inferiores conservan decisiones/evidencia de su corte.
+
 > Actualización 39A (2026-09-16): preflight nativo V2, política/capacidades versión 2; snapshot de layout, opciones y archivos efectivos. Se rechazan reportes incompletos, obsoletos o incompatibles y derivados ausentes/alterados. Publicación y limpieza coordinadas; entrega desde bytes de la petición. El candidato PDF raster bloquea preservación vectorial hasta 39B. Gates globales apagados. Evidencia y continuación: [plan 39](39_PLAN_SAFE_CIERRE_SALIDA_PRODUCTIVA_V2.md). Lo que sigue conserva el corte histórico indicado.
 
 ## 1. Estado, autorización y jerarquía

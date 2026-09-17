@@ -120,10 +120,11 @@ class PreflightService:
         job_id: str,
         *,
         enabled_operations: Mapping[str, bool] | None = None,
+        options: dict | None = None,
     ) -> dict[str, object]:
         try:
             if not isinstance(self._jobs, OutputSnapshot):
-                return PreflightService(OutputSnapshot(self._jobs, job_id)).run(job_id, enabled_operations=enabled_operations)
+                return PreflightService(OutputSnapshot(self._jobs, job_id, options)).run(job_id, enabled_operations=enabled_operations)
             layout = self._jobs.read_layout(job_id)
             layout_bytes = self._jobs.layout_bytes
         except JobRepositoryError as exc:
@@ -172,7 +173,7 @@ class PreflightService:
                 physical_issues.append(_issue(
                     issue_id=self._next_issue("asset-path"), check_id=check_id,
                     code="ASSET_UNSAFE_PATH" if isinstance(exc, AssetRepositoryError) else "ASSET_MISSING",
-                    severity="error", message=str(exc), path=f"$.assets[{asset_id}].storage_key",
+                    severity="error", message="El archivo fuente no está disponible o su ruta no es segura.", path=f"$.assets[{asset_id}].storage_key",
                     asset_ids=[asset_id], blocks=list(PREFLIGHT_OPERATIONS),
                 ))
                 continue

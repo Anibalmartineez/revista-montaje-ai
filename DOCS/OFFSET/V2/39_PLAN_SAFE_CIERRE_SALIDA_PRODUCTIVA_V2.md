@@ -1,12 +1,12 @@
 # Plan SAFE — Cierre de salida V2 en tres fases
 
-**Estado: plan completo aprobado; ejecución secuencial 39A–39C.**
+**Estado: plan aprobado y ejecutado secuencialmente; evidencia de cierre 39A–39C en sección 9.**
 
 ## 1. Objetivo y autorización
 
 Entregar un recorrido V2 verificable: preparar PDFs y sus páginas, montar y corregir contenido, comprobar el resultado, generar Preview y descargar un PDF que respete el montaje aprobado.
 
-Este documento autoriza únicamente su propia preparación. El usuario pidió revisar y aprobar primero el plan completo. No se inicia implementación ni se crean commits en esta entrega.
+Al redactarse, el documento solo autorizaba su preparación. Posteriormente el usuario aprobó el conjunto, pidió guardar el plan antes del código y autorizó ejecutar 39A, 39B y 39C una por una con pruebas y commits locales. El plan se guardó en `1647be8` antes de implementar.
 
 Tras aprobar este plan, la ejecución propuesta es secuencial: **39A → pruebas → commit local → 39B → pruebas → commit local → 39C → pruebas → commit local**. La aprobación del conjunto permite continuar entre fases cuando se cumplen sus criterios; no hace falta otra confirmación rutinaria. Una ampliación material del contrato, del alcance o del impacto sobre V1 sí exige presentar la decisión concreta antes de actuar.
 
@@ -219,9 +219,9 @@ Si aparece una necesidad contractual fuera de las decisiones aprobadas, preparar
 | Fase | Estado | Commit de cierre | Pruebas/artefactos |
 |---|---|---|---|
 | Plan | Aprobado por el usuario | `1647be8` | Documento aprobado y guardado antes del código |
-| 39A | Implementada y validada | Commit de esta entrega | 461 Python + 1 omitida; 122 Node; 23 Playwright V2 (21 iniciales + 2 focalizados); QA local |
-| 39B | Implementada y validada | Commit de esta entrega | 528 Python + 1 omitida; 122 Node; 26 Playwright entre suite y repetición focalizada |
-| 39C | No iniciada | — | Pendiente |
+| 39A | Implementada y validada | `e85a29e` | 461 Python + 1 omitida; 122 Node; 23 Playwright V2 (21 iniciales + 2 focalizados); QA local |
+| 39B | Implementada y validada | `7e9e54f` | 528 Python + 1 omitida; 122 Node; 26 Playwright entre suite y repetición focalizada |
+| 39C | Implementada y validada | Commit que incorpora este cierre | 545 Python + 1 omitida; 124 Node; 27 Playwright; QA real/multipágina |
 
 Actualizar esta tabla con evidencia real al ejecutar. No sustituir pendientes por afirmaciones de éxito anticipadas.
 
@@ -247,3 +247,54 @@ Actualizar esta tabla con evidencia real al ejecutar. No sustituir pendientes po
 - QA local CUA: escala X 0.8 aplicada en una pieza del job de auditoría, imagen SVG actualizada y comprobada visualmente, seguida de Deshacer; consola sin errores. Flask reiniciado mediante skill y HTTP 200, dev tools=0.
 - Artefactos locales privados: `.codex-runtime/phase39/torrente-native.pdf` (317724 bytes, 383 caracteres, 453 dibujos incluyendo 8 marcas, 10 imágenes incluyendo bandas) y `cupon-native.pdf` (916971 bytes, 8 marcas, 9 imágenes). Fuentes del escritorio sin cambios. Estos archivos no se versionan.
 - Capacidades nativas pasan a versión 3; reportes anteriores requieren regeneración. Los derivados horneados siguen siendo raster y no recuperan vectores.
+
+### Evidencia 39C
+
+- Regresión final completa V2: **545 Python aprobadas y una omitida**, **124 Node aprobadas**, **27 Playwright aprobadas**. La omisión corresponde a crear un symlink, no permitido por los privilegios de Windows; no se marca ese caso como validado. Sintaxis de los JS modificados y `git diff --check` correctos. Logs locales: `.codex-runtime/phase39/{python-final,node-final,browser-final}.log`. Persisten avisos de deprecación de dependencias, sin fallos de esta regresión. No se ejecutó la suite global ni la suite V1.
+- Panel Salida conectado mediante acciones registradas. La UI guarda, exige estado limpio, ejecuta preflight con opciones, solicita artefacto con `expected_revision` y verifica MIME/revisión antes de presentarlo. Cambiar layout/opciones invalida la Preview y los hallazgos anteriores. Las respuestas tardías se descartan; solicitudes duplicadas se bloquean mientras una está pendiente. El mensaje PDF anuncia descarga iniciada, no certifica que el navegador la haya guardado.
+- Preflight admite opciones validadas; errores por causa/piezas y operaciones afectadas se muestran agrupados. El perfil visible distingue composición nativa de raster explícito. Los controles se deshabilitan cuando su gate está apagado; no se presenta ese estado como defecto del PDF.
+- Pruebas nuevas: tipos de opciones, revisión solicitada, headers sin rutas físicas, fallo de publicación, presupuesto de fuentes, límite de piezas, cuatro solicitudes concurrentes, transporte de fuente grande, multipágina y carga de placements. Node cubre agrupación y eliminación de diagnóstico obsoleto. El recorrido Playwright descarga y abre el PDF, verifica texto/vectores, simula 503, reintenta y descarta respuesta tardía tras cambiar opciones.
+- Fallo simulado de `os.replace`: respuesta estructurada, layout intacto y ningún PDF/temporal parcial. Cuatro solicitudes con barreras: dos completan y dos reciben `OUTPUT_BUSY`; una posterior vuelve a funcionar. Los tests previos de 39A/38 cubren retención, recuperación, fuentes/derivados alterados y cambios de revisión durante publicación.
+- QA real en navegador, desde cero: job `ev2_28ef3fa8072cd797a26dbc41`, siete formas Torrente y siete cupón, bleed 3 mm, pliego 700×500 mm. Gap 1 mm reproduce invasión de trim por marcas; clipping TrimBox descarta bleed y sin espejo falta cobertura. Salida bloqueada correctamente. Mediante UI se reemplaza Repeat con gap 8 mm, se aplica BleedBox a las 14 piezas y se autoriza espejo. Preview 150 dpi y PDF r9 aprobados sin errores de consola. No se cambió automáticamente la imposición del operador.
+- PDF real inspeccionado: una página 700×500 mm, 1249982 bytes, 2681 caracteres, 3227 dibujos (3115 de las siete fuentes vectoriales y 112 marcas), fuentes originales del escritorio con hashes intactos. Copia privada: `.codex-runtime/phase39/qa14-final.pdf`; render inspeccionado en `qa14-preview.png`. Los PDFs privados y jobs quedan fuera de Git.
+- QA multipágina desde cero: job `ev2_6cf1f89669e4de80003db848`, fixture de tres páginas, cantidades 2/3/1 y rotaciones permitidas 0/90/180/270. Repeat coloca seis formas; Preview 72 dpi y PDF r5 sin errores de consola. Inspección del archivo confirma exactamente dos «PAGINA 1», tres «PAGINA 2» y una «PAGINA 3», pliego 700×500 y 12958 bytes. El evento de descarga del complemento CUA agotó su espera aunque la UI confirmó el inicio y el archivo del servidor fue inspeccionado; el test Playwright separado sí verificó el archivo descargado. No se atribuye ese timeout al renderer ni se presenta como una descarga del navegador verificada manualmente.
+- Flask iniciado/controlado con la skill, target V2, dev tools=0, sin cambiar entorno de usuario/máquina. El script de arranque comprueba shell y gates con peticiones a un ID inválido, sin crear jobs. Se preservó el job personal previamente abierto.
+
+#### Carga acotada y límites
+
+Mediciones locales de pruebas aisladas, no un benchmark ni garantía para todos los PDFs:
+
+| Caso | Tiempo observado | Resultado |
+|---|---:|---|
+| 14 placements vectoriales | 0.063 s | 4870 bytes; 14 textos |
+| 100 placements vectoriales | 0.985 s | 24236 bytes; 100 textos |
+| 500 placements vectoriales | 23.265 s | 115752 bytes; 500 textos |
+| PDF de 3 páginas | 0.141 s | Upload y última página correcta en salida |
+| PDF de 20 páginas | 0.219 s | Upload y última página correcta en salida |
+| PDF de 249 páginas | 1.375 s | Upload y última página correcta en salida |
+| Fuente de 51381068 bytes (49 MiB) | 4.953 s | Upload, snapshot, hash y PDF correctos |
+
+Los placements reutilizan un PDF vectorial simple de 90×50 mm en pliego grande, sin marcas/bleed. La fuente de 49 MiB contiene un stream sin comprimir no usado; comprueba transporte/hash/tamaño, no complejidad de composición. Se corrigieron dos errores del propio fixture grande (work apuntaba a TrimBox ausente y ruta de asset anidada) antes de aprobarlo.
+
+Muestra de memoria del proceso Flask que atendía el puerto, durante el QA real: working set 147484672 bytes, máximo del proceso 168992768, memoria privada 366686208. No se midió pico individual por nivel de carga; no se declara validado un techo global de memoria. Límites preventivos: upload 50 MiB por defecto, snapshot de fuentes acumuladas 128 MiB, 500 slots por layout, raster de pliego 24 MP y dos generaciones simultáneas por proceso. Más workers multiplican el presupuesto; no hay coordinador de memoria global. Retención sigue siendo manual.
+
+## 10. Arranque y uso del perfil aceptado
+
+Desde la raíz del repositorio:
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File scripts/start_editor_offset_v2_output_qa.ps1 -Restart
+```
+
+El script usa la skill local, reinicia únicamente su proceso registrado y habilita Preview/PDF/derivados para ese proceso. Si existe otro servidor no registrado, no lo mata ni asume sus flags. Mantiene dev tools=0 y restaura las variables del proceso invocador. Abrir `http://127.0.0.1:5000/editor_offset_visual_v2`.
+
+1. Crear job y subir PDF. En **Páginas del PDF**, marcar las páginas y cantidades; revisar caja, bleed y rotaciones antes de crear works.
+2. Configurar pliego/márgenes, seleccionar works, calcular y aplicar Repeat. Revisar que la separación permita las marcas y el sangrado; no asumir que 1 mm sirve con marcas individuales.
+3. En **Ajustar**, corregir contenido y clipping. Para conservar bleed solicitado, usar BleedBox cuando corresponda. Las correcciones mantienen undo/redo y guardado normal.
+4. En **Salida**, elegir cara y resolución. Activar espejo solo si se desea sintetizar sangrado faltante. Esta opción es temporal y se restablece al recargar; no altera el original.
+5. Generar Preview; revisar los motivos si se bloquea. Descargar PDF del mismo estado. La UI guarda y comprueba de nuevo antes de cada generación; la resolución afecta Preview/perfil raster, no convierte el PDF nativo entero a imagen.
+6. Si cambian piezas, opciones o revisión, regenerar. Ante 429 esperar la finalización de las salidas activas; ante error de red/publicación reintentar. Un conflicto de guardado se resuelve antes de producir salida.
+
+**Exclusiones vigentes:** CTP, certificación PDF/X, conversión/separación de color, capas/OutputIntents sin política admitida, clipping ilimitado, marcas avanzadas, generación automática del dorso e imposición editorial. El dorso PDF aplica el flip configurado; el canvas sigue mostrando coordenadas de edición. Los derivados y el espejo incluyen raster y no recuperan vectores. H12 (búsqueda de huecos de Repeat añadir) sigue pendiente y no fue modificado.
+
+Para retirar estas capacidades, desactivar sus gates y reiniciar el proceso controlado. Los commits de cada fase permiten rollback sin migración de Layout V2. No borrar originales, jobs ni artefactos del usuario. No se realizó push, merge ni validación global/V1.

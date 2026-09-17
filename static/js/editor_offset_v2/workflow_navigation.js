@@ -15,7 +15,7 @@
     impose: Object.freeze({ title: "Imponer", description: "Pliego y repetición" }),
     adjust: Object.freeze({ title: "Ajustar", description: "Posición y alineación" }),
     validate: Object.freeze({ title: "Validar", description: "Comprobaciones" }),
-    output: Object.freeze({ title: "Salida · pendiente", description: "PDF y CTP" }),
+    output: Object.freeze({ title: "Salida", description: "Preview y PDF" }),
   });
 
   function normalizeStage(value, fallback) {

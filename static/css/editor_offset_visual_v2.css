@@ -2930,3 +2930,10 @@ button[aria-pressed="true"],
     left: 64px;
   }
 }
+
+/* Output acceptance: compact controls and bounded preview inside inspector. */
+#ev2-stage-output label { display:block; margin:12px 0; }
+#ev2-stage-output select { max-width:100%; }
+.ev2-output-actions { display:flex; gap:8px; flex-wrap:wrap; }
+#ev2-output-image { width:100%; height:auto; background:white; border:1px solid #465565; }
+#ev2-output-findings { overflow-wrap:anywhere; max-height:240px; overflow:auto; }

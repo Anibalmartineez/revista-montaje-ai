@@ -1,5 +1,25 @@
 # Estado actual del Editor Offset Visual V2 después del rediseño UX
 
+## Estado operativo vigente — cierre 39A–39C, 2026-09-16
+
+V2 dispone de **Preview y descarga PDF desde la etapa Salida**, con compositor propio, preflight nativo obligatorio y artefactos ligados a revisión, opciones y fuentes. Los cortes anteriores que dicen «PDF pendiente», «solo raster» o «sin controles de salida» son historia de esas fases. La evidencia, límites, rollback y guía completa están en [39 — cierre de salida](39_PLAN_SAFE_CIERRE_SALIDA_PRODUCTIVA_V2.md#10-arranque-y-uso-del-perfil-aceptado).
+
+- El perfil nativo conserva objetos fuente; los derivados horneados siguen siendo raster. El espejo de sangrado exige permiso explícito y añade bandas raster a 300 dpi. Preview/canvas son vistas RGB, no pruebas certificadas de color.
+- Se admiten páginas/cajas físicas, transformaciones y marcas cubiertas por fixtures. La ausencia de BleedBox no bloquea por sí sola; importa la caja elegida y la cobertura real. TrimBox con bleed solicitado puede requerir cambiar explícitamente el clipping a BleedBox.
+- Los errores se agrupan por causa y piezas afectadas. Reporte incompleto, revisión obsoleta, fuentes alteradas, invasión de trim por marcas y opciones no soportadas bloquean la operación correspondiente.
+- PDF final conserva el tamaño del pliego en MediaBox/CropBox. CTP, PDF/X, conversión de color, marcas avanzadas e imposición editorial siguen fuera del perfil aceptado.
+- Gates globales permanecen apagados. El script siguiente arranca el proceso local con Preview/PDF/derivados habilitados, V2 activo y dev tools=0; solo detiene el proceso registrado por la skill:
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File scripts/start_editor_offset_v2_output_qa.ps1 -Restart
+```
+
+Abrir `http://127.0.0.1:5000/editor_offset_visual_v2`. Crear job → subir PDF → elegir páginas/cantidades → crear works → Repeat → revisar ajustes → Salida → Preview → Descargar PDF. El guardado y preflight se ejecutan antes de generar. El diagnóstico del puente legacy permanece identificado como histórico, sin gobernar la salida nativa.
+
+Límites operativos: 50 MiB por upload por defecto, 128 MiB de fuentes por snapshot, 500 slots por layout del perfil, 24 megapíxeles para rasterizar el pliego y dos generaciones simultáneas por proceso. Retención/recuperación son explícitas, sin purga automática. No se modificaron Layout V2, CAS, motores compartidos ni rutas V1.
+
+## Cortes históricos y trazabilidad
+
 > Corte posterior 39B: compositor PDF nativo y artwork transformado; capacidades v3. Perfil, marcas, limites y evidencia actual en [plan 39](39_PLAN_SAFE_CIERRE_SALIDA_PRODUCTIVA_V2.md). Este documento conserva la evidencia de su fase.
 
 > Actualización 39A (2026-09-16): preflight nativo V2, política/capacidades versión 2; snapshot de layout, opciones y archivos efectivos. Se rechazan reportes incompletos, obsoletos o incompatibles y derivados ausentes/alterados. Publicación y limpieza coordinadas; entrega desde bytes de la petición. El candidato PDF raster bloquea preservación vectorial hasta 39B. Gates globales apagados. Evidencia y continuación: [plan 39](39_PLAN_SAFE_CIERRE_SALIDA_PRODUCTIVA_V2.md). Lo que sigue conserva el corte histórico indicado.

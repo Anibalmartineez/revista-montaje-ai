@@ -11,6 +11,8 @@ def native_output_issues(layout, options=None):
         result.append((OutputIssue(code=code,level='error',message=message,path=path,
             slot_id=slot['id'] if slot else None,asset_id=slot['source']['asset_id'] if slot else None),list(blocks)))
     export = layout['export']
+    if len(layout['slots'])>500:
+        add('OUTPUT_PLACEMENT_LIMIT','Este perfil admite hasta 500 piezas por petición.','$.slots')
     if export['render_mode']=='raster' and export['preserve_vector_content']:
         add('OUTPUT_PROFILE_CONFLICT','Un perfil raster no puede preservar vectores.','$.export',('pdf_final',))
     if layout['ctp']['enabled']:
