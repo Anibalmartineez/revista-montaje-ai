@@ -59,6 +59,7 @@ class RepeatService:
             "respect_preferred_zones": current.layout["imposition"]["settings"]["respect_preferred_zones"],
         }
         operation_payload = {
+            "engine_version": self._adapter.engine_version,
             "job_id": current.job_id,
             "revision": current.revision,
             "work_ids": request["work_ids"],

@@ -187,3 +187,19 @@ test("Repeat panel helpers read configuration and selected works deterministical
   });
   assert.deepEqual(RepeatPanel.selectedWorkIds(container), ["work_a", "work_b"]);
 });
+
+
+test("Repeat records the actual native engine version and undo restores historical metadata", () => {
+  const layout = fixture(); layout.slots = [];
+  const before = structuredClone(layout.imposition);
+  const result = { ...proposal(layout), engine_version: "v2-repeat-1.0.0" };
+  const command = new Commands.ApplyRepeatCommand(layout, result, options());
+  command.execute(layout);
+  assert.equal(layout.imposition.engine_version, result.engine_version);
+  command.undo(layout);
+  assert.deepEqual(layout.imposition, before);
+  command.redo(layout);
+  assert.equal(layout.imposition.engine_version, result.engine_version);
+  const old = new Commands.ApplyRepeatCommand(fixture(), proposal(fixture()), options());
+  assert.equal(old.afterImposition.engine_version, "2.0.0-adapter");
+});

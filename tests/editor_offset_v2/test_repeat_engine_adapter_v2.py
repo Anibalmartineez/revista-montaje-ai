@@ -8,6 +8,7 @@ import pytest
 
 from editor_offset_v2.application.job_service import create_initial_layout_v2
 from editor_offset_v2.domain.geometry import Bounds, bleed_bounds
+from editor_offset_v2.domain.repeat_packer import Placement, PackingResult
 from editor_offset_v2.domain.validation import validate_layout_v2
 from editor_offset_v2.infrastructure.repeat_engine_adapter import RepeatEngineAdapter
 
@@ -152,24 +153,17 @@ def test_rotation_90_preserves_unrotated_trim_and_converts_productive_corner_to_
 
 
 @pytest.mark.parametrize(
-    ("allowed", "engine_rotation", "expected"),
-    [([180], 0, 180), ([270], 0, 270)],
+    ("allowed", "expected"),
+    [([180], 180), ([270], 270)],
 )
 def test_repeat_preserves_the_selected_180_and_270_cardinal_rotations(
-    allowed, engine_rotation, expected,
+    allowed, expected,
 ):
     case = load_case("single_zero_bleed")
     case = {**case, "requested": 1, "allowed_rotations_deg": allowed}
     layout = make_layout(case)
 
-    adapter = RepeatEngineAdapter(
-        engine=lambda _layout: [{
-            "design_ref": "work_repeat",
-            "x_mm": 10,
-            "y_mm": 10,
-            "rotation_deg": engine_rotation,
-        }],
-    )
+    adapter = RepeatEngineAdapter()
     result = adapter.propose(
         layout,
         ["work_repeat"],
@@ -309,7 +303,10 @@ def test_invalid_work_sources_and_placeholders_are_explicit(mutation, code):
 def test_invalid_engine_positions_are_rejected(legacy_slots, expected_code):
     case = load_case("single_zero_bleed")
     layout = make_layout(case)
-    adapter = RepeatEngineAdapter(engine=lambda _layout: legacy_slots)
+    def fake_engine(problem):
+        return PackingResult(tuple(Placement(s['design_ref'],
+            Bounds(s['x_mm'],s['x_mm']+40,s['y_mm'],s['y_mm']+20),s['rotation_deg']) for s in legacy_slots))
+    adapter = RepeatEngineAdapter(engine=fake_engine)
 
     result = adapter.propose(
         layout,
@@ -325,11 +322,12 @@ def test_invalid_engine_positions_are_rejected(legacy_slots, expected_code):
     assert expected_code in {issue.code for issue in result.issues}
 
 
-def test_add_checks_existing_overlap_while_replace_excludes_selected_work_face():
+def test_add_searches_around_obstacles_while_replace_excludes_selected_work_face():
     case = load_case("single_zero_bleed")
     layout = make_layout(case)
     first = propose(layout, case)
     layout["slots"] = [copy.deepcopy(first.slots[0])]
+    layout["slots"][0]["id"] = "slot_existing"
 
     add = RepeatEngineAdapter().propose(
         layout,
@@ -350,8 +348,10 @@ def test_add_checks_existing_overlap_while_replace_excludes_selected_work_face()
         apply_mode="replace_work_face",
     )
 
-    assert add.success is False
-    assert "OVERLAP_EXISTING_SLOT" in {issue.code for issue in add.issues}
+    assert add.success is True
+    existing = bleed_bounds(RepeatEngineAdapter._slot_geometry(layout['slots'][0]))
+    from editor_offset_v2.domain.repeat_packer import separated
+    assert all(separated(bleed_bounds(RepeatEngineAdapter._slot_geometry(s)),existing,4,3) for s in add.slots)
     assert replace.success is True
 
 

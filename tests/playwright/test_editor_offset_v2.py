@@ -370,6 +370,8 @@ def test_v2_visual_semantics_printable_output_and_approximate_artwork(v2_server,
                 "() => { const store = window.__EDITOR_OFFSET_V2__.store; "
                 "const slot = store.layout.slots[0]; "
                 "store.layout.sheet.printable_margins_mm.left = 60; "
+                "slot.geometry.rotation_deg = 0; "
+                "Object.assign(store.layout.slots[1].geometry.position_mm, { x_mm: 250, y_mm: 200 }); "
                 "const half = slot.geometry.trim_size_mm.width / 2 + slot.geometry.bleed_mm; "
                 "slot.geometry.position_mm.x_mm = half + 1; "
                 "slot.content_transform.scale_x = 0.9; "
@@ -1011,6 +1013,15 @@ def test_v2_object_operations_clipboard_locks_alt_drag_and_persistence(
             assert input_after == input_before
 
             alt_source_id = original_ids[1]
+            # Keep the drag target clear of earlier pasted/duplicated pieces;
+            # Repeat's initial arrangement is not part of this interaction test.
+            page.evaluate(
+                "slotId => { const store = window.__EDITOR_OFFSET_V2__.store; "
+                "Object.assign(store.layout.slots.find(slot => slot.id === slotId).geometry.position_mm, "
+                "{ x_mm: 500, y_mm: 350 }); "
+                "store.markChanged(); store.emit('external_update'); }",
+                alt_source_id,
+            )
             page.evaluate(
                 "slotId => window.__EDITOR_OFFSET_V2__.store.setSelection([slotId], 'replace')",
                 alt_source_id,

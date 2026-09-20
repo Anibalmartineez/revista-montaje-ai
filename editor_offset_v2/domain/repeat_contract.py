@@ -71,6 +71,8 @@ class RepeatResultV2:
     warnings: tuple[str, ...]
     metrics: RepeatMetricsV2
     issues: tuple[RepeatIssueV2, ...] = ()
+    engine_version: str | None = None
+    work_counts: tuple[dict[str, Any], ...] = ()
 
     def as_dict(self) -> dict[str, object]:
         return {
@@ -85,6 +87,8 @@ class RepeatResultV2:
             "warnings": list(self.warnings),
             "metrics": self.metrics.as_dict(),
             "issues": [issue.as_dict() for issue in self.issues],
+            "engine_version": self.engine_version,
+            "work_counts": copy.deepcopy(list(self.work_counts)),
         }
 
 

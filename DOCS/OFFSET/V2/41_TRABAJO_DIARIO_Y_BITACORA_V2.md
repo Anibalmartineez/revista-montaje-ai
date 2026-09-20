@@ -155,3 +155,67 @@ Las pruebas detectaron durante la implementación que el orden de claves devuelt
 **Límites y trabajo abierto:** el caso de cuatro páginas y el motor Repeat independiente siguen pendientes de la entrega C. La vista temporal de distribución y la revisión de atomicidad del comando ApplyRepeat de 42 no se completan aquí. V2 todavía depende del motor compartido actual; esta entrega no declara independencia total. La interfaz informa del sangrado solicitado y remite la cobertura física a preflight; no incorpora un nuevo cálculo geométrico de cobertura ni certifica arte útil fuera del corte. No se amplían marcas, CTP, PDF/X, nesting, separación de slots ni dúplex completo. No se ejecuta la suite global del repositorio ni toda la suite Python V2. Los originales y el job del usuario permanecen intactos.
 
 **Cierre de la intervención:** sintaxis de los ocho archivos JavaScript modificados/nuevos comprobada con `node --check`; `git diff --check` sin errores. Cambios conservados sin commit en la rama actual.
+
+### 2026-09-20 — Repeat propio V2: entrega C
+
+**Solicitud y alcance:** avanzar con el motor propio del plan 42 después de la preparación unificada. Base Git limpia en `d41d041`, rama `codex/editor-offset-v2-stabilization`. Intervención sobre Repeat V2, contrato transitorio de propuesta, registro de versión al aplicar y pruebas. No se modifican motores comunes, V1, schema persistente ni originales del usuario.
+
+**Base reproducida:** antes de sustituir el adaptador, 35 tests focalizados de Repeat pasaron. Un fixture independiente con cuatro trabajos de 254 × 142,875 mm en pliego 700 × 500, separación 3 mm y bleed 0 devolvió `INCOMPLETE_IMPOSITION`, sin propuesta aplicable, pese a caber geométricamente. El caso quedó fijado como regresión; la prueba final usa cuatro páginas físicas distintas y conserva sus identidades.
+
+**Cambio y mapa del flujo ejecutable:**
+
+```text
+RepeatPanel → API Repeat → RepeatService (revisión y petición)
+  → RepeatEngineAdapter (fuentes, preferencias, alcance y obstáculos)
+  → domain/repeat_packer.py (búsqueda pura propia V2)
+  → adapter + kernel geometry (validación final, slots y cuentas por work)
+  → propuesta temporal actual → ApplyRepeatCommand → undo/redo + guardado
+```
+
+- `domain/repeat_packer.py` sustituye completamente la llamada al motor compartido. Busca rectángulos libres compartidos entre trabajos; resta obstáculos y separaciones antes de colocar. No lee archivos ni persiste. El adaptador conserva su punto de entrada para sus consumidores, con implementación nativa, sin traducción ni fallback al motor anterior.
+- La huella incluye trim y bleed, orientados con giros cardinales admitidos. Gap H/V es la distancia mínima en un eje separador entre huellas; se cuenta una sola vez y no se exige contra el borde además del margen. El kernel vuelve a validar límites, rotaciones, dimensiones, IDs, obstáculos y separaciones al construir los slots.
+- `add` añade la demanda completa a los slots retenidos; no significa completar faltantes. `replace_work_face` excluye solo slots de trabajos/cara elegidos; un lock de eliminación bloquea el reemplazo entero. Piezas de otros trabajos y caras conservan identidad; los obstáculos de la cara se consideran aunque no estén visibles en la selección.
+- Sin fill no hay extras. Fill atiende toda la demanda antes de rellenar y no rellena mientras falte algún trabajo. Las cuentas se calculan por work antes de sumar. Sin permiso de parcialidad, un resultado incompleto no entrega slots aplicables. `exact_quantity` mantiene compatibilidad con el servicio existente; no incorpora una tercera política.
+- `RepeatResultV2` añade `engine_version` y `work_counts` transitorios. La versión `v2-repeat-1.0.0` participa en la identidad de operación y se conserva en `imposition.engine_version` al aplicar. Undo restaura el valor anterior; propuestas antiguas sin ese campo conservan la compatibilidad de versión del adaptador. No hay migración ni cambio del schema de Layout V2.
+- Diagnósticos distintos: `PIECE_EXCEEDS_PRINTABLE_AREA`, `INCOMPLETE_IMPOSITION`, `REPLACE_LOCKED`, `UNSUPPORTED_PREFERENCE` y `CALCULATION_LIMIT`. No encontrar una distribución no se presenta como demostración de que las piezas no caben.
+
+**Preferencias, determinismo y límites:** prioridad ascendente cuando está activada; desempate estable por identidad. Se comparan hasta cuatro ordenaciones dentro de cada prioridad (identidad, área, lado mayor y lado menor), con dos variantes de selección de orientación/posición. Se priorizan propuestas completas, cumplimiento por prioridad, cantidad, área productiva y envolvente compacta. En igualdad se conserva el primer resultado. Esto produce un 2×2 en la regresión sin imponer una posición a cada ID como contrato general.
+
+Zonas admitidas: auto/top/bottom/left/right/center/fill; `none` equivale a auto. Son preferencias, no regiones rígidas; fill se ordena después dentro de la misma prioridad. Flujos: auto/horizontal/vertical; rows/columns equivalen a horizontal/vertical y manual/none a auto. Preferencias desconocidas fallan explícitamente. Los giros exactos 180/270 se conservan aunque compartan huella con 0/90.
+
+Límites definidos en el módulo: 128 trabajos, 2.000 formas solicitadas/placements, 2.000 obstáculos, 1.024 rectángulos libres y 1.000.000 unidades de esfuerzo contabilizado. La cantidad se mantiene compacta; no se expanden solicitudes enormes. Un límite puede devolver el mejor resultado válido y un aviso, o bloquear si la política exige completitud. La búsqueda es heurística y acotada, no optimización garantizada.
+
+Medición local del **motor puro**, sin suites/navegador pesados ejecutándose en paralelo: 20 trabajos, tamaños 10–12 × 10–11 mm, área 680 × 480, gaps 2/3, giros 0/90. No incluye HTTP, validación final cuadrática, render ni PDF:
+
+| Solicitadas | Colocadas | Límite alcanzado | Esfuerzo | Tiempo observado |
+|---|---:|---|---:|---:|
+| 200 | 200 | No | 150.168 | 0,714 s |
+| 1.000 | 1.000 | Sí, al comparar alternativas después de completar | 1.000.001 | 1,352 s |
+| 2.000 | 1.363 | Sí | 1.000.001 | 1,218 s |
+
+No se certifica capacidad industrial a partir de estas mediciones. Con 2.000 solicitadas y sin parcialidad, esa propuesta incompleta queda bloqueada; alcanzar el límite no certifica el aprovechamiento máximo.
+
+**Prueba interactiva:** skill `editor-offset-local-qa`, target V2, enabled=1, dev tools=0. Se reinició únicamente el proceso registrado y verificado para cargar el Python nuevo (sin reloader); PID final 21352. Después del reinicio, `/` y `/editor_offset_visual_v2` devolvieron HTTP 200 en el segundo intento conjunto. No se lanzó otro servidor sobre el puerto ocupado.
+
+En Chrome se creó el job QA `ev2_661d38208d8a79bb1f83f53d` con un PDF sintético de cuatro páginas coloreadas. Tras calcular: 4 solicitadas, 4 colocadas, 0 faltantes, 0 extras; el montaje aún vacío hasta aplicar. Se aplicó, deshizo (0), rehízo (4), guardó y recargó. Layout final revisión 8, cuatro fuentes distintas y motor nativo. Distribución 2×2 con centros X 127/384 e Y 71,4375/217,3125 mm, rotación 0, gaps 3 y dimensiones 254 × 142,875. Consola consultada sin errores/warnings. El job original `ev2_c2ae50a13c42689bafd97ab3` no se modificó.
+
+**Salida y límite observado:** el caso de margen cero/gap 3 con marcas predeterminadas se bloquea por `CROP_MARK_OUTSIDE_SHEET` y/o `CROP_MARK_OVERPRINT`. Se conserva ese bloqueo, sin atribuirlo a un fallo previo no comparado. En el fixture aislado de Playwright se eligió explícitamente un perfil QA sin marcas mediante API, conservando exactamente los slots: PDF y Preview correctos, una página 700 × 500 mm, contenido vectorial sin imágenes raster, cuatro textos/colores de página en sus posiciones. El producto no desactiva marcas automáticamente. Encaje de footprints y espacio para marcas son comprobaciones distintas; el motor no reserva geometría de marcas.
+
+**Cobertura y límites de independencia:** una prueba en intérprete nuevo prohíbe importar engines/services/strategies/montaje_offset_inteligente, luego importa y ejecuta tanto el packer como RepeatService con repositorio temporal. Pasa sin dependencias transitivas de esos paquetes. Se comprobó también el arranque real de Flask. Esto demuestra aislamiento del camino Repeat; no declara independencia total del arranque de la aplicación ni de las otras superficies de V2.
+
+Dos tests Playwright existentes se ajustaron para fijar la geometría de su escenario: uno coloca explícitamente el slot que debe quedar dentro del nuevo margen; otro separa el objetivo de Alt+arrastre de copias anteriores. Conservan las aserciones de estado visual y procedencia exacta. Ya no dependen de las posiciones arbitrarias del motor anterior.
+
+**Pendiente dentro de 42:** D conserva la capa de propuesta visible antes de aplicar, detalle por trabajo y prevalidación atómica completa de ApplyRepeat. Solo se adelantó el registro de versión necesario para C. La guarda de propuestas obsoletas de B se mantiene. El recorrido integrado realizado aporta evidencia a E, pero no cierra el plan sin D. No se amplían marcas, CTP, PDF/X, nesting, dúplex ni separación masiva de slots. Rollback de código no revierte montajes guardados: los slots siguen siendo Layout V2 normales, con undo en su sesión cuando proceda.
+
+**Validación final de esta intervención:**
+
+| Comprobación | Resultado |
+|---|---|
+| Python focalizado Repeat: adaptador, servicio y packer | 57 passed; cuatro páginas, fuentes, cardinales, bleed, gaps, obstáculos, reemplazo, locks, parcial/fill, preferencias, límites y aislamiento transitivo. |
+| Suite Python V2 `tests/editor_offset_v2` | 567 passed, 1 skipped (symlink no disponible en Windows), 20 avisos de deprecación de dependencias; 137 s. |
+| Todos los tests Node V2 | 139 passed; incluye versión nativa al aplicar y restauración de metadatos mediante undo/redo. |
+| Playwright V2: edición, caracterización UX, salida, preparación y Repeat nativo | 30 passed; 171 s. Cinco avisos de deprecación de PyMuPDF/SWIG. |
+| Sintaxis y whitespace | `node --check static/js/editor_offset_v2/commands.js` y `git diff --check` correctos. |
+| Artefacto de salida | Preview PNG inspeccionada visualmente: 2×2 con páginas/colores correctos. PDF comprobado por dimensiones, texto, posiciones, color y ausencia de raster. |
+
+No se ejecutó la suite global del repositorio ni Playwright V1. Estos resultados no certifican todas las combinaciones productivas ni ausencia de defectos fuera del alcance. Cambios conservados en la rama actual, **sin commit** en esta intervención.

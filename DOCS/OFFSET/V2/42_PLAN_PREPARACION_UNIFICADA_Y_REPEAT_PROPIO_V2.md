@@ -1,8 +1,10 @@
 # Preparación unificada y Repeat propio V2 — plan de implementación
 
-Fecha del plan: 2026-09-19. Actualización: 2026-09-20. Estado: **primera entrega implementada: preparación unificada y edición segura; Repeat propio pendiente**.
+Fecha del plan: 2026-09-19. Actualización: 2026-09-20. Estado: **B y C implementadas: preparación unificada, edición segura y Repeat propio; D y cierre E pendientes**.
 
-La intervención actual cubre la base de pruebas para Preparar y la entrega B. Incluye únicamente las guardas de vigencia de propuestas de D, necesarias al editar trabajos. No implementa el motor C, la vista temporal completa de D ni el cierre integral E. Resultados y límites en [la entrada del 20 de septiembre en 41](41_TRABAJO_DIARIO_Y_BITACORA_V2.md#2026-09-20--primera-entrega-de-preparación-unificada).
+La primera intervención cubrió la base de pruebas para Preparar, B y las guardas de vigencia de propuestas de D necesarias al editar trabajos. La segunda implementa C y adelanta únicamente el registro de versión nativa al aplicar. Se comprobó el recorrido de cuatro páginas hasta PDF, sin cerrar E: faltan la capa temporal de propuesta, el detalle por trabajo en UI y la prevalidación atómica completa de ApplyRepeat de D. Resultados y límites en [41 — Bitácora](41_TRABAJO_DIARIO_Y_BITACORA_V2.md#2026-09-20--repeat-propio-v2-entrega-c).
+
+Las secciones siguientes conservan la especificación y la inspección del momento de planificación. Sus observaciones sobre el motor compartido y la versión fija describen la base anterior, no el código después de C. La evidencia de ejecución actual se registra en 41.
 
 Este plan responde únicamente a la mejora acordada: preparar páginas/trabajos en una sola interfaz y distribuirlos mediante código propio V2. No reactiva roadmaps anteriores ni establece una agenda para el resto del editor. La bitácora de ejecución continúa en [41 — Trabajo diario](41_TRABAJO_DIARIO_Y_BITACORA_V2.md).
 

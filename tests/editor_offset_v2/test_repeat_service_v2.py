@@ -240,3 +240,14 @@ def test_repeat_endpoint_feature_flag_and_conflict_are_controlled(tmp_path):
     assert disabled.get_json()["error"]["code"] == "V2_DISABLED"
     assert conflict.status_code == 409
     assert conflict.get_json()["error"]["code"] == "REVISION_CONFLICT"
+
+
+def test_engine_version_participates_in_operation_identity(tmp_path):
+    service, repository = make_service(tmp_path)
+    before = repository.read_layout(JOB_ID)
+    first = service.propose(JOB_ID, payload())
+    service._adapter.engine_version = "test-next-version"
+    second = service.propose(JOB_ID, payload())
+    assert first.operation_id != second.operation_id
+    assert second.engine_version == "test-next-version"
+    assert repository.read_layout(JOB_ID) == before

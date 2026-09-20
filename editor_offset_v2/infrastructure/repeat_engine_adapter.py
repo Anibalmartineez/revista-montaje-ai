@@ -1,217 +1,102 @@
-"""Isolated Layout V2 adapter for the existing Step & Repeat PRO engine."""
-
+"""Layout V2 source validation, native Repeat packing and slot construction."""
 from __future__ import annotations
 
 import copy
+from collections import Counter
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
-from typing import Any, Final
-
-from engines import step_repeat_pro_engine
+from typing import Any
 
 from editor_offset_v2.domain.geometry import (
-    Bounds,
-    Point,
-    Size,
-    SlotGeometry,
-    bleed_polygon,
-    oriented_size,
-    polygon_within_bounds,
-    productive_size,
-    slots_overlap,
-    validate_finite,
+    Bounds, Point, Size, SlotGeometry, bleed_bounds, bleed_polygon,
+    polygon_within_bounds, productive_size, slots_overlap,
 )
-from editor_offset_v2.domain.repeat_contract import (
-    RepeatIssueV2,
-    RepeatMetricsV2,
-    RepeatResultV2,
+from editor_offset_v2.domain.repeat_contract import RepeatIssueV2, RepeatMetricsV2, RepeatResultV2
+from editor_offset_v2.domain.repeat_packer import (
+    ENGINE_VERSION, MAX_PLACEMENTS, Piece, PackingProblem, PackingResult, pack, separated,
 )
 
-
-SUPPORTED_ZONES: Final = frozenset(
-    {"auto", "top", "bottom", "left", "right", "center", "fill"}
-)
-ZONE_ALIASES: Final = {"none": "auto"}
-FLOW_ALIASES: Final = {
-    "manual": "auto",
-    "none": "auto",
-    "rows": "horizontal",
-    "columns": "vertical",
-}
-SUPPORTED_FLOWS: Final = frozenset({"auto", "horizontal", "vertical"})
-
+ZONE_ALIASES = {"none":"auto"}
+FLOW_ALIASES = {"manual":"auto", "none":"auto", "rows":"horizontal", "columns":"vertical"}
+SUPPORTED_ZONES = frozenset({"auto","top","bottom","left","right","center","fill"})
+SUPPORTED_FLOWS = frozenset({"auto","horizontal","vertical"})
 
 @dataclass(frozen=True)
 class _WorkPlan:
     work: dict[str, Any]
     source: dict[str, Any]
-    horizontal_rotation: int | None
-    vertical_rotation: int | None
-    input_swapped: bool
 
 
 class RepeatEngineAdapter:
-    """Translate only valid Layout V2 data to and from the legacy engine boundary."""
+    """Own V2 boundary. No legacy product imports, translation or fallback."""
+    engine_version = ENGINE_VERSION
 
-    def __init__(
-        self,
-        engine: Callable[[dict[str, Any]], list[dict[str, Any]]] | None = None,
-    ) -> None:
-        self._engine = engine or step_repeat_pro_engine.build_step_repeat_slots
+    def __init__(self, engine: Callable[[PackingProblem], PackingResult] | None = None):
+        self._engine = engine or pack
 
-    def propose(
-        self,
-        layout: Mapping[str, object],
-        work_ids: Sequence[str],
-        face: str,
-        settings: Mapping[str, object],
-        *,
-        operation_id: str,
-        generated_at: str,
-        apply_mode: str,
-    ) -> RepeatResultV2:
-        source_layout = copy.deepcopy(dict(layout))
-        printable = self._printable_bounds(source_layout)
-        retained_slots = self._retained_slots(
-            source_layout,
-            work_ids,
-            face,
-            apply_mode,
-        )
-        empty_metrics = self._metrics(printable, (), retained_slots)
-        plans, issues = self._work_plans(source_layout, work_ids, face)
-        requested = sum(int(plan.work["requested_forms"]) for plan in plans)
-        if issues:
-            return self._failure(
-                operation_id,
-                generated_at,
-                requested,
-                empty_metrics,
-                issues,
-            )
-
-        counts = {plan.work["id"]: int(plan.work["requested_forms"]) for plan in plans}
-        legacy_slots, incomplete = self._run_counts(
-            source_layout,
-            plans,
-            counts,
-            face,
-            settings,
-        )
-        warnings: list[str] = []
-        if incomplete is not None:
-            if not settings["allow_partial"]:
-                issue = RepeatIssueV2(
-                    code="INCOMPLETE_IMPOSITION",
-                    level="error",
-                    message="No caben todas las formas solicitadas y la parcialidad está desactivada.",
-                    path="$.settings.allow_partial",
-                )
-                return self._failure(
-                    operation_id,
-                    generated_at,
-                    requested,
-                    empty_metrics,
-                    (issue,),
-                )
-            counts, legacy_slots = self._find_partial_counts(
-                source_layout,
-                plans,
-                counts,
-                face,
-                settings,
-                incomplete,
-            )
-            if legacy_slots is None:
-                issue = RepeatIssueV2(
-                    code="NOTHING_PLACED",
-                    level="error",
-                    message="Ninguna forma seleccionada cabe dentro del área imprimible.",
-                )
-                return self._failure(
-                    operation_id,
-                    generated_at,
-                    requested,
-                    empty_metrics,
-                    (issue,),
-                )
-            warnings.append("La propuesta es parcial: no caben todas las formas solicitadas.")
-
-        assert legacy_slots is not None
-        if settings["fill_remaining_space"]:
-            counts, legacy_slots = self._fill_remaining_capacity(
-                source_layout,
-                plans,
-                counts,
-                legacy_slots,
-                face,
-                settings,
-                printable,
-            )
-
-        slots, conversion_issues = self._normalize_slots(
-            source_layout,
-            plans,
-            legacy_slots,
-            face,
-            operation_id,
-            printable,
-            apply_mode,
-        )
-        if conversion_issues:
-            return self._failure(
-                operation_id,
-                generated_at,
-                requested,
-                empty_metrics,
-                conversion_issues,
-            )
-
-        placed = len(slots)
-        unplaced = max(0, requested - placed)
-        overproduced = max(0, placed - requested)
-        if unplaced and not warnings:
-            warnings.append(f"Quedaron {unplaced} formas sin colocar.")
+    def propose(self, layout, work_ids, face, settings, *, operation_id, generated_at, apply_mode):
+        layout = copy.deepcopy(dict(layout))
+        printable = self._printable_bounds(layout)
+        retained = self._retained_slots(layout,work_ids,face,apply_mode)
+        plans, source_issues = self._work_plans(layout,work_ids,face)
+        requested = sum(int(p.work['requested_forms']) for p in plans)
+        empty_metrics = self._metrics(printable,(),retained)
+        def failure(issues):
+            return RepeatResultV2(False,operation_id,generated_at,(),requested,0,requested,0,(),
+                empty_metrics,tuple(issues),self.engine_version,self._counts(plans,()))
+        if source_issues: return failure(source_issues)
+        if apply_mode == 'replace_work_face':
+            locked=[s for s in layout['slots'] if s['face']==face and s['work_id'] in work_ids and s['locks']['delete']]
+            if locked:
+                return failure([RepeatIssueV2('REPLACE_LOCKED','error',
+                    'Un bloqueo de eliminación impide reemplazar este slot.',slot_id=s['id'],work_id=s['work_id']) for s in locked])
+        pieces=[]
+        for plan in plans:
+            work=plan.work
+            zone=ZONE_ALIASES.get(work['preferred_zone'].strip().lower(),work['preferred_zone'].strip().lower())
+            flow=FLOW_ALIASES.get(work['preferred_flow'].strip().lower(),work['preferred_flow'].strip().lower())
+            if flow not in SUPPORTED_FLOWS or zone not in SUPPORTED_ZONES:
+                return failure([RepeatIssueV2('UNSUPPORTED_PREFERENCE','error',
+                    'La zona o el flujo preferido no tiene interpretación en Repeat V2.',work_id=work['id'])])
+            trim=Size(work['trim_size_mm']['width'],work['trim_size_mm']['height'])
+            pieces.append(Piece(work['id'],productive_size(trim,work['bleed_mm']),work['requested_forms'],
+                tuple(work['allowed_rotations_deg']),work['priority'],
+                zone if settings.get('respect_preferred_zones') else 'auto',flow))
+        problem=PackingProblem(printable,tuple(pieces),float(settings['horizontal_gap_mm']),
+            float(settings['vertical_gap_mm']),tuple(bleed_bounds(self._slot_geometry(s)) for s in retained),
+            bool(settings['fill_remaining_space']),bool(settings.get('respect_priority')))
+        result=self._engine(problem)
+        issues=[]
+        if result.limited:
+            issues.append(RepeatIssueV2('CALCULATION_LIMIT','warning',
+                'Se alcanzó el límite de cálculo de Repeat V2; no se certifica la capacidad restante.'))
+        for work_id in result.oversized:
+            issues.append(RepeatIssueV2('PIECE_EXCEEDS_PRINTABLE_AREA','warning',
+                'La pieza, incluido el sangrado, supera el área imprimible en todos sus giros permitidos.',work_id=work_id))
+        slots, validation_issues=self._normalize_slots(layout,plans,result.placements,face,operation_id,printable,retained,settings)
+        if validation_issues: return failure(validation_issues)
+        counts=self._counts(plans,slots)
+        unplaced=sum(c['unplaced'] for c in counts)
+        overproduced=sum(c['overproduced'] for c in counts)
+        if overproduced and (not settings['fill_remaining_space'] or unplaced):
+            return failure([RepeatIssueV2('INVALID_ENGINE_COUNTS','error','El motor produjo extras fuera de la política solicitada.')])
+        if unplaced and (not settings['allow_partial'] or not slots):
+            issues.append(RepeatIssueV2('INCOMPLETE_IMPOSITION','error',
+                'La búsqueda no encontró una distribución completa. No demuestra que las piezas no quepan; revisa área, giros, separaciones y obstáculos.'))
+            return failure([RepeatIssueV2(i.code,'error',i.message,i.path,i.work_id,i.slot_id,i.asset_id) for i in issues])
+        if unplaced:
+            issues.append(RepeatIssueV2('PARTIAL_IMPOSITION','warning',f'Propuesta parcial: faltan {unplaced} formas.'))
         if overproduced:
-            warnings.append(f"La propuesta sobreproduce {overproduced} formas.")
-        return RepeatResultV2(
-            success=True,
-            operation_id=operation_id,
-            generated_at=generated_at,
-            slots=tuple(slots),
-            requested=requested,
-            placed=placed,
-            unplaced=unplaced,
-            overproduced=overproduced,
-            warnings=tuple(warnings),
-            metrics=self._metrics(printable, tuple(slots), retained_slots),
-            issues=tuple(
-                RepeatIssueV2("PARTIAL_IMPOSITION", "warning", warning)
-                for warning in warnings
-            ),
-        )
+            issues.append(RepeatIssueV2('OVERPRODUCTION','warning',f'El relleno añade {overproduced} formas adicionales.'))
+        return RepeatResultV2(True,operation_id,generated_at,tuple(slots),requested,len(slots),unplaced,overproduced,
+            tuple(i.message for i in issues),self._metrics(printable,slots,retained),tuple(issues),self.engine_version,counts)
 
     @staticmethod
-    def _failure(
-        operation_id: str,
-        generated_at: str,
-        requested: int,
-        metrics: RepeatMetricsV2,
-        issues: Sequence[RepeatIssueV2],
-    ) -> RepeatResultV2:
-        return RepeatResultV2(
-            success=False,
-            operation_id=operation_id,
-            generated_at=generated_at,
-            slots=(),
-            requested=requested,
-            placed=0,
-            unplaced=requested,
-            overproduced=0,
-            warnings=(),
-            metrics=metrics,
-            issues=tuple(issues),
-        )
+    def _counts(plans, slots):
+        counts=Counter(s['work_id'] for s in slots)
+        return tuple({'work_id':p.work['id'],'requested':p.work['requested_forms'],
+            'placed':counts[p.work['id']], 'unplaced':max(0,p.work['requested_forms']-counts[p.work['id']]),
+            'overproduced':max(0,counts[p.work['id']]-p.work['requested_forms'])} for p in plans)
 
     @staticmethod
     def _printable_bounds(layout: Mapping[str, object]) -> Bounds:
@@ -228,13 +113,6 @@ class RepeatEngineAdapter:
             float(margins["bottom"]),
             height - float(margins["top"]),
         )
-
-    @staticmethod
-    def _rotation_plan(work: Mapping[str, object]) -> tuple[int | None, int | None, bool]:
-        rotations = tuple(int(value) for value in work["allowed_rotations_deg"])
-        horizontal = next((value for value in (0, 180) if value in rotations), None)
-        vertical = next((value for value in (90, 270) if value in rotations), None)
-        return horizontal, vertical, horizontal is None
 
     def _work_plans(
         self,
@@ -325,189 +203,13 @@ class RepeatEngineAdapter:
                     )
                 )
                 continue
-            horizontal, vertical, swapped = self._rotation_plan(work)
             plans.append(
                 _WorkPlan(
                     work=copy.deepcopy(work),
                     source=copy.deepcopy(source),
-                    horizontal_rotation=horizontal,
-                    vertical_rotation=vertical,
-                    input_swapped=swapped,
                 )
             )
         return plans, tuple(issues)
-
-    @staticmethod
-    def _zone(work: Mapping[str, object], settings: Mapping[str, object]) -> str:
-        if not settings.get("respect_preferred_zones"):
-            return "auto"
-        raw = str(work.get("preferred_zone") or "auto").strip().lower()
-        value = ZONE_ALIASES.get(raw, raw)
-        return value if value in SUPPORTED_ZONES else "auto"
-
-    @staticmethod
-    def _flow(work: Mapping[str, object]) -> str:
-        raw = str(work.get("preferred_flow") or "auto").strip().lower()
-        value = FLOW_ALIASES.get(raw, raw)
-        return value if value in SUPPORTED_FLOWS else "auto"
-
-    def _engine_layout(
-        self,
-        layout: Mapping[str, object],
-        plans: Sequence[_WorkPlan],
-        counts: Mapping[str, int],
-        face: str,
-        settings: Mapping[str, object],
-    ) -> dict[str, Any]:
-        sheet = layout["sheet"]
-        size = sheet["size_mm"]
-        margins = sheet["printable_margins_mm"]
-        designs: list[dict[str, object]] = []
-        ordered_plans = list(plans)
-        if settings.get("respect_priority"):
-            ordered_plans.sort(key=lambda item: (float(item.work["priority"]), item.work["id"]))
-        for plan in ordered_plans:
-            count = int(counts.get(plan.work["id"], 0))
-            if count <= 0:
-                continue
-            trim = plan.work["trim_size_mm"]
-            width = float(trim["height"] if plan.input_swapped else trim["width"])
-            height = float(trim["width"] if plan.input_swapped else trim["height"])
-            designs.append(
-                {
-                    "ref": plan.work["id"],
-                    "filename": plan.work["name"],
-                    "work_id": plan.work["id"],
-                    "width_mm": width,
-                    "height_mm": height,
-                    "bleed_mm": float(plan.work["bleed_mm"]),
-                    "forms_per_plate": count,
-                    "allow_rotation": plan.horizontal_rotation is not None
-                    and plan.vertical_rotation is not None,
-                    "priority": float(plan.work["priority"]),
-                    "preferred_zone": self._zone(plan.work, settings),
-                    "preferred_flow": self._flow(plan.work),
-                    "repeat_role": "fill" if self._zone(plan.work, settings) == "fill" else "secondary",
-                    "repeat_manual_overrides": {
-                        "priority": True,
-                        "preferred_flow": True,
-                        "repeat_role": True,
-                    },
-                }
-            )
-        return {
-            "sheet_mm": [float(size["width"]), float(size["height"])],
-            "margins_mm": [
-                float(margins["left"]),
-                float(margins["right"]),
-                float(margins["top"]),
-                float(margins["bottom"]),
-            ],
-            "bleed_default_mm": 0.0,
-            "gap_default_mm": 0.0,
-            "designs": designs,
-            "slots": [],
-            "faces": [face],
-            "active_face": face,
-            "imposition_engine": "repeat",
-            "allowed_engines": ["repeat"],
-            "spacingSettings": {
-                "spacingX_mm": float(settings["horizontal_gap_mm"]),
-                "spacingY_mm": float(settings["vertical_gap_mm"]),
-            },
-        }
-
-    def _run_counts(
-        self,
-        layout: Mapping[str, object],
-        plans: Sequence[_WorkPlan],
-        counts: Mapping[str, int],
-        face: str,
-        settings: Mapping[str, object],
-    ) -> tuple[list[dict[str, Any]] | None, list[dict[str, Any]] | None]:
-        if not any(value > 0 for value in counts.values()):
-            return [], None
-        engine_layout = self._engine_layout(layout, plans, counts, face, settings)
-        try:
-            return copy.deepcopy(self._engine(engine_layout)), None
-        except step_repeat_pro_engine.IncompleteImpositionError as exc:
-            return None, copy.deepcopy(exc.details)
-
-    def _find_partial_counts(
-        self,
-        layout: Mapping[str, object],
-        plans: Sequence[_WorkPlan],
-        initial: Mapping[str, int],
-        face: str,
-        settings: Mapping[str, object],
-        first_details: Sequence[Mapping[str, object]],
-    ) -> tuple[dict[str, int], list[dict[str, Any]] | None]:
-        counts = dict(initial)
-        details = list(first_details)
-        while sum(counts.values()) > 0:
-            placed = {
-                str(item.get("design_ref")): max(0, int(item.get("placed_forms") or 0))
-                for item in details
-            }
-            candidate = {
-                work_id: min(count, placed.get(work_id, count))
-                for work_id, count in counts.items()
-            }
-            if sum(candidate.values()) >= sum(counts.values()):
-                for plan in reversed(plans):
-                    work_id = plan.work["id"]
-                    if candidate[work_id] > 0:
-                        candidate[work_id] -= 1
-                        break
-            counts = candidate
-            slots, incomplete = self._run_counts(layout, plans, counts, face, settings)
-            if incomplete is None:
-                return counts, slots
-            details = incomplete
-        return counts, None
-
-    def _fill_remaining_capacity(
-        self,
-        layout: Mapping[str, object],
-        plans: Sequence[_WorkPlan],
-        initial_counts: Mapping[str, int],
-        initial_slots: list[dict[str, Any]],
-        face: str,
-        settings: Mapping[str, object],
-        printable: Bounds,
-    ) -> tuple[dict[str, int], list[dict[str, Any]]]:
-        counts = dict(initial_counts)
-        best_slots = initial_slots
-        ordered = list(plans)
-        if settings.get("respect_priority"):
-            ordered.sort(key=lambda item: (float(item.work["priority"]), item.work["id"]))
-        for plan in ordered:
-            trim = Size(
-                float(plan.work["trim_size_mm"]["width"]),
-                float(plan.work["trim_size_mm"]["height"]),
-            )
-            product = productive_size(trim, plan.work["bleed_mm"])
-            upper = max(
-                counts[plan.work["id"]],
-                int((printable.width * printable.height) // (product.width * product.height)),
-            )
-            low = counts[plan.work["id"]]
-            high = upper
-            while low < high:
-                midpoint = (low + high + 1) // 2
-                trial = dict(counts)
-                trial[plan.work["id"]] = midpoint
-                slots, incomplete = self._run_counts(layout, plans, trial, face, settings)
-                if incomplete is None and slots is not None:
-                    low = midpoint
-                    best_slots = slots
-                else:
-                    high = midpoint - 1
-            counts[plan.work["id"]] = low
-            slots, incomplete = self._run_counts(layout, plans, counts, face, settings)
-            if incomplete is None and slots is not None:
-                best_slots = slots
-        return counts, best_slots
 
     @staticmethod
     def _slot_geometry(slot: Mapping[str, object]) -> SlotGeometry:
@@ -521,107 +223,21 @@ class RepeatEngineAdapter:
             geometry["rotation_deg"],
         )
 
-    def _normalize_slots(
-        self,
-        layout: Mapping[str, object],
-        plans: Sequence[_WorkPlan],
-        legacy_slots: Sequence[Mapping[str, object]],
-        face: str,
-        operation_id: str,
-        printable: Bounds,
-        apply_mode: str,
-    ) -> tuple[list[dict[str, Any]], tuple[RepeatIssueV2, ...]]:
-        by_work = {plan.work["id"]: plan for plan in plans}
-        marks_profile = layout["export"]["default_marks_profile_id"]
-        normalized: list[dict[str, Any]] = []
-        issues: list[RepeatIssueV2] = []
-        for index, legacy in enumerate(legacy_slots):
-            work_id = str(legacy.get("design_ref") or "")
-            plan = by_work.get(work_id)
+    def _normalize_slots(self, layout, plans, placements, face, operation_id, printable, retained, settings):
+        by_work={plan.work['id']:plan for plan in plans}
+        marks_profile=layout['export']['default_marks_profile_id']
+        normalized=[]; issues=[]
+        if len(placements)>MAX_PLACEMENTS:
+            return [],(RepeatIssueV2('INVALID_ENGINE_COUNTS','error','El resultado excede el límite de slots.'),)
+        for index, placement in enumerate(placements):
+            work_id=placement.work_id
+            plan=by_work.get(work_id)
             if plan is None:
-                issues.append(
-                    RepeatIssueV2(
-                        "UNKNOWN_ENGINE_WORK",
-                        "error",
-                        "El motor devolvió un work desconocido.",
-                        work_id=work_id or None,
-                    )
-                )
+                issues.append(RepeatIssueV2('UNKNOWN_ENGINE_WORK','error','Trabajo desconocido en la propuesta.',work_id=work_id))
                 continue
-            engine_rotation = legacy.get("rotation_deg")
-            if engine_rotation not in (0, 90):
-                issues.append(
-                    RepeatIssueV2(
-                        "INVALID_ENGINE_ROTATION",
-                        "error",
-                        "El motor devolvió una rotación no soportada por el adaptador.",
-                        work_id=work_id,
-                    )
-                )
-                continue
-            if plan.input_swapped:
-                if engine_rotation != 0 or plan.vertical_rotation is None:
-                    issues.append(
-                        RepeatIssueV2(
-                            "INVALID_ENGINE_ROTATION",
-                            "error",
-                            "La orientación vertical exclusiva no fue respetada por el motor.",
-                            work_id=work_id,
-                        )
-                    )
-                    continue
-                rotation = plan.vertical_rotation
-            elif engine_rotation == 90:
-                if plan.vertical_rotation is None:
-                    issues.append(
-                        RepeatIssueV2(
-                            "INVALID_ENGINE_ROTATION",
-                            "error",
-                            "El motor usó una orientación vertical no permitida por el work.",
-                            work_id=work_id,
-                        )
-                    )
-                    continue
-                rotation = plan.vertical_rotation
-            else:
-                if plan.horizontal_rotation is None:
-                    issues.append(
-                        RepeatIssueV2(
-                            "INVALID_ENGINE_ROTATION",
-                            "error",
-                            "El motor usó una orientación horizontal no permitida por el work.",
-                            work_id=work_id,
-                        )
-                    )
-                    continue
-                rotation = plan.horizontal_rotation
-
-            trim = Size(
-                plan.work["trim_size_mm"]["width"],
-                plan.work["trim_size_mm"]["height"],
-            )
-            oriented_productive = oriented_size(
-                productive_size(trim, plan.work["bleed_mm"]),
-                rotation,
-            )
-            try:
-                left = validate_finite(legacy.get("x_mm"), "engine.x_mm")
-                bottom = validate_finite(legacy.get("y_mm"), "engine.y_mm")
-                center = Bounds(
-                    left,
-                    left + oriented_productive.width,
-                    bottom,
-                    bottom + oriented_productive.height,
-                ).center
-            except ValueError as exc:
-                issues.append(
-                    RepeatIssueV2(
-                        "INVALID_ENGINE_POSITION",
-                        "error",
-                        str(exc),
-                        work_id=work_id,
-                    )
-                )
+            rotation=placement.rotation
+            if rotation not in plan.work['allowed_rotations_deg']:
+                issues.append(RepeatIssueV2('INVALID_ENGINE_ROTATION','error','El giro no está permitido por el trabajo.',work_id=work_id))
                 continue
             slot_id = f"slot_{operation_id}_{index + 1:04d}"
             source = copy.deepcopy(plan.source)
@@ -632,8 +248,8 @@ class RepeatEngineAdapter:
                 "source": source,
                 "geometry": {
                     "position_mm": {
-                        "x_mm": center.x,
-                        "y_mm": center.y,
+                        "x_mm": placement.bounds.center.x,
+                        "y_mm": placement.bounds.center.y,
                         "anchor": "trim_center",
                     },
                     "trim_size_mm": copy.deepcopy(plan.work["trim_size_mm"]),
@@ -663,60 +279,29 @@ class RepeatEngineAdapter:
                     "operation_id": operation_id,
                 },
             }
-            geometry = self._slot_geometry(slot)
-            if not polygon_within_bounds(bleed_polygon(geometry), printable):
-                issues.append(
-                    RepeatIssueV2(
-                        "ENGINE_SLOT_OUT_OF_BOUNDS",
-                        "error",
-                        "El footprint productivo generado sale del área imprimible.",
-                        slot_id=slot_id,
-                        work_id=work_id,
-                        asset_id=source["asset_id"],
-                    )
-                )
-                continue
+            geometry=self._slot_geometry(slot)
+            actual=bleed_bounds(geometry)
+            if abs(actual.width-placement.bounds.width)>1e-7 or abs(actual.height-placement.bounds.height)>1e-7:
+                issues.append(RepeatIssueV2('INVALID_ENGINE_SIZE','error','La huella propuesta no coincide con el trabajo.',work_id=work_id))
+            if not polygon_within_bounds(bleed_polygon(geometry),printable):
+                issues.append(RepeatIssueV2('ENGINE_SLOT_OUT_OF_BOUNDS','error','La huella productiva sale del imprimible.',slot_id=slot_id))
             normalized.append(slot)
-
+        geometries=[self._slot_geometry(s) for s in normalized]
+        bounds=[bleed_bounds(g) for g in geometries]
+        retained_bounds=[bleed_bounds(self._slot_geometry(s)) for s in retained]
+        # IDs are global, including the other face. Only actual replacements may reuse one.
+        retained_ids={s['id'] for s in retained} | {s['id'] for s in layout['slots'] if s['face']!=face}
         for index, slot in enumerate(normalized):
-            geometry = self._slot_geometry(slot)
-            for other in normalized[index + 1 :]:
-                if slots_overlap(geometry, self._slot_geometry(other), use_bleed=True):
-                    issues.append(
-                        RepeatIssueV2(
-                            "ENGINE_SLOT_OVERLAP",
-                            "error",
-                            "Dos slots propuestos se solapan por su footprint productivo.",
-                            slot_id=slot["id"],
-                            work_id=slot["work_id"],
-                        )
-                    )
+            if slot['id'] in retained_ids:
+                issues.append(RepeatIssueV2('ENGINE_SLOT_ID_COLLISION','error','El ID propuesto ya existe.',slot_id=slot['id']))
+            for other in range(index+1,len(normalized)):
+                if not separated(bounds[index],bounds[other],settings['horizontal_gap_mm'],settings['vertical_gap_mm']):
+                    code='ENGINE_SLOT_OVERLAP' if slots_overlap(geometries[index],geometries[other],use_bleed=True) else 'ENGINE_SLOT_GAP'
+                    issues.append(RepeatIssueV2(code,'error','Las huellas propuestas no respetan solapes/separaciones.',slot_id=slot['id']))
                     break
-
-        selected_ids = set(by_work)
-        existing = [
-            slot
-            for slot in layout["slots"]
-            if slot["face"] == face
-            and not (
-                apply_mode == "replace_work_face" and slot["work_id"] in selected_ids
-            )
-        ]
-        for slot in normalized:
-            geometry = self._slot_geometry(slot)
-            for current in existing:
-                if slots_overlap(geometry, self._slot_geometry(current), use_bleed=True):
-                    issues.append(
-                        RepeatIssueV2(
-                            "OVERLAP_EXISTING_SLOT",
-                            "error",
-                            "La propuesta se solapa con un slot existente de la misma cara.",
-                            slot_id=slot["id"],
-                            work_id=slot["work_id"],
-                        )
-                    )
-                    break
-        return normalized, tuple(issues)
+            if any(not separated(bounds[index],b,settings['horizontal_gap_mm'],settings['vertical_gap_mm']) for b in retained_bounds):
+                issues.append(RepeatIssueV2('OVERLAP_EXISTING_SLOT','error','La propuesta no respeta un obstáculo o su separación.',slot_id=slot['id']))
+        return normalized,tuple(issues)
 
     @staticmethod
     def _retained_slots(

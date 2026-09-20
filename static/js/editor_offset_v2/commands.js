@@ -801,7 +801,7 @@
       this.beforeImposition = clone(layout.imposition);
       this.afterImposition = clone(layout.imposition);
       this.afterImposition.engine = "repeat";
-      this.afterImposition.engine_version = "2.0.0-adapter";
+      this.afterImposition.engine_version = result.engine_version || "2.0.0-adapter";
       this.afterImposition.settings = {
         ...this.afterImposition.settings,
         horizontal_gap_mm: Number(options.settings.horizontal_gap_mm),
