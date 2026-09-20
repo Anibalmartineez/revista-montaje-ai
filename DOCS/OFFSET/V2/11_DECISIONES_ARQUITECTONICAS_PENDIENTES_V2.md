@@ -1,5 +1,27 @@
 # Decisiones arquitectónicas pendientes del Editor Offset Visual V2
 
+## Decisiones vigentes después de 39C y auditoría 40
+
+Estado operativo: [20](20_ESTADO_ACTUAL_POST_REDISENO_UX_V2.md). Evidencia, mapa y plan: [40](40_AUDITORIA_INTEGRAL_MAPA_Y_PLAN_DE_MEJORAS_V2.md).
+
+| Tema | Estado confirmado | Decisión que sigue abierta |
+|---|---|---|
+| Derivados | Materialización, manifest, hashes y referencia opcional `source.derived` implementados | Corregir offset de slot rotado; retención y migración masiva |
+| Preflight | Reportes propios inmutables, versión, snapshot y gates implementados | Resolver brechas de bloqueo/caras/cantidades y profundizar cobertura |
+| Concurrencia | CAS y locks por archivo implementados en repositorio/lifecycle | Validación multi-host/almacenamiento distribuido y políticas operativas |
+| Salida propia | Compositor nativo, transformaciones, clip, marcas de corte y UI Preview/PDF implementados | Perfil industrial/color/PDF-X/CTP y controles de marcas |
+| Independencia | La salida nativa ya no depende del renderer legacy | Repeat continúa sobre motor compartido; extracción o mejora requiere fase propia |
+| Herramientas | Corrección interna de contenido implementada | Resize geométrico, frente/dorso de UI, separación conservando cuadrícula |
+
+La independencia V2 continúa siendo dirección aprobada, sin autorizar cambios incidentales de V1. La política de campos opcionales/versionado se conserva. Ninguna propuesta conceptual de este archivo incorpora campos al schema por sí misma.
+
+## Registro histórico de decisiones y propuestas
+
+El cuerpo siguiente conserva decisiones y lenguaje de las fases 8P/19/23. «Actual» y «futuro» dentro de este registro no sustituyen la tabla vigente anterior; especialmente el lock solo en proceso y la inexistencia de controles de salida quedaron superados.
+
+<details>
+<summary>Ver registro histórico sin reescribir sus decisiones originales</summary>
+
 ## 1. Propósito
 
 Este documento registra decisiones para fases futuras sin modificar todavía el contrato, almacenamiento o salida. Ningún modelo conceptual descrito aquí autoriza por sí solo agregar campos a Layout V2.
@@ -133,3 +155,5 @@ Actualización aprobada e implementada en el ensayo de [Fase 23](23_PREPARACION_
 - ampliación de cobertura geométrica/PDF; una migración futura a TypeScript es opcional y no condiciona el preflight.
 
 Cada decisión debe cerrarse en una fase propia con código, contratos, fixtures, tests y rollback definidos.
+
+</details>

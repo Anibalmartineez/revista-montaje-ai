@@ -71,7 +71,7 @@ Si código y documentación se contradicen, no elegir silenciosamente. Registrar
 
 Consultar solo los documentos necesarios para el alcance, comenzando por:
 
-1. `DOCS/OFFSET/V2/20_ESTADO_ACTUAL_POST_REDISENO_UX_V2.md`: entrada operativa vigente y próximo gate SAFE.
+1. `DOCS/OFFSET/V2/20_ESTADO_ACTUAL_POST_REDISENO_UX_V2.md`: entrada operativa vigente; consultar también `40_AUDITORIA_INTEGRAL_MAPA_Y_PLAN_DE_MEJORAS_V2.md` para hallazgos abiertos/mapa/plan y `README.md` para clasificación documental.
 2. `DOCS/OFFSET/V2/01_CONTRATO_LAYOUT_V2.md`: contrato persistente.
 3. `DOCS/OFFSET/V2/02_KERNEL_GEOMETRICO_V2.md`: semántica geométrica canónica.
 4. `DOCS/OFFSET/V2/03_ADAPTADOR_SALIDA_V2.md`: frontera temporal de salida.
@@ -87,7 +87,9 @@ Clasificación importante:
 - documentos 04 a 17: decisiones y fases específicas, con posibles cortes históricos;
 - documento 18: snapshot histórico de las exploraciones 1 a 4;
 - documento 19: plan, decisiones y bitácora de la Fase 19 cerrada;
-- documento 20: estado operativo vigente posterior al rediseño.
+- documento 20: estado operativo vigente con archivo histórico explícito;
+- documento 39: cierre de salida 39A–39C y límites de su perfil;
+- documento 40: auditoría posterior, defectos abiertos y plan propuesto; no autoriza implementación por sí solo.
 
 Para V1, consultar `DOCS/OFFSET/` solo cuando V1 o una dependencia legacy esté dentro del alcance. No usar esos documentos como contrato de V2.
 
@@ -166,6 +168,7 @@ La raíz puede cambiar mediante configuración. Nunca fijar rutas absolutas del 
 - Node: `tests/editor_offset_v2/js/`.
 - Playwright: `tests/playwright/test_editor_offset_v2.py`.
 - Caracterización UX: `tests/playwright/test_editor_offset_v2_ux_characterization.py`.
+- Integración de salida: `tests/playwright/test_editor_offset_v2_output_integration.py`.
 
 ## 7. V1 y dependencias compartidas
 
@@ -286,7 +289,7 @@ Reglas:
 - distinguir slot, footprint y transformación interna del contenido;
 - no declarar una función operativa por la sola existencia de CSS, controles o código desconectado.
 
-Para cambios visuales revisar como conjunto template, CSS, referencias DOM, bootstrap, controladores afectados, registro de acciones y ambos Playwright V2.
+Para cambios visuales revisar como conjunto template, CSS, referencias DOM, bootstrap, controladores afectados, registro de acciones y los tres archivos Playwright V2 (edición, caracterización UX e integración de salida).
 
 ## 11. Repeat V2
 
@@ -321,7 +324,7 @@ La configuración del pliego modifica solo tamaño y márgenes mediante un coman
 
 Resize V2 sigue pendiente como fase propia. Antes de implementarlo deben definirse ancla, proporción, rotación, locks, snap, contenido, bleed y exportabilidad. No activarlo como efecto lateral de un refactor visual.
 
-Frente/dorso y transformaciones internas avanzadas también requieren fases propias.
+La corrección interna de contenido y la materialización de derivados ya existen (32B–32F/39B); revisar el defecto de offset en slots rotados registrado en 40. Frente/dorso operativo de UI y capacidades adicionales todavía requieren fases propias.
 
 ## 13. Preflight, preview, PDF y CTP
 
@@ -332,12 +335,12 @@ Estado vigente:
 - `output-capabilities` diagnostica el puente temporal; preflight evalúa capacidades nativas propias;
 - no equivale a preflight productivo;
 - `editor_output_adapter.py` no ejecuta el renderer;
-- Preview/PDF V2 tienen servicios y rutas con gates separados; su perfil y aceptación se documentan en 20/39;
+- Preview/PDF V2 tienen servicios y rutas con gates separados; su perfil y aceptación se documentan en 20/39; los defectos posteriores y brechas se registran en 40;
 - CTP habilitado continúa bloqueado;
-- el destino arquitectónico previsto es un motor de salida V2 propio;
+- la salida nativa ya usa un compositor V2 propio; Repeat mantiene una dependencia compartida que requiere análisis separado;
 - el puente legacy puede servir para caracterización, no para contaminar el dominio V2.
 
-Antes de programar salida:
+Antes de ampliar o corregir salida, conservar y verificar las decisiones existentes:
 
 1. definir contrato canónico de preflight y severidades;
 2. resolver archivos físicos, páginas y cajas PDF;
@@ -351,7 +354,7 @@ No ignorar opciones no soportadas, no degradarlas silenciosamente y no generar u
 
 Revisar al menos:
 
-- documentos 01, 02, 03, 11 y 20;
+- documentos 01, 02, 03, 11, 20, 21, 39 y 40;
 - `editor_offset_v2/domain/output_contract.py`;
 - `editor_offset_v2/application/output_service.py`;
 - `editor_offset_v2/infrastructure/editor_output_adapter.py`;
@@ -397,7 +400,7 @@ venv\Scripts\python.exe -m pytest tests\editor_offset_v2 -q
 ### Playwright V2
 
 ```powershell
-venv\Scripts\python.exe -m pytest tests\playwright\test_editor_offset_v2.py tests\playwright\test_editor_offset_v2_ux_characterization.py -q
+venv\Scripts\python.exe -m pytest tests\playwright\test_editor_offset_v2.py tests\playwright\test_editor_offset_v2_ux_characterization.py tests\playwright\test_editor_offset_v2_output_integration.py -q
 ```
 
 No incluir tests Playwright V1 en una validación exclusivamente V2. Para iniciar o comprobar Flask usar la skill `editor-offset-local-qa` con target `v2`. Mantener `EDITOR_OFFSET_V2_DEV_TOOLS_ENABLED=0` salvo petición expresa.
@@ -451,20 +454,19 @@ No colocar en este archivo datos efímeros como branch actual, job de prueba, re
 
 La Fase 19 de rediseño UX está cerrada. No continuarla como 19-H.
 
-Orden SAFE vigente:
+Preflight, fixtures, Preview, PDF nativo, corrección interna y coordinación por archivos ya tienen implementación. No reiniciar esas fases como si estuvieran ausentes. Consultar 20/39 para estado y 40 para defectos abiertos.
 
-1. auditoría focalizada de salida y preflight, inicialmente de solo lectura;
-2. contrato canónico de preflight;
-3. fixtures PDF y criterios de paridad;
-4. preview productivo mínimo detrás de un gate explícito;
-5. PDF final V2;
-6. CTP y marcas en una fase propia;
-7. concurrencia, retención y recuperación operativa;
-8. Resize y transformaciones avanzadas;
-9. frente/dorso operativo;
-10. automatización e IA con guardrails.
+Orden SAFE propuesto después de la auditoría:
 
-No mezclar preflight, PDF, CTP, resize e IA en una misma fase.
+1. corregir y cubrir bloqueos de preflight, alcance por cara y validación de área imprimible;
+2. resolver paridad al materializar derivados de slots rotados con desplazamiento;
+3. corregir aprovechamiento de Repeat entre works, declarando el impacto si se toca el motor compartido;
+4. añadir controles operativos de marcas y separación conservando cuadrículas en fases distintas;
+5. mejorar claridad del preflight, errores, recursos y Preview;
+6. ampliar validación industrial y políticas operativas según decisiones explícitas;
+7. tratar CTP/marcas avanzadas, resize, frente/dorso completo e IA como fases propias.
+
+El roadmap no autoriza implementación automática. Mantener Layout V2, geometría, comandos, autosave y originales inmutables. No mezclar preflight, PDF, CTP, resize e IA en una misma fase.
 
 ## 19. Reporte esperado
 

@@ -1,5 +1,11 @@
 # Contrato Layout V2 del Editor Offset Visual
 
+## Lectura vigente después de 39C
+
+El contrato persistente sigue siendo Layout V2. Estado operativo y defectos conocidos: [20](20_ESTADO_ACTUAL_POST_REDISENO_UX_V2.md) y [40](40_AUDITORIA_INTEGRAL_MAPA_Y_PLAN_DE_MEJORAS_V2.md). Las menciones inferiores a Preview/PDF pendientes pertenecen al alcance inicial, no a la aplicación actual.
+
+Extensión opcional ya implementada: `source.derived` contiene `derived_key`, `derived_sha256` y `source_sha256`, coordinada en schema/validación y fases [32D](32D_INTEGRACION_DERIVADOS_SALIDA_V2.md)–[32F](32F_MATERIALIZACION_TRANSFORMADA_V2.md). El asset original conserva su identidad. No existe un campo contractual `derived_from` por la sola propuesta de 11. Esta nota documenta el código vigente, no añade campos ni cambia la versión.
+
 ## 1. Propósito
 
 `layout_schema_version = 2` es el contrato persistente exclusivo del Editor Offset Visual V2.

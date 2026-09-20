@@ -1,5 +1,9 @@
 # Fase 34 — Repeat V2 y orientaciones cardinales en trabajos multipágina
 
+## Limitación posterior confirmada: aprovechamiento entre works
+
+El soporte multipágina y de orientaciones de esta fase no implica búsqueda global de espacios. La [auditoría 40, AUD-013](40_AUDITORIA_INTEGRAL_MAPA_Y_PLAN_DE_MEJORAS_V2.md#aud-013--repeat-multipágina-deja-huecos-aprovechables) reproduce cuatro páginas que caben en 2×2 pero Repeat distribuye en franjas por work y coloca solo tres. Confirmado también con el job del usuario. Dev tools no modifica ese resultado. Corrección pendiente y con impacto potencial sobre el motor compartido; esta nota no altera el cierre histórico de esta fase.
+
 ## Objetivo
 
 Los trabajos creados desde varias páginas de un PDF deben conservar las cuatro

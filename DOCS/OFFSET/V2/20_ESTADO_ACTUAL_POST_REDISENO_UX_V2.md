@@ -1,6 +1,6 @@
 # Estado actual del Editor Offset Visual V2 después del rediseño UX
 
-## Estado operativo vigente — cierre 39A–39C, 2026-09-16
+## Estado operativo vigente — revisión posterior al cierre 39A–39C, 2026-09-19
 
 V2 dispone de **Preview y descarga PDF desde la etapa Salida**, con compositor propio, preflight nativo obligatorio y artefactos ligados a revisión, opciones y fuentes. Los cortes anteriores que dicen «PDF pendiente», «solo raster» o «sin controles de salida» son historia de esas fases. La evidencia, límites, rollback y guía completa están en [39 — cierre de salida](39_PLAN_SAFE_CIERRE_SALIDA_PRODUCTIVA_V2.md#10-arranque-y-uso-del-perfil-aceptado).
 
@@ -17,6 +17,29 @@ powershell -NoProfile -ExecutionPolicy Bypass -File scripts/start_editor_offset_
 Abrir `http://127.0.0.1:5000/editor_offset_visual_v2`. Crear job → subir PDF → elegir páginas/cantidades → crear works → Repeat → revisar ajustes → Salida → Preview → Descargar PDF. El guardado y preflight se ejecutan antes de generar. El diagnóstico del puente legacy permanece identificado como histórico, sin gobernar la salida nativa.
 
 Límites operativos: 50 MiB por upload por defecto, 128 MiB de fuentes por snapshot, 500 slots por layout del perfil, 24 megapíxeles para rasterizar el pliego y dos generaciones simultáneas por proceso. Retención/recuperación son explícitas, sin purga automática. No se modificaron Layout V2, CAS, motores compartidos ni rutas V1.
+
+## Auditoría vigente y próximo gate
+
+El [documento 40 — auditoría integral, mapa y mejoras](40_AUDITORIA_INTEGRAL_MAPA_Y_PLAN_DE_MEJORAS_V2.md) concentra la evidencia posterior a 39C. El [índice V2](README.md) clasifica contratos, estados e historia. El cierre 39 permanece como evidencia de su fecha; no acredita ausencia de defectos posteriores.
+
+| Implementado | Abierto / pendiente |
+|---|---|
+| Edición, selección, todos por cara, gap secuencial, matriz y Repeat | Separación conservando cuadrículas; Repeat deja huecos entre works |
+| Corrección gráfica y derivados | Materializar slot rotado con offset altera contenido |
+| Preflight nativo obligatorio | Warnings bloqueantes ignorados, alcance por cara, márgenes inválidos y política de cantidades |
+| Preview y PDF nativo con gates | Control UI de marcas, anticipación de recursos y revisión amplia de Preview |
+| CAS, snapshots y coordinación mediante archivos | Aceptación multi-host y política de retención automática |
+
+Siguiente gate: reproducir/corregir los defectos de salida de 40 y resolver Repeat multipágina en una fase explícita; después marcas y separación en cuadrícula. No reiniciar las fases ya implementadas de preflight/Preview/PDF ni ampliar CTP/PDF-X/resize/IA dentro de una corrección.
+
+La auditoría comprobó el defecto de Repeat con cuatro páginas tanto sintéticas como en una copia en memoria del job reportado por el usuario. Dev tools on/off produce el mismo resultado; el flag no controla capacidad de imposición. Las propuestas nuevas de 40 no están implementadas.
+
+## Archivo histórico del documento 20
+
+Las secciones siguientes conservan los cortes originales. Sus frases «actual», «vigente», «no implementado» y «próximo paso» se refieren al momento de cada fase, no al estado de arriba. Se conservan IDs, cifras, ramas y resultados para trazabilidad.
+
+<details>
+<summary>Ver evidencia histórica del rediseño y las fases de salida anteriores</summary>
 
 ## Cortes históricos y trazabilidad
 
@@ -620,3 +643,5 @@ publicación de artefactos, además de recuperación conservadora de temporales 
 retención explícita de previews, reports y outputs. Los assets fuente y
 derivados inmutables quedan fuera de la limpieza automática; la ejecución
 programada de retención requiere una decisión operativa posterior.
+
+</details>

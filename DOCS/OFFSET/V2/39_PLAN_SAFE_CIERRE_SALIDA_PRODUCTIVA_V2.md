@@ -1,5 +1,9 @@
 # Plan SAFE — Cierre de salida V2 en tres fases
 
+## Auditoría posterior al cierre
+
+El cierre 39A–39C y sus resultados se conservan como evidencia de 2026-09-16. La [auditoría integral 40](40_AUDITORIA_INTEGRAL_MAPA_Y_PLAN_DE_MEJORAS_V2.md) añade defectos reproducidos de bloqueos de preflight, derivados rotados, alcance por cara, márgenes y aprovechamiento de Repeat, además de brechas de UI y documentación. No se consideran corregidos por el cierre de esta fase. Estado operativo: [20](20_ESTADO_ACTUAL_POST_REDISENO_UX_V2.md); navegación documental: [README](README.md).
+
 **Estado: plan aprobado y ejecutado secuencialmente; evidencia de cierre 39A–39C en sección 9.**
 
 ## 1. Objetivo y autorización
@@ -84,7 +88,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .agents\skills\editor-offset
 venv\Scripts\python.exe -m pytest tests\editor_offset_v2 -q
 $editorV2JsTests = Get-ChildItem -LiteralPath tests\editor_offset_v2\js -Filter *.test.cjs | ForEach-Object { $_.FullName }
 node --test $editorV2JsTests
-venv\Scripts\python.exe -m pytest tests\playwright\test_editor_offset_v2.py tests\playwright\test_editor_offset_v2_ux_characterization.py -q
+venv\Scripts\python.exe -m pytest tests\playwright\test_editor_offset_v2.py tests\playwright\test_editor_offset_v2_ux_characterization.py tests\playwright\test_editor_offset_v2_output_integration.py -q
 git diff --check
 ```
 

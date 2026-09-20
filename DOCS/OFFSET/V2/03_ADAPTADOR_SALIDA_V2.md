@@ -1,5 +1,9 @@
 # Adaptador de salida del Editor Offset Visual V2
 
+## Alcance vigente de esta frontera
+
+Este documento describe el adaptador temporal/diagnóstico legacy, que sigue siendo una superficie distinta del compositor PDF nativo V2 incorporado en 39B. Sus restricciones no deben usarse para decidir la capacidad de la salida nativa. Estado: [20](20_ESTADO_ACTUAL_POST_REDISENO_UX_V2.md); mapa, hallazgos y plan: [40](40_AUDITORIA_INTEGRAL_MAPA_Y_PLAN_DE_MEJORAS_V2.md). Las menciones históricas a PDF pendiente no describen toda la aplicación actual.
+
 ## 1. Objetivo
 
 La Fase 3 creó una frontera aislada entre el contrato limpio del Editor Offset
