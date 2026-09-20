@@ -43,7 +43,7 @@
       role="tablist"
       data-initial-stage="{{ 'adjust' if editor_context.job_id else 'prepare' }}"
     >
-      <button id="ev2-stage-tab-prepare" class="ev2-workflow-step" type="button" role="tab" data-ev2-stage-target="prepare" aria-controls="ev2-stage-prepare" aria-selected="false" tabindex="-1">
+      <button id="ev2-stage-tab-prepare" class="ev2-workflow-step" type="button" role="tab" data-ev2-stage-target="prepare" aria-controls="{{ 'ev2-preparation' if editor_context.job_id else 'ev2-stage-prepare' }}" aria-selected="false" tabindex="-1">
         <span>Preparar</span><small>PDF y origen</small>
       </button>
       <button id="ev2-stage-tab-impose" class="ev2-workflow-step" type="button" role="tab" data-ev2-stage-target="impose" aria-controls="ev2-sheet-panel ev2-stage-impose" aria-selected="false" tabindex="-1" {% if not editor_context.job_id %}disabled{% endif %}>
@@ -91,7 +91,7 @@
     <aside id="ev2-objects-panel" class="ev2-objects" aria-label="Fuentes PDF y objetos del montaje" tabindex="-1">
       <div class="ev2-panel-heading ev2-responsive-panel-heading">
         <div>
-          <span class="ev2-region-label">Assets PDF</span>
+          <span class="ev2-region-label">Archivos PDF</span>
           <small>Originales inmutables del job</small>
         </div>
         <button id="ev2-responsive-sources-close" class="ev2-responsive-panel-close" type="button" aria-label="Cerrar Fuentes PDF">Cerrar</button>
@@ -105,47 +105,14 @@
       <div class="ev2-assets-list" id="ev2-assets-list">
         <p class="ev2-list-empty">Sube un PDF para crear el primer asset real.</p>
       </div>
-      <section class="ev2-page-planner" aria-labelledby="ev2-page-planner-title">
-        <div class="ev2-page-planner-heading">
-          <div>
-            <strong id="ev2-page-planner-title">Páginas del PDF</strong>
-            <small>Selecciona páginas y define sus formas</small>
-          </div>
-          <button id="ev2-create-page-works" type="button" disabled>Crear works seleccionados</button>
-        </div>
-        <div id="ev2-asset-page-planner" class="ev2-asset-page-planner">
-          <p class="ev2-list-empty">Sube un PDF para planificar sus páginas.</p>
-        </div>
-      </section>
-
-      <details class="ev2-source-builder" open>
-        <summary>Fuente y work</summary>
-        <div class="ev2-form-grid">
-          <label>Asset<select id="ev2-asset-select" disabled></select></label>
-          <label>Página<select id="ev2-asset-page" disabled></select></label>
-          <label>Caja PDF<select id="ev2-asset-box" disabled></select></label>
-          <output id="ev2-box-dimensions">—</output>
-          <label class="ev2-field-wide">Nombre<input id="ev2-work-name" type="text" maxlength="160"></label>
-          <label>Ancho trim<input id="ev2-work-width" type="number" min="0.001" step="0.001"></label>
-          <label>Alto trim<input id="ev2-work-height" type="number" min="0.001" step="0.001"></label>
-          <label>Bleed<input id="ev2-work-bleed" type="number" min="0" step="0.1" value="0"></label>
-          <label>Cantidad<input id="ev2-work-quantity" type="number" min="1" step="1" value="1"></label>
-        </div>
-        <fieldset class="ev2-rotation-options">
-          <legend>Rotaciones permitidas</legend>
-          <label><input type="checkbox" name="ev2-work-rotation" value="0" checked>0°</label>
-          <label><input type="checkbox" name="ev2-work-rotation" value="90" checked>90°</label>
-          <label><input type="checkbox" name="ev2-work-rotation" value="180" checked>180°</label>
-          <label><input type="checkbox" name="ev2-work-rotation" value="270" checked>270°</label>
-        </fieldset>
-        <label class="ev2-back-source"><input id="ev2-work-back" type="checkbox"> Usar esta fuente también como dorso</label>
-        <button id="ev2-create-work" type="button" disabled>Crear work real</button>
-        <div class="ev2-slot-source-actions">
-          <select id="ev2-work-select"><option value="">Selecciona un work</option></select>
-          <button id="ev2-create-real-slot" type="button" disabled>Crear slot</button>
-          <button id="ev2-replace-source" type="button" disabled>Sustituir fuente</button>
-        </div>
-      </details>
+      <div class="ev2-slot-source-actions">
+        <button id="ev2-open-preparation" type="button">Preparar páginas / editar trabajos</button>
+        <label for="ev2-work-select">Trabajo preparado</label>
+        <select id="ev2-work-select"><option value="">Selecciona un trabajo</option></select>
+        <button id="ev2-create-real-slot" type="button" disabled>Colocar una pieza</button>
+        <p id="ev2-replace-source-label" class="ev2-preparation-note">Fuente elegida en Preparar.</p>
+        <button id="ev2-replace-source" type="button" disabled>Sustituir fuente del slot</button>
+      </div>
 
       <div class="ev2-panel-heading ev2-objects-heading">
         <span class="ev2-region-label">Slots</span>
@@ -186,6 +153,54 @@
           <p>El layout, el historial y el guardado permanecen aislados de Editor V1.</p>
         </div>
       {% endif %}
+      <section id="ev2-preparation" class="ev2-preparation" data-ev2-stage-panel="prepare" role="tabpanel" aria-labelledby="ev2-stage-tab-prepare" hidden>
+        <div class="ev2-preparation-heading"><div><span class="ev2-region-label">Preparar</span><h2>Páginas y trabajos</h2><p>Selecciona las páginas, configura sus formas y crea los trabajos una sola vez.</p></div></div>
+        <div class="ev2-preparation-grid">
+          <section class="ev2-page-planner" aria-label="Páginas del PDF">
+            <div class="ev2-page-planner-heading"><strong>Páginas del PDF</strong><button id="ev2-preparation-select-all" type="button">Seleccionar todas</button></div>
+            <p class="ev2-preparation-note">Borradores de esta sesión. Los trabajos guardados aparecen debajo.</p>
+            <div id="ev2-asset-page-planner" class="ev2-asset-page-planner"><p>Sube un PDF para preparar sus páginas.</p></div>
+            <button id="ev2-create-page-works" class="ev2-primary-action" type="button" disabled>Crear trabajos</button>
+          </section>
+          <section id="ev2-preparation-settings" class="ev2-preparation-settings" aria-label="Configuración de página" tabindex="-1">
+            <h3 id="ev2-preparation-edit-title">Configurar página</h3>
+            <p id="ev2-preparation-edit-note" class="ev2-preparation-note"></p>
+        <div class="ev2-form-grid">
+          <label>Archivo PDF<select id="ev2-asset-select" disabled></select></label>
+          <label>Página<select id="ev2-asset-page" disabled></select></label>
+          <label>Caja PDF<select id="ev2-asset-box" disabled></select></label>
+          <output id="ev2-box-dimensions">—</output>
+          <label class="ev2-field-wide">Nombre<input id="ev2-work-name" type="text" maxlength="160"></label>
+          <label>Tamaño<select id="ev2-work-size-mode"><option value="box">Según caja</option><option value="custom">Personalizado</option></select></label>
+          <label>Ancho final (mm)<input id="ev2-work-width" type="number" min="0.001" step="0.001"></label>
+          <label>Alto final (mm)<input id="ev2-work-height" type="number" min="0.001" step="0.001"></label>
+          <label>Sangrado (mm)<input id="ev2-work-bleed" type="number" min="0" step="0.1" value="0"></label>
+          <label>Cantidad de formas<input id="ev2-work-quantity" type="number" min="1" step="1" value="1"></label>
+        </div>
+        <fieldset class="ev2-rotation-options">
+          <legend>Rotaciones permitidas</legend>
+          <label><input type="checkbox" name="ev2-work-rotation" value="0" checked>0°</label>
+          <label><input type="checkbox" name="ev2-work-rotation" value="90" checked>90°</label>
+          <label><input type="checkbox" name="ev2-work-rotation" value="180" checked>180°</label>
+          <label><input type="checkbox" name="ev2-work-rotation" value="270" checked>270°</label>
+        </fieldset>
+        <label class="ev2-back-source"><input id="ev2-work-back" type="checkbox"> Usar esta fuente también como dorso</label>
+
+            <p id="ev2-preparation-coverage" class="ev2-preparation-note"></p>
+            <fieldset id="ev2-preparation-bulk" class="ev2-preparation-bulk"><legend>Aplicar valores a páginas seleccionadas</legend>
+              <label><input type="checkbox" data-preparation-field="box">Caja PDF</label>
+              <label><input type="checkbox" data-preparation-field="quantity">Cantidad</label>
+              <label><input type="checkbox" data-preparation-field="bleed" checked>Sangrado</label>
+              <label><input type="checkbox" data-preparation-field="rotations" checked>Giros</label>
+              <label><input type="checkbox" data-preparation-field="back">Misma fuente en dorso</label>
+              <button id="ev2-preparation-apply-common" type="button">Aplicar a seleccionadas</button>
+            </fieldset>
+            <div id="ev2-preparation-edit-actions" hidden><button id="ev2-preparation-save-work" type="button">Guardar trabajo</button><button id="ev2-preparation-cancel-edit" type="button">Cancelar edición</button><button id="ev2-preparation-variant" type="button">Crear variante de este trabajo</button></div>
+          </section>
+        </div>
+        <p id="ev2-preparation-status" role="status" aria-live="polite"></p>
+        <section aria-label="Trabajos preparados" class="ev2-prepared-section"><h3>Trabajos preparados</h3><div id="ev2-prepared-works"></div></section>
+      </section>
       <svg
         id="ev2-canvas"
         class="ev2-canvas{% if not editor_context.job_id %} is-disabled{% endif %}"
@@ -207,7 +222,7 @@
       <section id="ev2-stage-prepare" class="ev2-stage-context" data-ev2-stage-panel="prepare" role="tabpanel" aria-labelledby="ev2-stage-tab-prepare" hidden>
         <span class="ev2-region-label">PDF y origen</span>
         <h2>Prepara las fuentes del job</h2>
-        <p>Sube el PDF y crea sus works desde el panel de la izquierda. El pliego actual no cambia al recorrer estas etapas.</p>
+        <p>Configura las páginas en el área central. Usa los trabajos preparados para colocar piezas o calcular Repeat. El montaje existente se conserva.</p>
       </section>
       <section id="ev2-stage-adjust-operations" class="ev2-object-operations" data-ev2-stage-panel="adjust" role="tabpanel" aria-labelledby="ev2-stage-tab-adjust ev2-object-operations-heading">
         <div class="ev2-object-operations-heading">
@@ -713,6 +728,7 @@
   <script src="{{ url_for('static', filename='js/editor_offset_v2/autosave.js') }}" defer></script>
   <script src="{{ url_for('static', filename='js/editor_offset_v2/canvas_renderer.js') }}" defer></script>
   <script src="{{ url_for('static', filename='js/editor_offset_v2/interactions.js') }}" defer></script>
+  <script src="{{ url_for('static', filename='js/editor_offset_v2/preparation.js') }}" defer></script>
   <script src="{{ url_for('static', filename='js/editor_offset_v2/assets_panel.js') }}" defer></script>
   <script src="{{ url_for('static', filename='js/editor_offset_v2/repeat_panel.js') }}" defer></script>
   <script src="{{ url_for('static', filename='js/editor_offset_v2/output_panel.js') }}" defer></script>

@@ -51,6 +51,7 @@
       this.editPolicy = editPolicy;
       this.proposalContext = null;
       this.applied = false;
+      this.requestSequence = 0;
       for (const option of this.refs.repeatFace.options) {
         option.disabled = option.value === "back"
           || !this.store.layout.faces.enabled.includes(option.value);
@@ -78,6 +79,7 @@
       this.refs.repeatWorks.addEventListener("change", () => this.invalidateProposal());
       this.unsubscribe = this.store.subscribe((event) => {
         if (["command", "undo", "redo", "external_update"].includes(event.type)) {
+          this.invalidateProposal();
           this.renderWorks();
           this.renderHistory();
         }
@@ -111,6 +113,7 @@
     }
 
     invalidateProposal() {
+      this.requestSequence += 1;
       this.proposalContext = null;
       this.applied = false;
       this.store.setRepeatState("idle", null, null);
@@ -139,11 +142,14 @@
         return;
       }
       this.store.setRepeatState("calculating", null, null);
+      const sequence = ++this.requestSequence;
       try {
         if (this.store.hasUnsavedChanges()) await this.saver.manualSave();
         if (this.store.saveState.status !== "clean") {
           throw new Error("Guarda o resuelve el conflicto antes de calcular Repeat.");
         }
+        if (sequence !== this.requestSequence) return;
+        const changeVersion = this.store.changeVersion;
         const request = {
           base_revision: this.store.revision,
           work_ids: workIds,
@@ -152,7 +158,14 @@
           apply_mode: this.selectedMode(),
         };
         const response = await this.api.proposeRepeat(this.context.repeat_api_url, request);
+        if (sequence !== this.requestSequence) return;
+        if (changeVersion !== this.store.changeVersion || request.base_revision !== this.store.revision) {
+          this.invalidateProposal();
+          return;
+        }
         this.proposalContext = {
+          revision: request.base_revision,
+          changeVersion,
           workIds: [...workIds],
           face: request.face,
           settings: { ...settings },
@@ -165,6 +178,7 @@
         }
         this.store.setRepeatState("ready", response.result, null);
       } catch (error) {
+        if (sequence !== this.requestSequence) return;
         if (error && error.status === 409) this.store.failSave(error, true);
         this.store.setRepeatState("error", null, error.message || "No se pudo calcular Repeat.");
       }
@@ -173,6 +187,12 @@
     apply() {
       const result = this.store.repeatPanel.proposal;
       if (!result || !result.success || !this.proposalContext || this.applied) return;
+      if (this.proposalContext.revision !== this.store.revision
+          || this.proposalContext.changeVersion !== this.store.changeVersion) {
+        this.invalidateProposal();
+        this.store.setRepeatState("error", null, "El montaje cambió. Vuelve a calcular Repeat.");
+        return;
+      }
       try {
         const command = new this.commands.ApplyRepeatCommand(
           this.store.layout,

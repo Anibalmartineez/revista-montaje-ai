@@ -118,3 +118,40 @@ Visualmente, la preparación se concentra en una columna estrecha con scroll. El
 - **Resultado documental:** creado [42 — Plan de preparación unificada y Repeat propio](42_PLAN_PREPARACION_UNIFICADA_Y_REPEAT_PROPIO_V2.md), con archivos afectados, política propuesta de edición segura, motor V2 sin dependencia compartida, vigencia de propuestas, aceptación y rollback.
 - **Riesgos identificados en código:** los slots copian datos del work; editarlo no los sincroniza automáticamente. La aplicación de Repeat requiere guardas de estado/revisión y respuestas tardías; su comando debe validar completamente antes de retirar slots. Son puntos a cubrir en implementación, sin reproducción adicional en navegador en esta sesión.
 - **Estado:** plan preparado, código productivo intacto. No se ejecutaron suites, no se reinició Flask y no se hizo commit. La independencia de Repeat y la interfaz unificada siguen pendientes de implementación.
+
+
+### 2026-09-20 — Primera entrega de preparación unificada
+
+**Solicitud y alcance:** avanzar con la primera entrega de 42 sobre el código existente: Preparar unificado, pruebas de protección y edición segura de trabajos. Implementación exclusivamente en superficies V2. La rama comenzó limpia en `6f5a08c`; no se creó commit en esta intervención.
+
+**Cambios implementados:**
+
+- Preparar ocupa el centro del editor con páginas y configuración; el canvas conserva su instancia y vuelve a mostrarse en las otras etapas. Se retiran los dos caminos competidores de creación. Una o varias páginas pasan por «Crear N trabajos · M formas» y un único comando reversible.
+- `preparation.js` mantiene borradores temporales por archivo/página. Se conservan nombre, cantidad, sangrado y giros al cambiar caja o archivo. «Según caja» recalcula medidas considerando el giro intrínseco; «Personalizado» conserva las medidas introducidas. Estos borradores no se guardan en Layout.
+- Cada página muestra caja efectiva, medidas, cantidad, sangrado y giros. «Aplicar a seleccionadas» copia únicamente los campos marcados. Una caja solicitada inexistente se muestra y bloquea el lote; no se sustituye silenciosamente. Los errores de preparación identifican la página. El lote se valida completo antes de mutar el layout.
+- Los trabajos persistidos aparecen separados de los borradores. Se evita recrear una página ya utilizada sin optar por una variante. Las variantes reciben ID nuevo y un nombre diferenciado; el original se conserva.
+- `UpdateWorkCommand` permite editar trabajos sin slots y limita los ya colocados a nombre/cantidad. La guarda inspecciona todas las caras, no solamente la selección actual. No propaga medidas, fuentes o sangrado a slots existentes. Conserva referencias de dorso distintas si no se cambia esa opción; la opción de misma fuente en dorso sigue al frente cuando se edita un trabajo sin slots.
+- Colocar una pieza y sustituir una fuente continúan accesibles en Fuentes. No existe un segundo formulario de creación. Las acciones de preparación pasan por el registro de acciones V2.
+- Repeat invalida propuestas ante comandos, undo/redo y actualización externa. Captura revisión, versión local y secuencia de petición para descartar resultados tardíos y rechazar una aplicación obsoleta. No cambia su algoritmo ni el adaptador compartido.
+- Navegación y responsive: Preparar se muestra directamente en el centro; Fuentes continúa como panel desplegable en pantallas compactas. El inspector lateral no se abre sobre la nueva preparación. Se ajustan formulario y cabecera estrecha para evitar superposición de controles.
+
+**Superficies:** template/CSS V2; `preparation.js`, `assets_panel.js`, `commands.js`, `command_registry.js`, `dom_refs.js`, `bootstrap.js`, `workflow_navigation.js`, `repeat_panel.js`; pruebas JavaScript y Playwright V2. No se modifican Python productivo, schema, persistencia, motores compartidos ni V1.
+
+**Validación y evidencia:**
+
+| Comprobación | Resultado |
+|---|---|
+| Baseline focalizado anterior a cambios: assets commands, Repeat commands y workflow navigation | 19 pruebas Node aprobadas. No constituye baseline de todo el repositorio. |
+| Suite JavaScript V2 final | 138 aprobadas, incluidas 14 pruebas nuevas de preparación, edición y vigencia de Repeat. |
+| Python focalizado: frontend placeholder, rutas, contrato Layout y rutas de assets | 114 aprobadas, 1 omitida al no poder crear symlinks de prueba en Windows. Warnings de dependencias; no fallos. |
+| Tres suites Playwright V2 existentes más la nueva de preparación | 29 aprobadas. Incluyen edición manual/locks, navegación, conflictos de guardado, preflight y el recorrido existente Preview/PDF. No acreditan todo caso industrial de salida. |
+| Pruebas específicas de preparación | Dos PDFs con borradores distintos; cambio de caja conservando valores; medidas manuales; página sin TrimBox bloquea todo el lote; corrección explícita; creación, edición sin slots, variantes, undo/redo y recarga. |
+| Trabajo colocado | Edición de cantidad conserva slots exactos, bloquea campos estructurales, invalida Repeat y permite undo/redo. Guarda de slots en dorso cubierta también con Node. |
+| Responsive | Pruebas en 1140, 820 y 390 px; controles de preparación utilizables sin desbordamiento horizontal del documento. Revisión visual en Chrome a tamaño de escritorio y 390 px; viewport restaurado después. |
+| Flask y navegador local | Se reutilizó el proceso registrado por `editor-offset-local-qa`, target V2, dev tools=0. Sin segundo servidor ni reinicio. Job QA nuevo `ev2_33d67636f47a19597e5ce109`, fixture `multipage-rotations.pdf`, tres trabajos guardados en revisión 3, cantidades 4/1/1 y sangrado 3; cero slots. Recarga comprobada y consola consultada sin errores/warnings. |
+
+Las pruebas detectaron durante la implementación que el orden de claves devuelto por el servidor podía convertir una edición de cantidad en una falsa modificación estructural. Se corrigió mediante comparación por contenido y se añadió regresión. También se actualizaron expectativas antiguas de tests que mostraban el canvas/panel lateral al entrar en Preparar: ahora verifican la superficie central. No se presentan esos fallos iniciales como defectos previos del sistema.
+
+**Límites y trabajo abierto:** el caso de cuatro páginas y el motor Repeat independiente siguen pendientes de la entrega C. La vista temporal de distribución y la revisión de atomicidad del comando ApplyRepeat de 42 no se completan aquí. V2 todavía depende del motor compartido actual; esta entrega no declara independencia total. La interfaz informa del sangrado solicitado y remite la cobertura física a preflight; no incorpora un nuevo cálculo geométrico de cobertura ni certifica arte útil fuera del corte. No se amplían marcas, CTP, PDF/X, nesting, separación de slots ni dúplex completo. No se ejecuta la suite global del repositorio ni toda la suite Python V2. Los originales y el job del usuario permanecen intactos.
+
+**Cierre de la intervención:** sintaxis de los ocho archivos JavaScript modificados/nuevos comprobada con `node --check`; `git diff --check` sin errores. Cambios conservados sin commit en la rama actual.

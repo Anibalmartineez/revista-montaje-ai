@@ -591,6 +591,63 @@
     }
   }
 
+  class UpdateWorkCommand {
+    static equal(left, right) {
+      if (left === right) return true;
+      if (!left || !right || typeof left !== "object" || typeof right !== "object") return false;
+      if (Array.isArray(left) !== Array.isArray(right)) return false;
+      const keys = Object.keys(left);
+      return keys.length === Object.keys(right).length && keys.every((key) =>
+        Object.prototype.hasOwnProperty.call(right, key) && UpdateWorkCommand.equal(left[key], right[key]));
+    }
+    constructor(layout, workId, patch) {
+      const work = layout.works.find((item) => item.id === workId);
+      if (!work) throw new Error("El trabajo ya no existe.");
+      const allowed = ["name", "requested_forms", "front_source", "back_source", "trim_size_mm", "bleed_mm", "allowed_rotations_deg"];
+      if (Object.keys(patch).some((key) => !allowed.includes(key))) throw new Error("Cambio de trabajo no soportado.");
+      this.before = clone(work);
+      this.after = { ...clone(work), ...clone(patch) };
+      const next = this.after;
+      if (typeof next.name !== "string" || !next.name.trim()) throw new Error("Escribe un nombre para el trabajo.");
+      const validated = createWorkFromSource(layout, next.front_source, {
+        name: next.name, width: next.trim_size_mm.width, height: next.trim_size_mm.height,
+        bleed: next.bleed_mm, requestedForms: next.requested_forms,
+        allowedRotations: next.allowed_rotations_deg,
+      }, "validate_work");
+      for (const key of ["name", "trim_size_mm", "bleed_mm", "requested_forms", "allowed_rotations_deg"]) {
+        next[key] = clone(validated[key]);
+      }
+      if (next.back_source) sourcePage(layout, next.back_source);
+      this.structural = allowed.filter((key) => !["name", "requested_forms"].includes(key))
+        .some((key) => !UpdateWorkCommand.equal(work[key], next[key]));
+      this.assertEditable(layout);
+      if (UpdateWorkCommand.equal(work, next)) throw new Error("El trabajo no contiene cambios.");
+      this.description = "Editar trabajo preparado";
+      this.affectedIds = Object.freeze([workId]);
+    }
+    assertEditable(layout) {
+      if (this.structural && layout.slots.some((slot) => slot.work_id === this.before.id)) {
+        throw new Error("Este trabajo ya tiene piezas colocadas. Cambia solo nombre/cantidad o crea una variante.");
+      }
+    }
+    execute(layout) {
+      this.assertEditable(layout);
+      const index = layout.works.findIndex((work) => work.id === this.before.id);
+      if (index < 0 || !UpdateWorkCommand.equal(layout.works[index], this.before)) {
+        throw new Error("El trabajo cambió mientras lo editabas. Vuelve a abrirlo.");
+      }
+      sourcePage(layout, this.after.front_source);
+      if (this.after.back_source) sourcePage(layout, this.after.back_source);
+      layout.works[index] = clone(this.after);
+    }
+    undo(layout) {
+      const index = layout.works.findIndex((work) => work.id === this.before.id);
+      if (index < 0) throw new Error("El trabajo ya no existe.");
+      layout.works[index] = clone(this.before);
+    }
+    redo(layout) { this.execute(layout); }
+  }
+
   class CreateWorksCommand {
     constructor(works) {
       if (!Array.isArray(works) || !works.length) {
@@ -1071,6 +1128,7 @@
     SetSlotUserLocksCommand,
     CreateWorkCommand,
     CreateWorksCommand,
+    UpdateWorkCommand,
     CreateSlotFromWorkCommand,
     ReplaceSlotSourceCommand,
     SetSlotDerivedSourceCommand,

@@ -71,7 +71,7 @@ def _open_job_with_repeat(page, server_url: str, pdf_path: Path, quantity: int =
         page.locator("#ev2-asset-upload-button").click()
     expect(page.locator(".ev2-asset-card")).to_have_count(1)
     page.locator("#ev2-work-quantity").fill(str(quantity))
-    page.locator("#ev2-create-work").click()
+    page.locator("#ev2-create-page-works").click()
     page.wait_for_function(
         "() => window.__EDITOR_OFFSET_V2__.store.layout.works.length === 1"
     )
@@ -170,7 +170,7 @@ def test_v2_visible_repeat_calculate_apply_undo_redo_save_and_reload(v2_server, 
             )
             page.locator("#ev2-new-job").click()
             page.wait_for_url("**/editor_offset_visual_v2/ev2_*", timeout=10_000)
-            expect(page.locator("#ev2-canvas")).to_be_visible()
+            expect(page.locator("#ev2-preparation")).to_be_visible()
 
             page.locator("#ev2-asset-file").set_input_files(str(pdf_path))
             with page.expect_response(
@@ -186,7 +186,7 @@ def test_v2_visible_repeat_calculate_apply_undo_redo_save_and_reload(v2_server, 
             )
 
             page.locator("#ev2-work-quantity").fill("4")
-            page.locator("#ev2-create-work").click()
+            page.locator("#ev2-create-page-works").click()
             page.wait_for_function(
                 "() => window.__EDITOR_OFFSET_V2__.store.layout.works.length === 1"
             )

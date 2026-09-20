@@ -89,7 +89,7 @@ def _open_job_with_repeat(page, server_url: str, pdf_path: Path, *, quantity: in
     expect(page.locator(".ev2-asset-card")).to_have_count(1)
 
     page.locator("#ev2-work-quantity").fill(str(quantity))
-    page.locator("#ev2-create-work").click()
+    page.locator("#ev2-create-page-works").click()
     page.wait_for_function(
         "() => window.__EDITOR_OFFSET_V2__.store.layout.works.length === 1"
     )
@@ -1000,7 +1000,7 @@ def test_phase_19_d_workflow_navigation_groups_tools_without_layout_mutation(
                 ("impose", "#ev2-stage-impose"),
                 ("validate", "#ev2-stage-validate-selection"),
                 ("output", "#ev2-stage-output"),
-                ("prepare", "#ev2-stage-prepare"),
+                ("prepare", "#ev2-preparation"),
                 ("adjust", "#ev2-stage-adjust-position"),
             ]:
                 _open_workflow_stage(page, stage)
@@ -1395,7 +1395,8 @@ def test_phase_19_f_keeps_primary_panels_accessible_at_1440_1050_and_820(
             expect(page.locator("#ev2-stage-tab-prepare")).to_have_attribute(
                 "aria-selected", "true"
             )
-            expect(page.locator("#ev2-objects-panel")).to_be_visible()
+            expect(page.locator("#ev2-preparation")).to_be_visible()
+            expect(page.locator("#ev2-objects-panel")).to_be_hidden()
             page.keyboard.press("Escape")
             expect(page.locator("#ev2-stage-tab-prepare")).to_be_focused()
 
@@ -1407,12 +1408,12 @@ def test_phase_19_f_keeps_primary_panels_accessible_at_1440_1050_and_820(
                     document.documentElement.scrollWidth - document.documentElement.clientWidth,
                   sourcesVisible:
                     getComputedStyle(document.querySelector('#ev2-responsive-sources-toggle')).display !== 'none',
-                  canvasWidth: document.querySelector('#ev2-canvas').getBoundingClientRect().width,
+                  preparationWidth: document.querySelector('#ev2-preparation').getBoundingClientRect().width,
                 })"""
             )
             assert enlarged["documentOverflow"] <= 1
             assert enlarged["sourcesVisible"] is True
-            assert enlarged["canvasWidth"] > 0
+            assert enlarged["preparationWidth"] > 0
             page.evaluate("() => { document.documentElement.style.fontSize = ''; }")
 
             assert page.evaluate(

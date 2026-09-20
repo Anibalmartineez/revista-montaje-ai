@@ -74,6 +74,7 @@
     let sheetPanel = null;
     let contentTransformInspector = null;
     let outputPanel = null;
+    let assetsPanel = null;
     const contextProvider = () => ({
       store,
       layout: store.layout,
@@ -107,6 +108,7 @@
       sheetPanel,
       responsivePanels,
       outputPanel,
+      assetsPanel,
     });
     function runAction(actionId, payload) {
       try {
@@ -171,7 +173,7 @@
         },
       },
     );
-    const assetsPanel = new modules.AssetsPanel.AssetsPanel(
+    assetsPanel = new modules.AssetsPanel.AssetsPanel(
       store,
       refs,
       api,
@@ -179,6 +181,7 @@
       context,
       modules.Commands,
       modules.EditPolicy,
+      runAction,
     );
     const repeatPanel = new modules.RepeatPanel.Panel(
       store,
@@ -251,7 +254,7 @@
     );
     const workflowNavigation = new modules.WorkflowNavigation.Controller(store, refs, {
       hasJob: true,
-      initialStage: refs.workflow.dataset.initialStage,
+      initialStage: store.layout.works.length ? refs.workflow.dataset.initialStage : "prepare",
       duplicateActionId: modules.CommandRegistry.ACTION_IDS.DUPLICATE,
       runAction,
       isActionEnabled: (actionId) => actionRegistry.isEnabled(actionId, contextProvider()),

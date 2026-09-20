@@ -133,6 +133,13 @@
           trigger: this.refs.workspaceOpenRepeat,
         });
       });
+      this.listen(this.refs.openPreparation, "click", () => {
+        this.selectStage("prepare", { openResponsivePanel: false });
+        this.responsivePanels?.close?.();
+      });
+      this.listen(this.refs.createRealSlot, "click", () => {
+        if (this.store?.selection.size) this.selectStage("adjust", { openResponsivePanel: false });
+      });
     }
 
     onTabKeydown(event, currentStage) {
@@ -159,7 +166,13 @@
       const targetTab = this.stageEntries().find((entry) => entry.stage === normalized);
       if (!targetTab || !targetTab.enabled) return false;
       this.activeStage = normalized;
+      if (this.refs.preparation) {
+        this.refs.preparation.closest(".ev2-shell").classList.toggle("is-preparing", normalized === "prepare" && this.hasJob);
+      }
       this.refs.workflow.dataset.activeStage = normalized;
+      if (this.refs.responsiveInspectorToggle) {
+        this.refs.responsiveInspectorToggle.disabled = normalized === "prepare" && this.hasJob;
+      }
       for (const entry of this.stageEntries()) {
         const selected = entry.stage === normalized;
         entry.tab.setAttribute("aria-selected", String(selected));
@@ -169,12 +182,15 @@
       for (const panel of this.refs.workflowPanels) {
         panel.hidden = panel.dataset.ev2StagePanel !== normalized;
       }
+      if (this.refs.preparation && !this.hasJob) this.refs.preparation.hidden = true;
       const meta = STAGE_META[normalized];
       this.refs.inspectorModeTitle.textContent = meta.title;
       this.refs.inspectorModeDescription.textContent = meta.description;
 
       const settings = options || {};
-      if (settings.openResponsivePanel) {
+      if (normalized === "prepare" && this.hasJob) {
+        this.responsivePanels?.close({ restoreFocus: false });
+      } else if (settings.openResponsivePanel) {
         this.responsivePanels?.openForStage(normalized, settings.trigger || targetTab.tab);
       }
       if (settings.focusTab) targetTab.tab.focus();

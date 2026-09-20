@@ -262,6 +262,14 @@
   }
 
   function registerEditorActions(registry) {
+    for (const operation of ["focus", "row", "field", "asset", "page", "common", "all", "create", "edit", "cancel", "variant", "save", "selectwork", "slot", "replace"]) {
+      registry.register({
+        id: `preparation.${operation}`, category: "preparation", label: `Preparación: ${operation}`,
+        modifiesLayout: ["create", "save", "slot", "replace"].includes(operation),
+        enabled: (context) => Boolean(context.assetsPanel) && !context.store.pointerSession,
+        execute: (context, payload) => context.assetsPanel.handle(operation, payload),
+      });
+    }
     for (const [id, operation] of [[ACTION_IDS.OUTPUT_PREVIEW,"preview"],[ACTION_IDS.OUTPUT_PDF,"pdf_final"]]) {
       registry.register({ id, label: operation === "preview" ? "Generar Preview" : "Descargar PDF",
         enabled: (context) => Boolean(context.outputPanel && !context.outputPanel.generating),
