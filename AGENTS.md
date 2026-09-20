@@ -1,5 +1,17 @@
 # AGENTS.md — Reglas operativas de `revista-montaje-ai`
 
+## Directriz actual para V2 — trabajo diario e independencia
+
+Por instrucción explícita del usuario, la entrada de trabajo es [41 — Trabajo diario y bitácora V2](DOCS/OFFSET/V2/41_TRABAJO_DIARIO_Y_BITACORA_V2.md). Esta directriz sustituye las indicaciones inferiores que impongan jerarquía de documentos antiguos, lectura inicial obligatoria, roadmap, próximo gate o secuencia de fases para V2.
+
+- Continuar desde el código existente, probando, corrigiendo y mejorando según lo observado y la solicitud de la sesión. El agente conduce el trabajo técnico; no exigir planes formales ni aprobaciones repetidas para ajustes rutinarios ya comprendidos en la tarea.
+- Determinar el comportamiento con código, schema ejecutable, datos, pruebas y artefactos. Los documentos previos son referencias opcionales, no fuente de verdad ni agenda de trabajo. No confundir comportamiento existente con comportamiento correcto.
+- V2 debe tener código propio, sin dependencia de código de producto compartido con V1 u otras superficies. Las dependencias actuales son deuda que debe resolverse en V2, no invariantes que deban conservarse. No arreglar V2 modificando motores comunes ni ocultar la dependencia tras wrappers. Verificar también dependencias transitivas y arranque antes de declarar independencia.
+- Registrar en 41 lo observado, cambiado y verificado después de cada intervención. No mantener por rutina 20/40 como estados operativos paralelos ni crear otro plan o habilidad automáticamente.
+- Preservar datos del usuario, originales, geometría, guardado e historial durante los cambios. Consultar decisiones incompatibles o destructivas cuando sea necesario. Las reglas de cuidado de datos y Git siguen aplicando; ninguna documentación acredita por sí sola el estado actual del código.
+
+El resto de este archivo conserva reglas técnicas y referencias del trabajo previo. Aplicarlas cuando sean pertinentes y compatibles con esta directriz; sus planes y afirmaciones de estado necesitan contraste con la ejecución actual.
+
 ## 1. Propósito y prioridad actual
 
 Este repositorio contiene `revista-montaje-ai` y varias superficies de preprensa.

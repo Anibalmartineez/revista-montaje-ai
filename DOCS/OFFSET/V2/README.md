@@ -2,17 +2,13 @@
 
 ## Por dónde empezar
 
-1. [20 — Estado operativo vigente](20_ESTADO_ACTUAL_POST_REDISENO_UX_V2.md).
-2. [40 — Auditoría integral, mapa funcional y plan de mejoras](40_AUDITORIA_INTEGRAL_MAPA_Y_PLAN_DE_MEJORAS_V2.md).
-3. Contratos [01 — Layout](01_CONTRATO_LAYOUT_V2.md), [02 — Geometría](02_KERNEL_GEOMETRICO_V2.md) y [21 — Preflight](21_CONTRATO_PREFLIGHT_V2.md).
-4. [39 — Cierre de salida 39A–39C](39_PLAN_SAFE_CIERRE_SALIDA_PRODUCTIVA_V2.md), para implementación, límites y operación.
-5. [11 — Decisiones pendientes](11_DECISIONES_ARQUITECTONICAS_PENDIENTES_V2.md), antes de ampliar alcance.
+**Entrada actual: [41 — Trabajo diario y bitácora V2](41_TRABAJO_DIARIO_Y_BITACORA_V2.md).** Por decisión del usuario, el avance parte del código existente y de las pruebas de uso, con código propio e independiente para V2. No hay un roadmap ni un siguiente paso obligatorio heredado de los documentos anteriores.
 
-El editor tiene Preview/PDF nativos, corrección interna y derivados. Hay defectos abiertos de preflight, derivados y Repeat. Dev tools no controla la capacidad de colocar páginas. Seleccionar todos existe; separar una cuadrícula conservando sus filas/columnas sigue siendo una propuesta.
+Los documentos 01–40 se conservan como referencias y evidencia de sus cortes. Consultarlos cuando una duda concreta lo justifique; no son la fuente de verdad del producto. Registrar lo comprobado y los cambios realizados en la bitácora 41.
 
-## Índice completo y autoridad
+## Índice de antecedentes
 
-Un documento de fase conserva lo que se decidió/probó entonces. Sus exclusiones y próximos pasos no son automáticamente pendientes actuales. Un contrato define intención; una brecha de implementación debe registrarse, no ocultarse cambiando su texto. Este índice y 40 alinean la lectura sin borrar evidencia histórica.
+La clasificación siguiente conserva la función de los documentos en el corte anterior. Las etiquetas «vigente», «pendiente» o «implementado» de esta tabla describen aquel registro y deben contrastarse con el código y las pruebas actuales. No imponen contratos nuevos, prioridades ni tareas; la directriz de trabajo está en 41.
 
 | Documento | Clasificación | Cómo usarlo ahora |
 |---|---|---|
@@ -64,4 +60,4 @@ Un documento de fase conserva lo que se decidió/probó entonces. Sus exclusione
 
 ## Regla de mantenimiento
 
-Actualizar 20 al cambiar comportamiento; registrar evidencia y estado de cada hallazgo en 40 durante su corrección; actualizar el contrato específico cuando corresponda. Una nueva fase debe declarar alcance y aceptación, sin convertir una propuesta del roadmap en autorización automática. La historia permanece identificada por su fase/fecha.
+Registrar las intervenciones en [41 — Trabajo diario y bitácora V2](41_TRABAJO_DIARIO_Y_BITACORA_V2.md). Actualizar referencias técnicas concretas cuando el cambio lo necesite, conservando su historia. No sincronizar todos los documentos antiguos ni mantener planes paralelos por rutina. La documentación registra evidencia; la comprobación del sistema determina su comportamiento actual.
