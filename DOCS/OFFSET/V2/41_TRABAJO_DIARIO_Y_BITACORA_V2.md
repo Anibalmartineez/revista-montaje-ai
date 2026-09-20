@@ -71,3 +71,50 @@ No es necesario crear un documento numerado por cada ajuste. Separar una explica
 - **Resultado:** nueva orientación registrada. No se modificaron Python, JavaScript, HTML, CSS, schema ni jobs. No se creó una habilidad, no se reinició Flask y no se ejecutaron suites del editor en esta intervención documental.
 - **Validación documental:** comprobados los enlaces locales y el balance de bloques de código de los tres documentos afectados; `git diff --check` sin errores de whitespace. Sin commit en esta intervención.
 - **Abierto:** la independencia de código es un requisito adoptado, todavía no una propiedad demostrada del sistema. El trabajo funcional se elegirá durante el uso y la investigación, sin una secuencia impuesta por esta bitácora.
+
+### 2026-09-19 — Prueba real de preparación multipágina y propuesta de unificación
+
+**Solicitud:** comprobar en el sistema la duplicación entre «Páginas del PDF» y «Fuente y work», y después proponer una experiencia unificada. Alcance: prueba y propuesta; sin implementar cambios de interfaz.
+
+**Entorno y evidencia:** `check_flask.py --target v2` comprobó `/` y `/editor_offset_visual_v2` con HTTP 200 en el primer intento. El servidor ya estaba activo; no se inició otro ni se reinició. Registro de la skill: target V2, enabled=1, dev tools=0. Recorrido interactivo en Chrome, screenshots y lectura del layout persistido. Se creó el job de prueba `ev2_e949f202f1f39e2e1317cd6f` y se subió `tests/fixtures/editor_offset_v2/multipage-rotations.pdf` mediante el selector de archivos. No se modificó el montaje del usuario.
+
+Se contrastó el comportamiento con `static/js/editor_offset_v2/assets_panel.js`, en `renderSourceControls`, `createWork` y `createPageWorks`. No se tomó un plan antiguo como especificación del flujo.
+
+**Resultados reproducidos:**
+
+| Prueba | Resultado comprobado |
+|---|---|
+| Seleccionar las tres páginas y cantidades 2, 3 y 4; crear works seleccionados | Se crean tres trabajos con esas cantidades, bleed 0 y giros 0/90/180/270. No se crean slots. |
+| Caja visible TrimBox al crear ese lote | Las páginas 1 y 3 usan trim; la 2 usa crop, porque no dispone de trim. La tabla de páginas no muestra la sustitución ni la caja efectiva por página. |
+| Introducir bleed 3 y cantidad individual 9; después cambiar a MediaBox | El formulario restablece bleed a 0 y cantidad a 1. El código también restablece nombre y dimensiones cuando reinicia los valores de fuente. |
+| Con MediaBox ya seleccionada, introducir de nuevo bleed 3 y cantidad 9, dejar solo giro 0; crear el lote otra vez | Se añaden otros tres trabajos con MediaBox, bleed 3 y giro 0. Conservan cantidades por página 2/3/4; la cantidad individual 9 no se aplica al lote. |
+| Comparar los dos lotes | Existen seis trabajos con nombres repetidos por página, aunque sus cajas, dimensiones, sangrado y giros son distintos. La segunda creación no actualiza los anteriores ni muestra advertencia de repetición. |
+| Crear mediante «Crear work real», con nombre «QA individual página 1» | Añade un séptimo trabajo: página 1, MediaBox, cantidad 9, bleed 3, giro 0. Confirma que el formulario inferior también crea trabajos. |
+| Deshacer dos veces y rehacer dos veces | Retira/restaura el trabajo individual y el lote completo, respectivamente. |
+| Autosave y recarga | Se conservan los siete trabajos, revisión 9, cero slots. El planificador vuelve a cantidades 1 y solo página 1 seleccionada; el formulario vuelve a valores iniciales. Son borradores de creación, no una vista de los valores persistidos. |
+| Consola del navegador | Sin errores/warnings en los registros consultados de la pestaña de prueba. |
+
+**Conclusión:** no falta completamente el soporte de sangrado en la creación multipágina. Existe una dependencia poco visible: el botón superior lee caja, bleed, giros y opción de dorso del formulario inferior, mientras ignora su cantidad individual, nombre y medidas manuales y calcula los propios por página. La herencia de caja/bleed/giros y la separación de cantidades se comprobaron en ejecución; la lectura de dorso y el cálculo de nombre/medidas se constataron en código, sin probar todas sus variantes.
+
+Visualmente, la preparación se concentra en una columna estrecha con scroll. El botón del lote aparece antes que las opciones que utiliza. El centro conserva un pliego vacío y el panel derecho solo indica crear works a la izquierda. «Fuente y work» mezcla creación individual, selección de trabajos existentes, creación de slots y sustitución de fuente. Todo ello dificulta distinguir preparar, crear y editar.
+
+**Propuesta basada en esta prueba, todavía sin implementar:**
+
+- Usar la etapa Preparar para un área amplia de páginas y configuración, con un único flujo para una o varias páginas. La biblioteca muestra el archivo una sola vez; la selección para preparar y la inspección de una miniatura deben distinguirse.
+- Mostrar una fila o tarjeta por página con miniatura, selección, cantidad, caja efectiva, tamaño final, sangrado solicitado y estado. Presentar controles comunes «Aplicar a seleccionadas» y permitir excepciones por página.
+- Mantener cantidad y sangrado al cambiar de caja; recalcular solamente las medidas afectadas e indicar el cambio. Si una caja elegida no existe en una página, mostrar el problema y permitir elegir explícitamente otra; no sustituirla silenciosamente.
+- Separar tamaño de la caja fuente y tamaño final cuando se permita edición manual. Indicar si el sangrado solicitado dispone de cobertura en la fuente; escribir 3 mm no crea contenido exterior automáticamente. No prometer validación física completa solo por comparar tamaños de cajas.
+- Ofrecer un único botón «Crear trabajos»: por ejemplo, «Crear 3 trabajos · 9 formas». Mostrar el resumen efectivo antes de crear. Una nueva creación de páginas ya utilizadas debe permitir una variante explícita o dirigir a editar el trabajo existente, sin impedir usos legítimos de una misma página.
+- Debajo, mostrar «Trabajos preparados» con sus valores guardados y acciones diferenciadas para editar, duplicar como variante y colocar. Editar debe conservar identidad y resolver de forma explícita su efecto sobre slots existentes; no cambiar un montaje silenciosamente.
+- Conservar colocación manual y sustitución de fuente, ubicadas con los trabajos o slots correspondientes, sin mantener un segundo formulario competidor de creación. Usar «Trabajo», «Archivo PDF», «Sangrado» y «Cantidad de formas» como lenguaje visible.
+- Mantener creación en lote reversible, autosave y recarga. Los borradores nuevos y los trabajos guardados deben verse distintos. La implementación de esta mejora debe permanecer en código propio V2, sin introducir reutilización de motores compartidos.
+
+**Límites y estado:** hallazgos reproducidos; propuesta pendiente de implementación. No se probaron Repeat, generación PDF, dorso, varias cargas simultáneas ni todas las combinaciones de cajas en este recorrido. No se ejecutó la suite general. Un primer intento de selector de archivos falló en la herramienta de navegador; se recuperó con una pestaña nueva y la carga UI posterior funcionó. No se atribuye ese incidente al editor. Se conserva el job de QA para inspección. Solo se modifica esta bitácora; sin cambios productivos ni commit.
+
+### 2026-09-19 — Plan solicitado para Preparar unificado y Repeat propio
+
+- **Solicitud:** preparar cómo implementar ambas mejoras sobre el código existente preservando su funcionamiento. Esta petición concreta autoriza planificar; no convierte los roadmaps anteriores en agenda ni inicia la implementación.
+- **Inspección:** panel de assets, helpers/comandos de trabajos y Repeat, Store, panel Repeat, servicio/adaptador/resultado Python, geometría y referencias de integración/tests. Se conserva la entrada anterior de QA que ya estaba sin commit.
+- **Resultado documental:** creado [42 — Plan de preparación unificada y Repeat propio](42_PLAN_PREPARACION_UNIFICADA_Y_REPEAT_PROPIO_V2.md), con archivos afectados, política propuesta de edición segura, motor V2 sin dependencia compartida, vigencia de propuestas, aceptación y rollback.
+- **Riesgos identificados en código:** los slots copian datos del work; editarlo no los sincroniza automáticamente. La aplicación de Repeat requiere guardas de estado/revisión y respuestas tardías; su comando debe validar completamente antes de retirar slots. Son puntos a cubrir en implementación, sin reproducción adicional en navegador en esta sesión.
+- **Estado:** plan preparado, código productivo intacto. No se ejecutaron suites, no se reinició Flask y no se hizo commit. La independencia de Repeat y la interfaz unificada siguen pendientes de implementación.
