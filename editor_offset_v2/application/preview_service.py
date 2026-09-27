@@ -24,6 +24,11 @@ from editor_offset_v2.domain.geometry import (
     trim_polygon,
 )
 from editor_offset_v2.domain.validation import validate_layout_v2
+from editor_offset_v2.domain.preview_policy import (
+    PREVIEW_MAX_PIXELS,
+    preview_pixel_size,
+    preview_resource_issue,
+)
 from editor_offset_v2.infrastructure.asset_repository import (
     AssetRepository,
     AssetRepositoryError,
@@ -42,7 +47,6 @@ from editor_offset_v2.infrastructure.prepared_pdf_source import (
 PREVIEW_DEFAULT_DPI = 150
 PREVIEW_MIN_DPI = 36
 PREVIEW_MAX_DPI = 300
-PREVIEW_MAX_PIXELS = 24_000_000
 PREVIEW_METADATA_TOLERANCE_MM = 0.01
 POINTS_PER_MM = 72.0 / 25.4
 
@@ -145,10 +149,10 @@ class PreviewService:
                 )
 
         sheet = layout["sheet"]["size_mm"]
-        sheet_width_px = round(float(sheet["width"]) * dpi / 25.4)
-        sheet_height_px = round(float(sheet["height"]) * dpi / 25.4)
-        if sheet_width_px * sheet_height_px > PREVIEW_MAX_PIXELS:
-            raise PreviewServiceError("PREVIEW_RESOURCE_LIMIT", "The requested preview exceeds the pixel limit")
+        sheet_width_px, sheet_height_px = preview_pixel_size(sheet, dpi)
+        resource_issue = preview_resource_issue(sheet, dpi)
+        if resource_issue:
+            raise PreviewServiceError("PREVIEW_RESOURCE_LIMIT", resource_issue)
 
         assets = {asset["id"]: asset for asset in layout["assets"]}
         from editor_offset_v2.infrastructure.pdf_compositor import compose_pdf

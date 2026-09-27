@@ -8,9 +8,9 @@ from typing import Final
 
 PREFLIGHT_REPORT_SCHEMA_VERSION: Final = 1
 PREFLIGHT_POLICY_ID: Final = "editor-offset-v2-minimal"
-PREFLIGHT_POLICY_VERSION: Final = "2"
+PREFLIGHT_POLICY_VERSION: Final = "3"
 PREFLIGHT_CAPABILITIES_ID: Final = "native-v2"
-PREFLIGHT_CAPABILITIES_VERSION: Final = "4"
+PREFLIGHT_CAPABILITIES_VERSION: Final = "5"
 PREFLIGHT_ANALYZER_ID: Final = "editor-offset-v2-preflight"
 PREFLIGHT_ANALYZER_VERSION: Final = "1"
 PREFLIGHT_OPERATIONS: Final = ("preview", "pdf_final", "ctp")
@@ -22,6 +22,11 @@ PREFLIGHT_SEVERITIES: Final = frozenset({"info", "warning", "error"})
 
 class PreflightContractError(ValueError):
     """Raised when a generated report cannot satisfy its stable contract."""
+
+
+def blocking_issue_ids(issues, operation):
+    """Severity describes a finding; blocks defines its operational effect."""
+    return [issue['issue_id'] for issue in issues if operation in issue['blocks']]
 
 
 def validate_preflight_report(report: Mapping[str, object]) -> None:
@@ -72,6 +77,8 @@ def validate_preflight_report(report: Mapping[str, object]) -> None:
             raise PreflightContractError("Issue references an unknown check")
         if not isinstance(issue.get("blocks"), list):
             raise PreflightContractError("Issue blocks must be an array")
+        if any(operation not in PREFLIGHT_OPERATIONS for operation in issue['blocks']):
+            raise PreflightContractError('Issue references an unknown blocking operation')
         if issue['issue_id'] in issue_ids:
             raise PreflightContractError('Duplicate issue')
         issue_ids.add(issue["issue_id"])
@@ -85,7 +92,7 @@ def validate_preflight_report(report: Mapping[str, object]) -> None:
             raise PreflightContractError("Invalid preflight decision status")
         if any(issue_id not in issue_ids for issue_id in decision.get("blocking_issue_ids", [])):
             raise PreflightContractError("Decision references an unknown issue")
-        blocking = {i['issue_id'] for i in issues if i['severity']=='error' and decision['operation'] in i['blocks']}
+        blocking = set(blocking_issue_ids(issues, decision['operation']))
         if blocking != set(decision.get('blocking_issue_ids',[])):
             raise PreflightContractError('Decision omits blocking findings')
         if decision['status']=='eligible' and (blocking or report['execution']!='complete' or any(c['status'] in ('failed','not_run') for c in checks)):
@@ -106,5 +113,6 @@ __all__ = [
     "PREFLIGHT_REPORT_SCHEMA_VERSION",
     "PREFLIGHT_SEVERITIES",
     "PreflightContractError",
+    "blocking_issue_ids",
     "validate_preflight_report",
 ]

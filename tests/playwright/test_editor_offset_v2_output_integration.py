@@ -190,3 +190,57 @@ def test_operator_preview_download_retry_and_stale_result(output_server,tmp_path
             page.unroute('**/pdf-final')
             assert not errors
         finally:browser.close()
+
+
+def test_preview_budget_is_explained_before_request_and_pdf_can_download(output_server, tmp_path):
+    from test_editor_offset_v2 import _write_test_pdf, _open_job_with_repeat
+    source = tmp_path / 'preview-budget.pdf'
+    _write_test_pdf(source)
+    with sync_playwright() as pw:
+        browser = pw.chromium.launch()
+        page = browser.new_page(viewport={'width': 1440, 'height': 900})
+        errors, preview_requests = [], []
+        page.on('pageerror', lambda error: errors.append(str(error)))
+        page.on('request', lambda request: preview_requests.append(request.url)
+                if request.url.endswith('/preview') else None)
+        try:
+            _open_job_with_repeat(page, output_server, source, 1)
+            page.locator('#ev2-save').click()
+            expect(page.locator('#ev2-save')).to_be_disabled()
+            page.wait_for_function('() => !window.__EDITOR_OFFSET_V2__.store.hasUnsavedChanges() && window.__EDITOR_OFFSET_V2__.store.saveState.status === "clean"')
+            job = page.url.rsplit('/', 1)[1]
+            api = f'{output_server}/api/editor-offset-v2/jobs/{job}'
+            current = page.request.get(api).json()
+            layout = current['layout']
+            layout['sheet']['size_mm'] = {'width': 700, 'height': 700}
+            layout['sheet']['printable_margins_mm'] = dict(left=0, right=0, top=0, bottom=0)
+            layout['slots'][0]['geometry']['position_mm'].update(x_mm=150, y_mm=150)
+            assert page.request.put(api + '/layout', data={
+                'layout': layout, 'base_revision': current['revision']}).status == 200
+            saved = page.request.get(api).json()
+            page.reload()
+            _open_workflow_stage(page, 'output')
+            page.locator('#ev2-output-dpi').select_option('300')
+            page.locator('#ev2-output-preview').click()
+            expect(page.locator('#ev2-output-result')).to_contain_text('Salida bloqueada para Preview')
+            expect(page.locator('#ev2-output-findings')).to_contain_text('La Preview es demasiado grande')
+            assert not preview_requests
+            expect(page.locator('#ev2-output-image')).to_be_hidden()
+            with page.expect_download() as download:
+                page.locator('#ev2-output-pdf').click()
+            target = tmp_path / 'large-sheet.pdf'
+            download.value.save_as(target)
+            with fitz.open(target) as document:
+                assert document.page_count == 1
+                assert document[0].rect.height * 25.4 / 72 == pytest.approx(700, abs=.01)
+                assert 'EDITOR OFFSET V2' in document[0].get_text()
+                assert not document[0].get_images()
+            page.locator('#ev2-output-dpi').select_option('150')
+            page.locator('#ev2-output-preview').click()
+            expect(page.locator('#ev2-output-result')).to_contain_text('Preview lista', timeout=20000)
+            expect(page.locator('#ev2-output-image')).to_be_visible()
+            assert len(preview_requests) == 1
+            assert page.request.get(api).json() == saved
+            assert not errors
+        finally:
+            browser.close()

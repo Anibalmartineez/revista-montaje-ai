@@ -34,6 +34,7 @@ from editor_offset_v2.domain.preflight_contract import (
     PREFLIGHT_POLICY_VERSION,
     PREFLIGHT_REPORT_SCHEMA_VERSION,
     PreflightContractError,
+    blocking_issue_ids,
     validate_preflight_report,
 )
 from editor_offset_v2.domain.validation import validate_layout_v2
@@ -287,23 +288,15 @@ class PreflightService:
         }
         decisions = []
         for operation in PREFLIGHT_OPERATIONS:
-            blocking = [
-                issue["issue_id"]
-                for issue in issues
-                if issue["severity"] == "error" and operation in issue.get("blocks", [])
-            ]
+            blocking = blocking_issue_ids(issues, operation)
+            reason_codes = []
             if complete is False:
-                status = "blocked"
-                reason_codes = ["PREFLIGHT_INCOMPLETE"]
-            elif blocking:
-                status = "blocked"
-                reason_codes = ["PREFLIGHT_FINDINGS"]
-            elif not enabled[operation]:
-                status = "blocked"
-                reason_codes = ["CAPABILITY_GATE_NOT_ENABLED"]
-            else:
-                status = "eligible"
-                reason_codes = []
+                reason_codes.append("PREFLIGHT_INCOMPLETE")
+            if blocking:
+                reason_codes.append("PREFLIGHT_FINDINGS")
+            if not enabled[operation]:
+                reason_codes.append("CAPABILITY_GATE_NOT_ENABLED")
+            status = "blocked" if reason_codes else "eligible"
             decisions.append({
                 "operation": operation,
                 "status": status,

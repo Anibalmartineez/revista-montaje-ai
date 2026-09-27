@@ -1,5 +1,6 @@
 """Capabilities of V2's own renderer; never imports the legacy bridge."""
 from editor_offset_v2.domain.output_contract import OutputIssue
+from editor_offset_v2.domain.preview_policy import preview_resource_issue
 
 NATIVE_VECTOR_AVAILABLE = True  # Native form compositor, covered by phase 39B object tests.
 MAX_INTERMEDIATE_PIXELS = 24_000_000
@@ -11,6 +12,9 @@ def native_output_issues(layout, options=None):
         result.append((OutputIssue(code=code,level=level,message=message,path=path,
             slot_id=slot['id'] if slot else None,asset_id=slot['source']['asset_id'] if slot else None),list(blocks)))
     export = layout['export']
+    preview_limit = preview_resource_issue(layout['sheet']['size_mm'], options.get('dpi', 150))
+    if preview_limit:
+        add('PREVIEW_RESOURCE_LIMIT', preview_limit, '$.sheet.size_mm', ('preview',))
     if len(layout['slots'])>500:
         add('OUTPUT_PLACEMENT_LIMIT','Este perfil admite hasta 500 piezas por petición.','$.slots')
     if export['render_mode']=='raster' and export['preserve_vector_content']:

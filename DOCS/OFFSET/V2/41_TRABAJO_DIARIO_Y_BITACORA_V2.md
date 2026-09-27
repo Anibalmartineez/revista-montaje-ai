@@ -63,6 +63,20 @@ No es necesario crear un documento numerado por cada ajuste. Separar una explica
 
 ## Bitácora
 
+### 2026-09-27 — Preflight coherente: entrega 1 de salida PDF habitual
+
+**Solicitud:** registrar las cinco entregas propuestas y ejecutar únicamente la primera. Se creó [43 — Plan de salida PDF habitual V2](43_PLAN_SALIDA_PDF_HABITUAL_V2.md), con problema resuelto, implementación prevista, aceptación y estado por entrega. **Entrega 1 completada; 2–5 pendientes.** No reanuda automáticamente E del documento 42. Base limpia `69b197c`; sin commit/push en esta intervención.
+
+**Corregido y verificado:** servicio y contrato del informe respetan `blocks` por operación independientemente de `severity`. Sangrado fuera del área imprimible o superpuesto bloquea PDF/CTP; Preview sigue disponible para inspeccionar. Advertencias sin bloqueo, como marcas omitidas con sangrado cero, conservan su comportamiento. Los motivos de hallazgos y gate deshabilitado se informan conjuntamente. Política 3/capacidades 5 impiden consumir informes antiguos como autorización actual.
+
+El cálculo redondeado del bitmap y presupuesto de 24 millones de píxeles reside en un módulo propio V2, usado por preflight y renderer de Preview. `PREVIEW_RESOURCE_LIMIT` aparece antes de renderizar y afecta solamente Preview; el PDF vectorial no se bloquea por ese límite del pliego. No se modifican Layout/schema, fuentes originales, geometría, frontend, compositor ni motores compartidos.
+
+**Validación:** base focalizada 20 passed; regresiones nuevas antes de corregir 7 failed/1 passed; grupo de preflight/seguridad/Preview/PDF/compositor 137 passed; grupo final de 12 casos de decisiones y 14 de aceptación 26 passed/3 deselected (conteos parcialmente repetidos). Integración de salida en navegador: 6 passed, incluyendo rechazo a 300 dpi antes de pedir Preview, PDF descargable a 300 dpi y Preview a 150 dpi, sin cambiar la revisión. `git diff --check` correcto. Cinco avisos de deprecación PyMuPDF/SWIG. No se ejecutaron V1, suite global, Python V2 completo ni Node; se excluyeron cargas 14/100/500 y no se declara corregido el benchmark temporal de 500 piezas.
+
+**Caso del usuario:** copia aislada del job `ev2_f2347e8ce720eb582054200f`, revisión 39, en `.codex-runtime/salida43-entrega1-wdqcyrqm/`. Sin espejo conserva cuatro bloqueos de sangrado; con espejo/300 dpi bloquea Preview, permite PDF 700 × 700 con las cuatro piezas; con espejo/150 dpi Preview correcta. PDF inspeccionado visualmente y raster a 60 dpi idéntico al de la auditoría previa. Originales y layouts sin cambios. Detalles y evidencia en 43.
+
+**Servidor:** skill `editor-offset-local-qa`, target V2; reinicio solo del proceso registrado/verificado para cargar el backend. PID 11896 → 8692; raíz y V2 HTTP 200 tras iniciar. Dev tools=0 y flags Preview/PDF conservados apagados, como corresponde antes de entrega 4. Preflight real confirmó nuevas versiones y motivos; la revisión/hash del montaje original siguen intactos. Los mensajes/presentación legacy quedan para 2 y la configuración persistente del sangrado para 3.
+
 ### 2026-09-19 — Apertura del nuevo método
 
 - **Solicitud:** trabajar día a día desde el código existente, con conducción técnica del agente, independencia de V2, pruebas y registro posterior; abandonar los planes anteriores como guía obligatoria.
