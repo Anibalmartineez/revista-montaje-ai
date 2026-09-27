@@ -63,6 +63,22 @@ No es necesario crear un documento numerado por cada ajuste. Separar una explica
 
 ## Bitácora
 
+### 2026-09-27 — Decisión de sangrado por trabajo: entrega 3 de salida PDF habitual
+
+**Solicitud:** implementar la preparación comprensible de una o varias páginas, con decisión de sangrado persistente y coherente entre canvas, preflight, Preview y PDF. Base limpia `374f048`; sin commit/push en esta intervención.
+
+**Resultado:** entrega 3 **Completado** en [43 — Salida PDF habitual](43_PLAN_SALIDA_PDF_HABITUAL_V2.md). La preparación muestra tamaño detectado/final, milímetros y cobertura física declarada; las cajas quedan en opciones avanzadas. Permite subir otro archivo, ajustar el sangrado o autorizar espejo. `works[].bleed_strategy` es opcional, con `source_only` y `mirror_if_missing`; ausencia conserva el permiso temporal anterior y se muestra explícitamente, sin migrar trabajos al abrir o renombrar. Las decisiones nuevas sobreviven a guardar/recargar y undo/redo, también al editar trabajos colocados, respetando locks de contenido y conservando geometría.
+
+**Integración:** una resolución propia V2 gobierna autorización, fuente preparada y diagnóstico. El espejo generado se avisa; los derivados nuevos registran su origen y no pueden eludir `source_only`. Nuevas colocaciones manuales/Repeat de trabajos con decisión explícita y sangrado positivo usan recorte con sangrado. Se encontró este defecto en la prueba completa: antes nacían con recorte al corte y el PDF las bloqueaba. No se cambia el recorte de slots guardados. Cero sangrado conserva la omisión de marcas y su aviso. Las bandas de espejo siguen raster a 300 dpi; el contenido central conserva el compositor existente.
+
+**Evidencia:** Python V2 sin las tres pruebas de carga: 619 passed, 1 skipped; después, 18 pruebas focalizadas pasan e incluyen dos casos adicionales de sangrado real conservado. Node completo: 164 passed; test focalizado final: 4 passed, incluyendo un caso adicional de locks/colocación/compatibilidad. No sumar repeticiones. Playwright: 36 passed entre edición, UX, salida, Repeat nativo, preparación y nuevo flujo de sangrado; se verifica PDF descargado, cantidades 2/1, historial, recarga, políticas mezcladas y canvas. Casos Python comparan raster PDF/Preview píxel a píxel y color del sangrado físico para distinguirlo del espejo. Capturas desktop/390 px y PDF inspeccionados en `.codex-runtime/salida43-entrega3/`.
+
+**QA local:** reinicio mediante `editor-offset-local-qa`, exclusivamente PID registrado 8692 → 16052; target V2, dev tools=0, rutas raíz/V2 HTTP 200 en el primer intento posterior. Se mantienen los gates de salida habituales anteriores. CUA verificó el trabajo del usuario revisión 39 y la selección de espejo en un borrador que se canceló; sin errores/warnings de consola y sin historial nuevo. Hashes del layout y PDF original coinciden con los registrados en entrega 2.
+
+**Límites:** las cajas acreditan extensión física, no la presencia/calidad del diseño en todos los bordes; no se inventan cajas ni se certifica tinta útil. Tamaño personalizado distinto de la fuente se advierte y sigue bloqueado para salida; no se implementa escalado automático. Derivados anteriores sin origen quedan identificados como desconocidos y requieren revisión; elegir `source_only` exige procedencia acreditada cuando hay sangrado. Código V1, originales, geometría existente y flags habituales sin cambios. Entregas 4 y 5 pendientes; exclusiones y rollback del campo opcional en 43.
+
+**Cierre final:** revisión de tolerancia para sangrado diminuto con BleedBox inconsistente, con fixture común Python/JS. Reejecución focalizada: 51 Python y 4 Node pasan; sintaxis JS y `git diff --check` correctos. Reinicio controlado final de PID 16052 → 16812 para cargar esa corrección; raíz y V2 HTTP 200 al primer intento posterior, mismos flags.
+
 ### 2026-09-27 — Diagnóstico nativo unificado: entrega 2 de salida PDF habitual
 
 **Solicitud:** continuar con la entrega 2 de [43 — Salida PDF habitual V2](43_PLAN_SALIDA_PDF_HABITUAL_V2.md). Base limpia `5aa9b58`. **Entrega 2 completada**, con entregas 3–5 pendientes; sin commit/push en esta intervención.

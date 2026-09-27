@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import math
+from .work_bleed import WORK_BLEED_STRATEGIES
 from dataclasses import dataclass
 from typing import Any, Iterable, Mapping, Sequence
 
@@ -433,6 +434,7 @@ def _validate_works(
                 "front_source",
                 "back_source",
             },
+            optional={"bleed_strategy"},
         )
         if work is None:
             continue
@@ -445,6 +447,10 @@ def _validate_works(
         validator.string(work.get("name"), f"{path}.name")
         _validate_size(work.get("trim_size_mm"), validator, f"{path}.trim_size_mm")
         validator.number(work.get("bleed_mm"), f"{path}.bleed_mm", nonnegative=True)
+        if "bleed_strategy" in work:
+            strategy = validator.string(work["bleed_strategy"], f"{path}.bleed_strategy")
+            if strategy is not None:
+                validator.enum(strategy, f"{path}.bleed_strategy", WORK_BLEED_STRATEGIES)
         validator.integer(work.get("requested_forms"), f"{path}.requested_forms", minimum=1)
         rotations = validator.array(work.get("allowed_rotations_deg"), f"{path}.allowed_rotations_deg")
         if rotations is not None:

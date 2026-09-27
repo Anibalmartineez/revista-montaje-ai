@@ -268,6 +268,13 @@ class PreflightService:
             try:
                 prepared = resolver._prepared_slot(slot, assets, job_id, self._jobs.options.get('allow_mirror_bleed',False))
                 self._jobs.prepared[slot['id']] = prepared
+                origin = resolver.bleed_origins.get(slot['id'], 'unknown')
+                if slot['geometry']['bleed_mm'] > 0 and origin in {'mirror', 'unknown'}:
+                    capability_issues.append(_issue(issue_id=self._next_issue('mirror'), check_id='capabilities',
+                        code='BLEED_GENERATED_BY_MIRROR' if origin == 'mirror' else 'BLEED_DERIVED_REVIEW',
+                        severity='warning', message='Sangrado generado por espejo; revisar visualmente los bordes.' if origin == 'mirror' else 'Sangrado de una página derivada sin procedencia acreditada; revisar su origen y los bordes.',
+                        slot_ids=[slot['id']], asset_ids=[slot['source']['asset_id']],
+                        faces=[slot['face']], path='$.slots[].source', blocks=[]))
             except PreviewServiceError as exc:
                 capability_issues.append(_issue(issue_id=self._next_issue('source'), check_id='capabilities', code=exc.code,
                     severity='error', message=exc.message, slot_ids=[slot['id']], asset_ids=[slot['source']['asset_id']],

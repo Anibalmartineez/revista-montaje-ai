@@ -605,7 +605,7 @@
     constructor(layout, workId, patch) {
       const work = layout.works.find((item) => item.id === workId);
       if (!work) throw new Error("El trabajo ya no existe.");
-      const allowed = ["name", "requested_forms", "front_source", "back_source", "trim_size_mm", "bleed_mm", "allowed_rotations_deg"];
+      const allowed = ["name", "requested_forms", "front_source", "back_source", "trim_size_mm", "bleed_mm", "allowed_rotations_deg", "bleed_strategy"];
       if (Object.keys(patch).some((key) => !allowed.includes(key))) throw new Error("Cambio de trabajo no soportado.");
       this.before = clone(work);
       this.after = { ...clone(work), ...clone(patch) };
@@ -614,13 +614,14 @@
       const validated = createWorkFromSource(layout, next.front_source, {
         name: next.name, width: next.trim_size_mm.width, height: next.trim_size_mm.height,
         bleed: next.bleed_mm, requestedForms: next.requested_forms,
+        bleedStrategy: next.bleed_strategy,
         allowedRotations: next.allowed_rotations_deg,
       }, "validate_work");
       for (const key of ["name", "trim_size_mm", "bleed_mm", "requested_forms", "allowed_rotations_deg"]) {
         next[key] = clone(validated[key]);
       }
       if (next.back_source) sourcePage(layout, next.back_source);
-      this.structural = allowed.filter((key) => !["name", "requested_forms"].includes(key))
+      this.structural = allowed.filter((key) => !["name", "requested_forms", "bleed_strategy"].includes(key))
         .some((key) => !UpdateWorkCommand.equal(work[key], next[key]));
       this.assertEditable(layout);
       if (UpdateWorkCommand.equal(work, next)) throw new Error("El trabajo no contiene cambios.");
@@ -628,6 +629,10 @@
       this.affectedIds = Object.freeze([workId]);
     }
     assertEditable(layout) {
+      if (this.before.bleed_strategy !== this.after.bleed_strategy) {
+        const ids = layout.slots.filter(slot => slot.work_id === this.before.id && slot.geometry.bleed_mm > 0).map(slot => slot.id);
+        if (ids.length) EditPolicy.assertCan(layout, ids, "replace_content");
+      }
       if (this.structural && layout.slots.some((slot) => slot.work_id === this.before.id)) {
         throw new Error("Este trabajo ya tiene piezas colocadas. Cambia solo nombre/cantidad o crea una variante.");
       }
@@ -923,11 +928,15 @@
       throw new Error("Work name must contain between 1 and 160 characters");
     }
     const id = `work_${safeToken(token)}`;
+    if (values.bleedStrategy !== undefined && !["source_only", "mirror_if_missing"].includes(values.bleedStrategy)) {
+      throw new Error("Elige cómo resolver el sangrado del trabajo.");
+    }
     return {
       id,
       name,
       trim_size_mm: { width, height },
       bleed_mm: bleed,
+      ...(values.bleedStrategy === undefined ? {} : { bleed_strategy: values.bleedStrategy }),
       requested_forms: requestedForms,
       allowed_rotations_deg: rotations,
       priority: 0,
@@ -1058,7 +1067,7 @@
         rotation_deg: 0,
         mirror_x: false,
         mirror_y: false,
-        clip_to: work.front_source.pdf_box === "bleed" ? "bleed_box" : "trim_box",
+        clip_to: work.front_source.pdf_box === "bleed" || (work.bleed_strategy !== undefined && work.bleed_mm > 0) ? "bleed_box" : "trim_box",
       },
       locks: { geometry: [], content: [], production: [], delete: [] },
       production: { marks_profile_id: layout.export.default_marks_profile_id },

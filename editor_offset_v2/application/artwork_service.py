@@ -6,13 +6,19 @@ from PIL import Image
 from editor_offset_v2.application.preview_service import PreviewService, PreviewServiceError
 from editor_offset_v2.application.derived_asset_service import DerivedAssetService
 from editor_offset_v2.domain.geometry import validate_non_negative, validate_cardinal_rotation
+from editor_offset_v2.domain.work_bleed import WORK_BLEED_STRATEGIES
 from editor_offset_v2.infrastructure.pdf_compositor import compose_pdf, PT
 from editor_offset_v2.infrastructure.output_snapshot import OutputSnapshot
 
 
 def render_artwork(jobs, job_id, asset_id, page, spec):
-    if not isinstance(spec,dict) or set(spec)-{'box','bleed','rotation','transform','derived','mirror'}:
+    if not isinstance(spec,dict) or set(spec)-{'box','bleed','rotation','transform','derived','mirror','bleed_strategy'}:
         raise ValueError('Invalid artwork options')
+    work = {}
+    if 'bleed_strategy' in spec:
+        if not isinstance(spec['bleed_strategy'], str) or spec['bleed_strategy'] not in WORK_BLEED_STRATEGIES:
+            raise ValueError('Invalid work bleed strategy')
+        work['bleed_strategy'] = spec['bleed_strategy']
     snapshot=OutputSnapshot(jobs,job_id)
     layout=snapshot.read_layout(job_id)
     asset=next((a for a in layout['assets'] if a['id']==asset_id),None)
@@ -47,11 +53,12 @@ def render_artwork(jobs, job_id, asset_id, page, spec):
     resolver=PreviewService(snapshot)
     coverage='complete'
     try:
-        prepared=resolver._prepared_slot(slot,{asset_id:asset},job_id,mirror)
+        prepared=resolver._prepared_slot(slot,{asset_id:asset},job_id,mirror,work=work)
     except PreviewServiceError as exc:
         if exc.code!='BLEED_REQUIRES_EXPLICIT_MIRROR': raise
         # Display the actual trim with an uncovered margin; never invent bleed.
         trim_slot=deepcopy(slot);trim_slot['geometry']['bleed_mm']=0
+        trim_slot['source'].pop('derived', None)
         raw=resolver._prepared_slot(trim_slot,{asset_id:asset},job_id,False)
         with fitz.open(stream=raw,filetype='pdf') as src,fitz.open() as carrier:
             p=carrier.new_page(width=width*PT,height=height*PT)

@@ -8,7 +8,9 @@
   "use strict";
 
   const ISSUE_LABELS = Object.freeze({
-    BLEED_REQUIRES_EXPLICIT_MIRROR: "Falta sangrado real: activa la opción de espejo si deseas generarlo",
+    BLEED_REQUIRES_EXPLICIT_MIRROR: "Falta sangrado del archivo: en Preparar cambia el PDF o los milímetros, o autoriza espejo para el trabajo",
+    BLEED_GENERATED_BY_MIRROR: "Sangrado generado por espejo; revisa visualmente los bordes",
+    BLEED_DERIVED_REVIEW: "Sangrado de una página derivada; revisa su origen y los bordes",
     BLEED_CLIPPED_TO_TRIM: "TrimBox recorta el sangrado: selecciona BleedBox en Corrección gráfica",
     CROP_MARK_OVERPRINT: "Una marca invade otra pieza: aumenta la separación o desactiva las marcas",
     CROP_MARK_OUTSIDE_SHEET: "Marcas fuera del pliego: mueve las piezas hacia dentro",
@@ -236,7 +238,7 @@
       this.refs.preflightStatus.textContent = `Diagnóstico completo · revisión ${report.subject.revision}`;
       this.refs.preflightStatus.dataset.state = state;
       const options = this.readOutputOptions();
-      const optionLabel = `${({front:"Frente",back:"Dorso",both:"Ambas caras"})[options.face]} · ${options.dpi} dpi · espejo ${options.allow_mirror_bleed ? "permitido" : "desactivado"}.`;
+      const optionLabel = `${({front:"Frente",back:"Dorso",both:"Ambas caras"})[options.face]} · ${options.dpi} dpi · decisiones de sangrado guardadas por trabajo; permiso temporal para trabajos anteriores ${options.allow_mirror_bleed ? "activado" : "desactivado"}.`;
       const summary = `${optionLabel} ${["preview", "pdf_final"].map(op => operationSummary(report, op, options)).join(" ")}`;
       if (this.refs.preflightSummary) this.refs.preflightSummary.textContent = `${summary} CTP todavía no disponible.`;
       if (this.refs.outputDiagnosis) { this.refs.outputDiagnosis.textContent = summary; this.refs.outputDiagnosis.dataset.state = state; }
@@ -306,7 +308,7 @@
           this.downloadUrls.push(blobUrl);
           if (this.downloadUrls.length > 2) URL.revokeObjectURL(this.downloadUrls.shift());
         }
-        this.refs.outputResult.textContent = `${operation === "preview" ? "Preview lista" : "PDF listo; descarga iniciada"} · revisión ${revision} · ${options.face} · ${options.dpi} dpi · espejo ${options.allow_mirror_bleed ? "permitido" : "desactivado"}. ${report.issues.filter(i=>i.severity==="warning").length} advertencia(s).`;
+        this.refs.outputResult.textContent = `${operation === "preview" ? "Preview lista" : "PDF listo; descarga iniciada"} · revisión ${revision} · ${options.face} · ${options.dpi} dpi · decisiones de sangrado guardadas por trabajo. ${report.issues.filter(i=>i.severity==="warning").length} advertencia(s).`;
         this.refs.outputResult.dataset.state = "success";
       } catch (error) {
         if (this.disposed) return;

@@ -271,7 +271,8 @@ class RepeatEngineAdapter:
                     "rotation_deg": 0,
                     "mirror_x": False,
                     "mirror_y": False,
-                    "clip_to": "bleed_box" if source["pdf_box"] == "bleed" else "trim_box",
+                    "clip_to": "bleed_box" if source["pdf_box"] == "bleed" or (
+                        "bleed_strategy" in plan.work and plan.work["bleed_mm"] > 0) else "trim_box",
                 },
                 "locks": {
                     "geometry": [],

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import io
+import json
 import os
 import tempfile
 from dataclasses import dataclass
@@ -24,6 +25,7 @@ from editor_offset_v2.domain.geometry import (
     trim_polygon,
 )
 from editor_offset_v2.domain.validation import validate_layout_v2
+from editor_offset_v2.domain.work_bleed import allows_mirror, source_covers_bleed
 from editor_offset_v2.domain.preview_policy import (
     PREVIEW_MAX_PIXELS,
     preview_pixel_size,
@@ -85,6 +87,9 @@ class PreviewService:
     def __init__(self, jobs: JobRepository):
         self._jobs = jobs
         self._assets = AssetRepository(jobs)
+        self.bleed_origins = {}
+        self._origins_by_source = {}
+        self._works_by_job = {}
 
     @snapshot_operation(PreviewServiceError)
     def render(
@@ -198,11 +203,21 @@ class PreviewService:
         assets: Mapping[str, Mapping[str, Any]],
         job_id: str,
         allow_mirror_bleed: bool,
+        work: Mapping[str, Any] | None = None,
     ) -> bytes:
+        if work is None and slot.get("work_id"):
+            if isinstance(self._jobs, OutputSnapshot):
+                if job_id not in self._works_by_job:
+                    self._works_by_job[job_id] = {w['id']: w for w in self._jobs.read_layout(job_id)['works']}
+                work = self._works_by_job[job_id].get(slot['work_id'])
+            else:
+                work = next((w for w in self._jobs.read_layout(job_id)['works'] if w['id'] == slot['work_id']), None)
+        allow_mirror_bleed = allows_mirror(work, allow_mirror_bleed)
         if isinstance(self._jobs,OutputSnapshot) and slot['id'] in self._jobs.prepared:
             return self._jobs.prepared[slot['id']]
         cache_key = __import__('json').dumps([slot['source'],slot['geometry']['trim_size_mm'],slot['geometry']['bleed_mm'],slot['content_transform']['clip_to'],allow_mirror_bleed],sort_keys=True)
         if isinstance(self._jobs,OutputSnapshot) and cache_key in self._jobs.prepared_by_source:
+            self.bleed_origins[slot['id']] = self._origins_by_source.get(cache_key, 'unknown')
             return self._jobs.prepared_by_source[cache_key]
         transform = slot["content_transform"]
         asset_id = slot["source"]["asset_id"]
@@ -253,6 +268,15 @@ class PreviewService:
         derived = slot["source"].get("derived")
         if derived is not None:
             data = self._read_derived_source(job_id, asset, derived)
+            origin = self._derived_bleed_origin(job_id, derived)
+            self.bleed_origins[slot['id']] = origin
+            # New work decisions also govern already materialized content. Never
+            # accept generated bleed merely because a derived file exists.
+            if (work and work.get("bleed_strategy") == "source_only"
+                    and slot["geometry"]["bleed_mm"] > 0
+                    and (origin != "source" or not source_covers_bleed(declared_page["boxes_mm"], pdf_box,
+                                               slot["geometry"]["bleed_mm"], transform["clip_to"]))):
+                raise PreviewServiceError("BLEED_REQUIRES_EXPLICIT_MIRROR", "El trabajo requiere sangrado del archivo; el derivado no acredita esa cobertura.")
             with fitz.open(stream=data,filetype='pdf') as document:
                 bleed = slot['geometry']['bleed_mm'] if transform['clip_to']=='bleed_box' else 0
                 expected = (trim['width']+2*bleed, trim['height']+2*bleed)
@@ -271,8 +295,27 @@ class PreviewService:
             )
         except SourcePreparationError as exc:
             raise PreviewServiceError(exc.code, str(exc)) from exc
+        self.bleed_origins[slot['id']] = prepared.bleed_origin
+        self._origins_by_source[cache_key] = prepared.bleed_origin
         if isinstance(self._jobs,OutputSnapshot): self._jobs.prepared_by_source[cache_key]=prepared.data
         return prepared.data
+
+    def _derived_bleed_origin(self, job_id, derived):
+        # The PDF reference/path has already been verified by _read_derived_source.
+        # Old derivatives without provenance remain explicitly unknown.
+        path = (self._jobs.job_path(job_id) / derived['derived_key']).with_suffix('.json')
+        if path.is_symlink():
+            return 'unknown'
+        try:
+            raw = self._jobs.read_source(path) if isinstance(self._jobs, OutputSnapshot) else path.read_bytes()
+            manifest = json.loads(raw)
+            if (manifest.get('derived_sha256') == derived['derived_sha256']
+                    and manifest.get('source_sha256') == derived['source_sha256']
+                    and manifest.get('bleed_origin') in {'source', 'mirror', 'none'}):
+                return manifest['bleed_origin']
+        except (OSError, ValueError, TypeError, AttributeError):
+            pass
+        return 'unknown'
 
     def _read_derived_source(
         self,

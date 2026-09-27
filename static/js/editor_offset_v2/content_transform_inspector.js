@@ -1,10 +1,11 @@
 (function (root, factory) {
   "use strict";
-  const api = factory();
+  const bleed = typeof module === "object" && module.exports ? require("./work_bleed.js") : root.EditorOffsetV2.WorkBleed;
+  const api = factory(bleed);
   if (typeof module === "object" && module.exports) module.exports = api;
   root.EditorOffsetV2 = root.EditorOffsetV2 || {};
   root.EditorOffsetV2.ContentTransformInspector = api;
-})(typeof globalThis !== "undefined" ? globalThis : this, function () {
+})(typeof globalThis !== "undefined" ? globalThis : this, function (WorkBleed) {
   "use strict";
 
   const FIT_MODES = Object.freeze(["actual_size", "contain", "cover", "stretch"]);
@@ -117,6 +118,11 @@
         this.refs.contentClipTo.value = current.clip_to;
       }
       for (const element of this.refs.contentTransformForm.elements) element.disabled = !enabled;
+      const work = this.store.layout.works.find(w => w.id === slots[0].work_id);
+      this.refs.contentAllowMirrorBleed.checked = WorkBleed.allowsMirror(work, this.store.outputOptions?.allow_mirror_bleed);
+      this.refs.contentAllowMirrorBleed.disabled = true;
+      this.refs.contentAllowMirrorBleed.title = work?.bleed_strategy !== undefined
+        ? "Decisión guardada en Preparar para este trabajo" : "Permiso temporal en Salida para este trabajo anterior";
       this.refs.contentTransformSelection.textContent = slots.length === 1
         ? "1 slot seleccionado"
         : `${slots.length} slots seleccionados (se aplicará a todos)`;
@@ -186,7 +192,7 @@
             page: slot.source.page,
             pdf_box: slot.source.pdf_box,
             bleed_mm: slot.geometry.bleed_mm,
-            allow_mirror_bleed: this.refs.contentAllowMirrorBleed.checked,
+            allow_mirror_bleed: WorkBleed.allowsMirror(this.store.layout.works.find(w => w.id === slot.work_id), this.store.outputOptions?.allow_mirror_bleed),
             content_transform: slot.content_transform,
           },
         );

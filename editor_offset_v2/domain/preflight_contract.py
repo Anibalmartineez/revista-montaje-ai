@@ -8,9 +8,9 @@ from typing import Final
 
 PREFLIGHT_REPORT_SCHEMA_VERSION: Final = 1
 PREFLIGHT_POLICY_ID: Final = "editor-offset-v2-minimal"
-PREFLIGHT_POLICY_VERSION: Final = "3"
+PREFLIGHT_POLICY_VERSION: Final = "4"
 PREFLIGHT_CAPABILITIES_ID: Final = "native-v2"
-PREFLIGHT_CAPABILITIES_VERSION: Final = "5"
+PREFLIGHT_CAPABILITIES_VERSION: Final = "6"
 PREFLIGHT_ANALYZER_ID: Final = "editor-offset-v2-preflight"
 PREFLIGHT_ANALYZER_VERSION: Final = "1"
 PREFLIGHT_OPERATIONS: Final = ("preview", "pdf_final", "ctp")

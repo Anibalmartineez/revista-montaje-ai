@@ -278,7 +278,7 @@
         execute: (context) => context.repeatPanel[method](),
       });
     }
-    for (const operation of ["focus", "row", "field", "asset", "page", "common", "all", "create", "edit", "cancel", "variant", "save", "selectwork", "slot", "replace"]) {
+    for (const operation of ["focus", "row", "field", "asset", "page", "common", "all", "create", "edit", "cancel", "variant", "save", "selectwork", "slot", "replace", "otherfile", "adjustbleed"]) {
       registry.register({
         id: `preparation.${operation}`, category: "preparation", label: `Preparación: ${operation}`,
         modifiesLayout: ["create", "save", "slot", "replace"].includes(operation),

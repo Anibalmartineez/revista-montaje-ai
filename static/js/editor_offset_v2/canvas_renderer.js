@@ -6,13 +6,14 @@
   const editPolicy = typeof module === "object" && module.exports
     ? require("./edit_policy.js")
     : root.EditorOffsetV2?.EditPolicy;
-  const api = factory(sourceSemantics, editPolicy);
+  const bleed = typeof module === "object" && module.exports ? require("./work_bleed.js") : root.EditorOffsetV2.WorkBleed;
+  const api = factory(sourceSemantics, editPolicy, bleed);
   if (typeof module === "object" && module.exports) {
     module.exports = api;
   }
   root.EditorOffsetV2 = root.EditorOffsetV2 || {};
   root.EditorOffsetV2.CanvasRenderer = api;
-})(typeof globalThis !== "undefined" ? globalThis : this, function (SourceSemantics, EditPolicy) {
+})(typeof globalThis !== "undefined" ? globalThis : this, function (SourceSemantics, EditPolicy, WorkBleed) {
   "use strict";
 
   if (!SourceSemantics || !EditPolicy) throw new Error("Editor V2 renderer policies are required");
@@ -78,6 +79,8 @@
   }
 
   function artworkForSlot(slot, layout, assetsApiUrl, clipId, allowMirrorBleed = false) {
+    const work = layout.works?.find(w => w.id === slot.work_id);
+    allowMirrorBleed = WorkBleed.allowsMirror(work, allowMirrorBleed);
     const asset = layout.assets.find((item) => item.id === slot.source.asset_id);
     const page = asset?.pages.find((item) => item.number === slot.source.page);
     const sourceBox = page?.boxes_mm?.[slot.source.pdf_box];
@@ -90,6 +93,7 @@
     const prepared = Boolean(slot.source.derived || slot.geometry.bleed_mm || t.scale_x !== 1 || t.scale_y !== 1
       || t.rotation_deg || t.mirror_x || t.mirror_y || t.offset_mm.x || t.offset_mm.y || t.fit_mode !== "actual_size");
     const spec = { box: slot.source.pdf_box, bleed: slot.geometry.bleed_mm,
+      bleed_strategy: work?.bleed_strategy,
       rotation: slot.geometry.rotation_deg, transform: t, derived: slot.source.derived, mirror: allowMirrorBleed };
     const url = prepared
       ? `${assetsApiUrl}/${encodeURIComponent(asset.id)}/artwork/${page.number}?spec=${encodeURIComponent(JSON.stringify(spec))}`
@@ -107,6 +111,8 @@
       "data-asset-id": asset.id,
       "data-page": page.number,
       "data-pdf-box": slot.source.pdf_box,
+      "data-bleed-origin": slot.source.derived ? "derived" : !WorkBleed.sourceCoversBleed(page.boxes_mm, slot.source.pdf_box, slot.geometry.bleed_mm, t.clip_to)
+        ? (allowMirrorBleed ? "generated-mirror" : "missing") : slot.geometry.bleed_mm ? "source" : "none",
     });
     const rotated = [90, 270].includes(page.intrinsic_rotation_deg);
     const sourceWidth = rotated ? sourceBox.height : sourceBox.width;

@@ -6,7 +6,7 @@ Fecha de apertura: 2026-09-27.
 
 Plan solicitado por el usuario después de auditar la salida del editor y el job `ev2_f2347e8ce720eb582054200f`. Se continúa desde el código existente. Este documento registra las cinco entregas acordadas, su propósito, aceptación y evidencia; no sustituye al código ni convierte documentos históricos en requisitos de implementación.
 
-El usuario autorizó primero la entrega 1 y, tras guardarla en `5aa9b58`, autorizó continuar con **la entrega 2**. Las entregas 3–5 quedan pendientes. No se retoma automáticamente la entrega E del documento 42: es otro alcance.
+El usuario autorizó las entregas 1, 2 y 3 de forma sucesiva. La entrega 3 parte de `374f048` y queda completada con la evidencia inferior. Las entregas 4–5 quedan pendientes. No se retoma automáticamente la entrega E del documento 42: es otro alcance.
 
 Flujo esperado: preparar páginas/tamaño/sangrado → montar → preflight nativo V2 → Preview/PDF. La preparación decide el contenido; el montaje decide posiciones y marcas; el preflight decide qué operaciones son admisibles; el generador utiliza esas mismas decisiones; el arranque habilita las funciones habituales.
 
@@ -16,7 +16,7 @@ Flujo esperado: preparar páginas/tamaño/sangrado → montar → preflight nati
 |---|---|---|
 | 1. Decisiones coherentes de preflight | Bloqueos geométricos ignorados y Preview aprobada que luego supera el presupuesto de píxeles. | **Completado — 2026-09-27** |
 | 2. Diagnóstico único de salida | Errores y mensajes del puente legacy confundidos con las capacidades del PDF nativo. | **Completado — 2026-09-27** |
-| 3. Preparación y sangrado comprensibles | Cajas técnicas como decisión principal, sangrado faltante descubierto tarde y permiso de espejo que se pierde. | Pendiente |
+| 3. Preparación y sangrado comprensibles | Cajas técnicas como decisión principal, sangrado faltante descubierto tarde y permiso de espejo que se pierde. | **Completado — 2026-09-27** |
 | 4. Salida habilitada en el arranque habitual | Dependencia de un arranque especial de QA para usar Preview/PDF. | Pendiente |
 | 5. Verificación integral | Ausencia de una comprobación conjunta del recorrido y de los archivos resultantes. | Pendiente |
 
@@ -134,3 +134,67 @@ Capturas inspeccionadas y PDF sintético conservados en `.codex-runtime/salida43
 Se utilizó la habilidad de pruebas de frontend y CUA para la comprobación interactiva; la regresión automatizada usa el Playwright existente del repositorio con servidores/jobs temporales. No se ejecutaron suite global, V1, suite Python V2 completa ni el benchmark de 500 piezas: no hay cambio backend productivo en esta entrega. El servidor habitual no se reinició; se verificó HTTP y se recargó la pestaña de QA para cargar template/JS nuevos.
 
 **Límites:** permiso de espejo aún temporal y cajas en preparación sin cambios (entrega 3); activación habitual pendiente de 4. No se cambian políticas físicas del preflight, PDF/X, CTP, geometría ni rendimiento de 500 piezas. El puente histórico backend se conserva fuera del flujo habitual.
+
+### Entrega 3 — Completado — 2026-09-27
+
+**Base y autorización:** árbol limpio en `374f048`, rama actual. Implementación solicitada expresamente. Código propio V2, pruebas y registro en 41/43; sin commit/push. No se modifica código de producto V1 ni se introducen motores compartidos.
+
+**Preparación:**
+
+- Una y varias páginas usan el mismo borrador: tamaño detectado de la fuente seleccionada, tamaño final, cantidad, sangrado y decisión del trabajo. MediaBox/CropBox/TrimBox/BleedBox quedan bajo «Opciones avanzadas del PDF». Cajas ausentes se rotulan como no disponibles y no se fabrican; una asignación masiva inválida sigue impidiendo crear el lote parcialmente.
+- La cobertura declarada se mide por el menor margen de los cuatro bordes, limitado por MediaBox y BleedBox explícitas. Se comparte la regla Python/JS mediante fixtures, con tolerancia de 0,001 mm, orígenes desplazados, cajas ausentes, borde limitante y cajas inconsistentes. La medida acredita extensión física declarada, **no demuestra que haya tinta/diseño útil hasta cada borde**. Con cobertura suficiente se pide comprobación visual; cuando falta se muestran las opciones de otro PDF, cambiar milímetros o autorizar espejo.
+- «Usar otro PDF» lleva al selector de archivos; durante edición se pide cerrar el borrador o crear una variante para preservar el trabajo existente. «Cambiar sangrado» enfoca el valor; si el trabajo ya tiene piezas, informa que los milímetros requieren variante. No sustituye fuentes ni cambia tamaños guardados automáticamente.
+- «Aplicar a seleccionadas» incluye decisión de sangrado, con selección independiente de cantidades y milímetros. Cada página guarda su propio trabajo. Variantes nuevas parten de una decisión explícita; el trabajo original se conserva. Las tarjetas muestran la decisión guardada separada de cantidades/medidas. Al editar/configurar una página se desplaza el panel al formulario para hacerlo visible.
+- Tamaño final distinto del detectado conserva el comportamiento anterior y ahora muestra su limitación: la salida exige dimensiones coincidentes; cambiar ese valor no escala el PDF. Escalado/resize no se implementan en esta entrega.
+
+**Contrato y compatibilidad ejecutable:**
+
+| Campo/valor | Significado |
+|---|---|
+| `works[].bleed_strategy = "source_only"` | Utiliza únicamente sangrado acreditado por el archivo. Si no alcanza, bloquea la salida que necesita ese contenido; el operador debe corregir el archivo/milímetros o cambiar expresamente la decisión. |
+| `"mirror_if_missing"` | Conserva primero el sangrado físico utilizable. Solo si falta autoriza bandas generadas por espejo. |
+| Campo ausente | Trabajo anterior. Conserva el permiso temporal `allow_mirror_bleed` de la petición de salida. La UI lo identifica; no se agrega el campo al abrir, guardar o renombrar. Elegir una decisión en Preparar lo incorpora mediante comando reversible. |
+
+Campo **opcional**, sin cambiar `layout_schema_version = 2`. Schema JSON y validador Python coordinados: rechazan null, booleanos, estructuras y valores desconocidos. `createWorkFromSource`, preparación y `UpdateWorkCommand` transportan/validan el campo; antes/after y undo/redo conservan incluso su ausencia. Fixtures antiguos permanecen válidos y cubren compatibilidad; los nuevos fixtures ejercitan cobertura y los tests serializan trabajos nuevos.
+
+La decisión puede editarse en trabajos colocados sin cambiar geometría, fuentes ni transformaciones de sus slots; afecta a todos los slots vinculados al trabajo. Los locks de contenido en piezas con sangrado bloquean el cambio. Cambios de milímetros, fuente o tamaño de un trabajo colocado siguen exigiendo variante. Las mutaciones siguen pasando por acciones/comandos; guardado optimista, revisión e invalidación de diagnóstico/Repeat se conservan.
+
+**Resolución común y salida:**
+
+- `domain/work_bleed.py` y `static/js/editor_offset_v2/work_bleed.js` resuelven autorización y cobertura. La preparación física `prepared_pdf_source.py` utiliza esa misma medida. `PreviewService._prepared_slot` resuelve el trabajo desde el snapshot y hace prevalecer su decisión sobre el permiso global; el índice se construye una vez por snapshot. Preflight, Preview y PDF nativo consumen esa representación. Dos trabajos con la misma fuente y estrategias distintas no comparten una autorización por caché.
+- `canvas_renderer.js` envía la decisión efectiva y la estrategia al servicio artwork, incluida la decisión local antes de guardar; su caché URL cambia al modificarla. Artwork conserva el fallback de trim con margen descubierto cuando falta sangrado y no hay autorización. No reutiliza un derivado generado para dibujar ese fallback. El SVG distingue origen `source`, `generated-mirror`, `missing`, `derived` o `none` como evidencia; el aviso legible aparece en preparación/preflight.
+- La materialización desde el inspector utiliza la misma decisión; la casilla queda como indicador, con referencia a Preparar o al permiso temporal de Salida para trabajos anteriores. No hay un segundo permiso independiente que pueda contradecir el trabajo.
+- Los manifiestos de derivados nuevos incluyen `bleed_origin`. Se vincula su lectura al hash del PDF derivado/original y se incluye como entrada física del snapshot. `source_only` con sangrado positivo exige origen acreditado como `source` y cobertura física suficiente, también si ya existe un derivado. Derivados anteriores sin esa procedencia se identifican como desconocidos; no se reescriben ni se inventa su origen.
+- Preflight añade aviso no bloqueante `BLEED_GENERATED_BY_MIRROR` cuando se genera espejo, o `BLEED_DERIVED_REVIEW` para derivados sin procedencia acreditada. Conserva `BLEED_REQUIRES_EXPLICIT_MIRROR` como bloqueo y orienta a Preparar. Política **4**, capacidades **6**: los informes anteriores no sirven como autorizaciones actuales.
+- El control general de espejo sigue disponible para **trabajos anteriores sin decisión guardada** y lo indica expresamente. No cambia ni anula `source_only`/`mirror_if_missing`. El resumen de salida ya no presenta el booleano global como permiso de todos los trabajos.
+- Se corrigió el recorte de **nuevas** piezas manuales/Repeat de trabajos con estrategia explícita y sangrado positivo: nacen con `clip_to = bleed_box`, independientemente de la caja fuente. El flujo anterior creaba recorte a trim aunque se pidiera sangrado y después bloqueaba PDF. Los slots ya guardados, trabajos sin estrategia y recortes cambiados expresamente por el operador conservan su semántica. Una pieza existente recortada a trim sigue bloqueando PDF con sangrado positivo; autorizar espejo no cambia ese recorte silenciosamente.
+- Cero sangrado conserva la omisión de marcas de corte y el warning cuando se solicitan. Las marcas con sangrado siguen dentro de su banda. No cambian fórmulas geométricas, cantidades, pliego ni posiciones.
+
+**Pruebas y evidencia:**
+
+| Comprobación | Resultado |
+|---|---|
+| Python V2, excluyendo `bounded_placement_load` | **619 passed, 1 skipped, 3 deselected**, 82,05 s. Skip de symlink Windows; excluidas las cargas de 14/100/500 piezas. 20 avisos de deprecación. |
+| Python focalizado final: decisión por trabajo + preparación PDF | **51 passed**, 7,47 s. Incluye 18 casos de esta entrega y las pruebas de cajas/rotaciones/bandas anteriores. Dos casos de sangrado real se añadieron después de la ejecución amplia; hay pruebas repetidas entre ejecuciones. |
+| Node V2 completo | **164 passed**, 1,44 s, antes del último caso de locks/colocación/compatibilidad. |
+| Node focalizado final de sangrado | **4 passed**; incluye ese caso adicional. Misma fixture física Python/JS, cantidades distintas, edición colocada, undo/redo, ausencia del campo y autorización sin fuga. |
+| Playwright: edición, UX, salida, Repeat nativo, preparación y sangrado por trabajo | **36 passed**, 215,39 s; cinco avisos PyMuPDF/SWIG. |
+| Sintaxis / whitespace | JS modificados comprobados con `node --check`; `git diff --check` correcto. |
+
+No sumar estos conteos como pruebas distintas. No se ejecutaron suite global ni suites Playwright V1; no se declara resuelto el rendimiento de 500 piezas.
+
+Los nuevos casos de navegador preparan PDFs MediaBox de una y dos páginas, con cantidades 2 y 1 y sangrado 3 mm; verifican decisiones diferentes, creación atómica, undo/redo, recarga, Repeat, edición de la decisión después de colocar sin cambiar slots, autorización global incapaz de desbloquear `source_only`, canvas con espejo y descarga con las cantidades/textos de páginas correctos. Se comprueba ausencia de errores JS y desbordamiento horizontal a 1440/390 px. La prueba histórica del permiso temporal se conserva creando explícitamente un trabajo sin el campo nuevo; la de marcas 2 mm autoriza ahora el espejo en el trabajo.
+
+Los casos Python comparan Preview con el raster del PDF píxel a píxel, comprueban dimensiones de pliego, bloqueos directos y ausencia de modificaciones del layout. La fixture de sangrado real tiene una banda magenta distinta del arte trim: ambos modos conservan el magenta, demostrando que autorizar espejo no reemplaza cobertura original. El derivado con espejo conserva su identificación y se rechaza al exigir posteriormente solo fuente. Los tests de cero bleed/marcas siguen pasando en las suites existentes.
+
+Durante QA se corrigieron dos errores del test nuevo (ruta `references.slot_ids` y actualización de revisión al guardar), el control de tipos estructurados del campo opcional y el recorte incorrecto de nuevas piezas mencionado arriba. Las pruebas no se relajaron para eludir bloqueos. La revisión final añadió un caso de sangrado diminuto con BleedBox inconsistente: mostrar 0 mm disponibles no debe ocultar un margen negativo ni aprobarlo por tolerancia.
+
+**Artefactos:** `.codex-runtime/salida43-entrega3/` contiene `work-bleed.pdf`, su raster `pdf-render.png`, fuente sintética y capturas `preparation-2-1440.png` / `preparation-2-390.png`. Se inspeccionaron la captura compacta y el PDF rasterizado: tres piezas, dos de página 1 y una de página 2, giros y marcas en la banda. La vista desktop también se inspeccionó con CUA en el trabajo anterior real; se abrió el editor, se cambió solo el borrador y se canceló.
+
+**Preservación del caso del usuario:** revisión 39 y originales sin cambios. Layout SHA256 `63011552f3e4b2fb4a0ed54de3e379be0b7d07b54d00c112b27f7bc0072fbff1`; PDF SHA256 `14e534d2482e463596e64ab5045c3a86f4c3d10ab2b0be087bbd174ba7035243`. Sin nuevo historial ni errores/warnings de consola en la sesión CUA. El servidor habitual se reinició mediante la habilidad local, verificando la identidad del proceso registrado; target V2/dev tools=0. Se conservan los gates de salida previos: la activación habitual sigue siendo entrega 4. Los servidores de tests usan jobs temporales y habilitan salida para comprobarla.
+
+**Rollback:** los trabajos antiguos sin campo son compatibles y no necesitan migración. El código anterior rechaza el campo nuevo: antes de volver a esa versión debe conservarse una copia de los layouts posteriores y restaurarse una copia compatible o hacerse una conversión explícita autorizada; no eliminar decisiones guardadas automáticamente. Revertir código no revierte slots ya aplicados, archivos PDF producidos ni ediciones de trabajos; en sesión, usar undo cuando corresponda. Informes preflight son regenerables con la versión instalada.
+
+**Servidor al cerrar:** PID registrado 16812, tras reiniciar exclusivamente el PID 16052 verificado para cargar la última corrección de tolerancia. Comprobación posterior: `/` y `/editor_offset_visual_v2` HTTP 200 al primer intento. V2=1, dev tools=0 y gates de salida habituales conservados.
+
+**Límites:** cobertura geométrica declarada, no análisis automático de tinta ni certificación PDF/X/CTP. No se inventan cajas ausentes, no se cambia el trim para conseguir sangrado y no se escala silenciosamente una fuente para otro tamaño final. Espejo añade bandas raster a 300 dpi, no reconstruye diseño. PDF ya materializado sin procedencia no adquiere una procedencia inventada. El backend histórico de diagnóstico/probes queda fuera del flujo habitual; no se declara independencia total del arranque. Entregas 4 y 5 pendientes.

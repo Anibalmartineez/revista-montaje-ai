@@ -13,6 +13,7 @@ from dataclasses import dataclass
 import fitz
 
 from editor_offset_v2.domain.geometry import Size, oriented_size, productive_size
+from editor_offset_v2.domain.work_bleed import source_covers_bleed
 from editor_offset_v2.infrastructure.pdf_inspector import PdfBox, inspect_pdf
 
 
@@ -73,8 +74,7 @@ def prepare_source(
         raise SourcePreparationError("SOURCE_RESOURCE_LIMIT", "Prepared source exceeds the trial size limit")
     expanded = PdfBox(selected.x - bleed_mm, selected.y - bleed_mm,
                       selected.width + 2 * bleed_mm, selected.height + 2 * bleed_mm)
-    preserve = (bleed_mm > 0 and clip_to == "bleed_box" and info.bleed is not None
-                and _contains(info.bleed, expanded) and _contains(info.media, expanded))
+    preserve = bleed_mm > 0 and source_covers_bleed(info.boxes_as_layout(), pdf_box, bleed_mm, clip_to)
     if bleed_mm > 0 and not preserve and not allow_mirror_bleed:
         raise SourcePreparationError("BLEED_REQUIRES_EXPLICIT_MIRROR", "No usable source bleed; mirror generation needs explicit permission")
     if bleed_mm > min(trim_size.width, trim_size.height) and not preserve:

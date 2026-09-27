@@ -40,6 +40,7 @@ def test_preparation_batch_drafts_missing_box_edit_variant_history_and_reload(v2
             page.locator('#ev2-work-name').fill('Frente especial')
             page.locator('#ev2-work-quantity').fill('4')
             page.locator('#ev2-work-bleed').fill('3')
+            page.get_by_text('Opciones avanzadas del PDF',exact=True).click()
             page.locator('#ev2-asset-box').select_option('media')
             expect(page.locator('#ev2-work-quantity')).to_have_value('4')
             expect(page.locator('#ev2-work-bleed')).to_have_value('3')

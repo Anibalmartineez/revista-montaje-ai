@@ -488,6 +488,9 @@
           "type": "integer",
           "minimum": 1
         },
+        "bleed_strategy": {
+          "enum": ["source_only", "mirror_if_missing"]
+        },
         "allowed_rotations_deg": {
           "type": "array",
           "minItems": 1,

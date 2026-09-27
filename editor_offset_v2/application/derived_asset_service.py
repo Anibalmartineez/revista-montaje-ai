@@ -133,6 +133,7 @@ class DerivedAssetService:
             "source_box": pdf_box,
             "bleed_mm": float(bleed_mm),
             "allow_mirror_bleed": allow_mirror_bleed,
+            "bleed_origin": prepared.bleed_origin,
             "content_transform": {
                 **transform,
             },

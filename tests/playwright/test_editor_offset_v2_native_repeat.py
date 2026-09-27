@@ -20,6 +20,7 @@ def test_two_mm_crop_marks_match_canvas_preview_and_pdf(output_server,tmp_path):
             current=page.request.get(api).json();layout=current['layout']
             assert len(layout['slots'])==2
             for profile in layout['export']['marks_profiles']: profile['crop_marks']=True
+            for work in layout['works']: work['bleed_strategy']='mirror_if_missing'
             for index,slot in enumerate(layout['slots']):
                 slot['geometry'].update(bleed_mm=2,rotation_deg=0)
                 slot['geometry']['position_mm'].update(x_mm=100+index*150,y_mm=100)

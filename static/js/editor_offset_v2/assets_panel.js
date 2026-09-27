@@ -2,11 +2,12 @@
   "use strict";
   const preparation = typeof module === "object" && module.exports
     ? require("./preparation.js") : root.EditorOffsetV2.Preparation;
-  const api = factory(preparation);
+  const bleed = typeof module === "object" && module.exports ? require("./work_bleed.js") : root.EditorOffsetV2.WorkBleed;
+  const api = factory(preparation, bleed);
   if (typeof module === "object" && module.exports) module.exports = api;
   root.EditorOffsetV2 = root.EditorOffsetV2 || {};
   root.EditorOffsetV2.AssetsPanel = api;
-})(typeof globalThis !== "undefined" ? globalThis : this, function (Preparation) {
+})(typeof globalThis !== "undefined" ? globalThis : this, function (Preparation, WorkBleed) {
   "use strict";
   const clone = (value) => JSON.parse(JSON.stringify(value));
   function token() { return `${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`; }
@@ -35,7 +36,7 @@
         const methods = { focus: "focusPage", row: "changeRow", field: "changeField", asset: "changeAsset",
           page: "changePage", common: "applyCommon", all: "selectAll", create: "createPageWorks",
           edit: "editWork", cancel: "cancelEdit", variant: "variantWork", save: "saveWork",
-          selectwork: "selectWork", slot: "createSlot", replace: "replaceSource" };
+          selectwork: "selectWork", slot: "createSlot", replace: "replaceSource", otherfile: "otherFile", adjustbleed: "adjustBleed" };
         return this[methods[operation]](payload);
       } catch (error) { this.message(error.message, true); return false; }
     }
@@ -59,6 +60,7 @@
       r.assetSelect.addEventListener("change", () => this.action("asset"));
       r.assetPage.addEventListener("change", () => this.action("page"));
       for (const node of [r.assetBox, r.workName, r.workWidth, r.workHeight, r.workBleed,
+        r.workBleedStrategy,
         r.workQuantity, r.workSizeMode, r.workBack, ...r.workRotations]) {
         node.addEventListener("input", () => this.action("field", node));
       }
@@ -67,6 +69,8 @@
         [r.preparationVariant,"variant"], [r.createRealSlot,"slot"], [r.replaceSource,"replace"]]) {
         node.addEventListener("click", () => this.action(operation));
       }
+      r.preparationOtherFile.addEventListener("click", () => this.action("otherfile"));
+      r.preparationAdjustBleed.addEventListener("click", () => this.action("adjustbleed"));
       r.workSelect.addEventListener("change", () => this.action("selectwork", r.workSelect.value));
       r.preparedWorks.addEventListener("click", (event) => {
         const button = event.target.closest("button[data-edit-work]");
@@ -104,6 +108,7 @@
       const selectedBox = sourcePage.boxes_mm[draft.box] ? draft.box : Preparation.BOXES.find((box) => sourcePage.boxes_mm[box]);
       this.store.setAssetSelection(asset.id, page, selectedBox);
       this.refs.preparationSettings.focus({ preventScroll: true });
+      this.refs.preparationSettings.scrollIntoView({ block: "start" });
     }
     changeSource(assetId, pageNumber) {
       if (!this.editing) return this.focusPage({ assetId, page: pageNumber });
@@ -120,6 +125,14 @@
     changeAsset() { this.changeSource(this.refs.assetSelect.value, this.store.layout.assets.find((a) => a.id === this.refs.assetSelect.value).pages[0].number); }
     changePage() { this.changeSource(this.current().assetId, Number(this.refs.assetPage.value)); }
     selectWork(id) { this.store.setSelectedWork(id || null); }
+    otherFile() {
+      if (this.editing) { this.message("Cancela la edición o crea una variante antes de subir otro PDF."); return; }
+      this.refs.assetFile.scrollIntoView({ block: "center" }); this.refs.assetFile.focus(); this.refs.assetFile.click();
+    }
+    adjustBleed() {
+      if (this.refs.workBleed.disabled) { this.message("Crea una variante para cambiar el sangrado de un trabajo colocado."); return; }
+      this.refs.workBleed.focus(); this.refs.workBleed.select();
+    }
     changeRow(target) {
       const page = this.asset()?.pages.find((item) => item.number === Number(target.dataset.page));
       if (!page || !target.dataset.preparationRow) return;
@@ -136,6 +149,7 @@
         rotations: [...r.workRotations].filter((item) => item.checked).map((item) => Number(item.value)),
         back: r.workBack.checked, width: r.workWidth.value, height: r.workHeight.value,
         sizeMode: r.workSizeMode.value });
+      if (r.workBleedStrategy.value !== "legacy") draft.bleedStrategy = r.workBleedStrategy.value;
       const asset = this.store.layout.assets.find((a) => a.id === draft.assetId);
       const page = asset.pages.find((p) => p.number === draft.page);
       if (node === r.assetBox || node === r.workSizeMode) {
@@ -185,7 +199,7 @@
         qty.dataset.pagePlanQuantity = "true"; qty.dataset.page = String(page.number); qty.dataset.preparationRow = "quantity";
         qty.setAttribute("aria-label", `Cantidad de formas para página ${page.number}`); qty.disabled = Boolean(this.editing); qtyLabel.append(qty);
         const validBox = page.boxes_mm[draft.box];
-        const info = el("p", `${boxLabel(draft.box)}${validBox ? "" : " · NO DISPONIBLE"} · ${draft.width} × ${draft.height} mm · sangrado ${draft.bleed} mm · ${draft.rotations.join("° / ")}°`);
+        const info = el("p", `Final: ${draft.width} × ${draft.height} mm · sangrado ${draft.bleed} mm · ${WorkBleed.label(draft.bleedStrategy)}${validBox ? "" : " · Caja NO DISPONIBLE"}`);
         if (!validBox) info.className = "ev2-preparation-warning";
         body.append(selectionLabel, qtyLabel, info);
         const existing = this.store.layout.works.filter((work) => Preparation.matches(work, draft));
@@ -211,10 +225,19 @@
     }
     renderCoverage(draft, page) {
       const size = Preparation.dimensions(page, draft.box);
-      this.refs.boxDimensions.textContent = size ? `Caja fuente: ${size.width} × ${size.height} mm` : "Caja no disponible en esta página";
-      this.refs.preparationCoverage.textContent = Number(draft.bleed) > 0
-        ? `Sangrado solicitado: ${draft.bleed} mm. La cobertura física se comprueba en preflight; este valor no genera contenido fuera del corte.`
-        : "Sin sangrado solicitado. El tamaño final y la caja fuente son datos distintos.";
+      this.refs.boxDimensions.textContent = size ? `Tamaño detectado: ${size.width} × ${size.height} mm` : "Caja no disponible en esta página";
+      const bleed = Number(draft.bleed), available = WorkBleed.availableBleed(page.boxes_mm, draft.box);
+      const covered = WorkBleed.sourceCoversBleed(page.boxes_mm, draft.box, bleed);
+      const mismatch = size && (Math.abs(size.width - Number(draft.width)) > 0.01 || Math.abs(size.height - Number(draft.height)) > 0.01);
+      this.refs.preparationCoverage.classList.toggle("ev2-preparation-warning", !covered || Boolean(mismatch));
+      this.refs.preparationCoverage.textContent = `Tamaño final: ${draft.width} × ${draft.height} mm. ` +
+        (bleed === 0 ? "Sin sangrado: se omitirán las marcas de corte de este trabajo y se avisará en preflight si están activadas."
+          : `Sangrado solicitado: ${draft.bleed} mm. Cobertura declarada disponible: ${Number(available.toFixed(3))} mm por borde. ` +
+            (covered ? "Las cajas cubren el sangrado; comprueba visualmente que el diseño llegue a los bordes."
+              : draft.bleedStrategy === "mirror_if_missing" ? "Falta cobertura: se generará espejo autorizado. No es contenido original."
+                : "Falta cobertura: cambia el PDF o el sangrado, o autoriza espejo. La salida quedará bloqueada mientras falte.")) +
+        (mismatch ? " El tamaño final difiere de la fuente: la salida actual exige dimensiones coincidentes; cambiar este valor no escala el PDF." : "") +
+        (draft.bleedStrategy === undefined ? " Trabajo anterior: conserva el permiso temporal de Salida hasta que elijas una decisión aquí." : "");
     }
     renderSourceControls() {
       const r = this.refs, draft = this.current();
@@ -233,17 +256,19 @@
       for (const node of [r.assetSelect, r.assetPage]) node.disabled = !draft || Boolean(placed);
       for (const node of [r.assetBox, r.workSizeMode, r.workBleed, r.workBack, ...r.workRotations]) node.disabled = !draft || Boolean(placed);
       for (const node of [r.workName, r.workQuantity]) node.disabled = !draft;
+      r.workBleedStrategy.disabled = !draft;
       r.workWidth.disabled = r.workHeight.disabled = !draft || Boolean(placed) || draft.sizeMode === "box";
       r.preparationBulk.hidden = Boolean(this.editing);
       r.preparationEditActions.hidden = !this.editing;
       r.preparationTitle.textContent = this.editing ? `Editar: ${this.editing.before.name}` : `Configurar página ${draft?.page ?? ""}`;
       r.preparationNote.textContent = this.editing
-        ? placed ? "Trabajo colocado: puedes cambiar nombre y cantidad sin alterar piezas. Para caja, medidas o sangrado, crea una variante." : "Editas un trabajo guardado sin piezas colocadas. Guarda para confirmar los cambios."
+        ? placed ? "Trabajo colocado: nombre, cantidad y decisión de sangrado son editables. La decisión afecta a todas sus piezas y admite deshacer. Para caja, medidas o milímetros de sangrado, crea una variante." : "Editas un trabajo guardado sin piezas colocadas. Guarda para confirmar los cambios."
         : "Estos valores corresponden a la página indicada. Usa Aplicar a seleccionadas para compartir campos concretos.";
       if (!draft || !page) return;
       r.assetSelect.value = asset.id; r.assetPage.value = String(page.number); r.assetBox.value = draft.box;
       r.workName.value = draft.name; r.workWidth.value = draft.width; r.workHeight.value = draft.height;
       r.workSizeMode.value = draft.sizeMode; r.workQuantity.value = draft.quantity; r.workBleed.value = draft.bleed; r.workBack.checked = draft.back;
+      r.workBleedStrategy.value = draft.bleedStrategy ?? "legacy";
       for (const rotation of r.workRotations) rotation.checked = draft.rotations.includes(Number(rotation.value));
       this.renderCoverage(draft, page);
     }
@@ -257,7 +282,8 @@
         const source = work.front_source; const asset = layout.assets.find((a) => a.id === source?.asset_id);
         const count = layout.slots.filter((slot) => slot.work_id === work.id).length;
         const body = el("div"); body.append(el("strong", work.name));
-        body.append(el("p", `${asset?.original_filename ?? "Sin fuente"} · pág. ${source?.page ?? "—"} · ${source?.pdf_box ? boxLabel(source.pdf_box) : "—"} · ${work.trim_size_mm.width} × ${work.trim_size_mm.height} mm`));
+        body.append(el("p", `${asset?.original_filename ?? "Sin fuente"} · pág. ${source?.page ?? "—"} · Final: ${work.trim_size_mm.width} × ${work.trim_size_mm.height} mm`));
+        body.append(el("small", WorkBleed.label(work.bleed_strategy)));
         body.append(el("small", `${work.requested_forms} formas solicitadas · ${count} piezas colocadas (todas las caras) · sangrado ${work.bleed_mm} mm · ${work.allowed_rotations_deg.join("° / ")}°`));
         const edit = el("button", "Editar"); edit.type = "button"; edit.dataset.editWork = work.id; edit.disabled = !asset || !source;
         edit.setAttribute("aria-label", `Editar trabajo ${work.name}`); card.append(body, edit); r.preparedWorks.append(card);
@@ -275,14 +301,17 @@
         selected: false, name: work.name, box: work.front_source.pdf_box,
         width: work.trim_size_mm.width, height: work.trim_size_mm.height, sizeMode: "custom",
         quantity: work.requested_forms, bleed: work.bleed_mm, rotations: [...work.allowed_rotations_deg],
+        bleedStrategy: work.bleed_strategy,
         back: this.commands.UpdateWorkCommand.equal(work.back_source, work.front_source), variant: false };
       this.editing = { before: clone(work), draft, initialBack: draft.back };
       this.renderAll(); this.refs.preparationSettings.focus({ preventScroll: true });
+      this.refs.preparationSettings.scrollIntoView({ block: "start" });
     }
     cancelEdit() { this.editing = null; this.renderAll(); this.message("Edición cerrada. Los borradores de páginas se conservan."); }
     variantWork() {
       if (!this.editing) return;
       const draft = clone(this.editing.draft); this.editing = null;
+      draft.bleedStrategy ??= "source_only";
       draft.variant = true; draft.selected = true;
       draft.name = Preparation.uniqueName(draft.name, this.store.layout.works);
       this.drafts.pages.set(`${draft.assetId}:${draft.page}`, draft);
@@ -296,6 +325,7 @@
       if (!this.commands.UpdateWorkCommand.equal(current, before)) throw new Error("El trabajo cambió. Cancela y vuelve a abrir la edición.");
       const placed = this.store.layout.slots.some((s) => s.work_id === before.id);
       let patch = { name: draft.name.trim(), requested_forms: Number(draft.quantity) };
+      if (draft.bleedStrategy !== undefined) patch.bleed_strategy = draft.bleedStrategy;
       if (!placed) {
         const asset = this.store.layout.assets.find((a) => a.id === draft.assetId);
         const entry = Preparation.entry(draft, asset);
@@ -305,7 +335,8 @@
           back_source: !initialBack && !draft.back ? before.back_source : candidate.back_source };
       }
       const command = new this.commands.UpdateWorkCommand(this.store.layout, before.id, patch);
-      this.store.executeCommand(command); this.editing = null; this.renderAll(); this.message("Trabajo actualizado. Las piezas existentes no se han modificado.");
+      this.store.executeCommand(command); this.editing = null; this.renderAll();
+      this.message("Trabajo actualizado. Se conserva la geometría de las piezas; la decisión de sangrado rige para todas las del trabajo.");
     }
     createPageWorks() {
       const asset = this.asset(); if (!asset || this.editing) return;

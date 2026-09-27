@@ -2971,6 +2971,10 @@ button[aria-pressed="true"],
 #ev2-preparation-edit-actions { display: flex; flex-wrap: wrap; gap: 8px; }
 .ev2-prepared-work { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 14px 0; border-bottom: 1px solid var(--ev2-line); overflow-wrap: anywhere; }
 .ev2-prepared-work p, .ev2-prepared-work small { color: var(--ev2-muted); font-size: 12px; }
+.ev2-prepared-work small { display: block; margin-top: 4px; }
+.ev2-preparation-settings details { font-size: 12px; color: var(--ev2-muted); }
+.ev2-preparation-settings summary { cursor: pointer; padding: 6px 0; }
+.ev2-preparation-settings > label { display: grid; gap: 6px; font-size: 12px; }
 .ev2-prepared-work button { flex-shrink: 0; }
 .ev2-objects .ev2-slot-source-actions { grid-template-columns: minmax(0, 1fr); margin: 0; padding: 12px; }
 .ev2-objects > .ev2-assets-list { flex: 0 0 auto; }

@@ -1,0 +1,9 @@
+[
+  {"name":"tiny bleed cannot mask an invalid BleedBox", "boxes":{"media":{"x":0,"y":0,"width":100,"height":60},"trim":{"x":5,"y":5,"width":90,"height":50},"bleed":{"x":10,"y":10,"width":80,"height":40}},"selected":"trim","bleed":0.0005,"available":0,"covered":false},
+  {"name":"explicit coverage", "boxes":{"media":{"x":0,"y":0,"width":100,"height":60},"trim":{"x":5,"y":5,"width":90,"height":50},"bleed":{"x":2,"y":2,"width":96,"height":56}},"selected":"trim","bleed":3,"available":3,"covered":true},
+  {"name":"missing BleedBox", "boxes":{"media":{"x":0,"y":0,"width":100,"height":60},"trim":{"x":5,"y":5,"width":90,"height":50},"bleed":null},"selected":"trim","bleed":3,"available":0,"covered":false},
+  {"name":"zero without invented boxes", "boxes":{"media":{"x":0,"y":0,"width":100,"height":60},"trim":null,"bleed":null},"selected":"media","bleed":0,"available":0,"covered":true},
+  {"name":"weakest edge and shifted origin", "boxes":{"media":{"x":10,"y":20,"width":100,"height":60},"crop":{"x":15,"y":25,"width":90,"height":50},"bleed":{"x":12,"y":23,"width":96,"height":54}},"selected":"crop","bleed":3,"available":2,"covered":false},
+  {"name":"media limits bleed", "boxes":{"media":{"x":3,"y":3,"width":94,"height":54},"trim":{"x":5,"y":5,"width":90,"height":50},"bleed":{"x":0,"y":0,"width":100,"height":60}},"selected":"trim","bleed":3,"available":2,"covered":false},
+  {"name":"one micron tolerance", "boxes":{"media":{"x":0,"y":0,"width":100,"height":60},"trim":{"x":5,"y":5,"width":90,"height":50},"bleed":{"x":2.0005,"y":2,"width":95.9995,"height":56}},"selected":"trim","bleed":3,"available":2.9995,"covered":true}
+]

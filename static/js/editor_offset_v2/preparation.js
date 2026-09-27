@@ -21,7 +21,7 @@
     return { assetId: asset.id, page: page.number, box, selected: false,
       name: `${asset.original_filename.replace(/\.pdf$/i, "")} · pág. ${page.number}`.slice(0, 160),
       width: size?.width ?? "", height: size?.height ?? "", sizeMode: "box",
-      quantity: 1, bleed: 0, rotations: [0, 90, 180, 270], back: false, variant: false };
+      quantity: 1, bleed: 0, bleedStrategy: "source_only", rotations: [0, 90, 180, 270], back: false, variant: false };
   }
   function changeBox(draft, page, box) {
     draft.box = box;
@@ -44,6 +44,7 @@
     return { source: selectedSource,
       values: { name: draft.name, width: draft.width, height: draft.height,
         bleed: draft.bleed, requestedForms: Number(draft.quantity),
+        ...(draft.bleedStrategy === undefined ? {} : { bleedStrategy: draft.bleedStrategy }),
         allowedRotations: [...draft.rotations], useSameSourceForBack: draft.back } };
   }
   function matches(work, draft) {

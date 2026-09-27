@@ -270,6 +270,8 @@ def test_native_diagnosis_groups_pages_and_rejects_late_options(output_server, t
             layout = saved['layout']
             first = layout['works'][0]
             first.update(name='Folleto A', bleed_mm=3)
+            # Characterize old jobs whose permission remains request-scoped.
+            first.pop('bleed_strategy', None)
             second = deepcopy(first)
             second.update(id='work_second_page', name='Folleto B')
             second['front_source']['page'] = 2
