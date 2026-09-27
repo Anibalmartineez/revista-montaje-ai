@@ -3030,3 +3030,8 @@ button[aria-pressed="true"],
 .ev2-repeat-work-detail dd { margin: 2px 0 0; font-weight: 600; }
 
 .ev2-shell.is-preparing .ev2-repeat-canvas-note { display: none; }
+
+/* Native output diagnosis: readable work/page summaries and optional technical detail. */
+#ev2-preflight-issues, #ev2-output-findings { overflow-wrap: anywhere; }
+#ev2-preflight-issues small, #ev2-output-findings small { display: block; margin-top: .35rem; }
+#ev2-output-findings details p, #ev2-preflight-issues details p { font-size: .8rem; }

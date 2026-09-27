@@ -42,14 +42,14 @@ function outputRefs() {
   const listeners = {};
   return {
     listeners,
-    outputCheck: {
+    preflightRun: {
       disabled: false,
       addEventListener(type, listener) {
         listeners[type] = listener;
       },
     },
-    outputStatus: { textContent: "", dataset: {} },
-    outputIssues: {
+    preflightStatus: { textContent: "", dataset: {} },
+    preflightIssues: {
       children: [],
       replaceChildren(...children) {
         this.children = children;
@@ -355,7 +355,7 @@ test("approximate artwork, output labels and exact quantity default are explicit
   assert.equal(CanvasRenderer.artworkIsApproximate(withoutArtwork, layout, "/assets"), false);
   assert.equal(
     OutputPanel.issueLabel({ code: "UNSUPPORTED_SOURCE_PAGE", message: "fallback" }),
-    "Página distinta de 1 no soportada",
+    "fallback",
   );
   assert.deepEqual(RepeatPanel.readSettings({
     repeatGapX: { value: "4" },
@@ -380,120 +380,24 @@ test("thirty identical slot issues are grouped by code, asset and work", () => {
     return slot;
   });
   const issues = layout.slots.map((slot, index) => ({
-    code: "SOURCE_TRIM_SIZE_MISMATCH",
-    level: "error",
+    code: "BLEED_OUTSIDE_PRINTABLE",
+    severity: "warning",
+    blocks: ["pdf_final"],
     message: "mismatch",
     path: `$.slots[${index}].geometry.trim_size_mm`,
-    slot_id: slot.id,
-    asset_id: slot.source.asset_id,
+    references: {slot_ids: [slot.id], asset_ids: [slot.source.asset_id]},
   }));
 
-  const groups = OutputPanel.groupIssues(issues, layout);
+  const groups = OutputPanel.groupPreflightIssues(issues, layout);
 
   assert.equal(groups.length, 1);
-  assert.equal(groups[0].code, "SOURCE_TRIM_SIZE_MISMATCH");
+  assert.equal(groups[0].code, "BLEED_OUTSIDE_PRINTABLE");
   assert.equal(groups[0].assetId, base.source.asset_id);
   assert.equal(groups[0].workId, base.work_id);
   assert.equal(groups[0].count, 30);
   assert.equal(groups[0].slotIds.length, 30);
   assert.equal(groups[0].slotIds[0], "slot_repeat_operation_0001");
   assert.equal(groups[0].slotIds[29], "slot_repeat_operation_0030");
-});
-
-test("output diagnosis becomes stale on layout changes and tracks the saved revision", async () => {
-  const layout = fixture();
-  layout.slots = [unlockedFrontSlot(layout)];
-  const store = new EditorStore(layout);
-  const refs = outputRefs();
-  const panel = new OutputPanel.Panel(
-    store,
-    refs,
-    {
-      async getOutputCapabilities() {
-        return {
-          compatible: true,
-          revision: store.revision,
-          issues: [],
-        };
-      },
-    },
-    { async manualSave() { return false; } },
-    { output_capabilities_api_url: "/output-capabilities" },
-  );
-
-  await panel.check();
-  const checkedRevision = store.revision;
-  assert.equal(panel.checkedRevision, checkedRevision);
-  assert.equal(panel.diagnosisStale, false);
-  assert.match(refs.outputStatus.textContent, new RegExp(`revisión ${checkedRevision}`));
-  assert.equal(refs.outputStatus.dataset.state, "success");
-
-  const before = positions(store.layout.slots);
-  const after = positions(store.layout.slots, 1);
-  store.executeCommand(new Commands.MoveSlotsCommand(before, after));
-  assert.equal(panel.diagnosisStale, true);
-  assert.match(refs.outputStatus.textContent, /Diagnóstico desactualizado/);
-  assert.match(refs.outputStatus.textContent, /Guarda y vuelve a consultar compatibilidad/);
-  assert.equal(refs.outputStatus.dataset.state, "warning");
-  assert.deepEqual(refs.outputIssues.children, []);
-
-  const canonical = structuredClone(store.layout);
-  canonical.job.revision = checkedRevision + 1;
-  canonical.job.updated_at = "2026-09-05T12:00:00Z";
-  store.completeSave(canonical, store.changeVersion);
-  assert.match(
-    refs.outputStatus.textContent,
-    new RegExp(`revisión ${checkedRevision}.*revisión actual es ${checkedRevision + 1}`),
-  );
-  assert.match(refs.outputStatus.textContent, /Vuelve a consultar compatibilidad/);
-
-  await panel.check();
-  assert.equal(panel.checkedRevision, checkedRevision + 1);
-  assert.equal(panel.diagnosisStale, false);
-  assert.equal(refs.outputStatus.dataset.state, "success");
-  store.setSelection([store.layout.slots[0].id], "replace");
-  assert.equal(panel.diagnosisStale, false);
-
-  const external = structuredClone(store.layout);
-  external.job.revision += 1;
-  external.job.updated_at = "2026-09-05T12:01:00Z";
-  store.applyServerLayout(external);
-  assert.equal(panel.diagnosisStale, true);
-  assert.match(refs.outputStatus.textContent, /Diagnóstico desactualizado/);
-  panel.dispose();
-});
-
-test("output response is stale when the layout changes while the request is in flight", async () => {
-  const layout = fixture();
-  layout.slots = [unlockedFrontSlot(layout)];
-  const store = new EditorStore(layout);
-  const refs = outputRefs();
-  let resolveRequest;
-  const resultPromise = new Promise((resolve) => {
-    resolveRequest = resolve;
-  });
-  const panel = new OutputPanel.Panel(
-    store,
-    refs,
-    { async getOutputCapabilities() { return resultPromise; } },
-    { async manualSave() { return false; } },
-    { output_capabilities_api_url: "/output-capabilities" },
-  );
-  const checkedRevision = store.revision;
-
-  const checkPromise = panel.check();
-  store.executeCommand(new Commands.MoveSlotsCommand(
-    positions(store.layout.slots),
-    positions(store.layout.slots, 2),
-  ));
-  resolveRequest({ compatible: true, revision: checkedRevision, issues: [] });
-  await checkPromise;
-
-  assert.equal(panel.checkedRevision, checkedRevision);
-  assert.equal(panel.diagnosisStale, true);
-  assert.equal(refs.outputStatus.dataset.state, "warning");
-  assert.match(refs.outputStatus.textContent, /Guarda y vuelve a consultar compatibilidad/);
-  panel.dispose();
 });
 
 test("slot labels stay short, adapt to zoom and hide on physically tiny slots", () => {

@@ -16,19 +16,17 @@
     DERIVED_SOURCE_MISSING: "No se encuentra la página derivada: vuelve a prepararla",
     NATIVE_VECTOR_PENDING: "El renderer disponible no conserva vectores",
     OUTPUT_RESOURCE_LIMIT: "La petición supera el límite de recursos del perfil",
+    OUTPUT_PLACEMENT_LIMIT: "El montaje supera las 500 piezas admitidas por petición: divide la salida",
+    OUTPUT_PROFILE_CONFLICT: "El perfil raster no puede conservar vectores: revisa el perfil de salida",
+    OUTPUT_FACE_DISABLED: "La cara elegida no está habilitada: selecciona una cara disponible",
+    OUTPUT_NO_SLOTS: "La cara elegida no tiene piezas: coloca piezas o selecciona otra cara",
+    OUTPUT_CROP_UNSUPPORTED: "La salida conserva el pliego completo: desactiva el recorte al contenido",
+    PREVIEW_MARKS_UNSUPPORTED: "Registros, barras de color o texto técnico no están soportados: revisa el perfil de marcas",
+    CTP_NOT_SUPPORTED: "CTP todavía no está disponible: utiliza la salida PDF sin CTP",
     PREVIEW_RESOURCE_LIMIT: "La Preview es demasiado grande: selecciona una resolución menor",
     UNSUPPORTED_PDF_LAYERS: "El PDF contiene capas: requiere una política de aplanado",
     UNSUPPORTED_OUTPUT_INTENT: "El PDF contiene un perfil de salida: requiere un flujo de color compatible",
-    UNSUPPORTED_SOURCE_PAGE: "Página distinta de 1 no soportada",
-    UNSUPPORTED_PDF_BOX: "Caja PDF distinta de TrimBox no soportada",
-    UNSUPPORTED_INTRINSIC_ROTATION: "Rotación intrínseca no soportada",
-    UNSUPPORTED_CONTENT_FIT_MODE: "Modo de ajuste interno no soportado",
-    UNSUPPORTED_CONTENT_SCALE: "Escala interna no soportada",
-    UNSUPPORTED_CONTENT_OFFSET: "Desplazamiento interno no soportado",
-    UNSUPPORTED_CONTENT_ROTATION: "Rotación interna no soportada",
-    UNSUPPORTED_CONTENT_MIRROR: "Espejo interno no soportado",
-    UNSUPPORTED_CONTENT_CLIP: "Recorte interno no soportado",
-    SOURCE_TRIM_SIZE_MISMATCH: "Tamaño fuente/trim incompatible",
+    UNSUPPORTED_CONTENT_CLIP: "Selecciona recorte al tamaño final o al sangrado en Corrección gráfica",
     ASSET_NOT_READY: "Asset no listo o placeholder",
     ASSET_IDENTITY_MISMATCH: "Identidad física del asset distinta",
     ASSET_MISSING: "Asset usado no encontrado",
@@ -36,10 +34,10 @@
     PDF_UNREADABLE: "PDF físico no legible",
     PDF_METADATA_MISMATCH: "Metadata física del PDF distinta",
     PDF_SEMANTICS_UNSUPPORTED: "Página o caja PDF ausente",
-    TRIM_OUTSIDE_SHEET: "Trim fuera del pliego",
-    BLEED_OUTSIDE_PRINTABLE: "Bleed fuera del área imprimible",
-    TRIM_OVERLAP: "Trim superpuesto",
-    BLEED_OVERLAP: "Bleed superpuesto",
+    TRIM_OUTSIDE_SHEET: "La pieza sale del pliego: mueve la pieza o revisa el tamaño del pliego",
+    BLEED_OUTSIDE_PRINTABLE: "El sangrado sale del área imprimible: mueve la pieza o revisa los márgenes",
+    TRIM_OVERLAP: "Las piezas se superponen: revisa su posición y separación",
+    BLEED_OVERLAP: "Los sangrados se superponen: aumenta la separación entre piezas",
     OUTPUT_FEATURE_UNSUPPORTED: "Función de salida no soportada todavía",
   });
 
@@ -48,44 +46,46 @@
     "undo",
     "redo",
     "external_update",
+    "save_conflict",
+    "save_error",
+    "pointer_start",
   ]);
 
   function issueLabel(issue) {
     return (issue.code === "OUTPUT_FEATURE_UNSUPPORTED" && issue.message) || ISSUE_LABELS[issue.code] || issue.message || issue.code;
   }
 
-  function groupIssues(issues, layout) {
-    const slots = new Map((layout?.slots || []).map((slot) => [slot.id, slot]));
+  const OPERATION_LABELS = Object.freeze({preview: "Preview", pdf_final: "PDF", ctp: "CTP"});
+
+  function groupPreflightIssues(issues, layout) {
+    const slots = new Map((layout?.slots || []).map(slot => [slot.id, slot]));
+    const works = new Map((layout?.works || []).map(work => [work.id, work]));
+    const assets = new Map((layout?.assets || []).map(asset => [asset.id, asset]));
     const groups = new Map();
     for (const issue of issues || []) {
-      const slot = issue.slot_id ? slots.get(issue.slot_id) : null;
-      const workId = slot?.work_id || issue.work_id || null;
-      const assetId = issue.asset_id || slot?.source?.asset_id || null;
-      const key = issue.slot_id
-        ? [issue.level, issue.code, assetId || "", workId || ""].join("|")
-        : [issue.level, issue.code, issue.path || ""].join("|");
-      if (!groups.has(key)) {
-        groups.set(key, {
-          code: issue.code,
-          level: issue.level,
-          message: issue.message,
-          path: issue.path || null,
-          assetId,
-          workId,
-          slotIds: [],
-          count: 0,
+      const refs = issue.references || {};
+      const targets = (refs.slot_ids?.length ? refs.slot_ids : [null]);
+      for (const slotId of targets) {
+        const slot = slots.get(slotId);
+        const workId = slot?.work_id || refs.work_ids?.[0] || null;
+        const assetId = slot?.source?.asset_id || refs.asset_ids?.[0] || null;
+        const page = slot?.source?.page || refs.page_numbers?.[0] || null;
+        const blocks = [...new Set(issue.blocks || [])].sort();
+        const key = JSON.stringify([issue.severity, issue.code, issue.message, workId, assetId, page,
+          blocks, slotId ? "slot" : [refs.asset_ids, refs.work_ids, refs.page_numbers, refs.path]]);
+        if (!groups.has(key)) groups.set(key, {
+          code: issue.code, level: issue.severity, message: issue.message,
+          path: refs.path || null, assetId, workId, page, blocks,
+          workName: works.get(workId)?.name || null,
+          filename: assets.get(assetId)?.original_filename || null,
+          slotIds: [], count: 0,
         });
-      }
-      const group = groups.get(key);
-      group.count += 1;
-      if (issue.slot_id && !group.slotIds.includes(issue.slot_id)) {
-        group.slotIds.push(issue.slot_id);
+        const group = groups.get(key);
+        group.count += 1;
+        if (slotId && !group.slotIds.includes(slotId)) group.slotIds.push(slotId);
       }
     }
-    return [...groups.values()].map((group) => ({
-      ...group,
-      slotIds: [...group.slotIds].sort(),
-    }));
+    return [...groups.values()].map(group => ({...group, slotIds: group.slotIds.sort()}));
   }
 
   function renderIssueGroup(group) {
@@ -93,62 +93,42 @@
     item.dataset.code = group.code;
     item.dataset.level = group.level;
     item.dataset.affectedSlots = String(group.slotIds.length);
-
     const summary = document.createElement("span");
-    const scope = [
-      group.workId && `work ${group.workId}`,
-      group.assetId && `asset ${group.assetId}`,
-      group.slotIds.length && `${group.slotIds.length} slot${group.slotIds.length === 1 ? "" : "s"} afectado${group.slotIds.length === 1 ? "" : "s"}`,
-      !group.slotIds.length && group.path,
-    ].filter(Boolean);
-    summary.textContent = `${issueLabel(group)}${scope.length ? ` · ${scope.join(" · ")}` : ""}`;
-    item.append(summary);
-
-    if (group.slotIds.length) {
-      const details = document.createElement("details");
-      const toggle = document.createElement("summary");
-      toggle.textContent = group.slotIds.length === 1 ? "Ver ID completo" : "Ver IDs completos";
-      const ids = document.createElement("ul");
-      for (const slotId of group.slotIds) {
-        const row = document.createElement("li");
-        const code = document.createElement("code");
-        code.textContent = slotId;
-        row.append(code);
-        ids.append(row);
-      }
-      details.append(toggle, ids);
-      item.append(details);
+    const scope = [group.workName || group.filename, group.page && `Página ${group.page}`,
+      group.slotIds.length && `${group.slotIds.length} pieza${group.slotIds.length === 1 ? "" : "s"} afectada${group.slotIds.length === 1 ? "" : "s"}`].filter(Boolean);
+    summary.textContent = `${scope.length ? scope.join(" · ") + ": " : ""}${issueLabel(group)}`;
+    const effect = document.createElement("small");
+    effect.textContent = group.blocks.length
+      ? `Impide: ${group.blocks.map(op => OPERATION_LABELS[op] || op).join(", ")}.`
+      : "Aviso: no impide generar salida.";
+    const details = document.createElement("details");
+    const toggle = document.createElement("summary");
+    toggle.textContent = "Detalles técnicos";
+    const metadata = document.createElement("p");
+    metadata.textContent = [group.code, group.workId, group.assetId, group.path, group.message].filter(Boolean).join(" · ");
+    const ids = document.createElement("ul");
+    for (const id of group.slotIds) {
+      const row = document.createElement("li");
+      const code = document.createElement("code");
+      code.textContent = id; row.append(code); ids.append(row);
     }
+    details.append(toggle, metadata, ids);
+    item.append(summary, effect, details);
     return item;
   }
 
-  function groupPreflightIssues(issues) {
-    const groups = new Map();
-    for (const issue of issues || []) {
-      const refs = issue.references || {};
-      const key = [issue.severity, issue.code, issue.message, (refs.asset_ids || []).join(","), (refs.path || "").replace(/\[\d+\]/g,"[]")].join("|");
-      if (!groups.has(key)) {
-        groups.set(key, {
-          code: issue.code,
-          level: issue.severity,
-          message: issue.message,
-          path: refs.path || null,
-          assetId: (refs.asset_ids || [])[0] || null,
-          workId: (refs.work_ids || [])[0] || null,
-          slotIds: [...(refs.slot_ids || [])],
-          count: 0,
-        });
-      }
-      const group = groups.get(key);
-      group.count += 1;
-      for (const slotId of refs.slot_ids || []) {
-        if (!group.slotIds.includes(slotId)) group.slotIds.push(slotId);
-      }
-    }
-    return [...groups.values()].map((group) => ({
-      ...group,
-      slotIds: [...group.slotIds].sort(),
-    }));
+  function operationSummary(report, operation, options = {}) {
+    const label = OPERATION_LABELS[operation];
+    const decision = report?.decisions?.find(item => item.operation === operation);
+    if (!decision) return `${label}: comprobación incompleta.`;
+    const reasons = decision.reason_codes || [];
+    const messages = [];
+    if (reasons.includes("CAPABILITY_GATE_NOT_ENABLED")) messages.push("función desactivada en este servidor");
+    if (operation === "preview" && options.face === "both") messages.push("selecciona Frente o Dorso; ambas caras solo se generan en PDF");
+    if (decision.blocking_issue_ids?.length || reasons.includes("PREFLIGHT_FINDINGS")) messages.push("requiere corregir los motivos indicados");
+    if (report.execution !== "complete" || reasons.includes("PREFLIGHT_INCOMPLETE")) messages.push("comprobación incompleta; vuelve a comprobar");
+    if (decision.status === "eligible" && !messages.length) return `${label}: disponible para generar.`;
+    return `${label}: ${messages.join("; ") || "salida bloqueada; vuelve a comprobar"}.`;
   }
 
   class Panel {
@@ -158,19 +138,20 @@
       this.api = api;
       this.saver = saver;
       this.context = context;
-      this.checkedRevision = null;
-      this.diagnosisStale = false;
       this.preflightReport = null;
       this.preflightStale = false;
       this.generating = false;
+      this.checking = false;
+      this.requestSerial = 0;
       this.outputEpoch = 0;
       this.artifactUrl = null;
       this.downloadUrls = [];
       this.artifactRevision = null;
       this.store.outputOptions = {face: "front", dpi: 150, allow_mirror_bleed: false};
       this.unsubscribe = this.store.subscribe((event) => this.onStoreEvent(event));
-      this.refs.outputCheck.addEventListener("click", () => this.check());
-      this.refs.preflightRun?.addEventListener("click", () => this.runPreflight());
+      for (const button of [refs.preflightRun, refs.outputRecheck]) {
+        button?.addEventListener("click", () => runAction("output.preflight"));
+      }
       this.refs.outputPreview?.addEventListener("click", () => runAction("output.preview"));
       this.refs.outputPdf?.addEventListener("click", () => runAction("output.pdf"));
       for (const control of [refs.outputFace, refs.outputDpi, refs.outputMirror]) {
@@ -193,7 +174,7 @@
     }
 
     renderOutputControls() {
-      if (!this.refs.outputFace) return;
+      if (this.disposed || !this.refs.outputFace) return;
       if (this.refs.outputProfile) {
         const profile = this.store.layout.export.render_mode === "raster"
           ? "Perfil raster: rasteriza el pliego a la resolución seleccionada."
@@ -203,8 +184,18 @@
       const faces = this.store.layout.faces.enabled.filter((face) => this.store.layout.export.faces[face]);
       for (const option of this.refs.outputFace.options) option.disabled = option.value === "both" ? faces.length !== 2 : !faces.includes(option.value);
       if (this.refs.outputFace.selectedOptions[0]?.disabled) this.refs.outputFace.value = faces[0] || "front";
-      this.refs.outputPreview.disabled = this.generating || !this.context.preview_api_url || this.refs.outputFace.value === "both";
-      this.refs.outputPdf.disabled = this.generating || !this.context.pdf_final_api_url;
+      const busy = this.generating || this.checking || Boolean(this.store.pointerSession);
+      const decisionBlocks = operation => this.reportIsCurrent() && this.preflightReport.decisions.find(d => d.operation === operation)?.status !== "eligible";
+      this.refs.outputPreview.disabled = busy || !this.context.preview_api_url || this.refs.outputFace.value === "both" || decisionBlocks("preview");
+      this.refs.outputPdf.disabled = busy || !this.context.pdf_final_api_url || decisionBlocks("pdf_final");
+      for (const button of [this.refs.preflightRun, this.refs.outputRecheck]) {
+        if (button) button.disabled = busy || !this.context.preflight_api_url;
+      }
+      if (this.refs.outputAvailability) this.refs.outputAvailability.textContent = [
+        `Preview: ${this.context.preview_api_url ? "habilitada" : "desactivada en este servidor"}.`,
+        `PDF: ${this.context.pdf_final_api_url ? "habilitado" : "desactivado en este servidor"}.`,
+        this.refs.outputFace.value === "both" ? "Para Preview elige Frente o Dorso." : "",
+      ].filter(Boolean).join(" ");
     }
 
     invalidateArtifact() {
@@ -223,20 +214,63 @@
       this.artifactRevision = null;
     }
 
-    showOutputFindings(issues) {
+    showOutputFindings(issues, operation) {
       this.refs.outputFindings?.replaceChildren();
-      for (const group of groupPreflightIssues(issues).slice(0,100)) {
-        const item = renderIssueGroup(group);
-        const operations = [...new Set((issues || []).filter(i => i.code === group.code).flatMap(i => i.blocks || []))];
-        const label = document.createElement("small");
-        label.textContent = ` ${group.level} · Afecta: ${operations.join(", ") || "revisión del operador"}`;
-        item.append(label);
-        this.refs.outputFindings?.append(item);
+      const relevant = operation ? (issues || []).filter(issue => !issue.blocks?.length || issue.blocks.includes(operation)) : issues;
+      for (const group of groupPreflightIssues(relevant, this.store.layout)) {
+        this.refs.outputFindings?.append(renderIssueGroup(group));
       }
     }
 
+    reportIsCurrent() {
+      const report = this.preflightReport;
+      return Boolean(report && !this.preflightStale && !this.disposed && !this.store.hasUnsavedChanges()
+        && this.store.saveState.status === "clean" && !this.store.pointerSession
+        && report.subject.job_id === this.store.layout.job.id && report.subject.revision === this.store.revision
+        && this.reportOptions === JSON.stringify(this.readOutputOptions()) && this.reportVersion === this.store.changeVersion);
+    }
+
+    renderReport(report) {
+      const blocked = report.decisions.filter(d => ["preview", "pdf_final"].includes(d.operation) && d.status === "blocked");
+      const state = blocked.some(d => d.blocking_issue_ids?.length) ? "error" : blocked.length ? "warning" : "success";
+      this.refs.preflightStatus.textContent = `Diagnóstico completo · revisión ${report.subject.revision}`;
+      this.refs.preflightStatus.dataset.state = state;
+      const options = this.readOutputOptions();
+      const optionLabel = `${({front:"Frente",back:"Dorso",both:"Ambas caras"})[options.face]} · ${options.dpi} dpi · espejo ${options.allow_mirror_bleed ? "permitido" : "desactivado"}.`;
+      const summary = `${optionLabel} ${["preview", "pdf_final"].map(op => operationSummary(report, op, options)).join(" ")}`;
+      if (this.refs.preflightSummary) this.refs.preflightSummary.textContent = `${summary} CTP todavía no disponible.`;
+      if (this.refs.outputDiagnosis) { this.refs.outputDiagnosis.textContent = summary; this.refs.outputDiagnosis.dataset.state = state; }
+      this.refs.preflightIssues?.replaceChildren();
+      for (const group of groupPreflightIssues(report.issues, this.store.layout)) {
+        this.refs.preflightIssues?.append(renderIssueGroup(group));
+      }
+      this.showOutputFindings(report.issues);
+    }
+
+    async analyze() {
+      if (this.store.hasUnsavedChanges()) await this.saver.manualSave();
+      if (this.store.hasUnsavedChanges() || this.store.saveState.status !== "clean" || this.store.pointerSession) {
+        throw new Error("Guarda o resuelve el conflicto antes de comprobar la salida.");
+      }
+      const serial = ++this.requestSerial, epoch = this.outputEpoch, revision = this.store.revision;
+      const version = this.store.changeVersion, jobId = this.store.layout.job.id;
+      const options = this.readOutputOptions(), optionsKey = JSON.stringify(options);
+      const {report} = await this.api.runPreflight(this.context.preflight_api_url, options);
+      if (this.disposed || serial !== this.requestSerial || epoch !== this.outputEpoch
+          || this.store.changeVersion !== version || this.store.hasUnsavedChanges() || this.store.saveState.status !== "clean"
+          || this.store.pointerSession || this.store.revision !== revision || this.store.layout.job.id !== jobId
+          || JSON.stringify(this.readOutputOptions()) !== optionsKey || report.subject.job_id !== jobId || report.subject.revision !== revision) {
+        const error = new Error("Diagnóstico desactualizado: cambió el montaje o las opciones. Vuelve a comprobar la salida.");
+        error.code = "OUTPUT_STALE"; throw error;
+      }
+      this.preflightReport = report; this.preflightStale = false;
+      this.reportOptions = optionsKey; this.reportVersion = version;
+      this.renderReport(report);
+      return {report, options, revision, epoch};
+    }
+
     async generate(operation) {
-      if (this.generating) return;
+      if (this.generating || this.checking) return;
       const url = operation === "preview" ? this.context.preview_api_url : this.context.pdf_final_api_url;
       if (!url) return;
       this.invalidateArtifact();
@@ -246,19 +280,13 @@
       this.refs.outputResult.dataset.state = "pending";
       this.showOutputFindings([]);
       try {
-        await this.saver.manualSave();
-        if (this.store.hasUnsavedChanges() || this.store.saveState.status !== "clean" || this.store.pointerSession) {
-          throw new Error("Guarda o resuelve el conflicto antes de generar salida.");
-        }
-        const revision = this.store.revision, epoch = this.outputEpoch;
-        const options = this.readOutputOptions();
-        const current = () => !this.disposed && this.outputEpoch === epoch && !this.store.hasUnsavedChanges() && this.store.revision === revision;
-        const {report} = await this.api.runPreflight(this.context.preflight_api_url, options);
-        if (!current() || report.subject.revision !== revision) throw new Error("El montaje cambió durante el preflight. Vuelve a generar.");
-        this.showOutputFindings(report.issues);
+        const {report, options, revision, epoch} = await this.analyze();
+        const current = () => this.outputEpoch === epoch && this.reportIsCurrent();
+        this.showOutputFindings(report.issues, operation);
         const decision = report.decisions.find(item => item.operation === operation);
         if (report.execution !== "complete" || decision?.status !== "eligible") {
-          throw new Error(`Salida bloqueada para ${operation === "preview" ? "Preview" : "PDF"}. Revisa los motivos indicados; un gate deshabilitado se habilita al iniciar el servidor.`);
+          const error = new Error(`Salida bloqueada para ${OPERATION_LABELS[operation]}. ${operationSummary(report, operation)}`);
+          error.code = "PREFLIGHT_BLOCKED"; throw error;
         }
         this.refs.outputResult.textContent = `Generando ${operation === "preview" ? "Preview" : "PDF"} de la revisión ${revision}…`;
         const result = await this.api.requestArtifact(url, {...options, expected_revision: revision});
@@ -281,8 +309,10 @@
         this.refs.outputResult.textContent = `${operation === "preview" ? "Preview lista" : "PDF listo; descarga iniciada"} · revisión ${revision} · ${options.face} · ${options.dpi} dpi · espejo ${options.allow_mirror_bleed ? "permitido" : "desactivado"}. ${report.issues.filter(i=>i.severity==="warning").length} advertencia(s).`;
         this.refs.outputResult.dataset.state = "success";
       } catch (error) {
-        if (error.issues?.length) this.showOutputFindings(error.issues);
-        this.refs.outputResult.textContent = error.message || "No se pudo completar la salida. Vuelve a intentarlo.";
+        if (this.disposed) return;
+        if (error.issues?.length) this.showOutputFindings(error.issues, operation);
+        this.refs.outputResult.textContent = error.code === "PREFLIGHT_BLOCKED" || error.code === "OUTPUT_STALE" || error.message?.startsWith("Resultado desactualizado")
+          ? error.message : `No se pudo generar ${OPERATION_LABELS[operation]}. ${error.message || "Vuelve a intentarlo."}`;
         this.refs.outputResult.dataset.state = "error";
       } finally {
         this.generating = false;
@@ -291,130 +321,53 @@
     }
 
     onStoreEvent(event) {
-      if (DIAGNOSIS_INVALIDATING_EVENTS.includes(event.type)) {
+      if (DIAGNOSIS_INVALIDATING_EVENTS.includes(event.type) ||
+          (event.type === "save_success" && this.preflightReport?.subject.revision !== this.store.revision)) {
         this.invalidateArtifact();
-        this.renderOutputControls();
-        this.invalidate();
-        this.invalidatePreflight();
-        return;
-      }
-      if (event.type === "save_success"
-          && this.checkedRevision !== null
-          && (this.diagnosisStale || this.checkedRevision !== this.store.revision)) {
-        this.invalidate();
-      }
-      if (event.type === "save_success" && this.preflightReport && this.preflightReport.subject.revision !== this.store.revision) {
         this.invalidatePreflight();
       }
-    }
-
-    staleMessage() {
-      if (this.store.hasUnsavedChanges()) {
-        return (
-          `Diagnóstico desactualizado · la revisión ${this.checkedRevision} tiene cambios pendientes. `
-          + "Guarda y vuelve a consultar compatibilidad."
-        );
-      }
-      return (
-        `Diagnóstico desactualizado · se comprobó la revisión ${this.checkedRevision}, `
-        + `pero la revisión actual es ${this.store.revision}. `
-        + "Vuelve a consultar compatibilidad."
-      );
-    }
-
-    invalidate() {
-      if (this.checkedRevision === null) return false;
-      this.diagnosisStale = true;
-      this.refs.outputStatus.textContent = this.staleMessage();
-      this.refs.outputStatus.dataset.state = "warning";
-      this.refs.outputIssues.replaceChildren();
-      return true;
+      if (event.type === "pointer_end" || DIAGNOSIS_INVALIDATING_EVENTS.includes(event.type) || event.type === "save_success") this.renderOutputControls();
     }
 
     invalidatePreflight() {
-      if (!this.preflightReport || !this.refs.preflightStatus) return false;
+      if (!this.preflightReport && !this.checking && !this.generating) return false;
       this.preflightStale = true;
-      this.refs.preflightStatus.textContent = "Preflight desactualizado · guarda y vuelve a ejecutarlo.";
-      this.refs.preflightStatus.dataset.state = "warning";
+      const checked = this.preflightReport?.subject.revision;
+      const message = `Diagnóstico desactualizado · ${checked ? `se comprobó la revisión ${checked}; la revisión actual es ${this.store.revision}. ` : ""}${this.store.hasUnsavedChanges() ? "Guarda y vuelve" : "Vuelve"} a comprobar la salida con las opciones actuales.`;
+      if (this.refs.preflightStatus) {
+        this.refs.preflightStatus.textContent = message;
+        this.refs.preflightStatus.dataset.state = "warning";
+      }
       this.refs.preflightIssues?.replaceChildren();
-      if (this.refs.preflightSummary) this.refs.preflightSummary.textContent = "El reporte corresponde a una revisión anterior.";
+      if (this.refs.preflightSummary) this.refs.preflightSummary.textContent = "Vuelve a comprobar la salida; el informe anterior ya no autoriza ninguna operación.";
+      if (this.refs.outputDiagnosis) { this.refs.outputDiagnosis.textContent = message; this.refs.outputDiagnosis.dataset.state = "warning"; }
       return true;
     }
 
     async runPreflight() {
-      if (!this.refs.preflightRun || !this.context.preflight_api_url) return;
-      this.refs.preflightRun.disabled = true;
-      this.refs.preflightStatus.textContent = "Analizando la revisión guardada y sus fuentes físicas…";
+      if (this.checking || this.generating || !this.context.preflight_api_url) return;
+      this.checking = true;
+      this.invalidateArtifact();
+      this.preflightReport = null;
+      this.preflightStale = true;
+      this.renderOutputControls();
+      this.refs.preflightStatus.textContent = "Comprobando la revisión guardada, las fuentes y las opciones de salida…";
       this.refs.preflightStatus.dataset.state = "pending";
       this.refs.preflightIssues?.replaceChildren();
       if (this.refs.preflightSummary) this.refs.preflightSummary.textContent = "";
-      this.preflightReport = null;
-      this.preflightStale = false;
+      if (this.refs.outputDiagnosis) this.refs.outputDiagnosis.textContent = "Comprobando salida…";
       try {
-        if (this.store.hasUnsavedChanges()) await this.saver.manualSave();
-        if (this.store.saveState.status !== "clean") {
-          throw new Error("Guarda o resuelve el conflicto antes de ejecutar el preflight.");
-        }
-        const result = await this.api.runPreflight(this.context.preflight_api_url, this.readOutputOptions());
-        const report = result.report;
-        this.preflightReport = report;
-        if (this.store.hasUnsavedChanges() || this.store.revision !== report.subject.revision) {
-          this.invalidatePreflight();
-          return result;
-        }
-        const blocked = (report.decisions || []).filter((decision) => decision.status === "blocked").map((decision) => decision.operation);
-        const errorCount = (report.issues || []).filter((issue) => issue.severity === "error").length;
-        this.refs.preflightStatus.textContent = `Preflight completo · revisión ${report.subject.revision} · reporte ${report.report_id}`;
-        this.refs.preflightStatus.dataset.state = errorCount ? "error" : "success";
-        if (this.refs.preflightSummary) {
-          this.refs.preflightSummary.textContent = blocked.length
-            ? `Operaciones bloqueadas: ${blocked.join(", ")}. ${errorCount} error${errorCount === 1 ? "" : "es"} encontrado${errorCount === 1 ? "" : "s"}.`
-            : "No hay operaciones bloqueadas.";
-        }
-        for (const group of groupPreflightIssues(report.issues)) {
-          this.refs.preflightIssues?.append(renderIssueGroup(group));
-        }
-        return result;
+        return await this.analyze();
       } catch (error) {
-        this.refs.preflightStatus.textContent = error.message || "No se pudo ejecutar el preflight.";
-        this.refs.preflightStatus.dataset.state = "error";
+        if (this.disposed) return;
+        this.preflightStale = true;
+        const message = error.code === "OUTPUT_STALE" ? error.message : `No se pudo comprobar la salida. ${error.message || "Vuelve a intentarlo."}`;
+        this.refs.preflightStatus.textContent = message;
+        this.refs.preflightStatus.dataset.state = error.code === "OUTPUT_STALE" ? "warning" : "error";
+        if (this.refs.outputDiagnosis) this.refs.outputDiagnosis.textContent = message;
       } finally {
-        this.refs.preflightRun.disabled = false;
-      }
-    }
-
-    async check() {
-      this.refs.outputCheck.disabled = true;
-      this.refs.outputStatus.textContent = "Analizando la última revisión guardada…";
-      this.refs.outputStatus.dataset.state = "pending";
-      this.refs.outputIssues.replaceChildren();
-      this.checkedRevision = null;
-      this.diagnosisStale = false;
-      try {
-        if (this.store.hasUnsavedChanges()) await this.saver.manualSave();
-        if (this.store.saveState.status !== "clean") {
-          throw new Error("Guarda o resuelve el conflicto antes de consultar la compatibilidad.");
-        }
-        const result = await this.api.getOutputCapabilities(
-          this.context.output_capabilities_api_url,
-        );
-        this.checkedRevision = result.revision;
-        if (this.store.hasUnsavedChanges() || this.store.revision !== result.revision) {
-          this.invalidate();
-          return result;
-        }
-        this.refs.outputStatus.textContent = result.compatible
-          ? `Compatible con salida temporal · revisión ${result.revision}`
-          : `No compatible con salida temporal · revisión ${result.revision}`;
-        this.refs.outputStatus.dataset.state = result.compatible ? "success" : "error";
-        for (const group of groupIssues(result.issues, this.store.layout)) {
-          this.refs.outputIssues.append(renderIssueGroup(group));
-        }
-      } catch (error) {
-        this.refs.outputStatus.textContent = error.message || "No se pudo consultar la compatibilidad.";
-        this.refs.outputStatus.dataset.state = "error";
-      } finally {
-        this.refs.outputCheck.disabled = false;
+        this.checking = false;
+        this.renderOutputControls();
       }
     }
 
@@ -431,8 +384,8 @@
     ISSUE_LABELS,
     DIAGNOSIS_INVALIDATING_EVENTS,
     Panel,
-    groupIssues,
     groupPreflightIssues,
+    operationSummary,
     issueLabel,
     renderIssueGroup,
   });

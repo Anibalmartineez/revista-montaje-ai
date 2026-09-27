@@ -14,6 +14,7 @@
     REPEAT_ALTERNATIVE: "repeat.alternative",
     OUTPUT_PREVIEW: "output.preview",
     OUTPUT_PDF: "output.pdf",
+    OUTPUT_PREFLIGHT: "output.preflight",
     OUTPUT_OPTIONS: "output.options",
     SAVE: "editor.save",
     CANCEL: "editor.cancel",
@@ -287,9 +288,12 @@
     }
     for (const [id, operation] of [[ACTION_IDS.OUTPUT_PREVIEW,"preview"],[ACTION_IDS.OUTPUT_PDF,"pdf_final"]]) {
       registry.register({ id, label: operation === "preview" ? "Generar Preview" : "Descargar PDF",
-        enabled: (context) => Boolean(context.outputPanel && !context.outputPanel.generating),
+        enabled: (context) => Boolean(context.outputPanel && !context.outputPanel.generating && !context.outputPanel.checking),
         execute: (context) => context.outputPanel.generate(operation) });
     }
+    registry.register({ id: ACTION_IDS.OUTPUT_PREFLIGHT, label: "Comprobar salida",
+      enabled: context => Boolean(context.outputPanel && !context.outputPanel.generating && !context.outputPanel.checking),
+      execute: context => context.outputPanel.runPreflight() });
     registry.register({ id: ACTION_IDS.OUTPUT_OPTIONS, label: "Opciones de salida",
       execute: (context) => context.outputPanel?.changeOutputOptions() });
     function hiddenIds(context) {

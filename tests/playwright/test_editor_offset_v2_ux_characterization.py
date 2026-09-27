@@ -340,15 +340,15 @@ def test_stab_003_output_diagnosis_is_invalidated_after_revision_change(
             _select_slot(page, slot_id)
 
             with page.expect_response(
-                lambda response: response.request.method == "GET"
-                and response.url.endswith("/output-capabilities"),
+                lambda response: response.request.method == "POST"
+                and response.url.endswith("/preflight"),
             ):
                 _open_workflow_stage(page, "validate")
-                page.locator("#ev2-output-check").click()
+                page.locator("#ev2-preflight-run").click()
             checked_revision = page.evaluate(
                 "() => window.__EDITOR_OFFSET_V2__.store.revision"
             )
-            expect(page.locator("#ev2-output-status")).to_contain_text(
+            expect(page.locator("#ev2-preflight-status")).to_contain_text(
                 f"revisión {checked_revision}"
             )
 
@@ -358,13 +358,13 @@ def test_stab_003_output_diagnosis_is_invalidated_after_revision_change(
             )
             _open_workflow_stage(page, "adjust")
             _move_selected_with_position_form(page, current_x + 0.25)
-            expect(page.locator("#ev2-output-status")).to_contain_text(
+            expect(page.locator("#ev2-preflight-status")).to_contain_text(
                 "Diagnóstico desactualizado"
             )
-            expect(page.locator("#ev2-output-status")).to_contain_text(
-                "Guarda y vuelve a consultar compatibilidad"
+            expect(page.locator("#ev2-preflight-status")).to_contain_text(
+                "Guarda y vuelve a comprobar la salida"
             )
-            expect(page.locator("#ev2-output-status")).to_have_attribute(
+            expect(page.locator("#ev2-preflight-status")).to_have_attribute(
                 "data-state", "warning"
             )
             page.evaluate("() => window.__EDITOR_OFFSET_V2__.saver.manualSave()")
@@ -377,30 +377,30 @@ def test_stab_003_output_diagnosis_is_invalidated_after_revision_change(
             )
             assert current_revision > checked_revision
 
-            expect(page.locator("#ev2-output-status")).to_contain_text(
+            expect(page.locator("#ev2-preflight-status")).to_contain_text(
                 f"se comprobó la revisión {checked_revision}"
             )
-            expect(page.locator("#ev2-output-status")).to_contain_text(
+            expect(page.locator("#ev2-preflight-status")).to_contain_text(
                 f"la revisión actual es {current_revision}"
             )
-            expect(page.locator("#ev2-output-status")).to_contain_text(
-                "Vuelve a consultar compatibilidad"
+            expect(page.locator("#ev2-preflight-status")).to_contain_text(
+                "Vuelve a comprobar la salida"
             )
 
             with page.expect_response(
-                lambda response: response.request.method == "GET"
-                and response.url.endswith("/output-capabilities"),
+                lambda response: response.request.method == "POST"
+                and response.url.endswith("/preflight"),
             ):
                 _open_workflow_stage(page, "validate")
-                page.locator("#ev2-output-check").click()
-            expect(page.locator("#ev2-output-status")).to_contain_text(
+                page.locator("#ev2-preflight-run").click()
+            expect(page.locator("#ev2-preflight-status")).to_contain_text(
                 f"revisión {current_revision}"
             )
-            expect(page.locator("#ev2-output-status")).not_to_contain_text(
+            expect(page.locator("#ev2-preflight-status")).not_to_contain_text(
                 "Diagnóstico desactualizado"
             )
             assert page.evaluate(
-                "() => window.__EDITOR_OFFSET_V2__.outputPanel.checkedRevision"
+                "() => window.__EDITOR_OFFSET_V2__.outputPanel.preflightReport.subject.revision"
             ) == current_revision
             _assert_no_console_errors(errors)
             assert not errors["page"], f"Pageerrors inesperados: {errors['page']}"
@@ -1028,7 +1028,7 @@ def test_phase_19_d_workflow_navigation_groups_tools_without_layout_mutation(
             page.keyboard.press("End")
             expect(page.locator("#ev2-stage-tab-output")).to_be_focused()
             expect(page.locator("#ev2-stage-output")).to_contain_text(
-                "funciones están deshabilitadas en este servidor"
+                "Preview: desactivada en este servidor. PDF: desactivado en este servidor."
             )
 
             page.locator("#ev2-workspace-open-align").click()
@@ -1126,12 +1126,12 @@ def test_phase_19_e_configures_sheet_with_safe_confirmation_undo_and_persistence
             )
 
             with page.expect_response(
-                lambda response: response.request.method == "GET"
-                and response.url.endswith("/output-capabilities"),
+                lambda response: response.request.method == "POST"
+                and response.url.endswith("/preflight"),
             ):
                 _open_workflow_stage(page, "validate")
-                page.locator("#ev2-output-check").click()
-            expect(page.locator("#ev2-output-status")).to_contain_text(
+                page.locator("#ev2-preflight-run").click()
+            expect(page.locator("#ev2-preflight-status")).to_contain_text(
                 f"revisión {baseline['revision']}"
             )
 
@@ -1191,7 +1191,7 @@ def test_phase_19_e_configures_sheet_with_safe_confirmation_undo_and_persistence
                 "baseline => window.__EDITOR_OFFSET_V2__.store.undoStack.length === baseline.history",
                 baseline,
             ) is True
-            expect(page.locator("#ev2-output-status")).not_to_contain_text(
+            expect(page.locator("#ev2-preflight-status")).not_to_contain_text(
                 "Diagnóstico desactualizado"
             )
 
@@ -1208,7 +1208,7 @@ def test_phase_19_e_configures_sheet_with_safe_confirmation_undo_and_persistence
             expect(page.locator(".ev2-svg-printable-area")).to_have_attribute(
                 "height", "50"
             )
-            expect(page.locator("#ev2-output-status")).to_contain_text(
+            expect(page.locator("#ev2-preflight-status")).to_contain_text(
                 "Diagnóstico desactualizado"
             )
             changed = page.evaluate(

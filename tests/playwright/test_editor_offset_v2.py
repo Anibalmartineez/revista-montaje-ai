@@ -131,14 +131,13 @@ def test_v2_preflight_runs_on_saved_revision_and_keeps_output_blocked(v2_server,
             page = browser.new_page(viewport={"width": 1440, "height": 900})
             _open_job_with_repeat(page, v2_server, pdf_path, quantity=1)
             _open_workflow_stage(page, "validate")
-            page.locator("#ev2-preflight-panel > summary").click()
             with page.expect_response(
                 lambda response: response.request.method == "POST" and "/preflight" in response.url,
             ) as response_info:
                 page.locator("#ev2-preflight-run").click()
             assert response_info.value.status == 201
-            expect(page.locator("#ev2-preflight-status")).to_contain_text("Preflight completo")
-            expect(page.locator("#ev2-preflight-summary")).to_contain_text("Operaciones bloqueadas")
+            expect(page.locator("#ev2-preflight-status")).to_contain_text("Diagnóstico completo")
+            expect(page.locator("#ev2-preflight-summary")).to_contain_text("función desactivada en este servidor")
             report=response_info.value.json()['report']
             assert not any(i['code']=='NATIVE_VECTOR_PENDING' for i in report['issues'])
             assert all(d['status']=='blocked' for d in report['decisions'])
@@ -390,15 +389,15 @@ def test_v2_visual_semantics_printable_output_and_approximate_artwork(v2_server,
             )
 
             with page.expect_response(
-                lambda response: response.request.method == "GET"
-                and "/output-capabilities" in response.url,
+                lambda response: response.request.method == "POST"
+                and "/preflight" in response.url,
             ):
                 _open_workflow_stage(page, "validate")
-                page.locator("#ev2-output-check").click()
-            expect(page.locator("#ev2-output-status")).to_contain_text(
-                "No compatible con salida temporal"
+                page.locator("#ev2-preflight-run").click()
+            expect(page.locator("#ev2-preflight-status")).to_contain_text(
+                "Diagnóstico completo"
             )
-            expect(page.locator("#ev2-output-issues [data-code='UNSUPPORTED_CONTENT_SCALE']")).to_have_count(1)
+            expect(page.locator("#ev2-preflight-issues [data-code='UNSUPPORTED_CONTENT_SCALE']")).to_have_count(0)
         finally:
             browser.close()
 
@@ -489,26 +488,16 @@ def test_v2_many_slot_labels_grouped_issues_zoom_drag_and_temporary_visibility(
                 "() => window.__EDITOR_OFFSET_V2__.store.layout.slots.map(slot => slot.id)"
             )
             current_revision = server_after["revision"]
-            grouped_payload = {
-                "ok": True,
-                "revision": current_revision,
-                "compatible": False,
-                "errors": [],
-                "warnings": [],
-                "issues": [
-                    {
-                        "code": "SOURCE_TRIM_SIZE_MISMATCH",
-                        "level": "error",
-                        "message": "mismatch",
-                        "path": f"$.slots[{index}].geometry.trim_size_mm",
-                        "slot_id": slot_id,
-                        "asset_id": server_after["layout"]["assets"][0]["id"],
-                    }
-                    for index, slot_id in enumerate(slot_ids)
-                ],
-            }
+            grouped_payload = {"ok": True, "report": {
+                "subject": {"job_id": server_after["layout"]["job"]["id"], "revision": current_revision},
+                "execution": "complete", "report_id": "qa-grouping",
+                "decisions": [{"operation": op, "status": "blocked", "blocking_issue_ids": ["qa"], "reason_codes": ["PREFLIGHT_FINDINGS"]} for op in ("preview", "pdf_final")],
+                "issues": [{"code": "BLEED_OUTSIDE_PRINTABLE", "severity": "warning", "message": "Bleed outside printable", "blocks": ["pdf_final"],
+                            "references": {"slot_ids": [slot_id], "asset_ids": [server_after["layout"]["assets"][0]["id"]]}}
+                           for slot_id in slot_ids],
+            }}
             page.route(
-                "**/output-capabilities",
+                "**/preflight",
                 lambda route: route.fulfill(
                     status=200,
                     content_type="application/json",
@@ -516,16 +505,16 @@ def test_v2_many_slot_labels_grouped_issues_zoom_drag_and_temporary_visibility(
                 ),
             )
             _open_workflow_stage(page, "validate")
-            page.locator("#ev2-output-check").click()
+            page.locator("#ev2-preflight-run").click()
             grouped = page.locator(
-                "#ev2-output-issues [data-code='SOURCE_TRIM_SIZE_MISMATCH']"
+                "#ev2-preflight-issues [data-code='BLEED_OUTSIDE_PRINTABLE']"
             )
             expect(grouped).to_have_count(1)
             expect(grouped).to_have_attribute("data-affected-slots", "30")
-            expect(grouped).to_contain_text("30 slots afectados")
+            expect(grouped).to_contain_text("30 piezas afectadas")
             grouped.locator("details summary").click()
             expect(grouped.locator("details code")).to_have_count(30)
-            page.unroute("**/output-capabilities")
+            page.unroute("**/preflight")
             _open_workflow_stage(page, "adjust")
 
             first_slot = page.locator(".ev2-svg-slot").first
@@ -803,12 +792,12 @@ def test_v2_precise_positioning_shortcuts_batching_persistence_and_locks(
             expect(page.locator("#ev2-toggle-labels")).to_have_attribute("aria-pressed", "false")
             page.locator("#ev2-toggle-labels").click()
             with page.expect_response(
-                lambda response: response.request.method == "GET"
-                and "/output-capabilities" in response.url
+                lambda response: response.request.method == "POST"
+                and "/preflight" in response.url
             ):
                 _open_workflow_stage(page, "validate")
-                page.locator("#ev2-output-check").click()
-            expect(page.locator("#ev2-output-status")).to_contain_text("salida temporal")
+                page.locator("#ev2-preflight-run").click()
+            expect(page.locator("#ev2-preflight-status")).to_contain_text("Diagnóstico completo")
             _open_workflow_stage(page, "adjust")
             expect(page.locator("#ev2-object-duplicate")).to_be_visible()
             expect(page.locator("#ev2-object-copy")).to_be_visible()
@@ -1330,12 +1319,12 @@ def test_v2_alignment_distribution_gap_matrix_and_persistence(v2_server, tmp_pat
             )
             page.locator("#ev2-shortcuts-help-close").click()
             with page.expect_response(
-                lambda response: response.request.method == "GET"
-                and response.url.endswith("/output-capabilities")
+                lambda response: response.request.method == "POST"
+                and response.url.endswith("/preflight")
             ):
                 _open_workflow_stage(page, "validate")
-                page.locator("#ev2-output-check").click()
-            expect(page.locator("#ev2-output-status")).to_be_visible()
+                page.locator("#ev2-preflight-run").click()
+            expect(page.locator("#ev2-preflight-status")).to_be_visible()
             _open_workflow_stage(page, "adjust")
             expect(page.locator(".ev2-svg-slot-label").first).to_have_text("#1")
             expect(page.locator("#ev2-object-duplicate")).to_be_visible()
@@ -1687,12 +1676,12 @@ def test_v2_advanced_selection_tree_and_temporary_visibility(v2_server, tmp_path
             expect(page.locator("#ev2-arrangement-heading")).to_be_visible()
             expect(page.locator("#ev2-object-operations-heading")).to_be_visible()
             with page.expect_response(
-                lambda response: response.request.method == "GET"
-                and response.url.endswith("/output-capabilities")
+                lambda response: response.request.method == "POST"
+                and response.url.endswith("/preflight")
             ):
                 _open_workflow_stage(page, "validate")
-                page.locator("#ev2-output-check").click()
-            expect(page.locator("#ev2-output-status")).to_be_visible()
+                page.locator("#ev2-preflight-run").click()
+            expect(page.locator("#ev2-preflight-status")).to_be_visible()
             expect(page.locator(".ev2-svg-slot-label").first).to_have_text("#1")
             expect(page.locator("text=Reglas y guías")).to_have_count(0)
             assert not console_errors
@@ -1990,12 +1979,12 @@ def test_v2_precision_rulers_guides_snap_measurement_and_reload(v2_server, tmp_p
             expect(page.locator(".ev2-svg-slot-label").first).to_have_text("#1")
             expect(page.locator(".ev2-resize-handle, [data-resize-handle]")).to_have_count(0)
             with page.expect_response(
-                lambda response: response.request.method == "GET"
-                and response.url.endswith("/output-capabilities")
+                lambda response: response.request.method == "POST"
+                and response.url.endswith("/preflight")
             ):
                 _open_workflow_stage(page, "validate")
-                page.locator("#ev2-output-check").click()
-            expect(page.locator("#ev2-output-status")).to_be_visible()
+                page.locator("#ev2-preflight-run").click()
+            expect(page.locator("#ev2-preflight-status")).to_be_visible()
             assert not console_errors
             assert not page_errors
         finally:

@@ -75,10 +75,6 @@
       });
     }
 
-    async getOutputCapabilities(url) {
-      return requestJson(url, { method: "GET" });
-    }
-
     async materializeDerivedPage(assetsApiUrl, assetId, payload) {
       return requestJson(
         `${assetsApiUrl}/${encodeURIComponent(assetId)}/derived-page`,

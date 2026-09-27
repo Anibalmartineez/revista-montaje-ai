@@ -6,7 +6,7 @@ Fecha de apertura: 2026-09-27.
 
 Plan solicitado por el usuario después de auditar la salida del editor y el job `ev2_f2347e8ce720eb582054200f`. Se continúa desde el código existente. Este documento registra las cinco entregas acordadas, su propósito, aceptación y evidencia; no sustituye al código ni convierte documentos históricos en requisitos de implementación.
 
-La autorización actual es implementar **la entrega 1** y registrar el conjunto. Las entregas 2–5 quedan pendientes. No se retoma automáticamente la entrega E del documento 42: es otro alcance.
+El usuario autorizó primero la entrega 1 y, tras guardarla en `5aa9b58`, autorizó continuar con **la entrega 2**. Las entregas 3–5 quedan pendientes. No se retoma automáticamente la entrega E del documento 42: es otro alcance.
 
 Flujo esperado: preparar páginas/tamaño/sangrado → montar → preflight nativo V2 → Preview/PDF. La preparación decide el contenido; el montaje decide posiciones y marcas; el preflight decide qué operaciones son admisibles; el generador utiliza esas mismas decisiones; el arranque habilita las funciones habituales.
 
@@ -15,7 +15,7 @@ Flujo esperado: preparar páginas/tamaño/sangrado → montar → preflight nati
 | Entrega | Problema que resuelve | Estado |
 |---|---|---|
 | 1. Decisiones coherentes de preflight | Bloqueos geométricos ignorados y Preview aprobada que luego supera el presupuesto de píxeles. | **Completado — 2026-09-27** |
-| 2. Diagnóstico único de salida | Errores y mensajes del puente legacy confundidos con las capacidades del PDF nativo. | Pendiente |
+| 2. Diagnóstico único de salida | Errores y mensajes del puente legacy confundidos con las capacidades del PDF nativo. | **Completado — 2026-09-27** |
 | 3. Preparación y sangrado comprensibles | Cajas técnicas como decisión principal, sangrado faltante descubierto tarde y permiso de espejo que se pierde. | Pendiente |
 | 4. Salida habilitada en el arranque habitual | Dependencia de un arranque especial de QA para usar Preview/PDF. | Pendiente |
 | 5. Verificación integral | Ausencia de una comprobación conjunta del recorrido y de los archivos resultantes. | Pendiente |
@@ -99,3 +99,38 @@ Los tres casos excluidos corresponden a carga de 14/100/500 piezas. No se repiti
 **Flask habitual:** reinicio controlado mediante `editor-offset-local-qa` para cargar Python nuevo, conservando la configuración anterior. Se verificó y detuvo exclusivamente PID 11896; nuevo PID 8692. `/` y `/editor_offset_visual_v2` HTTP 200 al primer intento conjunto posterior al arranque. V2=1, dev tools=0; Preview/PDF siguen desactivados. Una petición real de preflight confirmó política 3/capacidades 5, el límite de Preview y el gate desactivado como motivos separados. Revisión 39/hash del layout original verificados nuevamente. El preflight publica un informe derivado, sin editar el montaje.
 
 **Límites y siguiente alcance:** 2–5 permanecen pendientes. La presentación visual de severidades/motivos, el diagnóstico legacy y la agrupación por operación se revisarán en 2: no se confunde la corrección de decisiones backend con ese rediseño. El permiso de espejo sigue temporal hasta 3. La activación habitual sigue pendiente de 4. No se certifican PDF/X, CTP ni todas las combinaciones industriales; no se amplió la política de PDF raster, caras o fuentes. La entrega 5 conserva su verificación integral propia.
+
+### Entrega 2 — Completado — 2026-09-27
+
+**Base y alcance:** árbol limpio en `5aa9b58`, misma rama. Frontend propio V2, pruebas y trazabilidad. Sin cambios de Python de producto, Layout/schema, fuentes, compositor, persistencia ni flags del servidor. Sin commit/push en esta intervención.
+
+**Implementación:**
+
+- «Validar» abre directamente «Comprobar salida · Preflight V2». Se eliminó el panel de compatibilidad legacy, su listener, método de consulta en el cliente JS, mensajes de salida temporal y estado duplicado. Se corrigió la referencia accesible de la pestaña Validar. La ruta backend histórica `/output-capabilities` se conserva para consumidores explícitos; la UI habitual ya no la invoca. Esto no declara independencia total del arranque ni elimina toda la deuda legacy backend.
+- «Salida» ofrece el mismo «Comprobar salida», registrado como acción `output.preflight`. Validación y generación comparten análisis y representación del informe nativo. El resumen incluye cara, dpi y permiso de espejo, junto a decisiones separadas de Preview/PDF. CTP pendiente no convierte una salida nativa válida en un error. Las advertencias que bloquean PDF sí producen estado de bloqueo.
+- Los hallazgos se agrupan por trabajo, archivo, página y operaciones afectadas. Las referencias faltantes se resuelven con los slots del layout comprobado, de modo que las páginas 1 y 2 de un mismo PDF no se mezclan. Se muestran nombre de trabajo, página, cantidad de piezas y orientación para corregir. Códigos, paths e IDs quedan en «Detalles técnicos». No se deducen los bloqueos de otros hallazgos con el mismo código.
+- La disponibilidad del servidor, los problemas del montaje y el fallo al comprobar/generar tienen mensajes distintos. Al generar una operación se muestran sus hallazgos relevantes y avisos no bloqueantes; un problema exclusivo de Preview no se presenta como error del PDF.
+- Un informe vigente bloquea únicamente los botones de las operaciones afectadas. Cambiar opciones/montaje invalida el diagnóstico, y cualquier generación vuelve a ejecutar preflight antes de pedir el archivo. Se contrastan job, revisión, versión de cambios, opciones, contador de petición, guardado y sesión de puntero. Respuestas tardías tras cambios, conflictos, undo/redo, actualización externa o cierre del controlador no se publican como autorizaciones actuales.
+- `output_panel.js` concentra este recorrido; `dom_refs.js`, `command_registry.js`, `api_client.js`, template y CSS conectan/representan los controles. `bootstrap.js` sigue componiendo el mismo controlador, sin cambios necesarios. Las pruebas anteriores del puente visible se migraron a los controles e informes nativos conservando las comprobaciones de revisiones, selección, agrupación, navegación y estado no persistente.
+
+**QA interactiva:** `editor-offset-local-qa` confirmó raíz y V2 HTTP 200 al primer intento, sin reiniciar ni duplicar el servidor. Navegador integrado mediante CUA, pestaña de prueba separada del usuario, job original revisión 39. «Validar» y «Salida» muestran dos grupos de sangrado faltante, uno por página y dos piezas por grupo; muestran por separado los flags desactivados. Sin errores/warnings en consola consultada, sin mensajes TrimBox/página 1 del puente antiguo. Se inspeccionaron capturas desktop y compacta (900 × 900) del caso sintético de dos páginas MediaBox. No se modificó el montaje del usuario; hash de layout y PDF original verificados intactos.
+
+**Regresiones añadidas:** agrupación con operaciones/páginas distintas, advertencias bloqueantes, CTP pendiente, respuestas tardías, cambio de revisión, selección temporal, generación que revalida y reintento de red. Caso navegador real con dos páginas MediaBox: cuatro piezas, falta de sangrado agrupada por trabajo/página, espejo explícito, descarga PDF con dos copias de cada página, cambio de dpi durante la respuesta y layout/revisión conservados. Se comprueba que no haya solicitudes a `/output-capabilities` ni el control legacy en DOM.
+
+**Resultados de cierre:**
+
+| Comprobación | Resultado |
+|---|---|
+| Node V2 completo | **161 passed**, 1,54 s. Incluye 15 pruebas nuevas del diagnóstico y migración de pruebas anteriores de agrupación/vigencia. |
+| Playwright: edición, caracterización UX e integración de salida | **29 passed**, 166,28 s; cinco avisos de deprecación PyMuPDF/SWIG. Incluye navegación, guardado, revisiones, historial, bloqueo de Preview por presupuesto, descarga y el caso multipágina nativo nuevo. |
+| Sintaxis | Los cuatro JS de producto modificados pasan `node --check`. |
+| Whitespace | `git diff --check` correcto. |
+| Preservación del original | Layout SHA256 `63011552f3e4b2fb4a0ed54de3e379be0b7d07b54d00c112b27f7bc0072fbff1`; PDF SHA256 `14e534d2482e463596e64ab5045c3a86f4c3d10ab2b0be087bbd174ba7035243`, ambos iguales a la auditoría. |
+
+Los primeros recorridos detectaron expectativas obsoletas en tests (panel antes cerrado, GET de compatibilidad, textos antiguos), una variable mal nombrada al migrar el fixture de agrupación y un montaje sintético cuyo giro de Repeat no coincidía con sus posiciones de prueba. Se corrigieron las expectativas al comportamiento nativo y se fijó giro 0 en ese fixture, sin relajar bloqueos ni alterar el motor. También se precisó el mensaje de informe desactualizado: solo pide guardar cuando realmente hay cambios pendientes. Las repeticiones focalizadas pasaron y luego se ejecutó el grupo completo anterior con éxito.
+
+Capturas inspeccionadas y PDF sintético conservados en `.codex-runtime/salida43-entrega2-dde1opn2/`: `native-diagnosis-desktop.png`, `native-diagnosis-compact.png` y `native-pages.pdf`. La prueba comprueba el texto de las dos copias de cada página en el PDF. Para «Ambas caras», el resumen exige elegir Frente o Dorso si se desea Preview y conserva la disponibilidad de PDF por separado; cubierto por test Node.
+
+Se utilizó la habilidad de pruebas de frontend y CUA para la comprobación interactiva; la regresión automatizada usa el Playwright existente del repositorio con servidores/jobs temporales. No se ejecutaron suite global, V1, suite Python V2 completa ni el benchmark de 500 piezas: no hay cambio backend productivo en esta entrega. El servidor habitual no se reinició; se verificó HTTP y se recargó la pestaña de QA para cargar template/JS nuevos.
+
+**Límites:** permiso de espejo aún temporal y cajas en preparación sin cambios (entrega 3); activación habitual pendiente de 4. No se cambian políticas físicas del preflight, PDF/X, CTP, geometría ni rendimiento de 500 piezas. El puente histórico backend se conserva fuera del flujo habitual.

@@ -244,3 +244,91 @@ def test_preview_budget_is_explained_before_request_and_pdf_can_download(output_
             assert not errors
         finally:
             browser.close()
+
+
+def test_native_diagnosis_groups_pages_and_rejects_late_options(output_server, tmp_path):
+    from copy import deepcopy
+    from test_editor_offset_v2 import _open_job_with_repeat
+    source = tmp_path / 'two-media-pages.pdf'
+    with fitz.open() as doc:
+        for number in (1, 2):
+            doc.new_page(width=90*72/25.4, height=50*72/25.4).insert_text((15, 30), f'NATIVE PAGE {number}')
+        doc.save(source)
+    with sync_playwright() as pw:
+        browser = pw.chromium.launch()
+        page = browser.new_page(viewport={'width': 1440, 'height': 900})
+        errors, legacy_requests = [], []
+        page.on('pageerror', lambda error: errors.append(str(error)))
+        page.on('request', lambda request: legacy_requests.append(request.url)
+                if '/output-capabilities' in request.url else None)
+        try:
+            _open_job_with_repeat(page, output_server, source, 4)
+            page.locator('#ev2-save').click()
+            page.wait_for_function('() => !window.__EDITOR_OFFSET_V2__.store.hasUnsavedChanges() && window.__EDITOR_OFFSET_V2__.store.saveState.status === "clean"')
+            api = f"{output_server}/api/editor-offset-v2/jobs/{page.url.rsplit('/', 1)[1]}"
+            saved = page.request.get(api).json()
+            layout = saved['layout']
+            first = layout['works'][0]
+            first.update(name='Folleto A', bleed_mm=3)
+            second = deepcopy(first)
+            second.update(id='work_second_page', name='Folleto B')
+            second['front_source']['page'] = 2
+            layout['works'].append(second)
+            for i, slot in enumerate(layout['slots']):
+                slot['geometry']['position_mm'].update(x_mm=100 if i < 2 else 210, y_mm=100+(i%2)*60)
+                slot['geometry']['bleed_mm'] = 3
+                slot['geometry']['rotation_deg'] = 0
+                slot['content_transform']['clip_to'] = 'bleed_box'
+                if i >= 2:
+                    slot['work_id'] = second['id']
+                    slot['source']['page'] = 2
+            assert page.request.put(api+'/layout', data={'base_revision':saved['revision'], 'layout':layout}).status == 200
+            baseline = page.request.get(api).json()
+            page.reload()
+            _open_workflow_stage(page, 'validate')
+            assert page.locator('#ev2-output-check').count() == 0
+            page.locator('#ev2-preflight-run').click()
+            expect(page.locator('#ev2-preflight-status')).to_contain_text('Diagnóstico completo')
+            groups = page.locator('#ev2-preflight-issues > li')
+            expect(groups).to_have_count(2)
+            for i, name in enumerate(('Folleto A', 'Folleto B')):
+                expect(groups.nth(i)).to_contain_text(name)
+                expect(groups.nth(i)).to_contain_text(f'Página {i+1}')
+                expect(groups.nth(i)).to_contain_text('2 piezas afectadas')
+                expect(groups.nth(i)).to_have_attribute('data-code', 'BLEED_REQUIRES_EXPLICIT_MIRROR')
+            assert not legacy_requests
+            page.screenshot(path=str(tmp_path/'native-diagnosis-desktop.png'))
+            _open_workflow_stage(page, 'output')
+            expect(page.locator('#ev2-output-pdf')).to_be_disabled()
+            page.locator('#ev2-output-mirror').check()
+            expect(page.locator('#ev2-output-diagnosis')).to_contain_text('desactualizado')
+            page.locator('#ev2-output-recheck').click()
+            expect(page.locator('#ev2-output-diagnosis')).to_contain_text('PDF: disponible para generar')
+            expect(page.locator('#ev2-output-pdf')).to_be_enabled()
+            with page.expect_download() as download:
+                page.locator('#ev2-output-pdf').click()
+            target = tmp_path/'native-pages.pdf'
+            download.value.save_as(target)
+            with fitz.open(target) as doc:
+                text = doc[0].get_text()
+                assert text.count('NATIVE PAGE 1') == text.count('NATIVE PAGE 2') == 2
+            def late(route):
+                response = route.fetch()
+                page.locator('#ev2-output-dpi').select_option('300')
+                route.fulfill(response=response)
+            page.route('**/preflight', late)
+            page.locator('#ev2-output-recheck').click()
+            expect(page.locator('#ev2-output-diagnosis')).to_contain_text('Diagnóstico desactualizado')
+            page.unroute('**/preflight')
+            page.locator('#ev2-output-dpi').select_option('150')
+            page.locator('#ev2-output-recheck').click()
+            expect(page.locator('#ev2-output-diagnosis')).to_contain_text('PDF: disponible para generar')
+            page.set_viewport_size({'width':900, 'height':900})
+            _open_workflow_stage(page, 'output')
+            expect(page.locator('#ev2-output-recheck')).to_be_visible()
+            assert page.locator('#ev2-stage-output').evaluate('(el) => el.scrollWidth <= el.clientWidth + 1')
+            page.screenshot(path=str(tmp_path/'native-diagnosis-compact.png'))
+            assert page.request.get(api).json() == baseline
+            assert not errors and not legacy_requests
+        finally:
+            browser.close()

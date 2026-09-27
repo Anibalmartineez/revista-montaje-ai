@@ -63,6 +63,22 @@ No es necesario crear un documento numerado por cada ajuste. Separar una explica
 
 ## Bitácora
 
+### 2026-09-27 — Diagnóstico nativo unificado: entrega 2 de salida PDF habitual
+
+**Solicitud:** continuar con la entrega 2 de [43 — Salida PDF habitual V2](43_PLAN_SALIDA_PDF_HABITUAL_V2.md). Base limpia `5aa9b58`. **Entrega 2 completada**, con entregas 3–5 pendientes; sin commit/push en esta intervención.
+
+**Corregido y verificado:** Validar y Salida usan el mismo preflight nativo. Se retiraron panel, consulta JS y mensajes de compatibilidad/salida temporal del flujo habitual. La ruta histórica backend se conserva fuera de la UI; no se declara eliminada toda la deuda legacy. Hallazgos por nombre de trabajo/página/piezas afectadas, con códigos/IDs en detalles técnicos y operaciones bloqueadas propias de cada grupo. La UI distingue función desactivada, problemas del montaje y fallo de petición; CTP pendiente no vuelve rojo un PDF admisible. Los resultados muestran sus opciones y, al generar, solo los hallazgos relevantes para esa operación.
+
+**Vigencia:** las opciones, comandos, undo/redo, actualizaciones externas, revisiones, conflictos y puntero invalidan el informe. Una respuesta tardía no puede revalidarlo; cada generación vuelve a analizar la revisión guardada. Los botones respetan bloqueos por operación y disponibilidad del servidor. La acción nueva `output.preflight` coordina ambos botones de comprobación. Guardado/historial, Layout/schema, fuentes y compositor no cambiaron.
+
+**Archivos:** controlador `output_panel.js`, cliente API, referencias DOM, registro de acciones, template y CSS V2; pruebas Node y los tres archivos Playwright de edición/caracterización/salida revisados y adaptados. `bootstrap.js` mantiene la composición existente. Sin cambios Python de producto ni motores compartidos.
+
+**Evidencia:** Node V2 **161 passed**; Playwright de los tres recorridos **29 passed** en 166,28 s. Incluye dos páginas MediaBox, cuatro piezas, incidencias agrupadas, espejo explícito y PDF con dos copias de cada página; cambio de opciones durante la respuesta; 900 × 900 sin desbordamiento del panel; sin solicitudes legacy ni errores JS. Sintaxis de los cuatro JS y `git diff --check` correctos. Cinco avisos de deprecación PyMuPDF/SWIG. Fallos intermedios de adaptación de fixtures/textos y su corrección están descritos en 43; no se ocultaron bloqueos del producto para hacer pasar tests.
+
+**QA del usuario:** skill `editor-offset-local-qa` confirmó HTTP 200 raíz/V2; sin reinicio ni cambio de flags. CUA sobre pestaña independiente del job `ev2_f2347e8ce720eb582054200f`: diagnóstico de falta de sangrado por página, dos piezas por grupo, flags desactivados explicados aparte, sin rechazos legacy de MediaBox/página 2. Revisión 39, hash del layout y hash del PDF originales intactos. Capturas y PDF sintético en `.codex-runtime/salida43-entrega2-dde1opn2/`.
+
+**Límites:** no suite global/V1/Python V2 completo ni benchmark de 500 piezas. Espejo persistente y simplificación de cajas pendientes de 3; salida habilitada al arrancar pendiente de 4; cierre integral pendiente de 5. Esta intervención no certifica PDF/X/CTP.
+
 ### 2026-09-27 — Preflight coherente: entrega 1 de salida PDF habitual
 
 **Solicitud:** registrar las cinco entregas propuestas y ejecutar únicamente la primera. Se creó [43 — Plan de salida PDF habitual V2](43_PLAN_SALIDA_PDF_HABITUAL_V2.md), con problema resuelto, implementación prevista, aceptación y estado por entrega. **Entrega 1 completada; 2–5 pendientes.** No reanuda automáticamente E del documento 42. Base limpia `69b197c`; sin commit/push en esta intervención.
