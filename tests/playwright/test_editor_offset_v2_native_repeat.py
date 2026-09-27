@@ -63,6 +63,139 @@ def write_four_pdf(path):
         doc.save(path)
 
 
+def test_mixed_boxes_bleed_quantities_repeat_and_output(output_server, tmp_path):
+    """Exercise one saved flow with physical bleed, generated bleed and zero bleed."""
+    from test_editor_offset_v2_preparation import new_job, upload, layout, save
+
+    source = tmp_path / 'mixed-boxes.pdf'
+    mm = 72 / 25.4
+    with fitz.open() as doc:
+        first = doc.new_page(width=40*mm, height=26*mm)
+        first.draw_rect(first.rect, color=None, fill=(1, .2, .2))
+        first.set_trimbox(fitz.Rect(3*mm, 3*mm, 37*mm, 23*mm))
+        first.set_bleedbox(first.rect)
+        first.insert_text((5*mm, 12*mm), 'PHYSICAL PAGE 1', fontsize=8)
+        second = doc.new_page(width=36*mm, height=20*mm)
+        second.draw_rect(second.rect, color=None, fill=(.2, .3, 1))
+        second.insert_text((3*mm, 10*mm), 'MIRROR PAGE 2', fontsize=8)
+        third = doc.new_page(width=34*mm, height=19*mm)
+        third.set_cropbox(fitz.Rect(2*mm, 2*mm, 32*mm, 17*mm))
+        third.draw_rect(third.rect, color=None, fill=(.2, .8, .3))
+        third.insert_text((3*mm, 9*mm), 'ZERO PAGE 3', fontsize=8)
+        doc.save(source)
+    original = source.read_bytes()
+    with sync_playwright() as pw:
+        browser = pw.chromium.launch()
+        page = browser.new_page(viewport={'width': 1440, 'height': 900})
+        errors = []
+        page.on('pageerror', lambda error: errors.append(str(error)))
+        try:
+            new_job(page, output_server)
+            upload(page, source)
+            expect(page.locator('.ev2-page-plan-row')).to_have_count(3)
+            page.locator('#ev2-preparation-select-all').click()
+            page.get_by_role('button', name='Configurar página 1', exact=True).click()
+            page.get_by_text('Opciones avanzadas del PDF').click()
+            page.locator('#ev2-asset-box').select_option('trim')
+            page.locator('#ev2-work-quantity').fill('2')
+            page.locator('#ev2-work-bleed').fill('3')
+            page.locator('#ev2-work-bleed-strategy').select_option('source_only')
+            page.get_by_role('button', name='Configurar página 2', exact=True).click()
+            page.locator('#ev2-work-quantity').fill('1')
+            page.locator('#ev2-work-bleed').fill('2')
+            page.locator('#ev2-work-bleed-strategy').select_option('mirror_if_missing')
+            page.get_by_role('button', name='Configurar página 3', exact=True).click()
+            page.locator('#ev2-asset-box').select_option('crop')
+            page.locator('#ev2-work-quantity').fill('1')
+            page.locator('#ev2-work-bleed').fill('0')
+            page.locator('#ev2-work-bleed-strategy').select_option('source_only')
+            page.locator('#ev2-create-page-works').click()
+            expect(page.locator('.ev2-prepared-work')).to_have_count(3)
+            works = layout(page)['works']
+            assert [w['requested_forms'] for w in works] == [2, 1, 1]
+            assert [w['bleed_strategy'] for w in works] == ['source_only', 'mirror_if_missing', 'source_only']
+            page.locator('#ev2-undo').click()
+            expect(page.locator('.ev2-prepared-work')).to_have_count(0)
+            page.locator('#ev2-redo').click()
+            save(page)
+            page.reload()
+            assert layout(page)['works'] == works
+            _open_workflow_stage(page, 'impose')
+            page.locator('#ev2-repeat-gap-x').fill('5')
+            page.locator('#ev2-repeat-gap-y').fill('5')
+            with page.expect_response(lambda r: r.request.method == 'POST' and r.url.endswith('/imposition/repeat')) as proposal:
+                page.locator('#ev2-repeat-calculate').click()
+            assert proposal.value.json()['result']['placed'] == 4
+            expect(page.locator('.ev2-svg-repeat-proposal')).to_have_count(4)
+            assert layout(page)['slots'] == []
+            page.locator('#ev2-repeat-apply').click()
+            expect(page.locator('.ev2-svg-slot')).to_have_count(4)
+            page.locator('#ev2-undo').click()
+            expect(page.locator('.ev2-svg-slot')).to_have_count(0)
+            page.locator('#ev2-redo').click()
+            expect(page.locator('.ev2-svg-slot')).to_have_count(4)
+            save(page)
+            api = output_server + '/api/editor-offset-v2/jobs/' + page.url.rsplit('/', 1)[1]
+            current = page.request.get(api).json()
+            saved_layout = current['layout']
+            rotated = next(slot for slot in saved_layout['slots'] if slot['source']['page'] == 2)
+            rotated['geometry']['rotation_deg'] = 90
+            updated = page.request.put(api + '/layout', data={'base_revision': current['revision'], 'layout': saved_layout})
+            assert updated.status == 200
+            saved_layout = updated.json()['layout']
+            page.reload()
+            expect(page.locator('.ev2-svg-slot')).to_have_count(4)
+            assert layout(page)['slots'] == saved_layout['slots']
+            _open_workflow_stage(page, 'output')
+            page.locator('#ev2-output-recheck').click()
+            expect(page.locator('#ev2-output-pdf')).to_be_enabled()
+            page.locator('#ev2-output-preview').click()
+            expect(page.locator('#ev2-output-result')).to_contain_text('Preview lista', timeout=30000)
+            with page.expect_download() as download:
+                page.locator('#ev2-output-pdf').click()
+            target = tmp_path / 'mixed-output.pdf'
+            download.value.save_as(target)
+            with fitz.open(target) as document:
+                assert len(document) == 1
+                output = document[0]
+                assert abs(output.rect.width*25.4/72 - 700) < .01
+                assert abs(output.rect.height*25.4/72 - 500) < .01
+                text = output.get_text()
+                assert text.count('PHYSICAL PAGE 1') == 2
+                assert text.count('MIRROR PAGE 2') == 1
+                assert text.count('ZERO PAGE 3') == 1
+                ticks = [d for d in output.get_drawings() if len(d['items']) == 1 and d['items'][0][0] == 'l']
+                assert len(ticks) == 24
+                labels = {1: 'PHYSICAL PAGE 1', 2: 'MIRROR PAGE 2', 3: 'ZERO PAGE 3'}
+                for slot in saved_layout['slots']:
+                    geometry = slot['geometry']
+                    position = geometry['position_mm']
+                    size = geometry['trim_size_mm']
+                    width, height = size['width'], size['height']
+                    if geometry['rotation_deg'] in (90, 270):
+                        width, height = height, width
+                    center_x = position['x_mm'] * mm
+                    center_y = (500 - position['y_mm']) * mm
+                    footprint = fitz.Rect(center_x-width*mm/2-2, center_y-height*mm/2-2,
+                                          center_x+width*mm/2+2, center_y+height*mm/2+2)
+                    assert any(footprint.intersects(found) for found in output.search_for(labels[slot['source']['page']]))
+            assert page.locator('.ev2-svg-crop-mark').count() == 24
+            assert page.request.get(api).json()['layout'] == saved_layout
+            job_dir = tmp_path / 'jobs' / page.url.rsplit('/', 1)[1]
+            published = {str(path.relative_to(job_dir)): path.read_bytes()
+                         for folder in ('outputs', 'previews') for path in (job_dir / folder).rglob('*') if path.is_file()}
+            blocked = page.request.post(api + '/preview', data={'dpi': 300, 'expected_revision': saved_layout['job']['revision']})
+            assert blocked.status == 422 and blocked.json()['error']['code'] == 'PREFLIGHT_BLOCKED'
+            stale = page.request.post(api + '/pdf-final', data={'expected_revision': saved_layout['job']['revision'] - 1})
+            assert stale.status == 409 and stale.json()['error']['code'] == 'PREFLIGHT_STALE'
+            assert published == {str(path.relative_to(job_dir)): path.read_bytes()
+                                 for folder in ('outputs', 'previews') for path in (job_dir / folder).rglob('*') if path.is_file()}
+            assert source.read_bytes() == original
+            assert not errors
+        finally:
+            browser.close()
+
+
 def test_four_pages_native_repeat_propose_apply_history_reload_and_pdf(output_server,tmp_path):
     path=tmp_path/'repeat-four-pages.pdf';write_four_pdf(path)
     with sync_playwright() as pw:

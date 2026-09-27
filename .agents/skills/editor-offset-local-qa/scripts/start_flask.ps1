@@ -35,11 +35,11 @@ function Test-SavedProcessIsActive {
     }
     $savedProcess = Get-Process -Id $savedPid -ErrorAction SilentlyContinue
     if ($null -ne $savedProcess) {
-        Write-Output "Ya existe un proceso activo registrado por la Skill (PID $savedPid). No se iniciará otro."
+        Write-Host "Ya existe un proceso activo registrado por la Skill (PID $savedPid). No se iniciará otro."
         return $true
     }
     Remove-Item -LiteralPath $PidPath -Force
-    Write-Output "Se eliminó únicamente el archivo PID obsoleto: $PidPath"
+    Write-Host "Se eliminó únicamente el archivo PID obsoleto: $PidPath"
     return $false
 }
 
