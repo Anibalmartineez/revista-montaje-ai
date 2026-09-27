@@ -63,6 +63,14 @@ No es necesario crear un documento numerado por cada ajuste. Separar una explica
 
 ## Bitácora
 
+### 2026-09-27 — Alineación de AGENTS.md con el mapa V2
+
+**Solicitud:** revisar y actualizar `AGENTS.md` si sus instrucciones sobre V2 estuvieran desactualizadas. **Observado:** la directriz inicial ya apuntaba a esta bitácora, pero secciones inferiores exigían la lectura de 20/40, describían Repeat como dependiente del motor compartido, listaban solo parte de las rutas y pruebas, trataban el cierre de salida como futuro y proponían un roadmap. El código y el mapa 44 muestran packer/compositor V2 propios, 14 rutas, seis archivos Playwright V2 y una frontera legacy en el arranque global de `app.py`; 43 registra las cinco entregas de salida como completadas con límites explícitos.
+
+**Cambiado:** se alineó `AGENTS.md` con 41/44/43, se actualizaron recorridos, módulos, pruebas y límites de salida, y se retiró el orden de trabajo heredado. Se conservaron las reglas de protección de datos, aislamiento V1/V2 y Git. No se modificó código productivo ni persistencia.
+
+**Verificado:** contraste estático con `blueprint.py`, adaptador/packer Repeat, scripts de arranque, inventario Playwright y documentos 43/44; `git diff --check`. No se ejecutaron pruebas ni se inició Flask, porque el cambio es de instrucciones y documentación. Sin commit en esta intervención.
+
 ### 2026-09-27 — Mapa integral de conexiones del Editor Offset Visual V2
 
 **Solicitud:** localizar todos los archivos y conexiones del editor V2 en el repositorio, con revisión paralela de backend, frontend y referencias externas. **Observado:** `app.py` es la entrada de registro y también carga `routes.py` legacy al iniciar Flask; el producto V2 reúne 40 Python y 2 schemas propios, un HTML, un CSS, una entrada JS y 35 módulos JS cargados por la plantilla. Hay 28 módulos de prueba Python, 18 Node y 6 Playwright V2, además de fixtures, scripts y 49 Markdown previos de V2. El flujo habitual de Repeat usa el empaquetador propio; el preflight/Preview/PDF usa servicios y compositor V2. La ruta de capacidades históricas no tiene consumidor en la UI habitual, y `artifact_lifecycle.py` no tiene invocador productivo localizado.

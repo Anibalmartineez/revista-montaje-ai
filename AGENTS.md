@@ -6,7 +6,7 @@ Por instrucción explícita del usuario, la entrada de trabajo es [41 — Trabaj
 
 - Continuar desde el código existente, probando, corrigiendo y mejorando según lo observado y la solicitud de la sesión. El agente conduce el trabajo técnico; no exigir planes formales ni aprobaciones repetidas para ajustes rutinarios ya comprendidos en la tarea.
 - Determinar el comportamiento con código, schema ejecutable, datos, pruebas y artefactos. Los documentos previos son referencias opcionales, no fuente de verdad ni agenda de trabajo. No confundir comportamiento existente con comportamiento correcto.
-- V2 debe tener código propio, sin dependencia de código de producto compartido con V1 u otras superficies. Las dependencias actuales son deuda que debe resolverse en V2, no invariantes que deban conservarse. No arreglar V2 modificando motores comunes ni ocultar la dependencia tras wrappers. Verificar también dependencias transitivas y arranque antes de declarar independencia.
+- V2 debe tener código propio, sin dependencia de código de producto compartido con V1 u otras superficies. Si se detecta una dependencia activa, tratarla como deuda que debe resolverse en V2, no como invariante que conservar. No arreglar V2 modificando motores comunes ni ocultar la dependencia tras wrappers. Verificar también dependencias transitivas y arranque antes de declarar independencia.
 - Registrar en 41 lo observado, cambiado y verificado después de cada intervención. No mantener por rutina 20/40 como estados operativos paralelos ni crear otro plan o habilidad automáticamente.
 - Preservar datos del usuario, originales, geometría, guardado e historial durante los cambios. Consultar decisiones incompatibles o destructivas cuando sea necesario. Las reglas de cuidado de datos y Git siguen aplicando; ninguna documentación acredita por sí sola el estado actual del código.
 
@@ -24,7 +24,7 @@ El agente debe trabajar como:
 - revisor de contratos, persistencia y salida productiva;
 - acompañante técnico del usuario.
 
-El usuario define la visión y aprueba las decisiones relevantes. El agente convierte esa visión en evidencia, planes, documentación, pruebas y cambios pequeños y verificables.
+El usuario define la visión y resuelve las decisiones incompatibles o destructivas que no puedan inferirse. El agente convierte esa visión en evidencia, documentación, pruebas y cambios pequeños y verificables, sin exigir planes formales para el trabajo rutinario autorizado.
 
 La prioridad activa es **Editor Offset Visual V2**. Editor V1 se conserva como sistema legacy y superficie de compatibilidad. No tratar V1 y V2 como variantes intercambiables.
 
@@ -38,13 +38,13 @@ Antes de un cambio importante:
 4. reconstruir el flujo real;
 5. identificar contratos, dependencias y riesgos;
 6. separar hechos, inferencias y pendientes;
-7. proponer un plan reversible;
-8. obtener aprobación cuando el cambio sea amplio, riesgoso o contractual;
+7. elegir una intervención reversible y verificable;
+8. consultar al usuario si una decisión incompatible, destructiva o de producto requiere su criterio;
 9. implementar sin mezclar fases;
 10. validar en proporción al riesgo;
 11. actualizar la trazabilidad cuando cambie el comportamiento real.
 
-No confundir velocidad con progreso. No programar una salida productiva antes de definir cómo se demuestra que es correcta.
+No confundir velocidad con progreso. Al cambiar la salida, definir cómo se demuestra que sigue siendo correcta.
 
 ## 3. Resolución obligatoria de versión
 
@@ -79,29 +79,9 @@ Para comportamiento actual:
 
 Si código y documentación se contradicen, no elegir silenciosamente. Registrar el conflicto y determinar si existe un defecto de implementación, documentación obsoleta o una decisión pendiente.
 
-### Lectura inicial para Editor V2
+### Referencias para Editor V2
 
-Consultar solo los documentos necesarios para el alcance, comenzando por:
-
-1. `DOCS/OFFSET/V2/20_ESTADO_ACTUAL_POST_REDISENO_UX_V2.md`: entrada operativa vigente; consultar también `40_AUDITORIA_INTEGRAL_MAPA_Y_PLAN_DE_MEJORAS_V2.md` para hallazgos abiertos/mapa/plan y `README.md` para clasificación documental.
-2. `DOCS/OFFSET/V2/01_CONTRATO_LAYOUT_V2.md`: contrato persistente.
-3. `DOCS/OFFSET/V2/02_KERNEL_GEOMETRICO_V2.md`: semántica geométrica canónica.
-4. `DOCS/OFFSET/V2/03_ADAPTADOR_SALIDA_V2.md`: frontera temporal de salida.
-5. `DOCS/OFFSET/V2/11_DECISIONES_ARQUITECTONICAS_PENDIENTES_V2.md`: decisiones que aún no autorizan implementación.
-6. El documento específico de la funcionalidad afectada entre 04 y 17.
-7. `DOCS/OFFSET/V2/19_PLAN_Y_TRAZABILIDAD_REDISENO_UX_V2.md` cuando se necesite la historia detallada del rediseño.
-
-Clasificación importante:
-
-- documento 01: contrato vigente;
-- documento 02: fuente geométrica; sus descripciones de alcance histórico no sustituyen el estado del documento 20;
-- documento 03: adaptador temporal vigente, no salida productiva;
-- documentos 04 a 17: decisiones y fases específicas, con posibles cortes históricos;
-- documento 18: snapshot histórico de las exploraciones 1 a 4;
-- documento 19: plan, decisiones y bitácora de la Fase 19 cerrada;
-- documento 20: estado operativo vigente con archivo histórico explícito;
-- documento 39: cierre de salida 39A–39C y límites de su perfil;
-- documento 40: auditoría posterior, defectos abiertos y plan propuesto; no autoriza implementación por sí solo.
+Partir de la solicitud y del código afectado. [41 — Trabajo diario y bitácora](DOCS/OFFSET/V2/41_TRABAJO_DIARIO_Y_BITACORA_V2.md) fija el método y registra intervenciones; [44 — Mapa de conexiones](DOCS/OFFSET/V2/44_MAPA_CONEXIONES_EDITOR_OFFSET_V2.md) localiza entradas, módulos, persistencia, pruebas y referencias. Consultar el contrato o antecedente específico solo cuando aporte a la tarea: 01 para Layout, 02 para geometría, 21 para preflight, 42 para preparación/Repeat y 43 para la salida PDF habitual. `README.md` clasifica los demás documentos. Los cortes 20/39/40 son referencias históricas o auditorías con límites propios; no son la entrada operativa ni una cola de trabajo obligatoria.
 
 Para V1, consultar `DOCS/OFFSET/` solo cuando V1 o una dependencia legacy esté dentro del alcance. No usar esos documentos como contrato de V2.
 
@@ -109,10 +89,9 @@ Para V1, consultar `DOCS/OFFSET/` solo cuando V1 o una dependencia legacy esté 
 
 ### Auditoría
 
-- Solo lectura.
-- No modificar código ni documentación.
+- Inspección de solo lectura, salvo que la solicitud incluya expresamente crear o actualizar el informe, mapa o documentación.
 - No ejecutar tests, iniciar Flask o usar recorridos interactivos si el usuario no lo autorizó.
-- Entregar hechos, inferencias, riesgos, dependencias, preguntas y plan SAFE.
+- Entregar hechos, inferencias, riesgos y dependencias pertinentes; un plan solo cuando se solicite o resulte necesario para decidir un cambio.
 
 ### Alineación documental
 
@@ -125,7 +104,7 @@ Para V1, consultar `DOCS/OFFSET/` solo cuando V1 o una dependencia legacy esté 
 
 - No editar código.
 - Definir objetivo, alcance, no objetivos, riesgos, contratos, archivos, fases, pruebas, aceptación y rollback.
-- Esperar aprobación antes de cambios importantes.
+- No convertir la planificación en un requisito previo para ajustes rutinarios ya autorizados.
 
 ### Implementación
 
@@ -152,10 +131,10 @@ Para V1, consultar `DOCS/OFFSET/` solo cuando V1 o una dependencia legacy esté 
 - `app.py`: registra la superficie V2.
 - `editor_offset_v2/blueprint.py`: rutas HTML y API V2.
 - `editor_offset_v2/config.py`: flags, jobs root y límites.
-- `editor_offset_v2/domain/`: Layout V2, validación, geometría, Repeat y contrato interno de salida.
-- `editor_offset_v2/application/`: servicios de jobs, assets, Repeat y diagnóstico de salida.
-- `editor_offset_v2/infrastructure/`: persistencia, PDF inspector, thumbnails, Repeat adapter y OutputAdapter temporal.
-- `editor_offset_v2/schemas/layout-v2.schema.json`: schema persistente.
+- `editor_offset_v2/domain/`: Layout V2, validación, geometría, sangrado por trabajo, Repeat, marcas y contratos de salida.
+- `editor_offset_v2/application/`: jobs, assets, artwork, Repeat, preflight, Preview, PDF final y derivados; el diagnóstico del puente histórico está separado.
+- `editor_offset_v2/infrastructure/`: persistencia, inspección y preparación PDF, compositor nativo, snapshots de salida, miniaturas y adaptador Repeat propio; las sondas legacy son auxiliares.
+- `editor_offset_v2/schemas/`: schemas de layout y reporte de preflight. La validación runtime del layout está en `domain/validation.py`.
 
 ### Frontend
 
@@ -181,6 +160,9 @@ La raíz puede cambiar mediante configuración. Nunca fijar rutas absolutas del 
 - Playwright: `tests/playwright/test_editor_offset_v2.py`.
 - Caracterización UX: `tests/playwright/test_editor_offset_v2_ux_characterization.py`.
 - Integración de salida: `tests/playwright/test_editor_offset_v2_output_integration.py`.
+- Preparación, Repeat nativo y sangrado: `tests/playwright/test_editor_offset_v2_preparation.py`, `test_editor_offset_v2_native_repeat.py` y `test_editor_offset_v2_work_bleed.py`.
+
+El inventario completo de archivos y conexiones está en [44](DOCS/OFFSET/V2/44_MAPA_CONEXIONES_EDITOR_OFFSET_V2.md); revisar el árbol real antes de asumir que sigue completo.
 
 ## 7. V1 y dependencias compartidas
 
@@ -196,7 +178,7 @@ V1 vive principalmente en:
 
 V2 no debe importar el contrato V1 ni persistir `layout_constructor.json`.
 
-Superficies compartidas o de impacto transversal que requieren análisis especial:
+Superficies legacy o transversales que requieren análisis especial si aparecen en el recorrido afectado:
 
 - `engines/step_repeat_pro_engine.py`;
 - `engines/nesting_pro_engine.py` cuando corresponda;
@@ -206,6 +188,8 @@ Superficies compartidas o de impacto transversal que requieren análisis especia
 - cuadernillos e IA cuando consuman los mismos motores o salidas.
 
 No modificar una superficie compartida como parte de un cambio “solo V2” sin declarar y validar su blast radius sobre V1.
+
+El Repeat habitual V2 importa `editor_offset_v2/domain/repeat_packer.py`, no `engines/step_repeat_pro_engine.py`. Preview/PDF habitual usa compositor V2. `prepared_output_adapter.py` y `legacy_output_probe.py` conservan imports locales legacy para ensayos/sondas offline; `output-capabilities` expone diagnóstico histórico, sin llamada desde la UI habitual. `app.py` sí importa `routes.py` legacy antes de registrar V2: no declarar independencia del proceso Flask completo. Comprobar de nuevo estas fronteras al cambiar arranque o imports.
 
 ## 8. Flujo funcional vigente de V2
 
@@ -233,19 +217,7 @@ mutación persistente
   -> compare-and-swap + nueva revisión
 ```
 
-Rutas V2 activas:
-
-- `GET /editor_offset_visual_v2`;
-- `GET /editor_offset_visual_v2/<job_id>`;
-- `POST /api/editor-offset-v2/jobs`;
-- `GET /api/editor-offset-v2/jobs/<job_id>`;
-- `PUT /api/editor-offset-v2/jobs/<job_id>/layout`;
-- `POST /api/editor-offset-v2/jobs/<job_id>/assets`;
-- `GET /api/editor-offset-v2/jobs/<job_id>/assets/<asset_id>/thumbnails/<page>`;
-- `POST /api/editor-offset-v2/jobs/<job_id>/imposition/repeat`;
-- `GET /api/editor-offset-v2/jobs/<job_id>/output-capabilities`.
-
-Existen rutas V2 de preflight, Preview/PDF propios detrás de gates separados y derivados. El cierre 39C incorpora controles Preview/descarga y aceptación del perfil nativo limitado: consultar documentos 20/39 para evidencia y exclusiones. No confundir este perfil con certificación PDF/X o CTP. Nesting, hybrid y CTP siguen pendientes.
+Las 14 rutas HTML/API y sus consumidores están inventariados en [44](DOCS/OFFSET/V2/44_MAPA_CONEXIONES_EDITOR_OFFSET_V2.md); `blueprint.py` es la fuente ejecutable. Preview y PDF final están disponibles en el arranque local habitual `scripts/start_editor_offset_v2.ps1`; derivados y dev tools permanecen separados. El cierre y la evidencia de salida están en [43](DOCS/OFFSET/V2/43_PLAN_SALIDA_PDF_HABITUAL_V2.md). No extrapolar estos flags a otros despliegues ni confundir el perfil nativo limitado con certificación PDF/X o CTP. Nesting, hybrid y CTP no son flujos operativos.
 
 ## 9. Contrato e invariantes de Layout V2
 
@@ -301,7 +273,7 @@ Reglas:
 - distinguir slot, footprint y transformación interna del contenido;
 - no declarar una función operativa por la sola existencia de CSS, controles o código desconectado.
 
-Para cambios visuales revisar como conjunto template, CSS, referencias DOM, bootstrap, controladores afectados, registro de acciones y los tres archivos Playwright V2 (edición, caracterización UX e integración de salida).
+Para cambios visuales revisar como conjunto template, CSS, referencias DOM, bootstrap, controladores afectados, registro de acciones y los Playwright V2 pertinentes. Hay seis archivos V2 en `tests/playwright/`; consultar [44](DOCS/OFFSET/V2/44_MAPA_CONEXIONES_EDITOR_OFFSET_V2.md) para localizarlos.
 
 ## 11. Repeat V2
 
@@ -312,7 +284,7 @@ Repeat V2 atraviesa:
 - `editor_offset_v2/application/repeat_service.py`;
 - `editor_offset_v2/infrastructure/repeat_engine_adapter.py`;
 - `editor_offset_v2/domain/repeat_contract.py`;
-- `engines/step_repeat_pro_engine.py` compartido.
+- `editor_offset_v2/domain/repeat_packer.py` propio.
 
 La propuesta es temporal hasta que el operador aplica el resultado. Aplicar debe ser persistente, reversible y trazable.
 
@@ -324,7 +296,7 @@ Antes de cambiar Repeat revisar:
 - locks y `generated_by`;
 - selección resultante;
 - persistencia y salida;
-- compatibilidad del motor compartido con V1.
+- ausencia de nuevos imports o delegaciones a motores compartidos.
 
 V2 no expone actualmente nesting o hybrid como flujos operativos. No agregarlos dentro de una corrección de Repeat.
 
@@ -344,45 +316,35 @@ Esta es una superficie de alto riesgo.
 
 Estado vigente:
 
-- `output-capabilities` diagnostica el puente temporal; preflight evalúa capacidades nativas propias;
-- no equivale a preflight productivo;
-- `editor_output_adapter.py` no ejecuta el renderer;
-- Preview/PDF V2 tienen servicios y rutas con gates separados; su perfil y aceptación se documentan en 20/39; los defectos posteriores y brechas se registran en 40;
-- CTP habilitado continúa bloqueado;
-- la salida nativa ya usa un compositor V2 propio; Repeat mantiene una dependencia compartida que requiere análisis separado;
-- el puente legacy puede servir para caracterización, no para contaminar el dominio V2.
+- `output-capabilities` conserva diagnóstico del puente histórico; Validar y Salida usan diagnóstico nativo común y preflight por operación;
+- Preview/PDF V2 tienen servicios, compositor y gates propios. El arranque local habitual activa Preview/PDF y deja derivados/dev tools apagados; [43](DOCS/OFFSET/V2/43_PLAN_SALIDA_PDF_HABITUAL_V2.md) registra la aceptación y sus límites;
+- `editor_output_adapter.py` no ejecuta el renderer. Las sondas legacy sirven para caracterización offline, no para la salida habitual;
+- el sangrado por trabajo distingue `source_only`, `mirror_if_missing` y ausencia histórica; marcas con sangrado cero se omiten con aviso;
+- CTP, PDF/X y rendimiento de 500 piezas no están certificados. No inventar cajas PDF ausentes ni confundir cobertura declarada por cajas con diseño útil en todos los bordes.
 
-Antes de ampliar o corregir salida, conservar y verificar las decisiones existentes:
+Antes de ampliar o corregir salida, verificar las decisiones existentes en el código y las pruebas:
 
-1. definir contrato canónico de preflight y severidades;
-2. resolver archivos físicos, páginas y cajas PDF;
-3. definir trim, bleed, clipping, escalas, offsets y rotaciones internas;
-4. crear fixtures PDF y tolerancias métricas/visuales;
-5. demostrar coherencia canvas/preview/PDF;
-6. diseñar errores, rollback y artefactos reproducibles;
-7. resolver caras, marcas y CTP en alcance explícito.
+1. contrato de preflight, severidades, operaciones y revisión esperada;
+2. archivos físicos, páginas y cajas PDF realmente declaradas;
+3. trim, bleed, clipping, giros y correcciones internas;
+4. fixtures y tolerancias métricas/visuales pertinentes;
+5. coherencia canvas/Preview/PDF en archivos generados;
+6. errores, rollback y ausencia de publicación parcial;
+7. alcance explícito si se trabaja en caras, marcas avanzadas o CTP.
 
 No ignorar opciones no soportadas, no degradarlas silenciosamente y no generar un job parcial cuando el contrato exige bloqueo.
 
-Revisar al menos:
-
-- documentos 01, 02, 03, 11, 20, 21, 39 y 40;
-- `editor_offset_v2/domain/output_contract.py`;
-- `editor_offset_v2/application/output_service.py`;
-- `editor_offset_v2/infrastructure/editor_output_adapter.py`;
-- repositorios e inspección física de assets;
-- superficies legacy compartidas de salida;
-- fixtures y pruebas de contrato/render.
+Seguir el recorrido afectado con [44](DOCS/OFFSET/V2/44_MAPA_CONEXIONES_EDITOR_OFFSET_V2.md): `preflight_contract.py`, `native_output_capabilities.py`, `preflight_service.py`, `preview_service.py`, `pdf_final_service.py`, `output_snapshot.py`, `prepared_pdf_source.py`, `pdf_compositor.py`, repositorios, inspector PDF y pruebas. Consultar los módulos del puente histórico solo si el cambio alcanza esa frontera.
 
 ## 14. IA y automatización
 
-IA no forma parte del próximo gate productivo de V2.
+IA no forma parte del alcance de salida V2 documentado en 43.
 
 - No conectar agentes a escritura productiva sin fase, permisos y guardrails.
 - No integrar prototipos CLI a Flask por conveniencia.
 - No permitir que IA omita validaciones de preprensa.
 - Toda acción sugerida por IA que modifique Layout V2 debe ser explícita, confirmable, reversible y trazable.
-- Revisar dependencias con motores compartidos antes de modificar tools de Repeat.
+- Evitar introducir dependencias con motores compartidos al modificar tools de Repeat.
 
 ## 15. Validación por alcance
 
@@ -412,7 +374,8 @@ venv\Scripts\python.exe -m pytest tests\editor_offset_v2 -q
 ### Playwright V2
 
 ```powershell
-venv\Scripts\python.exe -m pytest tests\playwright\test_editor_offset_v2.py tests\playwright\test_editor_offset_v2_ux_characterization.py tests\playwright\test_editor_offset_v2_output_integration.py -q
+$editorV2Playwright = Get-ChildItem -LiteralPath tests\playwright -Filter test_editor_offset_v2*.py | ForEach-Object { $_.FullName }
+venv\Scripts\python.exe -m pytest $editorV2Playwright -q
 ```
 
 No incluir tests Playwright V1 en una validación exclusivamente V2. Para iniciar o comprobar Flask usar la skill `editor-offset-local-qa` con target `v2`. Mantener `EDITOR_OFFSET_V2_DEV_TOOLS_ENABLED=0` salvo petición expresa.
@@ -427,7 +390,7 @@ git diff --check
 
 La suite global del repositorio se ejecuta solo cuando el usuario la autorice o el gate acordado la exija. Registrar con precisión pruebas omitidas, fallos y ausencia de baseline.
 
-Cuando se implemente PDF, la validación deberá incluir archivo generado, dimensiones, páginas, cajas, bleed, marcas y comparación visual/métrica. Un HTTP 200 no demuestra corrección productiva.
+Al cambiar PDF, la validación pertinente debe incluir el archivo generado, dimensiones, páginas, cajas, bleed, marcas y comparación visual/métrica. Un HTTP 200 no demuestra corrección productiva. Conservar explícito el límite temporal pendiente de 500 piezas; no elevar umbrales para ocultarlo.
 
 ## 16. Documentación y trazabilidad
 
@@ -442,12 +405,7 @@ Actualizar documentación cuando cambie:
 - preflight, preview, PDF, bleed, marcas o CTP;
 - una decisión arquitectónica abierta.
 
-No duplicar el mapa completo en varios documentos. Mantener:
-
-- un estado operativo vigente;
-- contratos canónicos;
-- una trazabilidad por fase;
-- snapshots históricos claramente rotulados.
+No duplicar el mapa completo en varios documentos. Usar 41 para el trabajo diario, 44 para localizar conexiones, los contratos pertinentes para invariantes y los documentos anteriores como evidencia de su corte. Actualizar un documento adicional solo si el cambio lo afecta.
 
 No colocar en este archivo datos efímeros como branch actual, job de prueba, revisión observada o cantidad momentánea de tests.
 
@@ -462,23 +420,9 @@ No colocar en este archivo datos efímeros como branch actual, job de prueba, re
 - Antes de merge revisar diff contra la base, commits, archivos no rastreados, pruebas y cambios fuera de alcance.
 - Eliminar una rama solo después de integrarla y comprobar el destino.
 
-## 18. Próxima evolución recomendada de V2
+## 18. Alcance del trabajo V2
 
-La Fase 19 de rediseño UX está cerrada. No continuarla como 19-H.
-
-Preflight, fixtures, Preview, PDF nativo, corrección interna y coordinación por archivos ya tienen implementación. No reiniciar esas fases como si estuvieran ausentes. Consultar 20/39 para estado y 40 para defectos abiertos.
-
-Orden SAFE propuesto después de la auditoría:
-
-1. corregir y cubrir bloqueos de preflight, alcance por cara y validación de área imprimible;
-2. resolver paridad al materializar derivados de slots rotados con desplazamiento;
-3. corregir aprovechamiento de Repeat entre works, declarando el impacto si se toca el motor compartido;
-4. añadir controles operativos de marcas y separación conservando cuadrículas en fases distintas;
-5. mejorar claridad del preflight, errores, recursos y Preview;
-6. ampliar validación industrial y políticas operativas según decisiones explícitas;
-7. tratar CTP/marcas avanzadas, resize, frente/dorso completo e IA como fases propias.
-
-El roadmap no autoriza implementación automática. Mantener Layout V2, geometría, comandos, autosave y originales inmutables. No mezclar preflight, PDF, CTP, resize e IA en una misma fase.
+Preflight, Preview, PDF nativo, corrección interna, preparación multipágina y Repeat propio ya tienen implementación. No reiniciar esas funciones como si estuvieran ausentes. Los hallazgos de 40 y las exclusiones de 43 sirven como pistas y límites comprobables, no como un orden de tareas. Elegir el alcance según la solicitud y la evidencia actual; CTP, PDF/X, resize, frente/dorso completo e IA requieren trabajo explícito.
 
 ## 19. Reporte esperado
 
@@ -510,7 +454,7 @@ No romper ni cruzar silenciosamente:
 - locks y procedencia;
 - selección, drag, pan, zoom, snap, guías y herramientas existentes;
 - configuración SAFE del pliego;
-- Repeat y su dependencia compartida;
+- Repeat propio V2 y ausencia de nuevas dependencias de motores compartidos;
 - seguridad de rutas y archivos;
 - accesibilidad responsive implementada;
 - compatibilidad legacy fuera de V2;
