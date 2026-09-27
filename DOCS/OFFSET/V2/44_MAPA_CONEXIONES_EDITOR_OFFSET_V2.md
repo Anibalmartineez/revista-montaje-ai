@@ -1,6 +1,6 @@
 # Mapa de conexiones del Editor Offset Visual V2
 
-Auditoría estática del repositorio, 2026-09-27. Este mapa identifica archivos y relaciones comprobadas en el código; los documentos históricos aportan contexto y no prueban por sí solos el comportamiento. No se inició Flask ni se ejecutaron pruebas en esta intervención. Las rutas de salida y sus garantías de ejecución se documentan con evidencia anterior en 43.
+Levantamiento estático inicial y contraste posterior con ejecución, 2026-09-27. Este mapa identifica archivos y relaciones comprobadas en el código; los documentos históricos aportan contexto y no prueban por sí solos el comportamiento. La primera intervención no ejecutó el sistema. La verificación posterior autorizada, sus correcciones y límites se registran al final de este documento y en 41; la aceptación previa de salida está en 43.
 
 ## Vista de conjunto
 
@@ -47,10 +47,10 @@ Todas las rutas viven en `editor_offset_v2/blueprint.py`, bajo `EDITOR_OFFSET_V2
 | PUT `/api/editor-offset-v2/jobs/<job_id>/layout` | `JobService`, compare-and-swap con `base_revision` | `autosave.js` |
 | POST `/api/editor-offset-v2/jobs/<job_id>/assets` | `AssetService` | `assets_panel.js` |
 | GET `/api/editor-offset-v2/jobs/<job_id>/assets/<asset_id>/thumbnails/<page>` | miniatura PDF | panel de assets |
-| GET `/api/editor-offset-v2/jobs/<job_id>/assets/<asset_id>/artwork/<page>` | `ArtworkService` | canvas |
+| GET `/api/editor-offset-v2/jobs/<job_id>/assets/<asset_id>/artwork/<page>` | función `render_artwork` de `artwork_service.py` | canvas |
 | POST `/api/editor-offset-v2/jobs/<job_id>/imposition/repeat` | `RepeatService`, propuesta temporal | `repeat_panel.js` |
 | GET `/api/editor-offset-v2/jobs/<job_id>/output-capabilities` | diagnóstico del puente histórico | sin llamada desde la UI habitual |
-| POST `/api/editor-offset-v2/jobs/<job_id>/preflight` | `PreflightService`, reporte por operación | `output_panel.js` |
+| POST `/api/editor-offset-v2/jobs/<job_id>/preflight` | `PreflightService`; recibe `face`, `dpi`, `allow_mirror_bleed` y devuelve decisiones por operación | `output_panel.js` |
 | POST `/api/editor-offset-v2/jobs/<job_id>/preview` | `PreviewService`; gate Preview | `output_panel.js` |
 | POST `/api/editor-offset-v2/jobs/<job_id>/pdf-final` | `PdfFinalService`; gate PDF | `output_panel.js` |
 | POST `/api/editor-offset-v2/jobs/<job_id>/assets/<asset_id>/derived-page` | `DerivedAssetService`; gate derivados | inspector de contenido |
@@ -68,7 +68,7 @@ Son 40 archivos Python y 2 schemas JSON en `editor_offset_v2/`. La flecha de cad
 | `blueprint.py` | 14 endpoints y contexto HTML → servicios de aplicación |
 | `domain/__init__.py` | exportaciones del dominio |
 | `domain/layout_v2.py` | constantes y vocabulario de Layout V2 → validación, servicios |
-| `domain/validation.py` | valida el layout persistido → job, preflight y repositorio |
+| `domain/validation.py` | valida el layout → servicios de jobs/preflight/salida; `JobRepository` no invoca el validador |
 | `domain/geometry.py` | geometría en mm, rotaciones y colisiones → Repeat, preflight, salida |
 | `domain/work_bleed.py` | decisión por trabajo y cobertura física → preparación, preflight y fuentes de salida |
 | `domain/crop_marks.py` | posición/reglas de marcas → compositor y pruebas |
@@ -129,7 +129,7 @@ Los 35 archivos se cargan desde la plantilla y se enlazan desde el bootstrap o s
 
 1. **Preparación:** PDF subido → `AssetService`/`pdf_inspector` → asset inmutable + miniaturas → borrador en `preparation.js` → comandos para works/slots → `EditorStore` → `SaveCoordinator` → PUT con `base_revision` → `JobRepository`.
 2. **Repeat:** layout y opciones → guardado pendiente → POST Repeat → `RepeatService`/packer V2 → propuesta temporal en store → `ApplyRepeatCommand` reversible → guardado. No se publica un layout al solo proponer.
-3. **Salida:** Validar/Salida → guardado → POST preflight con operación → `OutputSnapshot` y `PreflightService` → reporte; Preview/PDF consumen diagnóstico y revisión esperada → fuente PDF preparada/derivado → compositor → PNG Preview o PDF final. El canvas obtiene arte mediante endpoint propio; por ello la paridad debe contrastarse con archivos y no presumirse por compartir nombres de módulos.
+3. **Salida:** Validar/Salida → guardado → POST preflight con opciones → reporte con decisiones para Preview/PDF/CTP. La UI examina la decisión de la operación elegida y solicita el artefacto con `expected_revision`. Cada generación backend congela un snapshot nuevo, ejecuta y consume su propio preflight; no reutiliza el reporte previo de la UI como autorización. Luego prepara la fuente PDF/derivado y compone PNG Preview o PDF final. El canvas obtiene arte mediante endpoint propio; la paridad debe contrastarse con archivos y no presumirse por compartir nombres de módulos.
 4. **Historial:** comandos → undo/redo del store → dirty state → autosave; la revisión del servidor se comprueba en el PUT. Selección, viewport, borradores, propuesta Repeat y opciones de salida son temporales.
 
 ## Persistencia, configuración y límites físicos
@@ -137,6 +137,10 @@ Los 35 archivos se cargan desde la plantilla y se enlazan desde el bootstrap o s
 La raíz predeterminada es `instance/editor_offset_v2_jobs/<job_id>/` con `layout_v2.json`, `assets/`, `derived/`, `previews/`, `outputs/` y `reports/`; `config.py` permite cambiarla. El layout usa `layout_schema_version=2`, milímetros, slots con centro trim, rotaciones cardinales, fuentes referenciadas y `job.revision`. El schema JSON y `validation.py` deben revisarse juntos al cambiar contrato. El PDF inspector toma las cajas realmente declaradas; una MediaBox sola no crea TrimBox/BleedBox implícitas. `works[].bleed_strategy` admite `source_only`, `mirror_if_missing` o ausencia histórica, con semántica distinta. La cobertura por cajas no certifica tinta útil en el borde.
 
 ## Referencias fuera del producto V2
+
+### Dependencias técnicas
+
+`requirements.txt` declara dependencias del proceso completo, no un entorno V2 aislado. Flask/Werkzeug conectan HTTP, plantillas y validación de peticiones; PyMuPDF (`fitz`) inspecciona, compone y rasteriza PDF; Pillow trabaja con PNG y bandas de sangrado. ReportLab genera fixtures y participa en el ensayo `prepared_output_adapter.py`; PyPDF2 aparece en la sonda legacy, no en el compositor nativo habitual. Estas bibliotecas generales son distintas del código de producto V1 compartido. La importación de `app.py` puede cargar otras dependencias por `routes.py`; este mapa no enumera cada dependencia transitiva del proceso.
 
 | Zona | Archivos relacionados y uso |
 |---|---|
@@ -161,6 +165,42 @@ Los 49 Markdown de `DOCS/OFFSET/V2/` anteriores a este mapa comprenden `README.m
 - **Multipágina, derivados y salida avanzada (32A–40):** `32A_TRABAJOS_MULTIPAGINA_V2.md`, `32B_CORRECCIONES_GRAFICAS_V2.md`, `32C_ASSETS_DERIVADOS_V2.md`, `32D_INTEGRACION_DERIVADOS_SALIDA_V2.md`, `32E_GUARDIA_PARIDAD_DERIVADOS_V2.md`, `32F_MATERIALIZACION_TRANSFORMADA_V2.md`, `33_PARIDAD_DERIVADOS_PREVIEW_PDF_V2.md`, `34_REPEAT_MULTIPAGINA_ORIENTACIONES_V2.md`, `35_PREFLIGHT_OBLIGATORIO_SALIDA_V2.md`, `36_ENDURECIMIENTO_OPERATIVO_V2.md`, `37_CONTRATO_PARIDAD_SALIDA_V2.md`, `38_CONCURRENCIA_RETENCION_RECUPERACION_V2.md`, `39_PLAN_SAFE_CIERRE_SALIDA_PRODUCTIVA_V2.md`, `40_AUDITORIA_INTEGRAL_MAPA_Y_PLAN_DE_MEJORAS_V2.md`.
 - **Trabajo actual:** `41_TRABAJO_DIARIO_Y_BITACORA_V2.md` es la bitácora; `42_PLAN_PREPARACION_UNIFICADA_Y_REPEAT_PROPIO_V2.md` y `43_PLAN_SALIDA_PDF_HABITUAL_V2.md` registran entregas concretas. `assets/19_propuesta_visual_redisenio_incremental_v2.png` es una referencia visual histórica, no recurso cargado por el editor.
 
-## Límites de esta auditoría
+## Alcance del levantamiento inicial
 
 Este inventario procede de búsqueda de archivos/referencias y lectura de puntos de composición, rutas, imports, servicios y pruebas por tres revisiones paralelas. No demuestra que cada recorrido funcione en un servidor activo ni que la cobertura de pruebas sea exhaustiva. En particular, la independencia de arranque respecto a V1 sigue limitada por `app.py`; los módulos de ensayo legacy no son la salida habitual; la retención en `artifact_lifecycle.py` no aparece conectada a una ruta productiva. Para verificar un cambio concreto, recorrer su acción de UI, endpoint, servicio, persistencia/artefacto y prueba pertinente.
+
+## Contraste mediante ejecución — 2026-09-27
+
+Tres subagentes revisaron áreas distintas y el agente principal recorrió la copia `ev2_712410ef8ebb0395c13d304a` en Flask habitual. Las conexiones principales coincidieron con la ejecución. Se corrigieron cuatro precisiones del mapa: opciones del POST preflight, preflight fresco dentro de cada generación, validación propiedad de servicios y `render_artwork` como función.
+
+| Evidencia | Resultado y límite |
+|---|---|
+| Python V2 antes de la corrección | `pytest tests/editor_offset_v2 -q -k 'not (bounded_placement_load and 500)'`: 623 passed, 1 skipped por privilegio de symlink Windows, 1 deselected; incluye cargas 14/100 |
+| Rendimiento 500 aislado | `test_output_acceptance_v2.py::test_bounded_placement_load_with_shared_vector_source[500]`: fallo, 66,797 s frente a umbral 60; PDF de 500 textos correcto. Umbral sin cambios |
+| Node V2 | los 18 módulos `.test.cjs`: 165 passed |
+| Navegador V2 | los seis archivos Playwright: 37 passed; servidores/raíces temporales, incluyendo comparación SVG/Preview/PDF, conflictos y sangrado |
+| Responsive adicional | smoke Playwright a 1440×1000, 540×844 y 390×844: tabs por click, diagnóstico, identidad, consola y ausencia de overflow del documento. Barras con scroll horizontal local |
+| Corrección backend | 7 regresiones nuevas: estructura corrupta devuelve JSON `INVALID_LAYOUT` sin publicación y conserva fuentes/layout; errores semánticos siguen como diagnóstico. Después: 56 passed en preflight, decisiones, seguridad, Preview y PDF |
+| Flask habitual | PID registrado/identificado 11432 → 16248, dev tools=0 y perfil normal. Primera comprobación posterior tuvo timeout en raíz; segundo intento obtuvo raíz/V2 200. Gates/contexto comprobados por script |
+| Copia del montaje real | Repeat de reemplazo 6/6, propuesta temporal, aplicar/undo/redo/save/reload. Se comprobó bloqueo PDF por clipping TrimBox en piezas de trabajos históricos y se ajustó explícitamente a BleedBox en la copia. Revisión final 6, seis slots, PDF 1 página ~700×700 mm; Preview 4134×4134 a 150 dpi y raster PDF idénticos en RGB |
+| Original protegido | montaje original revisión 42, layout y dos PDF fuente: hashes iniciales/finales iguales |
+
+Se corrigió un defecto productivo descubierto en la auditoría: layouts guardados con campos requeridos ausentes o tipos estructurales incorrectos causaban excepción al recorrer geometría/fuentes. `preflight_service.py` los rechaza antes de ese recorrido; las tres rutas devuelven JSON500 `INVALID_LAYOUT`, preservan los datos y no publican artefactos. También se verificó en el Flask reiniciado con un job QA temporal que se restauró al estado válido inicial. La suite amplia Python precede a este cambio; las 56 pruebas relevantes y el probe live son posteriores. No sumar conteos de reejecuciones.
+
+Comandos de regresión ejecutados desde la raíz del repositorio:
+
+```powershell
+venv/Scripts/python.exe -m pytest tests/editor_offset_v2 -q -k 'not (bounded_placement_load and 500)' --basetemp=.codex-runtime/audit44-backend-20260927 --junitxml=.codex-runtime/audit44-backend-20260927-results.xml
+venv/Scripts/python.exe -m pytest 'tests/editor_offset_v2/test_output_acceptance_v2.py::test_bounded_placement_load_with_shared_vector_source[500]' -q --basetemp=.codex-runtime/audit44-backend-500-20260927 --junitxml=.codex-runtime/audit44-backend-500-20260927-results.xml -o junit_family=legacy
+$editorV2JsTests = Get-ChildItem -LiteralPath tests/editor_offset_v2/js -Filter *.test.cjs | ForEach-Object { $_.FullName }
+node --test $editorV2JsTests
+venv/Scripts/python.exe -m pytest tests/playwright/test_editor_offset_v2.py tests/playwright/test_editor_offset_v2_ux_characterization.py tests/playwright/test_editor_offset_v2_output_integration.py tests/playwright/test_editor_offset_v2_preparation.py tests/playwright/test_editor_offset_v2_native_repeat.py tests/playwright/test_editor_offset_v2_work_bleed.py -q
+venv/Scripts/python.exe -m pytest tests/editor_offset_v2/test_preflight_v2.py tests/editor_offset_v2/test_preflight_decisions_v2.py tests/editor_offset_v2/test_output_safety_v2.py tests/editor_offset_v2/test_pdf_final_v2.py tests/editor_offset_v2/test_preview_v2.py -q
+git diff --check
+```
+
+Artefactos backend/XML en `.codex-runtime/audit44-backend-*`; copia, hashes, métricas y probe live en `.codex-runtime/audit44/`; capturas Playwright en el directorio temporal `pytest-273` y smoke `ev2-mobile-audit-mhb3igqi`. CUA validó controles por teclado, consola y resultados; su evento de descarga agotó el tiempo pese a que la UI indicó descarga y el PDF publicado pudo inspeccionarse. Los Playwright sí comprobaron la descarga. No hubo suite global/V1, certificación industrial ni commit/push.
+
+### Límites funcionales para publicaciones
+
+V2 representa un pliego y piezas/páginas con cantidades independientes. El backend admite caras/flip, pero la UI no ofrece todavía navegación completa de caras: Repeat dorso está deshabilitado y creación/paste conservan restricciones a frente. No hay contrato de secuencia editorial, múltiples pliegos, firmas, encuadernación ni creep. Por tanto, preparar un PDF multipágina y repetir sus formas no equivale a imponer una revista para doblar y encuadernar. Esas son posibles ampliaciones que requieren decisiones y pruebas propias, no conexiones existentes del mapa.

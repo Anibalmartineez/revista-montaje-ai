@@ -139,6 +139,16 @@ class PreflightService:
         issues: list[dict[str, object]] = []
 
         contract_issues = validate_layout_v2(layout)
+        # A missing or mistyped structure cannot be traversed by the physical
+        # and geometric checks. Keep semantic findings in the usual report,
+        # but reject corrupt persisted structures before reading any sources.
+        if any(issue.code == "REQUIRED_FIELD" or issue.code.startswith("TYPE_")
+               for issue in contract_issues):
+            error = PreflightServiceError(
+                "INVALID_LAYOUT", "The persisted Layout V2 structure is invalid", 500,
+            )
+            error.issues = tuple(issue.as_dict() for issue in contract_issues)
+            raise error
         self._finish_check(
             checks, issues, "layout_contract", "Layout V2 contract", "layout", contract_issues,
             lambda issue: _issue(

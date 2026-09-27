@@ -105,6 +105,55 @@ def test_preflight_publishes_immutable_report_and_blocks_output_gate(app_factory
     assert persisted["report_id"] == report["report_id"]
 
 
+@pytest.mark.parametrize("operation", ["preflight", "preview", "pdf-final"])
+@pytest.mark.parametrize("corruption", ["empty", "nested_geometry"])
+def test_corrupt_layout_structure_returns_json_without_publication(app_factory, operation, corruption):
+    app = app_factory()
+    app.config.update(EDITOR_OFFSET_V2_PREVIEW_ENABLED=True, EDITOR_OFFSET_V2_PDF_FINAL_ENABLED=True)
+    client = app.test_client()
+    created = client.post("/api/editor-offset-v2/jobs", json={}).get_json()
+    uploaded = _upload(client, created["job_id"], _pdf_bytes()).get_json()
+    repository = JobRepository(Path(app.config["EDITOR_OFFSET_V2_JOBS_ROOT"]))
+    layout = _layout_with_real_slot(uploaded["layout"], uploaded["asset"])
+    if corruption == "empty":
+        layout = {}
+    else:
+        layout["slots"][0]["geometry"] = None
+    raw = json.dumps(layout).encode("utf-8")
+    repository.layout_path(created["job_id"]).write_bytes(raw)
+    sources = {path: path.read_bytes() for path in repository.job_path(created["job_id"]).rglob("source.pdf")}
+
+    response = client.post(f"/api/editor-offset-v2/jobs/{created['job_id']}/{operation}", json={})
+
+    assert response.status_code == 500
+    assert response.mimetype == "application/json"
+    payload = response.get_json()
+    assert payload["ok"] is False and payload["error"]["code"] == "INVALID_LAYOUT"
+    assert any(issue["code"] in {"REQUIRED_FIELD", "TYPE_OBJECT"} for issue in payload["error"]["issues"])
+    assert repository.layout_path(created["job_id"]).read_bytes() == raw
+    assert all(path.read_bytes() == data for path, data in sources.items())
+    for directory in ("reports", "previews", "outputs"):
+        assert not [path for path in (repository.job_path(created["job_id"]) / directory).iterdir() if path.name != ".publish.lock"]
+
+
+def test_semantic_layout_findings_still_publish_diagnostic_report(app_factory):
+    app = app_factory()
+    client = app.test_client()
+    created = client.post("/api/editor-offset-v2/jobs", json={}).get_json()
+    repository = JobRepository(Path(app.config["EDITOR_OFFSET_V2_JOBS_ROOT"]))
+    layout = created["layout"]
+    layout["unknown_field"] = "contract finding"
+    repository.layout_path(created["job_id"]).write_text(json.dumps(layout), encoding="utf-8")
+
+    response = client.post(f"/api/editor-offset-v2/jobs/{created['job_id']}/preflight", json={})
+
+    assert response.status_code == 201
+    report = response.get_json()["report"]
+    assert any(issue["code"] == "LAYOUT_INVALID" for issue in report["issues"])
+    assert all(decision["status"] == "blocked" for decision in report["decisions"])
+    assert (repository.job_path(created["job_id"]) / report["report_path"]).is_file()
+
+
 def test_preflight_detects_physical_asset_identity_change_without_mutating_layout(app_factory):
     app = app_factory()
     client = app.test_client()
