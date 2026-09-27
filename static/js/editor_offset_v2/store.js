@@ -187,6 +187,7 @@
         saveState: { ...this.saveState },
         assetPanel: { ...this.assetPanel },
         repeatPanel: clone(this.repeatPanel),
+        repeatPreview: this.getRepeatPreview(),
         feedback: this.feedback,
         feedbackSource: this.feedbackSource,
         canUndo: this.undoStack.length > 0,
@@ -229,11 +230,12 @@
     }
 
     redo() {
-      const command = this.redoStack.pop();
+      const command = this.redoStack[this.redoStack.length - 1];
       if (!command) {
         return false;
       }
       command.redo(this.layout);
+      this.redoStack.pop();
       this.applyCommandSelection(command, "after");
       this.undoStack.push(command);
       this.markChanged();
@@ -701,11 +703,22 @@
       this.emit("upload_state");
     }
 
-    setRepeatState(status, proposal, error) {
+    getRepeatPreview() {
+      const state = this.repeatPanel;
+      const context = state.context;
+      if (state.status !== "ready" || !state.proposal?.success || !context
+          || context.jobId !== this.layout.job.id || context.revision !== this.revision
+          || context.changeVersion !== this.changeVersion || this.saveState.status !== "clean"
+          || this.pointerSession) return null;
+      return { proposal: state.proposal, context };
+    }
+
+    setRepeatState(status, proposal, error, context = null) {
       this.repeatPanel = {
         status,
         proposal: proposal ? clone(proposal) : null,
         error: error || null,
+        context: context ? clone(context) : null,
       };
       this.emit("repeat_state");
     }

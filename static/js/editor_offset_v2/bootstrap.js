@@ -75,6 +75,7 @@
     let contentTransformInspector = null;
     let outputPanel = null;
     let assetsPanel = null;
+    let repeatPanel = null;
     const contextProvider = () => ({
       store,
       layout: store.layout,
@@ -109,6 +110,7 @@
       responsivePanels,
       outputPanel,
       assetsPanel,
+      repeatPanel,
     });
     function runAction(actionId, payload) {
       try {
@@ -183,7 +185,7 @@
       modules.EditPolicy,
       runAction,
     );
-    const repeatPanel = new modules.RepeatPanel.Panel(
+    repeatPanel = new modules.RepeatPanel.Panel(
       store,
       refs,
       api,
@@ -191,6 +193,7 @@
       context,
       modules.Commands,
       modules.EditPolicy,
+      runAction,
     );
     outputPanel = new modules.OutputPanel.Panel(
       store,

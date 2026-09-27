@@ -8,6 +8,9 @@
   "use strict";
 
   const ACTION_IDS = Object.freeze({
+    REPEAT_CALCULATE: "repeat.calculate",
+    REPEAT_APPLY: "repeat.apply",
+    REPEAT_DISCARD: "repeat.discard",
     OUTPUT_PREVIEW: "output.preview",
     OUTPUT_PDF: "output.pdf",
     OUTPUT_OPTIONS: "output.options",
@@ -262,6 +265,16 @@
   }
 
   function registerEditorActions(registry) {
+    for (const [id, method, label] of [
+      [ACTION_IDS.REPEAT_CALCULATE, "calculate", "Calcular propuesta"],
+      [ACTION_IDS.REPEAT_APPLY, "apply", "Aplicar montaje"],
+      [ACTION_IDS.REPEAT_DISCARD, "invalidateProposal", "Descartar propuesta"],
+    ]) {
+      registry.register({ id, label, category: "repeat", modifiesLayout: method === "apply",
+        enabled: (context) => Boolean(context.repeatPanel) && !context.store.pointerSession,
+        execute: (context) => context.repeatPanel[method](),
+      });
+    }
     for (const operation of ["focus", "row", "field", "asset", "page", "common", "all", "create", "edit", "cancel", "variant", "save", "selectwork", "slot", "replace"]) {
       registry.register({
         id: `preparation.${operation}`, category: "preparation", label: `Preparación: ${operation}`,

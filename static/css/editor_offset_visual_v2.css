@@ -2998,3 +2998,35 @@ button[aria-pressed="true"],
   .ev2-preparation .ev2-form-grid { grid-template-columns: minmax(0, 1fr); }
   .ev2-preparation .ev2-rotation-options { flex-wrap: wrap; }
 }
+
+
+/* Repeat proposals are a temporary review layer, never editable slots. */
+.ev2-repeat-canvas-note {
+  position: absolute; z-index: 2; top: 58px; left: 12px; right: 12px;
+  margin: 0; padding: 8px 12px; border: 1px solid #59c9ef;
+  border-radius: 6px; background: #102936; color: #d5f4ff;
+  font-size: 12px; line-height: 1.4; pointer-events: none;
+}
+.ev2-repeat-canvas-note[hidden] { display: none; }
+.ev2-svg-repeat-proposal { pointer-events: none; opacity: .78; }
+.ev2-svg-repeat-proposal .ev2-svg-trim {
+  stroke: #008fc4; stroke-width: 2; stroke-dasharray: 7 4;
+  vector-effect: non-scaling-stroke; fill: #37bcf51a;
+}
+.ev2-svg-slot.is-repeat-replaced, .ev2-svg-repeat-obstacle.is-repeat-replaced { opacity: .25; }
+.is-repeat-replaced .ev2-svg-trim {
+  stroke: #ffad42; stroke-width: 3; stroke-dasharray: 5 3;
+  vector-effect: non-scaling-stroke;
+}
+.ev2-svg-repeat-obstacle { opacity: .4; pointer-events: none; }
+.ev2-repeat-actions { flex-wrap: wrap; }
+.ev2-repeat-work-detail {
+  margin: 10px 0; padding: 10px; border: 1px solid var(--ev2-border, #354251);
+  border-radius: 6px; min-width: 0; overflow-wrap: anywhere;
+}
+.ev2-repeat-work-detail strong { font-size: 12px; }
+.ev2-repeat-work-detail dl { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin: 10px 0 0; }
+.ev2-repeat-work-detail dt { font-size: 11px; color: #afbecb; }
+.ev2-repeat-work-detail dd { margin: 2px 0 0; font-weight: 600; }
+
+.ev2-shell.is-preparing .ev2-repeat-canvas-note { display: none; }

@@ -1,8 +1,8 @@
 # Preparación unificada y Repeat propio V2 — plan de implementación
 
-Fecha del plan: 2026-09-19. Actualización: 2026-09-20. Estado: **B y C implementadas: preparación unificada, edición segura y Repeat propio; D y cierre E pendientes**.
+Fecha del plan: 2026-09-19. Actualización: 2026-09-26. Estado: **B, C y D implementadas; cierre integral E pendiente**.
 
-La primera intervención cubrió la base de pruebas para Preparar, B y las guardas de vigencia de propuestas de D necesarias al editar trabajos. La segunda implementa C y adelanta únicamente el registro de versión nativa al aplicar. Se comprobó el recorrido de cuatro páginas hasta PDF, sin cerrar E: faltan la capa temporal de propuesta, el detalle por trabajo en UI y la prevalidación atómica completa de ApplyRepeat de D. Resultados y límites en [41 — Bitácora](41_TRABAJO_DIARIO_Y_BITACORA_V2.md#2026-09-20--repeat-propio-v2-entrega-c).
+Las entregas B/C incorporaron la preparación unificada, las guardas de vigencia y el motor propio. D incorpora ahora la propuesta temporal en canvas, el detalle por trabajo, descarte, acciones registradas y aplicación sin mutación parcial ante errores de validación. El recorrido integrado de pruebas aporta evidencia a E, pero esta intervención cierra D, no una certificación general del sistema ni todos los escenarios de aceptación. Resultados, pruebas y límites en [41 — Bitácora](41_TRABAJO_DIARIO_Y_BITACORA_V2.md#2026-09-26--propuesta-integrada-y-aplicación-segura-entrega-d).
 
 Las secciones siguientes conservan la especificación y la inspección del momento de planificación. Sus observaciones sobre el motor compartido y la versión fija describen la base anterior, no el código después de C. La evidencia de ejecución actual se registra en 41.
 

@@ -201,6 +201,7 @@
         <p id="ev2-preparation-status" role="status" aria-live="polite"></p>
         <section aria-label="Trabajos preparados" class="ev2-prepared-section"><h3>Trabajos preparados</h3><div id="ev2-prepared-works"></div></section>
       </section>
+      <p id="ev2-repeat-canvas-note" class="ev2-repeat-canvas-note" role="status" hidden></p>
       <svg
         id="ev2-canvas"
         class="ev2-canvas{% if not editor_context.job_id %} is-disabled{% endif %}"
@@ -619,7 +620,8 @@
         </fieldset>
         <div class="ev2-repeat-actions">
           <button id="ev2-repeat-calculate" type="button" {% if not editor_context.job_id %}disabled{% endif %}>Calcular</button>
-          <button id="ev2-repeat-apply" type="button" disabled>Aplicar</button>
+          <button id="ev2-repeat-apply" type="button" disabled>Aplicar montaje</button>
+          <button id="ev2-repeat-discard" type="button" disabled>Descartar propuesta</button>
         </div>
         <p id="ev2-repeat-status" class="ev2-inline-status" role="status" aria-live="polite"></p>
         <dl id="ev2-repeat-summary" class="ev2-repeat-summary" hidden>
@@ -630,6 +632,8 @@
           <div><dt>Aprovechamiento de la propuesta</dt><dd id="ev2-repeat-proposal-utilization">0%</dd></div>
           <div><dt>Aprovechamiento total proyectado</dt><dd id="ev2-repeat-projected-utilization">0%</dd></div>
         </dl>
+        <p id="ev2-repeat-review-note" class="ev2-repeat-note" hidden></p>
+        <div id="ev2-repeat-work-details" aria-label="Cantidades de la propuesta por trabajo"></div>
         <ul id="ev2-repeat-issues" class="ev2-repeat-issues"></ul>
         <div class="ev2-repeat-history">
           <strong id="ev2-repeat-history">Resultado al aplicar la última imposición · todavía no existe.</strong>

@@ -5,7 +5,7 @@ function harness() {
  const panel=Object.create(Panel.prototype), listeners=[];
  const node=(value)=>({value,checked:false,addEventListener(){}});
  const refs={repeatWorks:{...node(),querySelectorAll:()=>[{value:'work_a'}]},repeatGapX:node('0'),repeatGapY:node('0'),repeatFace:node('front'),repeatFill:node(),repeatPartial:node(),repeatModes:[{...node('add'),checked:true}],repeatApply:node(),repeatCalculate:node()};
- const store={revision:3,changeVersion:0,layout:{},saveState:{status:'clean'},hasUnsavedChanges:()=>false,
+ const store={revision:3,changeVersion:0,layout:{job:{id:"ev2_test"}},saveState:{status:'clean'},hasUnsavedChanges:()=>false,
   subscribe(fn){listeners.push(fn);},setRepeatState(status,proposal,error){this.repeatPanel={status,proposal,error};},
   emit(type){listeners.forEach(fn=>fn({type}));}};
  const requests=[];
@@ -38,4 +38,25 @@ test('Repeat apply rejects a proposal whose local change version no longer match
  requests[0].resolve({result:{success:true}}); await pending;
  store.changeVersion++; panel.apply(); assert.equal(store.repeatPanel.status,'error');
  assert.match(store.repeatPanel.error,/Vuelve a calcular/);
+});
+
+
+test('Repeat invalidates ready and pending proposals on save conflict or error', async()=>{
+ for(const event of ['save_conflict','save_error']) {
+  const {panel,store,requests}=harness(), pending=panel.calculate();
+  store.saveState.status='conflict'; store.emit(event);
+  requests[0].resolve({result:{success:true}}); await pending;
+  assert.equal(store.repeatPanel.proposal,null);
+  assert.equal(panel.proposalContext,null);
+ }
+});
+
+test('changing jobs or silently changing controls makes a proposal inapplicable',async()=>{
+ for(const change of [p=>p.store.layout.job.id='another',p=>p.refs.repeatGapX.value='8']) {
+  const {panel,store,requests}=harness(), pending=panel.calculate();
+  requests[0].resolve({result:{success:true}}); await pending;
+  change(panel); panel.apply();
+  assert.equal(store.repeatPanel.status,'error');
+  assert.equal(store.repeatPanel.proposal,null);
+ }
 });

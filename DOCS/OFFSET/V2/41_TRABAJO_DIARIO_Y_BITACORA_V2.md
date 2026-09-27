@@ -219,3 +219,45 @@ Dos tests Playwright existentes se ajustaron para fijar la geometría de su esce
 | Artefacto de salida | Preview PNG inspeccionada visualmente: 2×2 con páginas/colores correctos. PDF comprobado por dimensiones, texto, posiciones, color y ausencia de raster. |
 
 No se ejecutó la suite global del repositorio ni Playwright V1. Estos resultados no certifican todas las combinaciones productivas ni ausencia de defectos fuera del alcance. Cambios conservados en la rama actual, **sin commit** en esta intervención.
+
+### 2026-09-26 — Propuesta integrada y aplicación segura: entrega D
+
+**Solicitud:** implementar y probar D de 42 con las herramientas necesarias. Base limpia en `5603263`, rama `codex/editor-offset-v2-stabilization`. Alcance: frontend propio V2, historial de Repeat, pruebas y esta trazabilidad; sin cambio de schema, motor Python, originales, V1 ni superficies compartidas. No se interpreta la autorización de implementación como permiso para commit/push.
+
+**Comportamiento implementado:**
+
+- «Calcular» dibuja las piezas propuestas con borde azul discontinuo, transparencia y aviso «Propuesta sin aplicar». La representación reutiliza geometría y artwork del renderer V2. Se conservan las piezas actuales; en reemplazo se atenúan/señalan en ámbar las que se retirarán. Los obstáculos ocultos se muestran temporalmente atenuados para revisar el alcance, sin alterar su estado de visibilidad.
+- Las piezas de propuesta tienen clase/atributos separados, sin `data-slot-id`, foco de teclado ni eventos de puntero. No entran en selección editable, lista de slots, historial, Layout, autosave, PDF ni Preview de salida. La capa es distinta de `previewSlots`/`previewPositions` usados por arrastre y duplicación.
+- El panel muestra por trabajo y página las formas solicitadas, propuestas, faltantes, extras, conservadas y total al aplicar. También resume piezas retiradas/conservadas/añadidas para toda la cara. Añadir sigue sumando la demanda; reemplazar sigue afectando únicamente a los trabajos/cara elegidos.
+- «Descartar propuesta» elimina solamente el estado temporal. Calcular, aplicar y descartar pasan por acciones `repeat.calculate`, `repeat.apply` y `repeat.discard` registradas, con contexto compuesto desde bootstrap.
+- La propuesta captura job, revisión, versión de cambios, trabajos, cara, modo y opciones. Mantiene el contador de peticiones para descartar respuestas tardías. Cambiar un gap invalida ya durante `input`, sin esperar a salir del campo. Comandos, undo/redo, actualización externa, conflictos/errores de guardado y cambios de revisión retiran la propuesta. Antes de aplicar se vuelven a contrastar identidad, controles y estado de guardado. Durante una interacción de puntero no se muestra ni aplica la capa.
+- `ApplyRepeatCommand` prepara y valida el conjunto de slots antes de escribir. Comprueba alcance, referencias, IDs/colisiones, geometría cardinal mediante kernel, transformaciones, perfil de marcas, procedencia, bloqueos y vigencia de las piezas a retirar. Clona también los metadatos antes de las dos asignaciones finales. Un error de validación conserva layout, selección, dirty state e historial. La selección anterior se restaura mediante undo y la nueva mediante redo.
+- Hallazgo asociado: el fixture anterior de reemplazo conservaba una copia en dorso cuyo `source_slot_id` apuntaba a un slot eliminado. El nuevo comando bloquea explícitamente cualquier referencia de origen que quedaría colgando. El test positivo usa ahora una pieza realmente independiente y un test negativo cubre la copia dependiente. No se borra ni reescribe silenciosamente su procedencia.
+- Ajuste mínimo de Store: `redo` retira el comando de su pila después de ejecutarlo con éxito; si la validación falla, se conserva la posibilidad de rehacer. No se reescribe el Store ni se cambia su contrato persistente.
+
+**Archivos:** `commands.js` y `store.js` contienen aplicación/prevalidación y estado temporal; `repeat_panel.js` controla petición, vigencia, acciones y detalle; `canvas_renderer.js` representa la capa; `bootstrap.js`, `command_registry.js`, `dom_refs.js`, template y CSS V2 conectan los controles. Pruebas en `repeat_commands_v2.test.cjs`, `repeat_proposal_freshness_v2.test.cjs` y `test_editor_offset_v2_native_repeat.py`.
+
+**QA interactiva y datos:** Flask local se inició con la skill `editor-offset-local-qa`, target V2, enabled=1 y dev tools=0, PID 11976. Las comprobaciones previas no respondían; el primer inicio encontró un proceso registrado y se negó a duplicarlo. La comprobación posterior de parada informó que ya no existía PID guardado y no detuvo procesos. El siguiente inicio controlado tuvo éxito; `/` y `/editor_offset_visual_v2` respondieron HTTP 200 en el segundo intento conjunto. Se conservan los logs; no se finalizaron procesos desconocidos.
+
+El navegador integrado creó `ev2_a649fe5c253fa93e2e0f7671` y cargó un PDF sintético de cuatro páginas de 254 × 142,875 mm. Un primer intento de selector de archivos falló porque Fuentes estaba cerrado en la vista compacta; se recuperó abriendo ese panel y usando el selector. No se presenta como fallo del editor. Recorrido comprobado: cuatro trabajos → gap 3/3 → cuatro piezas temporales en 2×2, cero slots persistidos → descartar (cero/cero) → recalcular y aplicar (cuatro slots, sin capa) → undo (cero) → redo (cuatro). Luego se calculó reemplazo con gap horizontal 15: cuatro a retirar/cuatro nuevas; se descartó y recargó, conservando las cuatro piezas aplicadas con gap 3. Consola consultada sin errores/warnings. No se usó ni modificó el job original del usuario.
+
+**Salida:** el recorrido automatizado comprueba que, con propuesta visible y dos slots guardados, el PDF contiene solamente las dos piezas persistidas. Un job vacío con cuatro piezas temporales sigue bloqueado para exportar. Tras aplicar, se comprueban PDF/Preview nativos de cuatro páginas fuente, dimensiones 700 × 500, posiciones, colores, texto y contenido vectorial. Los perfiles QA sin marcas se eligen explícitamente en datos aislados; los controles productivos de marcas/preflight no se cambian.
+
+**Límites:** la vista temporal es orientativa y usa el artwork de canvas; no sustituye preflight ni la Preview/PDF nativa. Se conserva el límite de marcas documentado en C. No se amplían CTP, PDF/X, dúplex, nesting ni separación masiva. D usa únicamente módulos propios V2, pero no declara independencia de toda la aplicación. La entrega E conserva el cierre integral del plan; esta ejecución aporta regresiones y recorridos concretos, no certificación de todas las combinaciones productivas.
+
+**Validación de D:**
+
+| Comprobación | Evidencia |
+|---|---|
+| Baseline focalizado antes de editar | 11 tests Node de comandos Repeat/vigencia pasaron. |
+| Node V2 completo | 146 passed. Incluye error de colisión sin cambios parciales, fuente dependiente, scope/fuente/geometría/transformación inválida, revalidación al ejecutar, redo fallido con pila intacta, estado temporal/cuentas, respuestas tardías y conflictos. |
+| Playwright V2 completo | 31 passed en 187 s: edición, caracterización UX, salida, preparación y Repeat nativo. |
+| Regresión final Repeat nativo | 2 passed en 34 s tras ampliar el caso de obstáculos ocultos: se revelan solo durante revisión, sin selección editable ni cambios de visibilidad al descartar. |
+| Python V2 completo | 566 passed, 1 skipped (symlink de Windows), 1 failed; 20 avisos de deprecación. El fallo es el presupuesto temporal del test de salida con 500 piezas. |
+| Rendimiento de salida, comparación equivalente | Árbol actual: 60,532 s durante suite y 64,750 s al ejecutar solo el caso. Copia aislada de `5603263`, mismo venv/comando/caso: 63,063 s. En ambos se genera PDF y pasan las aserciones de contenido antes de fallar `elapsed < 60`. |
+| Sintaxis/whitespace | Los siete JS modificados pasan `node --check`; `git diff --check` sin errores. |
+| Persistencia QA interactiva | Revisión 4; cuatro páginas/slots, motor `v2-repeat-1.0.0`, gaps persistidos 3/3. Descartar reemplazo con gap 15 no altera esos valores. |
+
+La comparación reproduce el fallo temporal también en la base anterior a D; no demuestra su causa ni garantiza rendimiento en otras cargas. Se mantiene el umbral de 60 segundos y el fallo abierto, sin modificar código de salida ni atribuir una suite totalmente verde. El test de symlinks y las deprecaciones conservan sus límites de entorno. No se ejecutó la suite global ni Playwright V1.
+
+**Cierre:** D implementada y probada en el alcance descrito; 42 actualizado a B/C/D implementadas con cierre integral E pendiente. Registrar aparte el rendimiento de salida de 500 piezas cuando se aborde esa superficie. Cambios en la rama actual, sin commit ni push en esta intervención.

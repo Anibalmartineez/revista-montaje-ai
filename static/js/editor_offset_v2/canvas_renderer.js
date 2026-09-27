@@ -203,27 +203,42 @@
       });
       svg.append(workspace, sheetRect, printableRect);
 
+      const repeatPreview = state.repeatPreview?.context.face === state.activeFace ? state.repeatPreview : null;
+      const repeatSlots = repeatPreview?.proposal.slots || [];
+      const replacedIds = new Set(repeatPreview?.context.mode === "replace_work_face"
+        ? state.layout.slots.filter((slot) => slot.face === state.activeFace
+          && repeatPreview.context.workIds.includes(slot.work_id)).map((slot) => slot.id) : []);
+      if (this.refs.repeatCanvasNote) {
+        this.refs.repeatCanvasNote.hidden = !repeatPreview;
+        this.refs.repeatCanvasNote.textContent = repeatPreview
+          ? `Propuesta sin aplicar · Azul: ${repeatSlots.length} piezas nuevas${replacedIds.size ? ` · Ámbar: ${replacedIds.size} a reemplazar` : ""}. Revisa y aplica desde Imponer. No se guarda ni se exporta todavía.` : "";
+      }
       const persistedVisibleSlots = state.layout.slots
         .filter((slot) => slot.face === state.activeFace
-          && !state.advancedSelection.hiddenSlotIds.includes(slot.id))
+          && (repeatPreview || !state.advancedSelection.hiddenSlotIds.includes(slot.id)))
         .map((slot) => withPreview(slot, this.store));
       const previewSlots = (state.previewSlots || [])
         .filter((slot) => slot.face === state.activeFace);
       const previewIds = new Set(previewSlots.map((slot) => slot.id));
       const visibleSlots = [...persistedVisibleSlots, ...previewSlots];
+      const repeatSet = new Set(repeatSlots);
 
-      for (const [slotIndex, slot] of visibleSlots.entries()) {
+      for (const [slotIndex, slot] of [...visibleSlots, ...repeatSlots].entries()) {
         const center = slot.geometry.position_mm;
         const trim = slot.geometry.trim_size_mm;
         const bleed = slot.geometry.bleed_mm;
         const isPreview = previewIds.has(slot.id);
-        const selected = isPreview || state.selection.includes(slot.id);
-        const keySlot = !isPreview && state.arrangement?.keySlotId === slot.id;
+        const isRepeat = repeatSet.has(slot);
+        const isReplaced = !isRepeat && replacedIds.has(slot.id);
+        const contextHidden = !isRepeat && state.advancedSelection.hiddenSlotIds.includes(slot.id);
+        const selected = !isRepeat && (isPreview || state.selection.includes(slot.id));
+        const keySlot = !isRepeat && !isPreview && state.arrangement?.keySlotId === slot.id;
         const placement = slotPlacementClasses(slot, state.layout.sheet, this.geometry);
         const approximate = artworkIsApproximate(slot, state.layout, this.assetsApiUrl);
         const group = svgElement("g", {
           class: [
-            "ev2-svg-slot",
+            isRepeat ? "ev2-svg-repeat-proposal" : contextHidden ? "ev2-svg-repeat-obstacle" : "ev2-svg-slot",
+            isReplaced && "is-repeat-replaced",
             selected && "is-selected",
             keySlot && "is-key-slot",
             isPreview && "is-duplicate-preview",
@@ -233,9 +248,9 @@
             .filter(Boolean)
             .join(" "),
           transform: `translate(${this.geometry.mmToSvgX(center.x_mm)} ${this.geometry.mmToSvgY(center.y_mm, sheet.height)}) rotate(${-slot.geometry.rotation_deg})`,
-          "data-slot-id": slot.id,
+          ...(isRepeat ? { "data-repeat-slot-id": slot.id } : { "data-slot-id": slot.id }),
           "data-preview-slot": String(isPreview),
-          tabindex: "0",
+          ...(isRepeat || contextHidden ? { "pointer-events": "none", "aria-hidden": "true" } : { tabindex: "0" }),
         });
         if (slot.id || placement.message || approximate || keySlot) {
           group.append(svgElement(
@@ -319,12 +334,17 @@
           );
           group.append(badge);
         }
+        if (isRepeat || contextHidden) {
+          // Proposal/temporarily revealed obstacles cannot enter selection or drag.
+          group.removeAttribute("data-slot-id");
+          for (const child of group.querySelectorAll("[data-slot-id]")) child.removeAttribute("data-slot-id");
+        }
         svg.append(group);
         const label = slotLabelPresentation(
           slot,
           slotIndex + 1,
           state.zoom,
-          state.showSlotLabels && !isPreview,
+          state.showSlotLabels && !isPreview && !contextHidden,
         );
         if (label.visible) {
           svg.append(svgElement("text", {
@@ -333,7 +353,7 @@
             class: "ev2-svg-slot-label",
             "font-size": label.fontSizeMm,
             "aria-hidden": "true",
-          }, label.text));
+          }, isRepeat ? `Pág. ${slot.source.page}` : label.text));
         }
       }
 

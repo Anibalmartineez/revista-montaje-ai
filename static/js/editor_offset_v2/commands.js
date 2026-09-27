@@ -3,13 +3,15 @@
   const editPolicy = typeof module === "object" && module.exports
     ? require("./edit_policy.js")
     : root.EditorOffsetV2?.EditPolicy;
-  const api = factory(editPolicy);
+  const geometry = typeof module === "object" && module.exports
+    ? require("./geometry_view.js") : root.EditorOffsetV2?.GeometryView;
+  const api = factory(editPolicy, geometry);
   if (typeof module === "object" && module.exports) {
     module.exports = api;
   }
   root.EditorOffsetV2 = root.EditorOffsetV2 || {};
   root.EditorOffsetV2.Commands = api;
-})(typeof globalThis !== "undefined" ? globalThis : this, function (EditPolicy) {
+})(typeof globalThis !== "undefined" ? globalThis : this, function (EditPolicy, Geometry) {
   "use strict";
 
   if (!EditPolicy) throw new Error("Editor V2 edit policy is required");
@@ -822,26 +824,65 @@
       this.affectedIds = Object.freeze([
         ...new Set([...proposedIds, ...this.removed.map((entry) => entry.slot.id)]),
       ]);
+      this.prepareSlots(layout);
     }
 
-    execute(layout) {
+    prepareSlots(layout) {
       const workIds = new Set(this.workIds);
+      let retained = layout.slots;
       if (this.mode === "replace_work_face") {
+        const current = layout.slots.filter((slot) => slot.face === this.face && workIds.has(slot.work_id));
+        if (!UpdateWorkCommand.equal(current, this.removed.map((entry) => entry.slot))) {
+          throw new Error("El montaje a reemplazar cambió. Vuelve a calcular Repeat.");
+        }
         EditPolicy.assertCan(
           layout,
           this.removed.map((entry) => entry.slot.id),
           "replace_by_repeat",
         );
-        layout.slots = layout.slots.filter(
+        retained = layout.slots.filter(
           (slot) => !(slot.face === this.face && workIds.has(slot.work_id)),
         );
       }
-      const existingIds = new Set(layout.slots.map((slot) => slot.id));
-      if (this.proposed.some((slot) => existingIds.has(slot.id))) {
-        throw new Error("Repeat proposal collides with an existing slot id");
+      const existingIds = new Set(retained.map((slot) => slot.id));
+      for (const slot of this.proposed) {
+        if (!slot.id || existingIds.has(slot.id)) {
+          throw new Error("Repeat proposal collides with an existing slot id");
+        }
+        existingIds.add(slot.id);
+        if (slot.face !== this.face || !workIds.has(slot.work_id)) {
+          throw new Error("La propuesta contiene piezas fuera de los trabajos/cara elegidos.");
+        }
+        assertSlotReferences(layout, slot);
+        const work = layout.works.find((item) => item.id === slot.work_id);
+        Geometry.bleedBounds(slot);
+        if (slot.geometry.position_mm.anchor !== "trim_center"
+            || !work.allowed_rotations_deg.includes(slot.geometry.rotation_deg)) {
+          throw new Error("La propuesta contiene geometría no permitida.");
+        }
+        if (!slot.content_transform || !UpdateWorkCommand.equal(
+          slot.content_transform, normalizeContentTransform(slot.content_transform),
+        )) throw new Error("La propuesta contiene una transformación inválida.");
+        if (!["geometry", "content", "production", "delete"].every((key) => Array.isArray(slot.locks?.[key]))
+            || !layout.export.marks_profiles.some((profile) => profile.id === slot.production?.marks_profile_id)
+            || slot.generated_by?.type !== "engine" || slot.generated_by.engine !== "repeat"
+            || slot.generated_by.operation_id !== this.afterImposition.last_result.operation_id) {
+          throw new Error("La propuesta contiene metadatos inválidos.");
+        }
       }
-      layout.slots.push(...clone(this.proposed));
-      layout.imposition = clone(this.afterImposition);
+      const next = [...retained, ...clone(this.proposed)];
+      if (next.some((slot) => slot.generated_by?.source_slot_id && !existingIds.has(slot.generated_by.source_slot_id))) {
+        throw new Error("El reemplazo dejaría una copia sin su pieza de origen. Conserva su origen o retira primero la copia.");
+      }
+      return next;
+    }
+
+    execute(layout) {
+      // All validation and potentially throwing preparation precedes both writes.
+      const nextSlots = this.prepareSlots(layout);
+      const nextImposition = clone(this.afterImposition);
+      layout.slots = nextSlots;
+      layout.imposition = nextImposition;
     }
 
     undo(layout) {

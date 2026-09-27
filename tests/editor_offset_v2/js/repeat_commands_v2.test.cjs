@@ -88,6 +88,7 @@ test("replace mode preserves unrelated slots and restores replaced entries on un
   const layout = fixture();
   const replaced = structuredClone(layout.slots[0]);
   const unrelated = structuredClone(layout.slots[1]);
+  unrelated.generated_by = { type: "manual" };
   layout.slots = [replaced, unrelated];
   const store = new Store.EditorStore(layout);
   const result = proposal(layout, 3);
@@ -202,4 +203,77 @@ test("Repeat records the actual native engine version and undo restores historic
   assert.equal(layout.imposition.engine_version, result.engine_version);
   const old = new Commands.ApplyRepeatCommand(fixture(), proposal(fixture()), options());
   assert.equal(old.afterImposition.engine_version, "2.0.0-adapter");
+});
+
+
+test("replacement collision leaves layout, selection and both history stacks untouched", () => {
+  const store = new Store.EditorStore(fixture());
+  const result = proposal(store.layout);
+  result.slots[0].id = store.layout.slots[1].id;
+  const before = structuredClone(store.layout);
+  const selection = [...store.selection];
+  assert.throws(() => store.executeCommand(new Commands.ApplyRepeatCommand(
+    store.layout, result, options("replace_work_face"))), /collides/);
+  assert.deepEqual(store.layout, before);
+  assert.deepEqual([...store.selection], selection);
+  assert.equal(store.undoStack.length, 0);
+  assert.equal(store.redoStack.length, 0);
+  assert.equal(store.changeVersion, 0);
+});
+
+test("replacement blocks a retained duplicate whose source would disappear", () => {
+  const layout = fixture(), before = structuredClone(layout);
+  assert.throws(() => new Commands.ApplyRepeatCommand(layout, proposal(layout), options("replace_work_face")), /origen/);
+  assert.deepEqual(layout, before);
+});
+
+test("invalid proposal scope, source, geometry or transform cannot partially replace", () => {
+  for (const mutate of [s => s.face = "back", s => s.work_id = "missing",
+    s => s.source.page = 999, s => s.geometry.position_mm.x_mm = NaN,
+    s => s.geometry.rotation_deg = 45, s => s.content_transform.scale_x = 0,
+    s => s.production.marks_profile_id = "missing"]) {
+    const layout = fixture(); layout.slots = layout.slots.slice(0, 1);
+    const before = structuredClone(layout), result = proposal(layout);
+    mutate(result.slots[0]);
+    assert.throws(() => new Commands.ApplyRepeatCommand(layout, result, options("replace_work_face")));
+    assert.deepEqual(layout, before);
+  }
+});
+
+test("execute rechecks collisions and locks after construction; failed redo retains history", () => {
+  const layout = fixture(); layout.slots = layout.slots.slice(0, 1);
+  const store = new Store.EditorStore(layout);
+  const command = new Commands.ApplyRepeatCommand(store.layout, proposal(layout), options("replace_work_face"));
+  store.executeCommand(command); store.undo();
+  store.layout.slots[0].locks.delete = ["user"];
+  const before = structuredClone(store.layout), version = store.changeVersion;
+  assert.throws(() => store.redo());
+  assert.deepEqual(store.layout, before);
+  assert.equal(store.changeVersion, version);
+  assert.equal(store.redoStack.length, 1);
+  assert.equal(store.undoStack.length, 0);
+  store.layout.slots[0].locks.delete = [];
+  const collision = structuredClone(command.proposed[0]); collision.face = "back";
+  store.layout.slots.push(collision);
+  const unchanged = structuredClone(store.layout);
+  assert.throws(() => command.execute(store.layout), /collides/);
+  assert.deepEqual(store.layout, unchanged);
+});
+
+test("proposal preview and projected work counts stay outside layout/history/save tickets", () => {
+  const store = new Store.EditorStore(fixture());
+  const result = proposal(store.layout, 2);
+  const context = { ...options(), jobId: store.layout.job.id, revision: store.revision, changeVersion: store.changeVersion };
+  const before = structuredClone(store.layout);
+  store.setRepeatState("ready", result, null, context);
+  assert.equal(store.getState().repeatPreview.proposal.slots.length, 2);
+  assert.equal(store.beginSave(), null);
+  assert.equal(store.undoStack.length, 0);
+  assert.deepEqual(store.layout, before);
+  const added = RepeatPanel.proposalWorkRows(store.layout, result, context)[0];
+  const replaced = RepeatPanel.proposalWorkRows(store.layout, result, { ...context, mode: "replace_work_face" })[0];
+  assert.equal(added.projected, 3); assert.equal(added.retained, 1);
+  assert.equal(replaced.projected, 2); assert.equal(replaced.removed, 1);
+  store.changeVersion++;
+  assert.equal(store.getState().repeatPreview, null);
 });
