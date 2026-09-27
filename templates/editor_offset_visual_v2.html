@@ -609,6 +609,15 @@
             <input id="ev2-repeat-gap-y" type="number" min="0" step="0.1" value="{{ repeat_settings.get('vertical_gap_mm', 3) }}">
           </label>
         </div>
+        <label>Distribución de la propuesta
+          <select id="ev2-repeat-distribution">
+            <option value="auto">Automática</option>
+            <option value="rows">Priorizar filas</option>
+            <option value="columns">Priorizar columnas</option>
+            <option value="rotated">Priorizar giros de 90° / 270°</option>
+          </select>
+        </label>
+        <p class="ev2-repeat-note">Puedes comparar distribuciones antes de aplicar. Se conservan cantidades, separaciones, zonas y giros permitidos; algunas opciones pueden dar el mismo resultado.</p>
         <p class="ev2-repeat-note">Repeat utilizará la fuente predeterminada del work.</p>
         <p class="ev2-repeat-note">El cálculo de dorso estará disponible cuando se incorpore la navegación de caras.</p>
         <label><input id="ev2-repeat-partial" type="checkbox"> Permitir parcial</label>
@@ -621,6 +630,7 @@
         <div class="ev2-repeat-actions">
           <button id="ev2-repeat-calculate" type="button" {% if not editor_context.job_id %}disabled{% endif %}>Calcular</button>
           <button id="ev2-repeat-apply" type="button" disabled>Aplicar montaje</button>
+          <button id="ev2-repeat-alternative" type="button" disabled>Probar otra distribución</button>
           <button id="ev2-repeat-discard" type="button" disabled>Descartar propuesta</button>
         </div>
         <p id="ev2-repeat-status" class="ev2-inline-status" role="status" aria-live="polite"></p>

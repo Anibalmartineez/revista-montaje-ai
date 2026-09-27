@@ -64,7 +64,8 @@ class RepeatEngineAdapter:
                 zone if settings.get('respect_preferred_zones') else 'auto',flow))
         problem=PackingProblem(printable,tuple(pieces),float(settings['horizontal_gap_mm']),
             float(settings['vertical_gap_mm']),tuple(bleed_bounds(self._slot_geometry(s)) for s in retained),
-            bool(settings['fill_remaining_space']),bool(settings.get('respect_priority')))
+            bool(settings['fill_remaining_space']),bool(settings.get('respect_priority')),
+            settings.get('distribution','auto'))
         result=self._engine(problem)
         issues=[]
         if result.limited:
@@ -88,6 +89,12 @@ class RepeatEngineAdapter:
             issues.append(RepeatIssueV2('PARTIAL_IMPOSITION','warning',f'Propuesta parcial: faltan {unplaced} formas.'))
         if overproduced:
             issues.append(RepeatIssueV2('OVERPRODUCTION','warning',f'El relleno añade {overproduced} formas adicionales.'))
+        profiles={p['id']:p for p in layout['export']['marks_profiles']}
+        omitted={s['work_id'] for s in slots if s['geometry']['bleed_mm']==0
+                 and profiles[s['production']['marks_profile_id']]['crop_marks']}
+        if omitted:
+            issues.append(RepeatIssueV2('CROP_MARKS_OMITTED_NO_BLEED','warning',
+                f'Marcas de corte omitidas en {len(omitted)} trabajos sin sangrado; se conservará el contenido.'))
         return RepeatResultV2(True,operation_id,generated_at,tuple(slots),requested,len(slots),unplaced,overproduced,
             tuple(i.message for i in issues),self._metrics(printable,slots,retained),tuple(issues),self.engine_version,counts)
 

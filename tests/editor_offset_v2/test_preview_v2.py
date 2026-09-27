@@ -491,11 +491,12 @@ def test_preview_draws_crop_marks_and_applies_back_long_edge_flip(preview_app_fa
     layout["faces"] = {"enabled": ["back"], "duplex": {"enabled": True, "flip": "long_edge"}}
     layout["export"]["faces"] = {"front": False, "back": True, "combine_in_single_pdf": False, "order": ["back"]}
     layout["export"]["marks_profiles"][0]["crop_marks"] = True
+    slot["geometry"]["bleed_mm"] = 2
     saved = _save_preview_layout(client, upload.get_json(), layout)
 
     response = client.post(
         f"/api/editor-offset-v2/jobs/{created['job_id']}/preview",
-        json={"face": "back", "dpi": 36},
+        json={"face": "back", "dpi": 144, "allow_mirror_bleed": True},
     )
     assert response.status_code == 200
     image = Image.open(io.BytesIO(response.data)).convert("RGB")

@@ -8,11 +8,9 @@ from contextlib import ExitStack
 import hashlib
 import fitz
 from editor_offset_v2.domain.geometry import Point, Size, SlotGeometry, trim_polygon, bleed_polygon
+from editor_offset_v2.domain.crop_marks import crop_mark_dimensions, crop_segments as geometry_crop_segments
 
 PT = 72 / 25.4
-MARK_LENGTH_MM = 3
-MARK_GAP_MM = 1
-MARK_WIDTH_MM = .2
 
 
 def slot_geometry(slot):
@@ -22,17 +20,7 @@ def slot_geometry(slot):
 
 
 def crop_segments(slot):
-    """Ticks start one mm beyond bleed, aligned with trim edges."""
-    polygon=trim_polygon(slot_geometry(slot)).points
-    gap=slot['geometry']['bleed_mm']+MARK_GAP_MM
-    lines=[]
-    for i,p in enumerate(polygon):
-        for other in (polygon[i-1],polygon[(i+1)%4]):
-            dx,dy=p.x-other.x,p.y-other.y
-            norm=(dx*dx+dy*dy)**.5
-            lines.append(((p.x+dx/norm*gap,p.y+dy/norm*gap),
-                          (p.x+dx/norm*(gap+MARK_LENGTH_MM),p.y+dy/norm*(gap+MARK_LENGTH_MM))))
-    return lines
+    return geometry_crop_segments(slot_geometry(slot))
 
 
 def flip_point(point, sheet, flip):
@@ -91,10 +79,12 @@ def compose_pdf(layout, faces, prepare):
                 output.update_stream(target.get_contents()[-1],call.encode('ascii'))
             for slot in slots:
                 if not profiles[slot['production']['marks_profile_id']]['crop_marks']: continue
+                dimensions=crop_mark_dimensions(slot['geometry']['bleed_mm'])
+                if dimensions is None: continue
                 for a,b in crop_segments(slot):
                     a,b=flip_point(a,sheet,flip),flip_point(b,sheet,flip)
                     target.draw_line((a[0]*PT,(sheet['height']-a[1])*PT),(b[0]*PT,(sheet['height']-b[1])*PT),
-                                     color=(0,0,0,1),width=MARK_WIDTH_MM*PT)
+                                     color=(0,0,0,1),width=dimensions[2]*PT,lineCap=0)
             target.set_cropbox(target.rect)
         output.set_metadata({'title':layout['job']['name'],'author':'Editor Offset Visual V2',
                              'subject':f"Native V2; revision {layout['job']['revision']}; faces {','.join(faces)}"})

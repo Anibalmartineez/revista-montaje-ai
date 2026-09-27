@@ -6,13 +6,16 @@ again. Sheet edges receive no extra gap. Up to four stable orderings within
 priority bands, each with two orientation/position scoring variants, search shared
 free space. Preferences select candidate positions, not hard zones. This heuristic
 never claims geometric impossibility except oversize pieces.
+
+Transient distribution choices steer flow or rotation preference; they never
+expand the allowed rotations or relax quantities, zones, obstacles or gaps.
 """
 from __future__ import annotations
 
 from dataclasses import dataclass
 from .geometry import Bounds, Size, oriented_size, validate_non_negative
 
-ENGINE_VERSION = "v2-repeat-1.0.0"
+ENGINE_VERSION = "v2-repeat-1.1.0"
 EPS = 1e-9
 MAX_ITEMS = 128
 MAX_PLACEMENTS = 2000
@@ -48,6 +51,7 @@ class PackingProblem:
     obstacles: tuple[Bounds, ...] = ()
     fill: bool = False
     respect_priority: bool = True
+    distribution: str = "auto"
 
 
 @dataclass(frozen=True)
@@ -115,7 +119,7 @@ def _subtract(free, occupied, gx, gy, budget):
     return kept
 
 
-def _candidate(piece, free, area, budget, prefer_orientation=False):
+def _candidate(piece, free, area, budget, prefer_orientation=False, distribution="auto"):
     best = None
     best_score = None
     for rotation in sorted(piece.rotations):
@@ -138,10 +142,10 @@ def _candidate(piece, free, area, budget, prefer_orientation=False):
                     elif piece.zone == 'left': pos=(b.left,b.bottom)
                     elif piece.zone == 'right': pos=(-b.right,b.bottom)
                     elif piece.zone == 'center': pos=((b.center.x-area.center.x)**2+(b.center.y-area.center.y)**2,b.bottom)
-                    elif piece.flow == 'vertical': pos=(b.left,b.bottom)
+                    elif distribution == 'columns' or (distribution == 'auto' and piece.flow == 'vertical'): pos=(b.left,b.bottom)
                     else: pos=(b.bottom,b.left)
                     slack=(r.width-size.width,r.height-size.height)
-                    orientation = (rotation,) if prefer_orientation else ()
+                    orientation = ((rotation not in (90,270)), rotation) if distribution == 'rotated' else ((rotation,) if prefer_orientation else ())
                     score=(*orientation,*pos,min(slack),max(slack),rotation,b.left,b.bottom)
                     if best_score is None or score < best_score:
                         best_score=score
@@ -152,6 +156,8 @@ def _candidate(piece, free, area, budget, prefer_orientation=False):
 def pack(problem: PackingProblem, *, max_effort: int = MAX_EFFORT) -> PackingResult:
     """Pure bounded search; counts stay compact even for enormous requests."""
     p = problem
+    if p.distribution not in {'auto','rows','columns','rotated'}:
+        raise ValueError('Distribución Repeat no soportada.')
     validate_non_negative(p.gap_x,'gap_x'); validate_non_negative(p.gap_y,'gap_y')
     if p.area.width <= 0 or p.area.height <= 0:
         raise ValueError('El área imprimible debe ser positiva.')
@@ -193,7 +199,7 @@ def pack(problem: PackingProblem, *, max_effort: int = MAX_EFFORT) -> PackingRes
             for i in order:
                 if i.work_id in oversized: continue
                 for _ in range(i.quantity):
-                    placed=_candidate(i,free,p.area,budget,prefer_orientation)
+                    placed=_candidate(i,free,p.area,budget,prefer_orientation,p.distribution)
                     if placed is None: break
                     # Commit free-space and placement together; budget exhaustion
                     # must not leave a reusable free rectangle covering this piece.
@@ -215,7 +221,7 @@ def pack(problem: PackingProblem, *, max_effort: int = MAX_EFFORT) -> PackingRes
         try:
             while len(best)<MAX_PLACEMENTS:
                 for i in base_order:
-                    placed=_candidate(i,best_free,p.area,budget)
+                    placed=_candidate(i,best_free,p.area,budget,distribution=p.distribution)
                     if placed is not None: break
                 else: break
                 updated=_subtract(best_free,placed.bounds,p.gap_x,p.gap_y,budget)

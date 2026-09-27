@@ -7,8 +7,8 @@ MAX_INTERMEDIATE_PIXELS = 24_000_000
 def native_output_issues(layout, options=None):
     options = options or {}
     result = []
-    def add(code, message, path, blocks=('preview','pdf_final'), slot=None):
-        result.append((OutputIssue(code=code,level='error',message=message,path=path,
+    def add(code, message, path, blocks=('preview','pdf_final'), slot=None, level='error'):
+        result.append((OutputIssue(code=code,level=level,message=message,path=path,
             slot_id=slot['id'] if slot else None,asset_id=slot['source']['asset_id'] if slot else None),list(blocks)))
     export = layout['export']
     if len(layout['slots'])>500:
@@ -42,14 +42,23 @@ def native_output_issues(layout, options=None):
             from editor_offset_v2.infrastructure.pdf_compositor import crop_segments, slot_geometry
             from editor_offset_v2.domain.geometry import trim_bounds
             lines=crop_segments(slot)
+            from editor_offset_v2.domain.crop_marks import crop_mark_dimensions
+            dimensions=crop_mark_dimensions(slot['geometry']['bleed_mm'])
+            if dimensions is None:
+                add('CROP_MARKS_OMITTED_NO_BLEED','Marcas de corte omitidas: esta pieza tiene sangrado de 0 mm.',
+                    path+'.production',(),slot,level='warning')
+                half_width=0
+            else:
+                half_width=dimensions[2]/2
             sheet=layout['sheet']['size_mm']
-            if any(not (0<=x<=sheet['width'] and 0<=y<=sheet['height']) for line in lines for x,y in line):
+            if any(not (-1e-9<=x-half_width and x+half_width<=sheet['width']+1e-9
+                        and -1e-9<=y-half_width and y+half_width<=sheet['height']+1e-9) for line in lines for x,y in line):
                 add('CROP_MARK_OUTSIDE_SHEET','Las marcas de corte exceden el pliego; mueve la pieza o desactiva sus marcas.',path+'.production',slot=slot)
             for other in layout['slots']:
                 if other['id']==slot['id'] or other['face']!=slot['face']: continue
                 bounds=trim_bounds(slot_geometry(other))
-                if any(max(a[0],b[0])+.1>bounds.left and min(a[0],b[0])-.1<bounds.right and
-                       max(a[1],b[1])+.1>bounds.bottom and min(a[1],b[1])-.1<bounds.top for a,b in lines):
+                if any(max(a[0],b[0])+half_width>bounds.left and min(a[0],b[0])-half_width<bounds.right and
+                       max(a[1],b[1])+half_width>bounds.bottom and min(a[1],b[1])-half_width<bounds.top for a,b in lines):
                     add('CROP_MARK_OVERPRINT','Una marca invade el trim de otra pieza; aumenta la separación o desactiva las marcas.',path+'.production',('pdf_final',),slot)
                     break
         if any(profile[k] for k in ('registration_marks','technical_text','color_bar')):

@@ -229,6 +229,8 @@
       repeatCalculate: byId("ev2-repeat-calculate"),
       repeatApply: byId("ev2-repeat-apply"),
       repeatDiscard: byId("ev2-repeat-discard"),
+      repeatDistribution: byId("ev2-repeat-distribution"),
+      repeatAlternative: byId("ev2-repeat-alternative"),
       repeatCanvasNote: byId("ev2-repeat-canvas-note"),
       repeatReviewNote: byId("ev2-repeat-review-note"),
       repeatWorkDetails: byId("ev2-repeat-work-details"),

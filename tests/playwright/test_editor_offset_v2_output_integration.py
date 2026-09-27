@@ -92,7 +92,9 @@ def test_actual_svg_artwork_matches_preview_and_native_pdf(output_server,tmp_pat
             wrong_delta=ImageChops.difference(wrong,preview.crop(roi))
             assert sum(max(p)>32 for p in wrong_delta.getdata())/(delta.width*delta.height)>.02
             with fitz.open(stream=pdf.body(),filetype='pdf') as doc:
-                assert len(doc[0].get_drawings())>=10 and not doc[0].get_images()
+                # Zero bleed omits ticks; the two source vector rectangles remain.
+                assert len(doc[0].get_drawings())==2 and not doc[0].get_images()
+                assert page.locator('.ev2-svg-crop-mark').count()==0
             (tmp_path/f'{variant}-actual-svg.png').write_bytes(base64.b64decode(captured))
         finally: browser.close()
 

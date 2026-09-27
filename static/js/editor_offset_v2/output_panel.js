@@ -12,6 +12,7 @@
     BLEED_CLIPPED_TO_TRIM: "TrimBox recorta el sangrado: selecciona BleedBox en Corrección gráfica",
     CROP_MARK_OVERPRINT: "Una marca invade otra pieza: aumenta la separación o desactiva las marcas",
     CROP_MARK_OUTSIDE_SHEET: "Marcas fuera del pliego: mueve las piezas hacia dentro",
+    CROP_MARKS_OMITTED_NO_BLEED: "Sin sangrado: se omiten las marcas de corte de esta pieza",
     DERIVED_SOURCE_MISSING: "No se encuentra la página derivada: vuelve a prepararla",
     NATIVE_VECTOR_PENDING: "El renderer disponible no conserva vectores",
     OUTPUT_RESOURCE_LIMIT: "La petición supera el límite de recursos del perfil",

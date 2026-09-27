@@ -6,6 +6,52 @@ from test_editor_offset_v2_output_integration import output_server
 COLORS=[(1,0,0),(0,1,0),(0,0,1),(1,0,1)]
 
 
+def test_two_mm_crop_marks_match_canvas_preview_and_pdf(output_server,tmp_path):
+    from test_editor_offset_v2 import _open_job_with_repeat, _write_test_pdf
+    source=tmp_path/'marks.pdf';_write_test_pdf(source)
+    with sync_playwright() as pw:
+        browser=pw.chromium.launch()
+        page=browser.new_page(viewport={'width':1440,'height':900})
+        try:
+            _open_job_with_repeat(page,output_server,source)
+            page.evaluate('() => window.__EDITOR_OFFSET_V2__.saver.manualSave()')
+            page.wait_for_function('() => window.__EDITOR_OFFSET_V2__.store.saveState.status === "clean"')
+            api=output_server+'/api/editor-offset-v2/jobs/'+page.url.rsplit('/',1)[1]
+            current=page.request.get(api).json();layout=current['layout']
+            assert len(layout['slots'])==2
+            for profile in layout['export']['marks_profiles']: profile['crop_marks']=True
+            for index,slot in enumerate(layout['slots']):
+                slot['geometry'].update(bleed_mm=2,rotation_deg=0)
+                slot['geometry']['position_mm'].update(x_mm=100+index*150,y_mm=100)
+                slot['content_transform']['clip_to']='bleed_box'
+            saved=page.request.put(api+'/layout',data={'base_revision':current['revision'],'layout':layout})
+            assert saved.status==200,saved.text()
+            page.reload()
+            expect(page.locator('.ev2-svg-crop-mark')).to_have_count(8*len(layout['slots']))
+            for index,slot in enumerate(layout['slots']):
+                group=page.locator('.ev2-svg-slot').nth(index)
+                lines=group.locator('.ev2-svg-crop-mark').evaluate_all('els => els.map(e => Object.fromEntries(["x1","x2","y1","y2","stroke-width"].map(k => [k,Number(e.getAttribute(k))])) )')
+                half_x=slot['geometry']['trim_size_mm']['width']/2
+                half_y=slot['geometry']['trim_size_mm']['height']/2
+                for line in lines:
+                    assert abs(line['stroke-width']-.2)<1e-9
+                    assert max(abs(line['x1']),abs(line['x2']))+.1<=half_x+2+1e-9
+                    assert max(abs(line['y1']),abs(line['y2']))+.1<=half_y+2+1e-9
+            pdf=page.request.post(api+'/pdf-final',data={'dpi':144,'allow_mirror_bleed':True})
+            assert pdf.status==200,pdf.text()
+            with fitz.open(stream=pdf.body(),filetype='pdf') as doc:
+                ticks=[d for d in doc[0].get_drawings() if len(d['items'])==1 and d['items'][0][0]=='l']
+                assert len(ticks)==8*len(layout['slots'])
+            png=page.request.post(api+'/preview',data={'dpi':144,'allow_mirror_bleed':True})
+            assert png.status==200,png.text()
+            (tmp_path/'two-mm-native-preview.png').write_bytes(png.body())
+            (tmp_path/'two-mm-native.pdf').write_bytes(pdf.body())
+            page.screenshot(path=str(tmp_path/'two-mm-canvas.png'))
+            assert page.request.get(api).json()['layout']==saved.json()['layout']
+        finally:
+            browser.close()
+
+
 def write_four_pdf(path):
     with fitz.open() as doc:
         for index,color in enumerate(COLORS,1):
@@ -38,7 +84,7 @@ def test_four_pages_native_repeat_propose_apply_history_reload_and_pdf(output_se
                 page.locator('#ev2-repeat-calculate').click()
             result=response.value.json()['result']
             assert result['success'] and result['placed']==4 and result['unplaced']==0
-            assert result['engine_version']=='v2-repeat-1.0.0'
+            assert result['engine_version']=='v2-repeat-1.1.0'
             assert {s['source']['page'] for s in result['slots']}=={1,2,3,4}
             api=output_server+'/api/editor-offset-v2/jobs/'+page.url.rsplit('/',1)[1]
             assert page.request.get(api).json()['layout']['slots']==[]
@@ -46,6 +92,19 @@ def test_four_pages_native_repeat_propose_apply_history_reload_and_pdf(output_se
             expect(page.locator('.ev2-svg-slot')).to_have_count(0)
             expect(page.locator('.ev2-repeat-work-detail')).to_have_count(4)
             assert page.locator('.ev2-svg-repeat-proposal [data-slot-id]').count()==0
+            with page.expect_response(lambda r:r.request.method=='POST' and r.url.endswith('/imposition/repeat')) as alternative:
+                page.locator('#ev2-repeat-alternative').click()
+            assert alternative.value.request.post_data_json['distribution']=='rows'
+            expect(page.locator('#ev2-repeat-placed')).to_have_text('4')
+            assert page.request.get(api).json()['layout']['slots']==[]
+            page.locator('#ev2-repeat-distribution').select_option('columns')
+            expect(page.locator('.ev2-svg-repeat-proposal')).to_have_count(0)
+            expect(page.locator('#ev2-repeat-apply')).to_be_disabled()
+            with page.expect_response(lambda r:r.request.method=='POST' and r.url.endswith('/imposition/repeat')):
+                page.locator('#ev2-repeat-calculate').click()
+            expect(page.locator('.ev2-svg-repeat-proposal')).to_have_count(4)
+            expect(page.locator('#ev2-repeat-issues')).to_contain_text('sin sangrado')
+            expect(page.locator('.ev2-svg-crop-mark')).to_have_count(0)
             pending_pdf=page.request.post(api+'/pdf-final',data={'dpi':72})
             assert pending_pdf.status==422  # The four temporary pieces cannot make an empty job exportable.
             assert page.request.get(api).json()['layout']['slots']==[]
@@ -62,18 +121,8 @@ def test_four_pages_native_repeat_propose_apply_history_reload_and_pdf(output_se
             page.reload();expect(page.locator('.ev2-svg-slot')).to_have_count(4)
             assert page.evaluate('() => window.__EDITOR_OFFSET_V2__.store.layout.slots')==stored['slots']
             pdf=page.request.post(api+'/pdf-final',data={'dpi':72})
-            # Geometric fit does not reserve space for marks. Preserve the real
-            # preflight block, then explicitly use a no-marks QA output profile.
-            assert pdf.status==422,pdf.text()
-            codes={i['code'] for i in pdf.json()['error']['issues']}
-            assert codes <= {'CROP_MARK_OUTSIDE_SHEET','CROP_MARK_OVERPRINT'} and codes
-            current=page.request.get(api).json()
-            output_layout=current['layout']
-            output_layout['export']['marks_profiles'][0]['crop_marks']=False
-            updated=page.request.put(api+'/layout',data={'base_revision':current['revision'],'layout':output_layout})
-            assert updated.status==200,updated.text()
-            assert updated.json()['layout']['slots']==stored['slots']
-            pdf=page.request.post(api+'/pdf-final',data={'dpi':72})
+            # Zero bleed now omits crop ticks with a warning, without rewriting profiles.
+            assert page.request.get(api).json()['layout']['export']['marks_profiles'][0]['crop_marks'] is True
             assert pdf.status==200,pdf.text()
             (tmp_path/'native-repeat-four.pdf').write_bytes(pdf.body())
             with fitz.open(stream=pdf.body(),filetype='pdf') as document:

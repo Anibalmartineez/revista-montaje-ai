@@ -1,0 +1,8 @@
+[
+  {"bleed": 0, "dimensions": null},
+  {"bleed": 0.1, "dimensions": {"start": 0.025, "end": 0.09, "width": 0.02}},
+  {"bleed": 0.5, "dimensions": {"start": 0.125, "end": 0.45, "width": 0.1}},
+  {"bleed": 2, "dimensions": {"start": 0.5, "end": 1.9, "width": 0.2}},
+  {"bleed": 3, "dimensions": {"start": 0.75, "end": 2.9, "width": 0.2}},
+  {"bleed": 10, "dimensions": {"start": 1, "end": 4, "width": 0.2}}
+]

@@ -60,3 +60,19 @@ test('changing jobs or silently changing controls makes a proposal inapplicable'
   assert.equal(store.repeatPanel.proposal,null);
  }
 });
+
+test('alternative proposals remain temporary, warn on duplicates and reject a changed strategy',async()=>{
+ const {panel,store,requests}=harness();
+ panel.refs.repeatDistribution={value:'auto'};
+ const pending=panel.calculate();
+ requests[0].resolve({result:{success:true,slots:[],warnings:[]}}); await pending;
+ const next=panel.alternative();
+ assert.equal(panel.refs.repeatDistribution.value,'rows');
+ requests[1].resolve({result:{success:true,slots:[],warnings:[]}}); await next;
+ assert.equal(store.repeatPanel.status,'ready');
+ assert.match(store.repeatPanel.proposal.warnings[0],/mismo montaje/);
+ assert.equal(panel.proposalContext.distribution,'rows');
+ panel.refs.repeatDistribution.value='columns';panel.apply();
+ assert.equal(store.repeatPanel.status,'error');
+ assert.equal(store.repeatPanel.proposal,null);
+});

@@ -55,6 +55,7 @@ class RepeatService:
             )
         settings = {
             **request["settings"],
+            "distribution": request["distribution"],
             "respect_priority": current.layout["imposition"]["settings"]["respect_priority"],
             "respect_preferred_zones": current.layout["imposition"]["settings"]["respect_preferred_zones"],
         }
@@ -95,7 +96,7 @@ class RepeatService:
                 400,
             )
         request = dict(payload)
-        allowed = {"base_revision", "work_ids", "face", "settings", "apply_mode"}
+        allowed = {"base_revision", "work_ids", "face", "settings", "apply_mode", "distribution"}
         required = {"base_revision", "work_ids", "face", "settings"}
         if not required <= set(request) or set(request) - allowed:
             raise RepeatServiceError(
@@ -171,12 +172,16 @@ class RepeatService:
                 "apply_mode debe ser add o replace_work_face.",
                 400,
             )
+        distribution = request.get("distribution", "auto")
+        if not isinstance(distribution, str) or distribution not in {"auto", "rows", "columns", "rotated"}:
+            raise RepeatServiceError("INVALID_REPEAT_REQUEST", "Distribución Repeat no soportada.", 400)
         return {
             "base_revision": revision,
             "work_ids": list(work_ids),
             "face": request["face"],
             "settings": normalized_settings,
             "apply_mode": apply_mode,
+            "distribution": distribution,
         }
 
 

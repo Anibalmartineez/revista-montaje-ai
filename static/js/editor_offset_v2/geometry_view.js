@@ -84,7 +84,16 @@
     return Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, Kernel.finiteNumber(value, "zoom")));
   }
 
+  // Mirror domain/crop_marks.py; covered by shared metric fixtures.
+  function cropMarkDimensions(bleed) {
+    if (bleed <= 0) return null;
+    const width = Math.min(0.2, bleed / 5);
+    const start = Math.min(1, bleed / 4);
+    return { start, end: Math.min(bleed - width / 2, start + 3), width };
+  }
+
   return Object.freeze({
+    cropMarkDimensions,
     ...Kernel,
     MIN_ZOOM,
     MAX_ZOOM,

@@ -27,11 +27,17 @@
     };
   }
 
+  function proposalSignature(proposal) {
+    return JSON.stringify((proposal?.slots || []).map((slot) =>
+      [slot.work_id, slot.face, slot.source, slot.geometry]).map(JSON.stringify).sort());
+  }
+
   function renderIssueList(container, issues, warnings) {
     container.replaceChildren();
+    const issueMessages = new Set((issues || []).map((issue) => issue.message));
     const messages = [...new Set([
       ...(issues || []).map((issue) => `${issue.code}: ${issue.message}`),
-      ...(warnings || []),
+      ...(warnings || []).filter((message) => !issueMessages.has(message)),
     ])];
     for (const message of messages) {
       const item = document.createElement("li");
@@ -83,6 +89,8 @@
       this.refs.repeatCalculate.addEventListener("click", () => this.runAction("repeat.calculate"));
       this.refs.repeatApply.addEventListener("click", () => this.runAction("repeat.apply"));
       this.refs.repeatDiscard?.addEventListener("click", () => this.runAction("repeat.discard"));
+      this.refs.repeatAlternative?.addEventListener("click", () => this.runAction("repeat.alternative"));
+      this.refs.repeatDistribution?.addEventListener("change", () => this.invalidateProposal());
       for (const control of [
         this.refs.repeatFace,
         this.refs.repeatGapX,
@@ -147,7 +155,15 @@
       return [...this.refs.repeatModes].find((input) => input.checked)?.value || "add";
     }
 
-    async calculate() {
+    async alternative() {
+      if (!this.refs.repeatDistribution || this.store.repeatPanel.status === "calculating") return;
+      const previous = this.store.repeatPanel.proposal;
+      const choices = ["auto", "rows", "columns", "rotated"];
+      this.refs.repeatDistribution.value = choices[(choices.indexOf(this.refs.repeatDistribution.value) + 1) % choices.length];
+      return this.calculate(previous);
+    }
+
+    async calculate(previous = null) {
       this.invalidateProposal();
       const workIds = selectedWorkIds(this.refs.repeatWorks);
       const settings = readSettings(this.refs);
@@ -180,6 +196,7 @@
           face: this.refs.repeatFace.value,
           settings,
           apply_mode: this.selectedMode(),
+          distribution: this.refs.repeatDistribution?.value || "auto",
         };
         const jobId = this.store.layout.job.id;
         const response = await this.api.proposeRepeat(this.context.repeat_api_url, request);
@@ -197,11 +214,16 @@
           face: request.face,
           settings: { ...settings },
           mode: request.apply_mode,
+          distribution: request.distribution,
         };
         this.applied = false;
         if (!response.result.success) {
           this.store.setRepeatState("error", response.result, "La propuesta Repeat no es aplicable.");
           return;
+        }
+        if (previous?.success && proposalSignature(previous) === proposalSignature(response.result)) {
+          response.result.warnings = [...(response.result.warnings || []),
+            "Esta distribución produce el mismo montaje que la anterior con las condiciones actuales."];
         }
         this.store.setRepeatState("ready", response.result, null, this.proposalContext);
       } catch (error) {
@@ -221,6 +243,7 @@
           || this.store.saveState.status !== "clean"
           || this.proposalContext.face !== this.refs.repeatFace.value
           || this.proposalContext.mode !== this.selectedMode()
+          || this.proposalContext.distribution !== (this.refs.repeatDistribution?.value || "auto")
           || JSON.stringify(this.proposalContext.settings) !== JSON.stringify(readSettings(this.refs))
           || JSON.stringify(this.proposalContext.workIds) !== JSON.stringify(selectedWorkIds(this.refs.repeatWorks))) {
         this.invalidateProposal();
@@ -247,6 +270,8 @@
     renderState() {
       const state = this.store.repeatPanel;
       const proposal = state.proposal;
+      if (this.refs.repeatAlternative) this.refs.repeatAlternative.disabled = !["ready", "error"].includes(state.status);
+      this.refs.repeatCalculate.disabled = state.status === "calculating" || !this.store.layout.works.length;
       this.refs.repeatStatus.textContent = state.error
         || ({ idle: "Configura y calcula una propuesta.", calculating: "Calculando…", ready: "Propuesta lista para aplicar.", applied: "Propuesta aplicada al layout." }[state.status] || "");
       this.refs.repeatStatus.dataset.state = state.status;

@@ -283,14 +283,15 @@
         );
         if (artwork) group.append(artwork);
         const marks = state.layout.export.marks_profiles.find((p) => p.id === slot.production.marks_profile_id);
-        if (marks?.crop_marks) {
-          const gap = bleed + 1;
+        const markDimensions = this.geometry.cropMarkDimensions(bleed);
+        if (marks?.crop_marks && markDimensions) {
+          const { start: gap, end, width } = markDimensions;
           for (const sx of [-1, 1]) for (const sy of [-1, 1]) {
             const x = sx * trim.width / 2, y = sy * trim.height / 2;
-            group.append(svgElement("line", { x1: x + sx * gap, y1: y, x2: x + sx * (gap + 3), y2: y,
-              stroke: "black", "stroke-width": 0.2, class: "ev2-svg-crop-mark", "pointer-events": "none" }));
-            group.append(svgElement("line", { x1: x, y1: y + sy * gap, x2: x, y2: y + sy * (gap + 3),
-              stroke: "black", "stroke-width": 0.2, class: "ev2-svg-crop-mark", "pointer-events": "none" }));
+            group.append(svgElement("line", { x1: x + sx * gap, y1: y, x2: x + sx * end, y2: y,
+              stroke: "black", "stroke-width": width, "stroke-linecap": "butt", class: "ev2-svg-crop-mark", "pointer-events": "none" }));
+            group.append(svgElement("line", { x1: x, y1: y + sy * gap, x2: x, y2: y + sy * end,
+              stroke: "black", "stroke-width": width, "stroke-linecap": "butt", class: "ev2-svg-crop-mark", "pointer-events": "none" }));
           }
         }
         group.append(

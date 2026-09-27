@@ -35,6 +35,18 @@ def four_pages():
     return case,layout
 
 
+def test_distribution_choices_are_distinct_bounded_and_respect_geometry():
+    problem=PackingProblem(Bounds(0,150,0,150),(Piece('a',Size(40,20),3,(0,90)),),3,5)
+    results={strategy:pack(replace(problem,distribution=strategy)) for strategy in ('auto','rows','columns','rotated')}
+    for result in results.values():
+        assert len(result.placements)==3 and not result.limited
+        check_geometry(result,problem.area,3,5)
+    assert results['rows'].placements!=results['columns'].placements
+    assert all(p.rotation==90 for p in results['rotated'].placements)
+    fixed=pack(replace(problem,distribution='rotated',pieces=(replace(problem.pieces[0],rotations=(0,)),)))
+    assert all(p.rotation==0 for p in fixed.placements)
+
+
 def propose(layout,case,mode='add',**options):
     return RepeatEngineAdapter().propose(layout,[w['id'] for w in layout['works']],'front',settings(case,**options),
         operation_id='repeat_native_test',generated_at=GENERATED_AT,apply_mode=mode)

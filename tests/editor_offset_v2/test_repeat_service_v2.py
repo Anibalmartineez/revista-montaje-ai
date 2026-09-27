@@ -120,6 +120,17 @@ def test_service_returns_proposal_without_persisting_and_is_deterministic(tmp_pa
     assert repository.read_layout(JOB_ID)["job"]["revision"] == 1
 
 
+def test_distribution_is_transient_and_part_of_operation_identity(tmp_path):
+    service, repository=make_service(tmp_path)
+    before=repository.read_layout(JOB_ID)
+    results=[service.propose(JOB_ID,payload(distribution=s)) for s in ('auto','rows','columns','rotated')]
+    assert all(r.success for r in results)
+    assert len({r.operation_id for r in results})==4
+    assert repository.read_layout(JOB_ID)==before
+    for invalid in ('random',None,{},1):
+        with pytest.raises(RepeatServiceError): service.propose(JOB_ID,payload(distribution=invalid))
+
+
 def test_service_rejects_revision_conflict_and_disabled_face(tmp_path):
     service, _ = make_service(tmp_path)
 
