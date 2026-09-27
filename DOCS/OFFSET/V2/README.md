@@ -4,6 +4,8 @@
 
 **Entrada actual: [41 — Trabajo diario y bitácora V2](41_TRABAJO_DIARIO_Y_BITACORA_V2.md).** Por decisión del usuario, el avance parte del código existente y de las pruebas de uso, con código propio e independiente para V2. No hay un roadmap ni un siguiente paso obligatorio heredado de los documentos anteriores.
 
+Para localizar módulos y seguir sus conexiones, consultar [44 — Mapa de conexiones del Editor Offset Visual V2](44_MAPA_CONEXIONES_EDITOR_OFFSET_V2.md), inventario estático del código, rutas, frontend, persistencia, pruebas y referencias del repositorio.
+
 Los documentos 01–40 se conservan como referencias y evidencia de sus cortes. Consultarlos cuando una duda concreta lo justifique; no son la fuente de verdad del producto. Registrar lo comprobado y los cambios realizados en la bitácora 41.
 
 ## Índice de antecedentes

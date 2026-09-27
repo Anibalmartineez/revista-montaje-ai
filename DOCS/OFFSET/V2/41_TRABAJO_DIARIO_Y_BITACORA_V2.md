@@ -63,6 +63,14 @@ No es necesario crear un documento numerado por cada ajuste. Separar una explica
 
 ## Bitácora
 
+### 2026-09-27 — Mapa integral de conexiones del Editor Offset Visual V2
+
+**Solicitud:** localizar todos los archivos y conexiones del editor V2 en el repositorio, con revisión paralela de backend, frontend y referencias externas. **Observado:** `app.py` es la entrada de registro y también carga `routes.py` legacy al iniciar Flask; el producto V2 reúne 40 Python y 2 schemas propios, un HTML, un CSS, una entrada JS y 35 módulos JS cargados por la plantilla. Hay 28 módulos de prueba Python, 18 Node y 6 Playwright V2, además de fixtures, scripts y 49 Markdown previos de V2. El flujo habitual de Repeat usa el empaquetador propio; el preflight/Preview/PDF usa servicios y compositor V2. La ruta de capacidades históricas no tiene consumidor en la UI habitual, y `artifact_lifecycle.py` no tiene invocador productivo localizado.
+
+**Cambiado:** se añadió [44 — Mapa de conexiones](44_MAPA_CONEXIONES_EDITOR_OFFSET_V2.md) con entradas HTTP, relaciones entre capas, inventario exhaustivo de archivos, persistencia, pruebas y fronteras legacy; se enlazó desde `README.md`. No se modificó código de producto, schema ni datos de jobs.
+
+**Verificado:** búsquedas de archivos y referencias, lectura de registro, template, imports, rutas y puntos de composición; tres revisiones paralelas de solo lectura. No se inició Flask, no hubo recorrido interactivo ni se ejecutaron tests: el mapa describe conexiones estáticas y no certifica funcionamiento. No se creó commit. Queda abierta la dependencia de arranque de `app.py` respecto al registro legacy y la diferencia entre utilidades históricas presentes y rutas de producto activas; este registro no las convierte en tareas automáticas.
+
 ### 2026-09-27 — Decisión de sangrado por trabajo: entrega 3 de salida PDF habitual
 
 **Solicitud:** implementar la preparación comprensible de una o varias páginas, con decisión de sangrado persistente y coherente entre canvas, preflight, Preview y PDF. Base limpia `374f048`; sin commit/push en esta intervención.
