@@ -6,6 +6,8 @@
 
 Para localizar módulos y seguir sus conexiones, consultar [44 — Mapa de conexiones del Editor Offset Visual V2](44_MAPA_CONEXIONES_EDITOR_OFFSET_V2.md), inventario estático del código, rutas, frontend, persistencia, pruebas y referencias del repositorio.
 
+[45 — Segunda revisión de subagentes y explicación funcional](45_INFORME_SEGUNDA_REVISION_SUBAGENTES_Y_FUNCIONAMIENTO_V2.md) reúne los hallazgos de la verificación ejecutable, el funcionamiento paso a paso, las herramientas disponibles y las ideas de ampliación para publicaciones, con sus límites y evidencia.
+
 Los documentos 01–40 se conservan como referencias y evidencia de sus cortes. Consultarlos cuando una duda concreta lo justifique; no son la fuente de verdad del producto. Registrar lo comprobado y los cambios realizados en la bitácora 41.
 
 ## Índice de antecedentes

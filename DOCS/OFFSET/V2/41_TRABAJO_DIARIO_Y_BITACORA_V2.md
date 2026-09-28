@@ -63,6 +63,12 @@ No es necesario crear un documento numerado por cada ajuste. Separar una explica
 
 ## Bitácora
 
+### 2026-09-27 — Informe explicativo de la segunda entrega de subagentes
+
+**Solicitud:** crear otro documento con los textos y hallazgos de la segunda revisión de los subagentes y la respuesta final: funcionamiento paso a paso, herramientas actuales e ideas de ampliación. **Cambiado:** se añadió [45 — Segunda revisión de subagentes y explicación funcional](45_INFORME_SEGUNDA_REVISION_SUBAGENTES_Y_FUNCIONAMIENTO_V2.md), consolidando backend, frontend, investigación editorial y recorrido de la copia real; se enlazó desde README. El informe explica el fallo estructural corregido, las precisiones del mapa, las pruebas y sus momentos, el límite de 500 piezas y las ocho ideas investigadas. No duplica el inventario completo de archivos de 44 ni convierte propuestas en funciones implementadas.
+
+**Verificado:** coherencia con los informes de la sesión y evidencia ya registrada en 44, referencias locales y `git diff --check`. Es una consolidación documental: no se ejecutaron nuevamente tests, Flask ni recorridos. Sin cambio de producto, schema, datos o commit en esta intervención.
+
 ### 2026-09-27 — Contraste ejecutable del mapa 44 y posibilidades editoriales
 
 **Solicitud:** releer el mapa completo con todos los subagentes disponibles, comprobar el sistema mediante ejecución, resumir su funcionamiento y estudiar nuevas herramientas, especialmente revistas. Se repartieron backend/artefactos, frontend/QA e investigación funcional; el agente principal gestionó Flask, recorrió una copia real y consolidó el mapa. Rama limpia al comenzar; autorización para probar y corregir, sin Git publicación.
