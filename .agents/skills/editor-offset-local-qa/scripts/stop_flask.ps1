@@ -33,6 +33,7 @@ $pidPath = Join-Path $runtimeDir "flask.pid"
 $metadataPath = Join-Path $runtimeDir "process.json"
 $expectedPythonPath = Join-Path $repoRoot "venv\Scripts\python.exe"
 $expectedEntryPoint = Join-Path $repoRoot "app.py"
+$exclusiveEntryPoint = Join-Path $repoRoot "editor_offset_v2\web_app.py"
 
 if (-not (Test-Path -LiteralPath $pidPath -PathType Leaf)) {
     Write-Output "No existe un PID guardado por la Skill. No se detuvo ningún proceso."
@@ -70,8 +71,12 @@ if ([int]$metadata.pid -ne $savedPid) {
 if (-not (Test-SamePath -Left ([string]$metadata.executable_path) -Right $expectedPythonPath)) {
     $verificationErrors.Add("la ruta del intérprete registrada no coincide con el venv")
 }
-if (-not (Test-SamePath -Left ([string]$metadata.entry_point) -Right $expectedEntryPoint)) {
-    $verificationErrors.Add("el archivo de entrada registrado no coincide con app.py")
+$exclusive = Test-SamePath -Left ([string]$metadata.entry_point) -Right $exclusiveEntryPoint
+if (-not $exclusive -and -not (Test-SamePath -Left ([string]$metadata.entry_point) -Right $expectedEntryPoint)) {
+    $verificationErrors.Add("el archivo de entrada registrado no coincide con una entrada autorizada")
+}
+if ($exclusive -and [string]$metadata.target -ne "v2") {
+    $verificationErrors.Add("la entrada exclusiva requiere target v2")
 }
 if (-not (Test-SamePath -Left ([string]$metadata.working_directory) -Right $repoRoot)) {
     $verificationErrors.Add("el directorio de trabajo registrado no coincide con la raíz Git")
@@ -115,7 +120,8 @@ try {
             $verificationErrors.Add("Win32 reporta un ejecutable diferente")
         }
         $commandLine = [string]$cimProcess.CommandLine
-        if ($commandLine -notmatch "editor-offset-local-qa" -or $commandLine -notmatch "from app import app") {
+        $expectedImport = if ($exclusive) { "from editor_offset_v2.web_app import create_app" } else { "from app import app" }
+        if ($commandLine -notmatch "editor-offset-local-qa" -or -not $commandLine.Contains($expectedImport)) {
             $verificationErrors.Add("la línea de comandos no contiene el marcador y punto de entrada esperados")
         }
     }
@@ -127,7 +133,7 @@ if ($verificationErrors.Count -gt 0) {
     throw "No hay verificación suficiente para detener el PID $savedPid. No se realizó ninguna detención. Motivos: $($verificationErrors -join '; ')"
 }
 
-Write-Output "Verificación satisfactoria: PID, ejecutable, ruta del venv, app.py, raíz, hora de inicio y línea de comandos coinciden."
+Write-Output "Verificación satisfactoria: PID, ejecutable, ruta del venv, entrada autorizada, raíz, hora de inicio y línea de comandos coinciden."
 Stop-Process -Id $savedPid -ErrorAction Stop
 $deadline = (Get-Date).AddSeconds(5)
 do {

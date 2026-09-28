@@ -6,7 +6,8 @@ Levantamiento estático inicial y contraste posterior con ejecución, 2026-09-27
 
 ```mermaid
 flowchart LR
-  APP[app.py] --> BP[editor_offset_v2/blueprint.py]
+  HOST[editor_offset_v2/web_app.py: create_app exclusivo] --> BP[editor_offset_v2/blueprint.py]
+  APP[app.py: convivencia] --> BP
   BP --> HTML[templates/editor_offset_visual_v2.html]
   HTML --> CSS[static/css/editor_offset_visual_v2.css]
   HTML --> ENTRY[static/js/editor_offset_visual_v2.js]
@@ -32,7 +33,9 @@ flowchart LR
   COMPOSE --> FILES
 ```
 
-`app.py` registra el blueprint V2. Su arranque también importa y registra `routes.py` legacy: el flujo de producto V2 reside en módulos propios, pero no se puede afirmar independencia de **todo el proceso Flask**. La importación de `editor_offset_v2/__init__.py` carga además el adaptador de diagnóstico histórico. Esta distinción importa al auditar dependencias transitivas.
+Desde 2026-09-28, `editor_offset_v2/web_app.py:create_app` es el host exclusivo del target v2 y del arranque habitual. Registra solo el blueprint V2, raíz con redirección al editor, identidad `/health/editor-offset-v2` y recursos estáticos V2 permitidos. Conserva las carpetas existentes y el límite HTTP efectivo de 32 MiB; no migra ni normaliza jobs al arrancar. Acepta configuración explícita y raíz de jobs del entorno de proceso; no carga `.env` general.
+
+`app.py` sigue registrando V2 en convivencia con `routes.py` legacy, para target v1/both. Ese proceso continúa dependiendo de otros productos. La importación del paquete V2 todavía carga su adaptador de diagnóstico histórico, pero no ejecuta las sondas legacy durante el recorrido habitual. La aceptación exclusiva bloquea imports de todo producto del repositorio ajeno a V2, incluidas dependencias transitivas, y comprueba el flujo hasta archivos PNG/PDF; no equivale a un paquete distribuible sin archivos legacy.
 
 ## Entradas HTTP y consumidores
 
@@ -59,11 +62,12 @@ Los gates Preview, PDF y derivados son separados en `config.py` y `blueprint.py`
 
 ## Backend: inventario completo de propiedad V2
 
-Son 40 archivos Python y 2 schemas JSON en `editor_offset_v2/`. La flecha de cada fila nombra la conexión funcional principal, no pretende listar cada import estándar o externo.
+Son 41 archivos Python y 2 schemas JSON en `editor_offset_v2/`. La flecha de cada fila nombra la conexión funcional principal, no pretende listar cada import estándar o externo.
 
 | Archivo | Papel y conexiones |
 |---|---|
 | `__init__.py` | paquete y exportaciones; importa el adaptador histórico al cargar el paquete |
+| `web_app.py` | fábrica exclusiva, rutas raíz/identidad/static V2 y límite HTTP → blueprint; no importa otros productos |
 | `config.py` | flags, raíz de jobs y límite de subida → `app.py`/blueprint |
 | `blueprint.py` | 14 endpoints y contexto HTML → servicios de aplicación |
 | `domain/__init__.py` | exportaciones del dominio |
@@ -144,7 +148,7 @@ La raíz predeterminada es `instance/editor_offset_v2_jobs/<job_id>/` con `layou
 
 | Zona | Archivos relacionados y uso |
 |---|---|
-| Arranque | `app.py`; `scripts/start_editor_offset_v2.ps1`, `scripts/check_editor_offset_v2_start.py`; `scripts/start_editor_offset_v2_output_qa.ps1`, `scripts/check_editor_offset_v2_output_qa.py` |
+| Arranque | `editor_offset_v2/web_app.py:create_app` exclusivo; `app.py` convivencia; `scripts/start_editor_offset_v2.ps1`, `scripts/check_editor_offset_v2_start.py`; `scripts/start_editor_offset_v2_output_qa.ps1`, `scripts/check_editor_offset_v2_output_qa.py` |
 | Operación local | `.agents/skills/editor-offset-local-qa/SKILL.md` y `scripts/check_flask.py`, `start_flask.ps1`, `stop_flask.ps1` dentro de esa skill |
 | Repositorio | `.gitignore` ignora la raíz de jobs; `AGENTS.md` fija reglas; archivo raíz `tatus` contiene solo avisos Git históricos con nombres V2 y no participa del editor |
 | Fixture PDF | `tests/fixtures/editor_offset_v2/` contiene `boxes-missing.pdf`, `boxes-offset.pdf`, `front-back-flip.pdf`, `marks-clipping.pdf`, `mirror-bleed-candidate.pdf`, `multipage-rotations.pdf` y `generate_pdf_fixtures.py` |
@@ -152,7 +156,7 @@ La raíz predeterminada es `instance/editor_offset_v2_jobs/<job_id>/` con `layou
 
 ### Pruebas localizadas
 
-- **Python (`tests/editor_offset_v2/`, 28 módulos + `conftest.py`):** `test_artifact_lifecycle_v2.py`, `test_asset_service_v2.py`, `test_assets_routes_v2.py`, `test_derived_parity_v2.py`, `test_frontend_placeholder_v2.py`, `test_geometry_v2.py`, `test_job_repository_v2.py`, `test_job_service_v2.py`, `test_layout_v2_contract.py`, `test_legacy_output_probe_v2.py`, `test_native_compositor_v2.py`, `test_output_acceptance_v2.py`, `test_output_adapter_v2.py`, `test_output_parity_contract_v2.py`, `test_output_safety_v2.py`, `test_pdf_final_v2.py`, `test_pdf_fixture_parity_v2.py`, `test_pdf_inspector_v2.py`, `test_preflight_decisions_v2.py`, `test_preflight_v2.py`, `test_prepared_output_probe_v2.py`, `test_prepared_pdf_source_v2.py`, `test_preview_v2.py`, `test_repeat_engine_adapter_v2.py`, `test_repeat_packer_v2.py`, `test_repeat_service_v2.py`, `test_routes_v2.py`, `test_work_bleed_v2.py`.
+- **Python (`tests/editor_offset_v2/`, 30 módulos + `conftest.py`):** `test_exclusive_host_v2.py`, `test_local_host_check_v2.py`, `test_artifact_lifecycle_v2.py`, `test_asset_service_v2.py`, `test_assets_routes_v2.py`, `test_derived_parity_v2.py`, `test_frontend_placeholder_v2.py`, `test_geometry_v2.py`, `test_job_repository_v2.py`, `test_job_service_v2.py`, `test_layout_v2_contract.py`, `test_legacy_output_probe_v2.py`, `test_native_compositor_v2.py`, `test_output_acceptance_v2.py`, `test_output_adapter_v2.py`, `test_output_parity_contract_v2.py`, `test_output_safety_v2.py`, `test_pdf_final_v2.py`, `test_pdf_fixture_parity_v2.py`, `test_pdf_inspector_v2.py`, `test_preflight_decisions_v2.py`, `test_preflight_v2.py`, `test_prepared_output_probe_v2.py`, `test_prepared_pdf_source_v2.py`, `test_preview_v2.py`, `test_repeat_engine_adapter_v2.py`, `test_repeat_packer_v2.py`, `test_repeat_service_v2.py`, `test_routes_v2.py`, `test_work_bleed_v2.py`.
 - **Node (`tests/editor_offset_v2/js/`, 18 módulos):** `advanced_selection_object_tree_v2.test.cjs`, `alignment_distribution_matrix_v2.test.cjs`, `assets_commands_v2.test.cjs`, `crop_marks_v2.test.cjs`, `editor_core_v2.test.cjs`, `geometry_parity_v2.test.cjs`, `object_operations_v2.test.cjs`, `output_diagnosis_v2.test.cjs`, `positioning_commands_v2.test.cjs`, `preparation_v2.test.cjs`, `repeat_commands_v2.test.cjs`, `repeat_proposal_freshness_v2.test.cjs`, `responsive_panels_v2.test.cjs`, `rulers_guides_snap_measurement_v2.test.cjs`, `semantic_stabilization_v2.test.cjs`, `sheet_configuration_v2.test.cjs`, `work_bleed_v2.test.cjs`, `workflow_navigation_v2.test.cjs`.
 - **Navegador (`tests/playwright/`, 6 V2):** `test_editor_offset_v2.py`, `test_editor_offset_v2_ux_characterization.py`, `test_editor_offset_v2_output_integration.py`, `test_editor_offset_v2_native_repeat.py`, `test_editor_offset_v2_preparation.py`, `test_editor_offset_v2_work_bleed.py`. Otros tests Playwright de `test_editor_*` corresponden a V1 y no se incluyen en el mapa V2.
 
@@ -167,7 +171,7 @@ Los 49 Markdown de `DOCS/OFFSET/V2/` anteriores a este mapa comprenden `README.m
 
 ## Alcance del levantamiento inicial
 
-Este inventario procede de búsqueda de archivos/referencias y lectura de puntos de composición, rutas, imports, servicios y pruebas por tres revisiones paralelas. No demuestra que cada recorrido funcione en un servidor activo ni que la cobertura de pruebas sea exhaustiva. En particular, la independencia de arranque respecto a V1 sigue limitada por `app.py`; los módulos de ensayo legacy no son la salida habitual; la retención en `artifact_lifecycle.py` no aparece conectada a una ruta productiva. Para verificar un cambio concreto, recorrer su acción de UI, endpoint, servicio, persistencia/artefacto y prueba pertinente.
+El inventario inicial procede de búsqueda de archivos/referencias y lectura de puntos de composición, rutas, imports, servicios y pruebas por tres revisiones paralelas. No demuestra cobertura exhaustiva. En ese corte, el arranque dependía de `app.py`; la entrada exclusiva y su aceptación de 2026-09-28 se describen arriba y en 41. Los módulos de ensayo legacy no son la salida habitual; la retención en `artifact_lifecycle.py` no aparece conectada a una ruta productiva. Para verificar un cambio concreto, recorrer su acción de UI, endpoint, servicio, persistencia/artefacto y prueba pertinente.
 
 ## Contraste mediante ejecución — 2026-09-27
 

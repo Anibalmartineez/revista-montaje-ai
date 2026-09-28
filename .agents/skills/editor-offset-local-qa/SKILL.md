@@ -8,7 +8,7 @@ description: Iniciar, comprobar y detener de forma controlada Flask local para E
 ## Selección de versión
 
 - Usar v1 para /editor_offset_visual.
-- Usar v2 para /editor_offset_visual_v2.
+- Usar v2 para /editor_offset_visual_v2 con la fábrica exclusiva `editor_offset_v2/web_app.py:create_app`, sin importar `app.py` ni `routes.py`.
 - Usar both cuando ambas superficies deban responder en el mismo proceso.
 - Si el usuario menciona V2, su URL, Layout V2 o editor_offset_v2, seleccionar v2.
 - Si no indica versión y el contexto no la determina, conservar v1 para compatibilidad.
@@ -24,10 +24,10 @@ El script usa directamente el Python del venv. No activa el entorno virtual ni d
 ## Reglas de seguridad
 
 - Trabajar siempre desde la raíz Git del repositorio activo. Ejecutar primero `git rev-parse --show-toplevel` y usar la ruta devuelta como directorio de trabajo.
-- Verificar que existan `venv\Scripts\python.exe` y `app.py` en esa raíz.
+- Verificar `venv\Scripts\python.exe` y la entrada del target: `editor_offset_v2/web_app.py` para v2; `app.py` para v1/both.
 - Usar directamente `venv\Scripts\python.exe`; no depender de activar manualmente el entorno virtual ni de una terminal que ya lo tenga activado.
 - Usar rutas relativas a la raíz cuando sea posible.
-- No modificar código, dependencias, variables persistentes, configuración ni archivos de la aplicación.
+- Al administrar el proceso no modificar código, dependencias, variables persistentes ni archivos de la aplicación. Una solicitud explícita de implementación puede autorizar cambios a esta habilidad y sus scripts.
 - Esta Skill administra Flask y comprueba HTTP. La exploración visual posterior debe usar la herramienta de navegador autorizada para la tarea.
 - No afirmar que una página funciona si no fue comprobada realmente. No continuar con pruebas visuales si Flask no responde correctamente.
 - Si otro servidor ya responde en el puerto 5000 pero no sirve la versión pedida, no iniciar otro proceso. Informar que debe detenerse o reiniciarse con el target correcto.
@@ -38,7 +38,7 @@ El script usa directamente el Python del venv. No activa el entorno virtual ni d
 2. Verificar `venv\Scripts\python.exe`.
 3. Seleccionar `v1`, `v2` o `both` según la solicitud.
 4. Ejecutar `venv\Scripts\python.exe .agents\skills\editor-offset-local-qa\scripts\check_flask.py --target <target>`.
-5. Si todas las rutas obligatorias responden, informar el resultado y no iniciar un segundo servidor.
+5. Si todas las rutas obligatorias responden, informar el resultado y no iniciar un segundo servidor. Para v2 se exige además `/health/editor-offset-v2` con identidad JSON exclusiva; la convivencia no satisface este target.
 6. Si no responden, ejecutar `powershell -NoProfile -ExecutionPolicy Bypass -File .agents\skills\editor-offset-local-qa\scripts\start_flask.ps1 -Target <target>`.
 7. Volver a ejecutar `check_flask.py --target <target>`. Informar URLs, target, flags V2, intentos, estados HTTP y criterio de éxito realmente comprobados.
 8. Si Flask falla, leer y resumir los archivos de stdout y stderr informados por el script de inicio. No ocultar errores ni continuar con pruebas visuales.
@@ -60,6 +60,8 @@ URL esperada:
 - Comprobar primero si Flask ya responde y no iniciar otro servidor si está activo.
 - No crear procesos duplicados cuando exista un PID guardado todavía activo.
 - Registrar en `process.json` el target y los valores efectivos de los flags V2.
+- El stop verifica la entrada exclusiva o la entrada de convivencia y su import correspondiente. Acepta los registros anteriores de `app.py`, incluso con target v2, para permitir su detención segura durante la transición.
+- La raíz predeterminada de jobs se conserva en `instance/editor_offset_v2_jobs`; la fábrica acepta configuración explícita o `EDITOR_OFFSET_V2_JOBS_ROOT` del proceso. No carga el `.env` general del producto. Preview/PDF conservan gates separados: el perfil habitual se configura mediante `scripts/start_editor_offset_v2.ps1`.
 - Aplicar los flags V2 únicamente al proceso hijo controlado; no cambiar variables de usuario o máquina.
 - Detener únicamente el PID guardado por esta Skill y verificar razonablemente su ejecutable, ruta, hora de inicio y línea de comandos mediante los metadatos.
 - No finalizar procesos desconocidos, no matar procesos por puerto y no usar comandos generales como `taskkill /IM python.exe`.

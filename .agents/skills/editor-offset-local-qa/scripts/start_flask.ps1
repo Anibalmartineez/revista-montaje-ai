@@ -47,7 +47,7 @@ $repoRoot = Get-RepositoryRoot
 Set-Location -LiteralPath $repoRoot
 
 $pythonPath = Join-Path $repoRoot "venv\Scripts\python.exe"
-$entryPoint = Join-Path $repoRoot "app.py"
+$entryPoint = if ($Target -eq "v2") { Join-Path $repoRoot "editor_offset_v2\web_app.py" } else { Join-Path $repoRoot "app.py" }
 $checkScript = Join-Path $repoRoot ".agents\skills\editor-offset-local-qa\scripts\check_flask.py"
 $runtimeDir = Join-Path $repoRoot ".codex-runtime\editor-offset-local-qa"
 $pidPath = Join-Path $runtimeDir "flask.pid"
@@ -86,8 +86,12 @@ $timestamp = Get-Date -Format "yyyyMMdd-HHmmss-fff"
 $stdoutPath = Join-Path $runtimeDir "stdout-$timestamp.log"
 $stderrPath = Join-Path $runtimeDir "stderr-$timestamp.log"
 
-# Importar app.py sin ejecutar su bloque __main__ evita el reloader de Werkzeug y conserva un único PID controlable.
-$bootstrapCode = "from app import app; skill_marker='editor-offset-local-qa'; app.run(debug=True, use_reloader=False)"
+# V2 usa su fábrica exclusiva; v1/both conservan app.py. Sin reloader: un único PID controlable.
+$bootstrapCode = if ($targetValue -eq "v2") {
+    "from editor_offset_v2.web_app import create_app; app=create_app(); skill_marker='editor-offset-local-qa'; app.run(debug=False, use_reloader=False)"
+} else {
+    "from app import app; skill_marker='editor-offset-local-qa'; app.run(debug=True, use_reloader=False)"
+}
 $bootstrapArgument = '"' + $bootstrapCode + '"'
 $commandDisplay = '"{0}" -c "{1}"' -f $pythonPath, $bootstrapCode
 

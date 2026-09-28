@@ -5,10 +5,9 @@ import threading
 
 import fitz
 import pytest
-from flask import Flask
 from werkzeug.serving import make_server
 
-from editor_offset_v2.blueprint import init_editor_offset_v2
+from editor_offset_v2.web_app import create_app
 
 
 playwright_api = pytest.importorskip("playwright.sync_api")
@@ -20,18 +19,14 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 
 @pytest.fixture
 def v2_characterization_server(tmp_path):
-    app = Flask(
-        __name__,
-        template_folder=str(REPO_ROOT / "templates"),
-        static_folder=str(REPO_ROOT / "static"),
-        instance_path=str(tmp_path / "instance"),
-    )
-    app.config.update(
+    app = create_app(dict(
         TESTING=True,
         EDITOR_OFFSET_V2_ENABLED=True,
+        EDITOR_OFFSET_V2_PREVIEW_ENABLED=False,
+        EDITOR_OFFSET_V2_PDF_FINAL_ENABLED=False,
+        EDITOR_OFFSET_V2_DEV_TOOLS_ENABLED=False,
         EDITOR_OFFSET_V2_JOBS_ROOT=str(tmp_path / "v2_jobs"),
-    )
-    init_editor_offset_v2(app)
+    ))
 
     server = make_server("127.0.0.1", 0, app, threaded=True)
     thread = threading.Thread(target=server.serve_forever, daemon=True)

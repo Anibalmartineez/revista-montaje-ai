@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+import json
 import socket
 import time
 import urllib.error
@@ -12,10 +13,11 @@ from typing import Sequence
 ROOT_URL = "http://127.0.0.1:5000/"
 EDITOR_V1_URL = "http://127.0.0.1:5000/editor_offset_visual"
 EDITOR_V2_URL = "http://127.0.0.1:5000/editor_offset_visual_v2"
+V2_HEALTH_URL = "http://127.0.0.1:5000/health/editor-offset-v2"
 URLS_BY_TARGET: dict[str, tuple[str, ...]] = {
     "root": (ROOT_URL,),
     "v1": (ROOT_URL, EDITOR_V1_URL),
-    "v2": (ROOT_URL, EDITOR_V2_URL),
+    "v2": (ROOT_URL, EDITOR_V2_URL, V2_HEALTH_URL),
     "both": (ROOT_URL, EDITOR_V1_URL, EDITOR_V2_URL),
 }
 SUCCESS_STATUS_MIN = 200
@@ -96,6 +98,12 @@ def check_url(url: str, timeout: float) -> CheckResult:
             status = response.getcode()
             if not isinstance(status, int):
                 return CheckResult(url, None, False, "respuesta sin estado HTTP válido")
+            if url == V2_HEALTH_URL:
+                identity = json.loads(response.read())
+                ok = status == 200 and identity == {
+                    "application": "editor-offset-v2", "hosting": "exclusive", "layout_schema_version": 2,
+                }
+                return CheckResult(url, status, ok, "identidad exclusiva V2 verificada" if ok else "identidad V2 incorrecta")
             return CheckResult(
                 url,
                 status,
@@ -107,7 +115,7 @@ def check_url(url: str, timeout: float) -> CheckResult:
         return CheckResult(
             url,
             status,
-            is_success_status(status),
+            is_success_status(status) and url != V2_HEALTH_URL,
             f"respuesta HTTP: {exc.reason}",
         )
     except urllib.error.URLError as exc:
@@ -147,6 +155,8 @@ def main(argv: Sequence[str] | None = None) -> int:
         f"Criterio de éxito: todas las rutas deben devolver HTTP "
         f"{SUCCESS_STATUS_MIN}-{SUCCESS_STATUS_MAX}."
     )
+    if args.target == "v2":
+        print("Además se exige identidad JSON del host exclusivo V2; la convivencia no satisface este target.")
     print(
         f"Configuración: target={args.target}, intentos={args.attempts}, "
         f"intervalo={args.interval}s, timeout={args.timeout}s."

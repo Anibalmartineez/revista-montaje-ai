@@ -6,21 +6,17 @@ import io
 import base64
 import threading
 from pathlib import Path
-from flask import Flask
 from werkzeug.serving import make_server
-from editor_offset_v2.blueprint import init_editor_offset_v2
+from editor_offset_v2.web_app import create_app
 from PIL import Image, ImageChops, ImageStat
 from test_editor_offset_v2 import v2_server, sync_playwright, expect, _open_workflow_stage
 
 
 @pytest.fixture
 def output_server(tmp_path):
-    root=Path(__file__).resolve().parents[2]
-    app=Flask(__name__,template_folder=str(root/'templates'),static_folder=str(root/'static'))
-    app.config.update(TESTING=True,EDITOR_OFFSET_V2_ENABLED=True,EDITOR_OFFSET_V2_PREVIEW_ENABLED=True,
+    app=create_app(dict(TESTING=True,EDITOR_OFFSET_V2_ENABLED=True,EDITOR_OFFSET_V2_PREVIEW_ENABLED=True,
                       EDITOR_OFFSET_V2_PDF_FINAL_ENABLED=True,EDITOR_OFFSET_V2_DERIVED_ASSETS_ENABLED=True,
-                      EDITOR_OFFSET_V2_JOBS_ROOT=str(tmp_path/'jobs'))
-    init_editor_offset_v2(app)
+                      EDITOR_OFFSET_V2_DEV_TOOLS_ENABLED=False,EDITOR_OFFSET_V2_JOBS_ROOT=str(tmp_path/'jobs')))
     server=make_server('127.0.0.1',0,app,threaded=True);thread=threading.Thread(target=server.serve_forever,daemon=True);thread.start()
     try: yield f'http://127.0.0.1:{server.server_port}'
     finally: server.shutdown();server.server_close();thread.join(5)

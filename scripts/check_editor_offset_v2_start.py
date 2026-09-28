@@ -8,6 +8,11 @@ from urllib.request import Request, urlopen
 BASE = 'http://127.0.0.1:5000'
 JOB = 'invalid'
 
+with urlopen(BASE + '/health/editor-offset-v2', timeout=10) as response:
+    identity = json.load(response)
+if identity != {'application': 'editor-offset-v2', 'hosting': 'exclusive', 'layout_schema_version': 2}:
+    raise SystemExit('Expected the exclusive V2 host')
+
 
 def request(path):
     req = Request(BASE + path, data=b'{}', headers={'Content-Type': 'application/json'})

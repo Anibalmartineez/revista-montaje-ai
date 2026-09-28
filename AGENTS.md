@@ -128,7 +128,7 @@ Para V1, consultar `DOCS/OFFSET/` solo cuando V1 o una dependencia legacy esté 
 
 ### Backend y contrato
 
-- `app.py`: registra la superficie V2.
+- `editor_offset_v2/web_app.py:create_app`: host exclusivo V2; `app.py` conserva el registro en convivencia.
 - `editor_offset_v2/blueprint.py`: rutas HTML y API V2.
 - `editor_offset_v2/config.py`: flags, jobs root y límites.
 - `editor_offset_v2/domain/`: Layout V2, validación, geometría, sangrado por trabajo, Repeat, marcas y contratos de salida.
@@ -189,12 +189,12 @@ Superficies legacy o transversales que requieren análisis especial si aparecen 
 
 No modificar una superficie compartida como parte de un cambio “solo V2” sin declarar y validar su blast radius sobre V1.
 
-El Repeat habitual V2 importa `editor_offset_v2/domain/repeat_packer.py`, no `engines/step_repeat_pro_engine.py`. Preview/PDF habitual usa compositor V2. `prepared_output_adapter.py` y `legacy_output_probe.py` conservan imports locales legacy para ensayos/sondas offline; `output-capabilities` expone diagnóstico histórico, sin llamada desde la UI habitual. `app.py` sí importa `routes.py` legacy antes de registrar V2: no declarar independencia del proceso Flask completo. Comprobar de nuevo estas fronteras al cambiar arranque o imports.
+El Repeat habitual V2 importa `editor_offset_v2/domain/repeat_packer.py`, no `engines/step_repeat_pro_engine.py`. Preview/PDF habitual usa compositor V2. `prepared_output_adapter.py` y `legacy_output_probe.py` conservan imports locales legacy para ensayos/sondas offline; `output-capabilities` expone diagnóstico histórico, sin llamada desde la UI habitual. El arranque target v2 usa `editor_offset_v2/web_app.py:create_app` sin cargar producto V1; `app.py` conserva la convivencia y sus imports legacy para v1/both. No extender la independencia del host exclusivo a sondas offline, distribución o al proceso de convivencia. Comprobar de nuevo estas fronteras al cambiar arranque o imports.
 
 ## 8. Flujo funcional vigente de V2
 
 ```text
-app.py
+editor_offset_v2/web_app.py:create_app (target v2; app.py para convivencia)
   -> init_editor_offset_v2()
   -> blueprint V2 protegido por EDITOR_OFFSET_V2_ENABLED
   -> shell o API V2
