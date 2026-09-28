@@ -357,7 +357,7 @@ def test_template_embeds_parseable_context_json(app_factory):
     assert context["save_layout_url"] is None
     assert context["assets_api_url"] is None
     assert context["repeat_api_url"] is None
-    assert context["output_capabilities_api_url"] is None
+    assert "output_capabilities_api_url" not in context
     assert context["preflight_api_url"] is None
     assert context["dev_tools_enabled"] is False
 
@@ -379,9 +379,7 @@ def test_template_context_has_canonical_get_and_save_urls(app_factory):
     assert context["repeat_api_url"] == (
         f"/api/editor-offset-v2/jobs/{job_id}/imposition/repeat"
     )
-    assert context["output_capabilities_api_url"] == (
-        f"/api/editor-offset-v2/jobs/{job_id}/output-capabilities"
-    )
+    assert "output_capabilities_api_url" not in context
     assert context["preflight_api_url"] == (
         f"/api/editor-offset-v2/jobs/{job_id}/preflight"
     )
@@ -427,7 +425,7 @@ def test_output_capabilities_reports_structured_slot_issue(app_factory):
     client = app_factory().test_client()
     created = create_job(client)
     layout = with_fixture_slot(created["layout"])
-    layout["slots"][0]["content_transform"]["scale_x"] = 0.75
+    layout["slots"][0]["content_transform"]["clip_to"] = "none"
     saved = client.put(
         f"/api/editor-offset-v2/jobs/{created['job_id']}/layout",
         json={"base_revision": 1, "layout": layout},
@@ -438,8 +436,10 @@ def test_output_capabilities_reports_structured_slot_issue(app_factory):
         f"/api/editor-offset-v2/jobs/{created['job_id']}/output-capabilities"
     ).get_json()
 
-    issue = next(item for item in payload["errors"] if item["code"] == "UNSUPPORTED_CONTENT_SCALE")
+    assert payload["diagnostic_source"] == "native-v2"
+    issue = next(item for item in payload["errors"] if item["code"] == "UNSUPPORTED_CONTENT_CLIP")
     assert payload["compatible"] is False
     assert issue["slot_id"] == layout["slots"][0]["id"]
     assert issue["asset_id"] == layout["slots"][0]["source"]["asset_id"]
-    assert issue["path"].endswith(".content_transform")
+    assert issue["path"].endswith(".content_transform.clip_to")
+    assert issue["blocks_operations"] == ["preview", "pdf_final"]

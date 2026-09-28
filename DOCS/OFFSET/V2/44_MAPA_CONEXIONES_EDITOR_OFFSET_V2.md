@@ -22,6 +22,9 @@ flowchart LR
   BP --> ASSET[asset_service + artwork_service]
   BP --> REPEAT[repeat_service + repeat_packer]
   BP --> PREF[preflight_service]
+  BP --> CAP[native_output_capabilities]
+  PREF --> CAP
+  CAP --> DTO[domain/native_output_contract: NativeOutputIssue]
   BP --> PREVIEW[preview_service]
   BP --> PDF[pdf_final_service]
   PREF --> SNAP[output_snapshot + pdf_inspector]
@@ -35,7 +38,7 @@ flowchart LR
 
 Desde 2026-09-28, `editor_offset_v2/web_app.py:create_app` es el host exclusivo del target v2 y del arranque habitual. Registra solo el blueprint V2, raíz con redirección al editor, identidad `/health/editor-offset-v2` y recursos estáticos V2 permitidos. Conserva las carpetas existentes y el límite HTTP efectivo de 32 MiB; no migra ni normaliza jobs al arrancar. Acepta configuración explícita y raíz de jobs del entorno de proceso; no carga `.env` general.
 
-`app.py` sigue registrando V2 en convivencia con `routes.py` legacy, para target v1/both. Ese proceso continúa dependiendo de otros productos. La importación del paquete V2 todavía carga su adaptador de diagnóstico histórico, pero no ejecuta las sondas legacy durante el recorrido habitual. La aceptación exclusiva bloquea imports de todo producto del repositorio ajeno a V2, incluidas dependencias transitivas, y comprueba el flujo hasta archivos PNG/PDF; no equivale a un paquete distribuible sin archivos legacy.
+`app.py` sigue registrando V2 en convivencia con `routes.py` legacy, para target v1/both. Ese proceso continúa dependiendo de otros productos. Tras la entrega 1 del desacople, ningún `__init__` V2 carga contratos, servicios ni adaptadores del puente histórico. `NativeOutputIssue` pertenece al contrato nativo propio. La aceptación exclusiva bloquea imports de todo producto del repositorio ajeno a V2 y de los cinco módulos del puente, incluidas dependencias transitivas, y comprueba el flujo hasta archivos PNG/PDF y el diagnóstico HTTP nativo; no equivale todavía a un paquete distribuible sin archivos legacy.
 
 ## Entradas HTTP y consumidores
 
@@ -52,7 +55,7 @@ Todas las rutas viven en `editor_offset_v2/blueprint.py`, bajo `EDITOR_OFFSET_V2
 | GET `/api/editor-offset-v2/jobs/<job_id>/assets/<asset_id>/thumbnails/<page>` | miniatura PDF | panel de assets |
 | GET `/api/editor-offset-v2/jobs/<job_id>/assets/<asset_id>/artwork/<page>` | función `render_artwork` de `artwork_service.py` | canvas |
 | POST `/api/editor-offset-v2/jobs/<job_id>/imposition/repeat` | `RepeatService`, propuesta temporal | `repeat_panel.js` |
-| GET `/api/editor-offset-v2/jobs/<job_id>/output-capabilities` | diagnóstico del puente histórico | sin llamada desde la UI habitual |
+| GET `/api/editor-offset-v2/jobs/<job_id>/output-capabilities` | `native_output_issues`, solo capacidades del renderer; identidad/versión/alcance nativos y bloqueo por operación; requiere preflight físico | API auxiliar sin URL en el contexto HTML ni llamada desde la UI habitual |
 | POST `/api/editor-offset-v2/jobs/<job_id>/preflight` | `PreflightService`; recibe `face`, `dpi`, `allow_mirror_bleed` y devuelve decisiones por operación | `output_panel.js` |
 | POST `/api/editor-offset-v2/jobs/<job_id>/preview` | `PreviewService`; gate Preview | `output_panel.js` |
 | POST `/api/editor-offset-v2/jobs/<job_id>/pdf-final` | `PdfFinalService`; gate PDF | `output_panel.js` |
@@ -62,15 +65,15 @@ Los gates Preview, PDF y derivados son separados en `config.py` y `blueprint.py`
 
 ## Backend: inventario completo de propiedad V2
 
-Son 41 archivos Python y 2 schemas JSON en `editor_offset_v2/`. La flecha de cada fila nombra la conexión funcional principal, no pretende listar cada import estándar o externo.
+Son 42 archivos Python y 2 schemas JSON en `editor_offset_v2/`. La flecha de cada fila nombra la conexión funcional principal, no pretende listar cada import estándar o externo.
 
 | Archivo | Papel y conexiones |
 |---|---|
-| `__init__.py` | paquete y exportaciones; importa el adaptador histórico al cargar el paquete |
+| `__init__.py` | exporta solo `LAYOUT_SCHEMA_VERSION`; no carga adaptadores históricos |
 | `web_app.py` | fábrica exclusiva, rutas raíz/identidad/static V2 y límite HTTP → blueprint; no importa otros productos |
 | `config.py` | flags, raíz de jobs y límite de subida → `app.py`/blueprint |
 | `blueprint.py` | 14 endpoints y contexto HTML → servicios de aplicación |
-| `domain/__init__.py` | exportaciones del dominio |
+| `domain/__init__.py` | geometría, versión Layout y validación; sin reexportar DTO históricos |
 | `domain/layout_v2.py` | constantes y vocabulario de Layout V2 → validación, servicios |
 | `domain/validation.py` | valida el layout → servicios de jobs/preflight/salida; `JobRepository` no invoca el validador |
 | `domain/geometry.py` | geometría en mm, rotaciones y colisiones → Repeat, preflight, salida |
@@ -79,21 +82,22 @@ Son 41 archivos Python y 2 schemas JSON en `editor_offset_v2/`. La flecha de cad
 | `domain/repeat_contract.py` | contrato de propuesta Repeat → servicio/adaptador |
 | `domain/repeat_packer.py` | empaquetado Repeat propio → `repeat_engine_adapter.py` |
 | `domain/output_contract.py` | DTO de la frontera de diagnóstico histórico → `output_service.py` |
+| `domain/native_output_contract.py` | `NativeOutputIssue` inmutable y versión del diagnóstico HTTP nativo → capacidades propias; sin imports del puente |
 | `domain/output_parity_contract.py` | tolerancias/criterios de paridad → pruebas de salida |
 | `domain/preflight_contract.py` | versión, operaciones y estructura del reporte → preflight/consumidores |
 | `domain/preview_policy.py` | presupuesto de píxeles Preview → capacidades/preflight/Preview |
-| `application/__init__.py` | paquete de servicios |
+| `application/__init__.py` | exporta lifecycle de jobs; no importa `output_service` histórico |
 | `application/job_service.py` | crea/carga/guarda con revisión optimista → `job_repository.py` |
 | `application/asset_service.py` | sube fuente y genera miniaturas → repositorio, inspector y renderer |
 | `application/artwork_service.py` | imagen de arte para canvas → PDF preparado/compositor |
 | `application/repeat_service.py` | valida petición y genera propuesta → adaptador Repeat |
-| `application/native_output_capabilities.py` | capacidades nativas por operación → preflight/Salida |
+| `application/native_output_capabilities.py` | `native_output_issues` produce `NativeOutputIssue` + bloqueos por operación → preflight/Salida y GET diagnóstico auxiliar |
 | `application/preflight_service.py` | verifica layout, geometría, fuentes, cajas y decisiones → reporte/snapshot |
 | `application/preview_service.py` | composición PDF y raster PNG de vista previa → fuente preparada/compositor |
 | `application/pdf_final_service.py` | PDF de salida → fuente preparada/compositor |
 | `application/derived_asset_service.py` | PDF derivado y manifiesto sin alterar fuente → repositorios |
 | `application/output_service.py` | diagnóstico del puente antiguo → `editor_output_adapter.py`; fuera de Preview/PDF habitual |
-| `infrastructure/__init__.py` | paquete de infraestructura |
+| `infrastructure/__init__.py` | repositorio de jobs y validación de ID; no importa ni reexporta el adaptador histórico |
 | `infrastructure/job_repository.py` | layout y carpetas; escritura atómica, revisión CAS → disco |
 | `infrastructure/asset_repository.py` | staging y fuentes inmutables → disco |
 | `infrastructure/process_lock.py` | bloqueo entre procesos → repositorios/salida |
@@ -111,6 +115,24 @@ Son 41 archivos Python y 2 schemas JSON en `editor_offset_v2/`. La flecha de cad
 | `schemas/preflight-report.schema.json` | contrato JSON del reporte de preflight |
 
 No se encontró un import a `engines/`, `services/` legacy ni `strategies/` en el camino habitual de Repeat o salida nativa. Los imports legacy identificados pertenecen a las sondas/ensayos indicados. `artifact_lifecycle.py` tiene cobertura propia, pero su presencia no equivale a ejecución en producción.
+
+## Frontera de diagnóstico después de la entrega 1
+
+```text
+blueprint.output_capabilities -> native_output_issues -> NativeOutputIssue
+output_panel.js -> POST preflight -> PreflightService -> native_output_issues
+Preview/PDF -> snapshot + preflight fresco -> preparación/compositor propios
+
+Solo imports directos de ensayos:
+editor_output_adapter -> output_service + domain/output_contract
+legacy_output_probe / prepared_output_adapter -> editor_output_adapter + motores legacy
+```
+
+GET `output-capabilities` mantiene `ok`, `job_id`, `revision`, `compatible`, `errors`, `warnings` e `issues`. Su semántica pasa explícitamente a capacidades nativas: `diagnostic_source=native-v2`, `diagnostic_scope=renderer_capabilities`, `diagnostic_contract_version=1`, `requires_preflight=true`; cada issue añade `blocks_operations`. `compatible` solo resume ausencia de errores de capacidades. No inspecciona fuentes físicas, geometría completa ni autoriza publicación. Por ejemplo, escala 0,75 ya soportada no devuelve el error histórico `UNSUPPORTED_CONTENT_SCALE`; clipping `none` conserva bloqueo nativo con referencias al slot/asset. El contexto HTML ya no incluye `output_capabilities_api_url`; la UI conserva su POST preflight y sus URLs de Preview/PDF.
+
+Se retiraron reexportaciones históricas de los cuatro `__init__.py`, sin wrappers ni imports perezosos alternativos. La búsqueda de consumidores del repositorio encontró los ensayos usando módulos concretos; esos imports directos siguen disponibles y sus pruebas pasan. Si un consumidor externo utilizaba las antiguas reexportaciones, deberá importar el módulo histórico explícito. Ningún campo persistente, schema Layout ni reporte preflight cambió. Separar físicamente esos cinco módulos históricos y distribuir V2 con dependencias propias siguen pendientes.
+
+`test_native_diagnosis_v2.py` caracteriza ocho políticas con códigos, severidades, bloqueos por operación y ausencia de mutación; verifica DTO inmutable, serialización y GET read-only que no reemplaza preflight físico. `test_exclusive_host_v2.py` bloquea los cinco módulos históricos durante el recorrido nativo completo. Aceptación de 2026-09-28: Python 647 passed, 1 skipped, 1 deselected (500); Node 165; Playwright 37. Detalle y protección de datos en 41 y actualización funcional en el apartado 11 de 45.
 
 ## Frontend: inventario completo
 
@@ -156,7 +178,7 @@ La raíz predeterminada es `instance/editor_offset_v2_jobs/<job_id>/` con `layou
 
 ### Pruebas localizadas
 
-- **Python (`tests/editor_offset_v2/`, 30 módulos + `conftest.py`):** `test_exclusive_host_v2.py`, `test_local_host_check_v2.py`, `test_artifact_lifecycle_v2.py`, `test_asset_service_v2.py`, `test_assets_routes_v2.py`, `test_derived_parity_v2.py`, `test_frontend_placeholder_v2.py`, `test_geometry_v2.py`, `test_job_repository_v2.py`, `test_job_service_v2.py`, `test_layout_v2_contract.py`, `test_legacy_output_probe_v2.py`, `test_native_compositor_v2.py`, `test_output_acceptance_v2.py`, `test_output_adapter_v2.py`, `test_output_parity_contract_v2.py`, `test_output_safety_v2.py`, `test_pdf_final_v2.py`, `test_pdf_fixture_parity_v2.py`, `test_pdf_inspector_v2.py`, `test_preflight_decisions_v2.py`, `test_preflight_v2.py`, `test_prepared_output_probe_v2.py`, `test_prepared_pdf_source_v2.py`, `test_preview_v2.py`, `test_repeat_engine_adapter_v2.py`, `test_repeat_packer_v2.py`, `test_repeat_service_v2.py`, `test_routes_v2.py`, `test_work_bleed_v2.py`.
+- **Python (`tests/editor_offset_v2/`, 31 módulos + `conftest.py`):** `test_exclusive_host_v2.py`, `test_local_host_check_v2.py`, `test_native_diagnosis_v2.py`, `test_artifact_lifecycle_v2.py`, `test_asset_service_v2.py`, `test_assets_routes_v2.py`, `test_derived_parity_v2.py`, `test_frontend_placeholder_v2.py`, `test_geometry_v2.py`, `test_job_repository_v2.py`, `test_job_service_v2.py`, `test_layout_v2_contract.py`, `test_legacy_output_probe_v2.py`, `test_native_compositor_v2.py`, `test_output_acceptance_v2.py`, `test_output_adapter_v2.py`, `test_output_parity_contract_v2.py`, `test_output_safety_v2.py`, `test_pdf_final_v2.py`, `test_pdf_fixture_parity_v2.py`, `test_pdf_inspector_v2.py`, `test_preflight_decisions_v2.py`, `test_preflight_v2.py`, `test_prepared_output_probe_v2.py`, `test_prepared_pdf_source_v2.py`, `test_preview_v2.py`, `test_repeat_engine_adapter_v2.py`, `test_repeat_packer_v2.py`, `test_repeat_service_v2.py`, `test_routes_v2.py`, `test_work_bleed_v2.py`.
 - **Node (`tests/editor_offset_v2/js/`, 18 módulos):** `advanced_selection_object_tree_v2.test.cjs`, `alignment_distribution_matrix_v2.test.cjs`, `assets_commands_v2.test.cjs`, `crop_marks_v2.test.cjs`, `editor_core_v2.test.cjs`, `geometry_parity_v2.test.cjs`, `object_operations_v2.test.cjs`, `output_diagnosis_v2.test.cjs`, `positioning_commands_v2.test.cjs`, `preparation_v2.test.cjs`, `repeat_commands_v2.test.cjs`, `repeat_proposal_freshness_v2.test.cjs`, `responsive_panels_v2.test.cjs`, `rulers_guides_snap_measurement_v2.test.cjs`, `semantic_stabilization_v2.test.cjs`, `sheet_configuration_v2.test.cjs`, `work_bleed_v2.test.cjs`, `workflow_navigation_v2.test.cjs`.
 - **Navegador (`tests/playwright/`, 6 V2):** `test_editor_offset_v2.py`, `test_editor_offset_v2_ux_characterization.py`, `test_editor_offset_v2_output_integration.py`, `test_editor_offset_v2_native_repeat.py`, `test_editor_offset_v2_preparation.py`, `test_editor_offset_v2_work_bleed.py`. Otros tests Playwright de `test_editor_*` corresponden a V1 y no se incluyen en el mapa V2.
 

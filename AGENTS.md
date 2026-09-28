@@ -189,7 +189,7 @@ Superficies legacy o transversales que requieren análisis especial si aparecen 
 
 No modificar una superficie compartida como parte de un cambio “solo V2” sin declarar y validar su blast radius sobre V1.
 
-El Repeat habitual V2 importa `editor_offset_v2/domain/repeat_packer.py`, no `engines/step_repeat_pro_engine.py`. Preview/PDF habitual usa compositor V2. `prepared_output_adapter.py` y `legacy_output_probe.py` conservan imports locales legacy para ensayos/sondas offline; `output-capabilities` expone diagnóstico histórico, sin llamada desde la UI habitual. El arranque target v2 usa `editor_offset_v2/web_app.py:create_app` sin cargar producto V1; `app.py` conserva la convivencia y sus imports legacy para v1/both. No extender la independencia del host exclusivo a sondas offline, distribución o al proceso de convivencia. Comprobar de nuevo estas fronteras al cambiar arranque o imports.
+El Repeat habitual V2 importa `editor_offset_v2/domain/repeat_packer.py`, no `engines/step_repeat_pro_engine.py`. Preview/PDF habitual usa compositor V2. `prepared_output_adapter.py` y `legacy_output_probe.py` conservan imports locales legacy para ensayos/sondas offline. Los `__init__` no cargan el puente: capacidades nativas usan `domain/native_output_contract.py`. `output-capabilities` conserva la URL y el sobre principal, identifica diagnóstico nativo y exige preflight; no tiene URL en el contexto HTML ni consumidor en UI habitual. El arranque target v2 usa `editor_offset_v2/web_app.py:create_app` sin cargar producto V1; `app.py` conserva la convivencia y sus imports legacy para v1/both. No extender la independencia del host exclusivo a sondas offline, distribución o al proceso de convivencia. Comprobar de nuevo estas fronteras al cambiar arranque o imports.
 
 ## 8. Flujo funcional vigente de V2
 
@@ -316,7 +316,7 @@ Esta es una superficie de alto riesgo.
 
 Estado vigente:
 
-- `output-capabilities` conserva diagnóstico del puente histórico; Validar y Salida usan diagnóstico nativo común y preflight por operación;
+- `output-capabilities` identifica capacidades del renderer nativo y requiere preflight físico; Validar y Salida usan el mismo diagnóstico nativo común y preflight por operación. El puente histórico permanece solo como import explícito para ensayos;
 - Preview/PDF V2 tienen servicios, compositor y gates propios. El arranque local habitual activa Preview/PDF y deja derivados/dev tools apagados; [43](DOCS/OFFSET/V2/43_PLAN_SALIDA_PDF_HABITUAL_V2.md) registra la aceptación y sus límites;
 - `editor_output_adapter.py` no ejecuta el renderer. Las sondas legacy sirven para caracterización offline, no para la salida habitual;
 - el sangrado por trabajo distingue `source_only`, `mirror_if_missing` y ausencia histórica; marcas con sangrado cero se omiten con aviso;

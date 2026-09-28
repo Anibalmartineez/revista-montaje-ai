@@ -1,5 +1,5 @@
 """Capabilities of V2's own renderer; never imports the legacy bridge."""
-from editor_offset_v2.domain.output_contract import OutputIssue
+from editor_offset_v2.domain.native_output_contract import NativeOutputIssue
 from editor_offset_v2.domain.preview_policy import preview_resource_issue
 
 NATIVE_VECTOR_AVAILABLE = True  # Native form compositor, covered by phase 39B object tests.
@@ -9,7 +9,7 @@ def native_output_issues(layout, options=None):
     options = options or {}
     result = []
     def add(code, message, path, blocks=('preview','pdf_final'), slot=None, level='error'):
-        result.append((OutputIssue(code=code,level=level,message=message,path=path,
+        result.append((NativeOutputIssue(code=code,level=level,message=message,path=path,
             slot_id=slot['id'] if slot else None,asset_id=slot['source']['asset_id'] if slot else None),list(blocks)))
     export = layout['export']
     preview_limit = preview_resource_issue(layout['sheet']['size_mm'], options.get('dpi', 150))

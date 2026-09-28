@@ -6,12 +6,10 @@ from .job_service import (
     JobServiceError,
     create_initial_layout_v2,
 )
-from .output_service import validate_output_capabilities
 
 __all__ = [
     "JobResult",
     "JobService",
     "JobServiceError",
     "create_initial_layout_v2",
-    "validate_output_capabilities",
 ]

@@ -43,6 +43,13 @@ def test_full_native_workflow_with_all_other_repository_product_imports_blocked(
 import importlib.abc, importlib.machinery, sys
 from pathlib import Path
 root = Path.cwd().resolve()
+historical = {
+    'editor_offset_v2.domain.output_contract',
+    'editor_offset_v2.application.output_service',
+    'editor_offset_v2.infrastructure.editor_output_adapter',
+    'editor_offset_v2.infrastructure.prepared_output_adapter',
+    'editor_offset_v2.infrastructure.legacy_output_probe',
+}
 def other_product(origin):
     if not origin or origin in ('built-in', 'frozen'): return False
     try: relative = Path(origin).resolve().relative_to(root)
@@ -50,6 +57,8 @@ def other_product(origin):
     return relative.parts[0] not in ('editor_offset_v2', 'venv', 'tests')
 class RejectOtherProduct(importlib.abc.MetaPathFinder):
     def find_spec(self, fullname, path=None, target=None):
+        if fullname in historical:
+            raise ImportError('Native V2 attempted historical bridge import: ' + fullname)
         spec = importlib.machinery.PathFinder.find_spec(fullname, path)
         if spec and (other_product(spec.origin) or any(other_product(p) for p in (spec.submodule_search_locations or ()))):
             raise ImportError('V2 attempted another product import: ' + fullname)
@@ -94,6 +103,8 @@ with tempfile.TemporaryDirectory() as directory:
     persisted = reopened.get(api).json
     assert persisted['layout'] == saved['layout'] and persisted['revision'] == saved['revision']
     assert reopened.get('/editor_offset_visual_v2/' + created['job_id']).status_code == 200
+    capabilities = client.get(api + '/output-capabilities')
+    assert capabilities.status_code == 200 and capabilities.json['diagnostic_source'] == 'native-v2'
     preflight = client.post(api + '/preflight', json={'dpi': 36})
     assert preflight.status_code == 201, preflight.json
     png = client.post(api + '/preview', json={'dpi': 36, 'expected_revision': saved['revision']})
@@ -117,6 +128,7 @@ with tempfile.TemporaryDirectory() as directory:
     assert hashlib.sha256(source.read_bytes()).hexdigest() == digest
     assert not list(Path(directory).rglob('*.tmp'))
 assert not [name for name, module in sys.modules.items() if other_product(getattr(module, '__file__', None))]
+assert historical.isdisjoint(sys.modules)
 print('Exclusive V2: imports, upload, Repeat, revision, reload, preflight, PNG and vector PDF accepted')
 '''
     environment = dict(os.environ, EDITOR_OFFSET_V2_DEV_TOOLS_ENABLED="0")

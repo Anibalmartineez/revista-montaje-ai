@@ -25,7 +25,8 @@ from editor_offset_v2.application.asset_service import (
     AssetServiceError,
 )
 from editor_offset_v2.application.job_service import JobService, JobServiceError
-from editor_offset_v2.application.output_service import validate_output_capabilities
+from editor_offset_v2.application.native_output_capabilities import native_output_issues
+from editor_offset_v2.domain.native_output_contract import NATIVE_DIAGNOSIS_CONTRACT_VERSION
 from editor_offset_v2.application.pdf_final_service import PdfFinalService, PdfFinalServiceError
 from editor_offset_v2.application.derived_asset_service import DerivedAssetService, DerivedAssetServiceError
 from editor_offset_v2.application.preflight_service import PreflightService, PreflightServiceError
@@ -129,7 +130,6 @@ def editor_shell():
         "save_layout_url": None,
         "assets_api_url": None,
         "repeat_api_url": None,
-        "output_capabilities_api_url": None,
         "preflight_api_url": None,
         "preview_api_url": None,
         "pdf_final_api_url": None,
@@ -167,10 +167,6 @@ def editor_with_job(job_id: str):
         ),
         "repeat_api_url": url_for(
             "editor_offset_v2.propose_repeat",
-            job_id=result.job_id,
-        ),
-        "output_capabilities_api_url": url_for(
-            "editor_offset_v2.output_capabilities",
             job_id=result.job_id,
         ),
         "preflight_api_url": url_for(
@@ -354,18 +350,25 @@ def output_capabilities(job_id: str):
         result = _job_service().get_job(job_id)
     except JobServiceError as error:
         return _error_payload(error)
-    issues = tuple(validate_output_capabilities(result.layout))
-    errors = [issue.as_dict() for issue in issues if issue.level == "error"]
-    warnings = [issue.as_dict() for issue in issues if issue.level == "warning"]
+    # Preserve the diagnostic URL/envelope, explicitly identify its new native
+    # scope. This does not inspect physical assets or replace fresh preflight.
+    issues = [dict(issue.as_dict(), blocks_operations=blocks)
+              for issue, blocks in native_output_issues(result.layout)]
+    errors = [issue for issue in issues if issue["level"] == "error"]
+    warnings = [issue for issue in issues if issue["level"] == "warning"]
     return jsonify(
         {
             "ok": True,
             "job_id": result.job_id,
             "revision": result.revision,
+            "diagnostic_source": "native-v2",
+            "diagnostic_scope": "renderer_capabilities",
+            "diagnostic_contract_version": NATIVE_DIAGNOSIS_CONTRACT_VERSION,
+            "requires_preflight": True,
             "compatible": not errors,
             "errors": errors,
             "warnings": warnings,
-            "issues": [issue.as_dict() for issue in issues],
+            "issues": issues,
         }
     )
 

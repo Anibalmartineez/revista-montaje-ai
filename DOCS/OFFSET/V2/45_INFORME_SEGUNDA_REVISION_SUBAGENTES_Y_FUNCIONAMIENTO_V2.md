@@ -2,6 +2,8 @@
 
 Fecha de la revisión y de la consolidación: 2026-09-27.
 
+**Actualización de estado, 2026-09-28:** los apartados 1–10 conservan el corte histórico de esa revisión. Sus afirmaciones sobre arranque compartido y diagnóstico histórico se precisan en el apartado 11: ahora existe host exclusivo y se desacopló el diagnóstico nativo. No se realizó otra revisión de subagentes en esta entrega. El mapa 44 recoge las conexiones actuales y 41 su aceptación.
+
 ## 1. Propósito y procedencia
 
 Este documento reúne la **segunda entrega de los tres subagentes**, el recorrido del agente principal y la explicación entregada al usuario después de probar el sistema. La primera entrega había construido un inventario estático; esta segunda revisión contrastó ese inventario con pruebas, interfaz, persistencia y archivos PDF generados.
@@ -273,3 +275,25 @@ El mapa es un inventario funcional de archivos y conexiones, no un grafo de cada
 La navegación de caras y el dominio editorial siguen incompletos. Derivados permanecen separados de la salida básica. Los originales, geometría, locks, revisión optimista y comandos deben conservarse al ampliar el producto. Rendimiento 500, PDF/X, CTP y certificación de prensa siguen fuera de lo demostrado.
 
 Este documento entrega la explicación de la segunda revisión y las opciones discutidas. Para localizar código, utilizar 44; para el registro operativo, 41; para la aceptación previa de salida habitual, 43. Las nuevas funciones deberán definirse y comprobarse según una solicitud concreta y la evidencia del sistema en ese momento.
+
+
+## 11. Estado actualizado — independencia y diagnóstico nativo, 2026-09-28
+
+Esta actualización corresponde al trabajo del agente principal autorizado después de la revisión histórica. No reinterpreta ni añade ejecuciones a los resultados de los apartados 1–10.
+
+El arranque habitual target v2 utiliza `editor_offset_v2/web_app.py:create_app`, incorporado en `a02e12a`; no carga `app.py` ni `routes.py`. La convivencia sigue disponible para v1/both y mantiene sus dependencias. La entrega 1 posterior desacopló el diagnóstico: capacidades nativas usan su propio `NativeOutputIssue` y ninguno de los cuatro `__init__` carga el puente. No se cambiaron Layout V2, fuentes, geometría, herramientas, historial, revisión optimista ni compositor.
+
+Para el operador, las cinco etapas se mantienen. Validar y Salida siguen usando preflight nativo fresco y los mismos bloqueos por operación. El contexto HTML ya no ofrece la URL del diagnóstico histórico. GET `output-capabilities` sigue disponible como API auxiliar, con sobre principal conservado e identidad/versión/alcance nativos explícitos; sus findings incluyen bloqueos por operación y `requires_preflight=true`. Su `compatible` no acredita presencia de PDFs ni autoriza Preview/PDF. La escala y otras correcciones soportadas ya no se vetan con reglas del puente antiguo. Los detalles del contrato y las conexiones viven en 44.
+
+Antes de cambiar producto se ejecutaron 84 pruebas de referencia y 8 caracterizaciones de reglas nativas; ambas pasaron. Tres pruebas del objetivo fallaron por las dependencias esperadas. Después del desacople, la aceptación completa pasó en proceso fresco con los cinco módulos históricos y cualquier otro producto local bloqueados: preparación, Repeat, guardado/reapertura, diagnóstico, preflight y PNG/PDF vectorial con dimensiones/contenido medidos, CAS e integridad de fuentes y archivos. Los ensayos históricos siguen disponibles mediante imports directos y conservaron su cobertura.
+
+| Evidencia final de esta entrega | Resultado y alcance |
+|---|---|
+| Python V2 | 647 passed, 1 skipped por symlink Windows, 1 deselected (500); incluye diagnóstico, seguridad, salida, sondas offline y coexistencia explícita |
+| Node V2 | 165 passed: estado, comandos, locks, historial, Repeat y geometría |
+| Playwright V2 | 37 passed en los seis archivos, con host exclusivo y raíces temporales; preparación, herramientas, guardado, output y paridad |
+| Flask normal | reinicio controlado al PID 16224; identidad exclusiva; Preview/PDF activos, derivados/dev tools apagados |
+| Navegador integrado y smoke live | copia QA revisión 42, seis piezas; Salida operativa; URL histórica ausente del contexto; consola limpia; desktop 1440 × 1000 |
+| Integridad existente | huella conjunta de 132 layouts/PDF fuente idéntica antes/después; detalle en 41 |
+
+La conclusión actual es independencia del arranque y del recorrido nativo comprobado, incluyendo sus contratos de diagnóstico. Todavía no se acredita una distribución completamente independiente: los archivos del puente y las sondas permanecen en el paquete para imports explícitos, y el manifiesto/venv del repositorio incluye otros productos. Separarlos constituye las entregas 2 y 3 pendientes. Retención auxiliar, navegación completa de caras, modelo editorial y demás límites de producto mantienen su estado; el presupuesto temporal de 500 piezas continúa pendiente, sin elevar el umbral ni atribuirle resolución por esta entrega. No se ejecutó suite global/Playwright V1 ni se hizo commit, merge o push.
