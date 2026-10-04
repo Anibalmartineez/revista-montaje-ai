@@ -48,8 +48,8 @@
     if (clipboard.jobId !== layout.job.id) {
       return { ok: false, reason: "El clipboard pertenece a otro job." };
     }
-    if (activeFace !== "front") {
-      return { ok: false, reason: "Pegar en dorso estará disponible con navegación de caras." };
+    if (!layout.faces.enabled.includes(activeFace)) {
+      return { ok: false, reason: "La cara activa no está habilitada." };
     }
     const workIds = new Set(layout.works.map((work) => work.id));
     const invalidWork = clipboard.slots.find((slot) => !workIds.has(slot.work_id));

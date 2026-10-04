@@ -269,7 +269,7 @@
     setSelection(ids, mode) {
       const hidden = this.advancedSelection.hiddenSlotIds;
       const validIds = new Set(this.layout.slots
-        .filter((slot) => !hidden.has(slot.id))
+        .filter((slot) => slot.face === this.activeFace && !hidden.has(slot.id))
         .map((slot) => slot.id));
       const incoming = [...ids].filter((id) => validIds.has(id));
       const previous = new Set(this.selection);
@@ -300,9 +300,31 @@
       }
     }
 
+    setActiveFace(face) {
+      if (!this.layout.faces.enabled.includes(face)) throw new Error("La cara elegida no está habilitada.");
+      if (face === this.activeFace) return false;
+      if (this.pointerSession) throw new Error("Cancela el gesto antes de cambiar de cara.");
+      this.activeFace = face;
+      this.selection.clear();
+      this.hoverId = null;
+      this.arrangement = { ...this.arrangement, keySlotId: null };
+      this.advancedSelection.marqueeRect = null;
+      this.advancedSelection.treeAnchorSlotId = null;
+      this.advancedSelection.cycle = null;
+      this.advancedSelection.expandedFaceIds.add(face);
+      this.previewPositions = {};
+      this.previewSlots = [];
+      this.precisionTools.snapPreview = null;
+      this.precisionTools.guideDraft = null;
+      this.precisionTools.measurementDraft = null;
+      this.emit("active_face");
+      return true;
+    }
+
     filterSelection() {
+      if (!this.layout.faces.enabled.includes(this.activeFace)) this.activeFace = this.layout.faces.enabled[0];
       const validIds = new Set(this.layout.slots
-        .filter((slot) => !this.advancedSelection.hiddenSlotIds.has(slot.id))
+        .filter((slot) => slot.face === this.activeFace && !this.advancedSelection.hiddenSlotIds.has(slot.id))
         .map((slot) => slot.id));
       this.selection = new Set([...this.selection].filter((id) => validIds.has(id)));
       const existingIds = new Set(this.layout.slots.map((slot) => slot.id));
@@ -775,6 +797,7 @@
         throw new Error("Cannot apply a server layout while local changes are pending");
       }
       this.layout = clone(canonicalLayout);
+      if (!this.layout.faces.enabled.includes(this.activeFace)) this.activeFace = this.layout.faces.enabled[0];
       this.syncNewTreeWorks();
       this.revision = canonicalLayout.job.revision;
       this.savedChangeVersion = this.changeVersion;

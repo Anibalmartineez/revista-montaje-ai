@@ -129,6 +129,17 @@
     </aside>
 
     <section class="ev2-workspace" aria-label="Canvas del montaje">
+      <div class="ev2-face-bar" aria-label="Cara del pliego">
+        <div class="ev2-face-tabs" role="tablist" aria-label="Cara para editar">
+          <button id="ev2-face-front" type="button" role="tab" aria-selected="true" aria-controls="ev2-canvas" data-face="front">Frente · activo <span id="ev2-face-front-count">0</span></button>
+          <button id="ev2-face-back" type="button" role="tab" aria-selected="false" aria-controls="ev2-canvas" data-face="back" disabled>Dorso <span id="ev2-face-back-count">0</span></button>
+        </div>
+        <button id="ev2-enable-back" type="button" {% if not editor_context.job_id %}disabled{% endif %}>Habilitar dorso</button>
+        <label id="ev2-flip-control" hidden>Flip de salida del Dorso
+          <select id="ev2-back-flip"><option value="none">Ninguno</option><option value="long_edge">Eje largo · refleja X</option><option value="short_edge">Eje corto · refleja Y</option></select>
+        </label>
+      </div>
+      <p id="ev2-face-note" class="ev2-face-note">Frente: coordenadas de edición.</p>
       <div class="ev2-canvas-toolbar" aria-label="Acciones frecuentes del montaje">
         <div class="ev2-responsive-panel-controls" aria-label="Paneles del editor">
           <button id="ev2-responsive-sources-toggle" type="button" aria-controls="ev2-objects-panel" aria-expanded="false">Fuentes</button>
@@ -684,7 +695,7 @@
         <label>Resolución Preview / perfil raster<select id="ev2-output-dpi"><option value="72">72 dpi</option><option value="150" selected>150 dpi</option><option value="300">300 dpi</option></select></label>
         <label><input id="ev2-output-mirror" type="checkbox"> Permiso temporal de espejo solo para trabajos anteriores sin decisión guardada</label>
         <p>La decisión de cada trabajo se guarda en Preparar. Esta opción no modifica ni sustituye las decisiones guardadas.</p>
-        <p>El canvas refleja esta opción. Etiquetas, selección y guías no se imprimen. El dorso PDF aplica el flip configurado; el canvas conserva sus coordenadas de edición.</p>
+        <p>El selector de salida es independiente de la cara visible en el canvas. El Dorso usa coordenadas de edición; el flip se aplica al PDF/Preview. La comprobación puede bloquear ambas caras por hallazgos del layout completo.</p>
         <p id="ev2-output-availability" role="status"></p>
         <p id="ev2-output-diagnosis" class="ev2-inline-status" role="status" aria-live="polite">Comprueba el montaje y sus opciones antes de generar.</p>
         <div class="ev2-output-actions">

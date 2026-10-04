@@ -51,6 +51,7 @@
     "save_conflict",
     "save_error",
     "pointer_start",
+    "active_face",
   ]);
 
   function issueLabel(issue) {
@@ -72,12 +73,13 @@
         const workId = slot?.work_id || refs.work_ids?.[0] || null;
         const assetId = slot?.source?.asset_id || refs.asset_ids?.[0] || null;
         const page = slot?.source?.page || refs.page_numbers?.[0] || null;
+        const faces = slot ? [slot.face] : (refs.faces || []);
         const blocks = [...new Set(issue.blocks || [])].sort();
         const key = JSON.stringify([issue.severity, issue.code, issue.message, workId, assetId, page,
-          blocks, slotId ? "slot" : [refs.asset_ids, refs.work_ids, refs.page_numbers, refs.path]]);
+          faces, blocks, slotId ? "slot" : [refs.asset_ids, refs.work_ids, refs.page_numbers, refs.path]]);
         if (!groups.has(key)) groups.set(key, {
           code: issue.code, level: issue.severity, message: issue.message,
-          path: refs.path || null, assetId, workId, page, blocks,
+          path: refs.path || null, assetId, workId, page, faces, blocks,
           workName: works.get(workId)?.name || null,
           filename: assets.get(assetId)?.original_filename || null,
           slotIds: [], count: 0,
@@ -96,8 +98,8 @@
     item.dataset.level = group.level;
     item.dataset.affectedSlots = String(group.slotIds.length);
     const summary = document.createElement("span");
-    const scope = [group.workName || group.filename, group.page && `Página ${group.page}`,
-      group.slotIds.length && `${group.slotIds.length} pieza${group.slotIds.length === 1 ? "" : "s"} afectada${group.slotIds.length === 1 ? "" : "s"}`].filter(Boolean);
+    const scope = [group.faces?.length ? group.faces.map(face => face === "back" ? "Dorso" : "Frente").join("/ ") : "Global", group.workName || group.filename, group.page && `Página ${group.page}`,
+      group.slotIds.length === 1 ? `Slot ${group.slotIds[0]}` : group.slotIds.length && `${group.slotIds.length} piezas afectadas`].filter(Boolean);
     summary.textContent = `${scope.length ? scope.join(" · ") + ": " : ""}${issueLabel(group)}`;
     const effect = document.createElement("small");
     effect.textContent = group.blocks.length
@@ -308,7 +310,9 @@
           this.downloadUrls.push(blobUrl);
           if (this.downloadUrls.length > 2) URL.revokeObjectURL(this.downloadUrls.shift());
         }
-        this.refs.outputResult.textContent = `${operation === "preview" ? "Preview lista" : "PDF listo; descarga iniciada"} · revisión ${revision} · ${options.face} · ${options.dpi} dpi · decisiones de sangrado guardadas por trabajo. ${report.issues.filter(i=>i.severity==="warning").length} advertencia(s).`;
+        const faceLabel = { front: "Frente", back: "Dorso", both: "Ambas caras" }[options.face];
+        this.refs.outputResult.textContent = `${operation === "preview" ? "Preview lista" : "PDF listo; descarga iniciada"} · revisión ${revision} · ${faceLabel} · flip ${this.store.layout.faces.duplex.flip} · ${options.dpi} dpi · decisiones de sangrado guardadas por trabajo. ${report.issues.filter(i=>i.severity==="warning").length} advertencia(s).`;
+        if (operation === "preview") this.refs.outputImage.alt = `Preview ${faceLabel}, revisión ${revision}, flip ${this.store.layout.faces.duplex.flip}`;
         this.refs.outputResult.dataset.state = "success";
       } catch (error) {
         if (this.disposed) return;

@@ -52,6 +52,8 @@ def test_initial_layout_is_empty_explicit_and_valid():
     assert layout["slots"] == []
     assert layout["sheet"]["size_mm"] == {"width": 700.0, "height": 500.0}
     assert layout["faces"]["enabled"] == ["front"]
+    assert layout["faces"]["duplex"] == {"enabled": False, "flip": "none"}
+    assert layout["export"]["faces"] == {"front": True, "back": False, "combine_in_single_pdf": False, "order": ["front"]}
     assert layout["ctp"]["enabled"] is False
 
 

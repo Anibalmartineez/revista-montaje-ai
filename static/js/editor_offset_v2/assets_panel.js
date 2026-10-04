@@ -78,7 +78,7 @@
       });
     }
     onStoreEvent(event) {
-      if (["command", "undo", "redo", "external_update", "save_success"].includes(event.type)) {
+      if (["command", "undo", "redo", "external_update", "save_success", "active_face"].includes(event.type)) {
         this.renderAll();
       } else if (event.type === "asset_selection") {
         this.renderAssets(); this.renderPagePlanner(); this.renderSourceControls(); this.renderActionState();
@@ -290,6 +290,7 @@
       }
       r.workSelect.value = this.store.assetPanel.selectedWorkId || "";
       r.createRealSlot.disabled = !r.workSelect.value;
+      r.createRealSlot.textContent = this.store.activeFace === "back" ? "Colocar en Dorso con página elegida" : "Colocar en Frente";
     }
     editWork(id) {
       if (this.editing) throw new Error("Guarda o cancela la edición actual.");
@@ -458,6 +459,8 @@
             x_mm: sheet.width / 2 - this.store.pan.x,
             y_mm: sheet.height / 2 - this.store.pan.y,
           },
+          this.store.activeFace,
+          this.store.activeFace === "back" ? this.selectedSource() : null,
         );
         this.store.executeCommand(new this.commands.CreateSlotFromWorkCommand(slot));
         this.store.setSelection([slot.id], "replace");

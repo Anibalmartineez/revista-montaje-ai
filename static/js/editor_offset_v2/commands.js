@@ -102,6 +102,36 @@
     }
   }
 
+  class ConfigureBackFaceCommand {
+    constructor(layout, flip) {
+      if (!layout?.faces || !layout?.export?.faces) throw new Error("Falta la configuración de caras.");
+      if (!["none", "long_edge", "short_edge"].includes(flip)) throw new Error("Flip de dorso no válido.");
+      const enabled = layout.faces.enabled.includes("back");
+      if (enabled && layout.faces.duplex.flip === flip) throw new Error("La configuración de Dorso no contiene cambios.");
+      this.description = enabled ? "Configurar flip de Dorso" : "Habilitar dorso";
+      this.beforeFaces = clone(layout.faces);
+      this.beforeExportFaces = clone(layout.export.faces);
+      this.afterFaces = clone(layout.faces);
+      this.afterExportFaces = clone(layout.export.faces);
+      this.afterFaces.enabled = ["front", "back"];
+      this.afterFaces.duplex = { enabled: true, flip };
+      if (!enabled) {
+        this.afterExportFaces.front = true;
+        this.afterExportFaces.back = true;
+        this.afterExportFaces.combine_in_single_pdf = true;
+        this.afterExportFaces.order = ["front", "back"];
+      }
+      this.affectedIds = Object.freeze([]);
+    }
+    apply(layout, faces, exportFaces) {
+      layout.faces = clone(faces);
+      layout.export.faces = clone(exportFaces);
+    }
+    execute(layout) { this.apply(layout, this.afterFaces, this.afterExportFaces); }
+    undo(layout) { this.apply(layout, this.beforeFaces, this.beforeExportFaces); }
+    redo(layout) { this.execute(layout); }
+  }
+
   function normalizeCardinalRotation(value) {
     if (!Number.isFinite(value) || value % 90 !== 0) {
       throw new RangeError("Rotation must be a cardinal multiple of 90 degrees");
@@ -1041,18 +1071,23 @@
     return works;
   }
 
-  function createSlotFromWork(layout, workId, token, center) {
+  function createSlotFromWork(layout, workId, token, center, face = "front", selectedSource = null) {
     const work = layout.works.find((item) => item.id === workId);
     if (!work || !work.front_source) throw new Error("An existing work with a front source is required");
-    sourcePage(layout, work.front_source);
+    if (!["front", "back"].includes(face) || !layout.faces.enabled.includes(face)) {
+      throw new Error("La cara elegida no está habilitada.");
+    }
+    const source = selectedSource || (face === "back" ? work.back_source : work.front_source);
+    if (!source) throw new Error("Elige una página o PDF para la pieza de Dorso.");
+    sourcePage(layout, source);
     if (!center || !Number.isFinite(center.x_mm) || !Number.isFinite(center.y_mm)) {
       throw new Error("A finite visible center is required");
     }
     return {
       id: `slot_${safeToken(token)}`,
-      face: "front",
+      face,
       work_id: work.id,
-      source: clone(work.front_source),
+      source: clone(source),
       geometry: {
         position_mm: { x_mm: center.x_mm, y_mm: center.y_mm, anchor: "trim_center" },
         trim_size_mm: clone(work.trim_size_mm),
@@ -1067,7 +1102,7 @@
         rotation_deg: 0,
         mirror_x: false,
         mirror_y: false,
-        clip_to: work.front_source.pdf_box === "bleed" || (work.bleed_strategy !== undefined && work.bleed_mm > 0) ? "bleed_box" : "trim_box",
+        clip_to: source.pdf_box === "bleed" || (work.bleed_strategy !== undefined && work.bleed_mm > 0) ? "bleed_box" : "trim_box",
       },
       locks: { geometry: [], content: [], production: [], delete: [] },
       production: { marks_profile_id: layout.export.default_marks_profile_id },
@@ -1169,6 +1204,7 @@
 
   return Object.freeze({
     UpdateSheetCommand,
+    ConfigureBackFaceCommand,
     CreateSlotCommand,
     MoveSlotsCommand,
     RotateSlotsCommand,

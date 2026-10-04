@@ -21,6 +21,9 @@
     UNDO: "history.undo",
     REDO: "history.redo",
     SHEET_UPDATE: "sheet.update",
+    FACE_ENABLE_BACK: "face.enable_back",
+    FACE_SET_FLIP: "face.set_flip",
+    FACE_SELECT: "face.select",
     MOVE_ABSOLUTE: "selection.move.absolute",
     MOVE_DELTA: "selection.move.delta",
     NUDGE: "selection.nudge",
@@ -267,6 +270,29 @@
   }
 
   function registerEditorActions(registry) {
+    registry.register({ id: ACTION_IDS.FACE_ENABLE_BACK, label: "Habilitar dorso", category: "faces",
+      modifiesLayout: true,
+      enabled: (context) => !context.store.layout.faces.enabled.includes("back") && !context.store.pointerSession,
+      execute: (context) => context.store.executeCommand(new context.commands.ConfigureBackFaceCommand(context.store.layout, "none")),
+    });
+    registry.register({ id: ACTION_IDS.FACE_SET_FLIP, label: "Configurar flip de Dorso", category: "faces",
+      modifiesLayout: true,
+      enabled: (context, flip) => context.store.layout.faces.enabled.includes("back")
+        && ["none", "long_edge", "short_edge"].includes(flip) && !context.store.pointerSession,
+      execute: (context, flip) => context.store.executeCommand(new context.commands.ConfigureBackFaceCommand(context.store.layout, flip)),
+    });
+    registry.register({ id: ACTION_IDS.FACE_SELECT, label: "Cambiar cara", category: "faces",
+      enabled: (context, face) => context.store.layout.faces.enabled.includes(face),
+      execute: (context, face) => {
+        if (face === context.store.activeFace) return false;
+        if (context.interactions?.hasPointerActivity()) context.interactions.cancelPointer();
+        context.repeatPanel?.invalidateProposal();
+        context.nudgeController?.finish();
+        context.positionInspector?.cancelPending(false);
+        context.store.clearMeasurement();
+        context.store.setActiveFace(face);
+      },
+    });
     for (const [id, method, label] of [
       [ACTION_IDS.REPEAT_CALCULATE, "calculate", "Calcular propuesta"],
       [ACTION_IDS.REPEAT_APPLY, "apply", "Aplicar montaje"],

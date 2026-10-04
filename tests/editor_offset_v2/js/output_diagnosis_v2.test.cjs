@@ -117,3 +117,22 @@ test("both faces cannot be advertised as an available single-face Preview",()=>{
   assert.match(operationSummary(value,"pdf_final",{face:"both"}),/disponible para generar/);
   panel.dispose();
 });
+
+
+test("preflight groups identify Dorso and preserve global findings", () => {
+  const layout = JSON.parse(fs.readFileSync("tests/fixtures/editor_offset_v2/layout_v2_complete.json", "utf8"));
+  const back = structuredClone(layout.slots[0]);
+  back.id = "back_issue";
+  back.face = "back";
+  layout.slots.push(back);
+  const groups = groupPreflightIssues([
+    { code: "TRIM_OUTSIDE_SHEET", severity: "error", message: "outside",
+      blocks: ["pdf_final"], references: { slot_ids: ["back_issue"], faces: ["back"] } },
+    { code: "OUTPUT_RESOURCE_LIMIT", severity: "error", message: "limit",
+      blocks: ["pdf_final"], references: {} },
+  ], layout);
+  assert.equal(groups.length, 2);
+  assert.deepEqual(groups[0].faces, ["back"]);
+  assert.deepEqual(groups[0].slotIds, ["back_issue"]);
+  assert.deepEqual(groups[1].faces, []);
+});

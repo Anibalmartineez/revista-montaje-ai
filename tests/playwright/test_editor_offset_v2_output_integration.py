@@ -330,3 +330,104 @@ def test_native_diagnosis_groups_pages_and_rejects_late_options(output_server, t
             assert not errors and not legacy_requests
         finally:
             browser.close()
+
+
+def test_operator_edits_two_faces_and_downloads_distinct_pages(output_server, tmp_path):
+    source = tmp_path / "two-faces.pdf"
+    with fitz.open() as doc:
+        for label, color in (("FRONT-FLOW", (0, 0, 1)), ("BACK-FLOW", (1, 0, 0))):
+            sheet = doc.new_page(width=90 * 72 / 25.4, height=50 * 72 / 25.4)
+            sheet.insert_text((40, 40), label, fontsize=18, color=color)
+            sheet.draw_rect(fitz.Rect(10, 10, 30, 30), fill=color, color=color)
+            sheet.set_trimbox(sheet.rect)
+        doc.save(source)
+    with sync_playwright() as pw:
+        browser = pw.chromium.launch()
+        page = browser.new_page(viewport={"width": 1440, "height": 900}, accept_downloads=True)
+        errors = []
+        page.on("pageerror", lambda error: errors.append(str(error)))
+        try:
+            page.goto(output_server + "/editor_offset_visual_v2")
+            page.locator("#ev2-new-job").click()
+            page.wait_for_url("**/editor_offset_visual_v2/ev2_*")
+            expect(page.locator("#ev2-face-back")).to_be_disabled()
+            page.locator("#ev2-asset-file").set_input_files(str(source))
+            with page.expect_response(lambda response: response.request.method == "POST" and response.url.endswith("/assets")):
+                page.locator("#ev2-asset-upload-button").click()
+            page.locator("#ev2-create-page-works").click()
+            page.wait_for_function("() => window.__EDITOR_OFFSET_V2__.store.layout.works.length === 1")
+            page.locator("#ev2-create-real-slot").click()
+            page.wait_for_function("() => window.__EDITOR_OFFSET_V2__.store.layout.slots.length === 1")
+            front_id = page.evaluate("() => window.__EDITOR_OFFSET_V2__.store.layout.slots[0].id")
+            page.locator("#ev2-enable-back").click()
+            expect(page.locator("#ev2-face-back")).to_be_enabled()
+            page.locator("#ev2-face-back").click()
+            expect(page.locator("#ev2-face-back")).to_have_attribute("aria-selected", "true")
+            expect(page.locator(".ev2-svg-slot")).to_have_count(0)
+            _open_workflow_stage(page, "prepare")
+            page.locator("#ev2-asset-page").select_option("2")
+            page.locator("#ev2-create-real-slot").click()
+            page.wait_for_function("() => window.__EDITOR_OFFSET_V2__.store.layout.slots.length === 2")
+            state = page.evaluate("""() => ({
+                face: window.__EDITOR_OFFSET_V2__.store.layout.slots[1].face,
+                page: window.__EDITOR_OFFSET_V2__.store.layout.slots[1].source.page,
+                front: window.__EDITOR_OFFSET_V2__.store.layout.slots[0].id
+            })""")
+            assert state == {"face": "back", "page": 2, "front": front_id}
+            page.locator("#ev2-undo").click()
+            expect(page.locator(".ev2-svg-slot")).to_have_count(0)
+            page.locator("#ev2-redo").click()
+            expect(page.locator(".ev2-svg-slot")).to_have_count(1)
+            page.locator("#ev2-face-front").click()
+            expect(page.locator(".ev2-svg-slot")).to_have_count(1)
+            assert page.evaluate("() => [...window.__EDITOR_OFFSET_V2__.store.selection].length") == 0
+            page.locator("#ev2-face-back").click()
+            page.locator("#ev2-back-flip").select_option("long_edge")
+            page.locator("#ev2-save").click()
+            page.wait_for_function("() => !window.__EDITOR_OFFSET_V2__.store.hasUnsavedChanges() && window.__EDITOR_OFFSET_V2__.store.saveState.status === 'clean'")
+            page.reload()
+            page.wait_for_function("() => window.__EDITOR_OFFSET_V2__?.store.layout.slots.length === 2")
+            assert page.evaluate("() => window.__EDITOR_OFFSET_V2__.store.activeFace") == "front"
+            assert page.evaluate("() => window.__EDITOR_OFFSET_V2__.store.layout.faces.duplex.flip") == "long_edge"
+            page.locator("#ev2-face-back").click()
+            expect(page.locator(".ev2-svg-slot")).to_have_count(1)
+            _open_workflow_stage(page, "output")
+            page.locator("#ev2-output-dpi").select_option("72")
+            page.locator("#ev2-output-face").select_option("front")
+            page.locator("#ev2-output-preview").click()
+            expect(page.locator("#ev2-output-result")).to_contain_text("Preview lista")
+            expect(page.locator("#ev2-output-image")).to_have_attribute("alt", __import__("re").compile(r"Preview Frente, revisión [0-9]+, flip long_edge"))
+            page.locator("#ev2-face-front").click()
+            expect(page.locator("#ev2-output-image")).to_be_hidden()
+            page.locator("#ev2-face-back").click()
+            page.locator("#ev2-output-face").select_option("back")
+            expect(page.locator("#ev2-output-image")).to_be_hidden()
+            page.locator("#ev2-output-preview").click()
+            expect(page.locator("#ev2-output-result")).to_contain_text("Dorso")
+            page.locator("#ev2-output-recheck").click()
+            expect(page.locator("#ev2-preflight-status")).to_contain_text("Diagnóstico completo")
+            page.locator("#ev2-output-face").select_option("both")
+            with page.expect_download() as download_info:
+                page.locator("#ev2-output-pdf").click()
+            downloaded = tmp_path / "both.pdf"
+            download_info.value.save_as(downloaded)
+            with fitz.open(downloaded) as document:
+                assert document.page_count == 2
+                assert "FRONT-FLOW" in document[0].get_text()
+                assert "BACK-FLOW" in document[1].get_text()
+                assert document[0].rect == document[1].rect
+            job = page.url.rsplit("/", 1)[1]
+            api = f"{output_server}/api/editor-offset-v2/jobs/{job}"
+            current = page.request.get(api).json()
+            invalid = current["layout"]
+            invalid["slots"][1]["geometry"]["position_mm"]["x_mm"] = 900
+            changed = page.request.put(api + "/layout", data={"base_revision": current["revision"], "layout": invalid})
+            assert changed.status == 200
+            page.reload()
+            _open_workflow_stage(page, "validate")
+            page.locator("#ev2-preflight-run").click()
+            expect(page.locator("#ev2-preflight-issues")).to_contain_text("Dorso")
+            expect(page.locator("#ev2-preflight-issues")).to_contain_text("Slot")
+            assert not errors
+        finally:
+            browser.close()

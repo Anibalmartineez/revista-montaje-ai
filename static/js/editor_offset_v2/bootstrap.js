@@ -264,6 +264,41 @@
       responsivePanels,
     });
 
+    function renderFaces() {
+      const backEnabled = store.layout.faces.enabled.includes("back");
+      const count = (face) => store.layout.slots.filter((slot) => slot.face === face).length;
+      refs.faceFrontCount.textContent = String(count("front"));
+      refs.faceBackCount.textContent = String(count("back"));
+      refs.faceBack.disabled = !backEnabled;
+      refs.enableBack.hidden = backEnabled;
+      refs.flipControl.hidden = !backEnabled;
+      refs.backFlip.value = store.layout.faces.duplex.flip;
+      for (const [node, face] of [[refs.faceFront, "front"], [refs.faceBack, "back"]]) {
+        const active = store.activeFace === face;
+        node.setAttribute("aria-selected", String(active));
+        node.tabIndex = active ? 0 : -1;
+        node.firstChild.textContent = `${face === "front" ? "Frente" : "Dorso"}${active ? " · activo " : " "}`;
+      }
+      refs.faceNote.textContent = store.activeFace === "back"
+        ? "Dorso: coordenadas de edición sin flip. El flip elegido se aplica en Preview y PDF."
+        : "Frente: coordenadas de edición. Zoom y pan son comunes a ambas caras.";
+    }
+    refs.enableBack.addEventListener("click", () => runAction(modules.CommandRegistry.ACTION_IDS.FACE_ENABLE_BACK));
+    refs.backFlip.addEventListener("change", () => runAction(modules.CommandRegistry.ACTION_IDS.FACE_SET_FLIP, refs.backFlip.value));
+    for (const [node, face] of [[refs.faceFront, "front"], [refs.faceBack, "back"]]) {
+      node.addEventListener("click", () => runAction(modules.CommandRegistry.ACTION_IDS.FACE_SELECT, face));
+      node.addEventListener("keydown", (event) => {
+        if (!["ArrowLeft", "ArrowRight"].includes(event.key)) return;
+        const target = event.key === "ArrowLeft" ? refs.faceFront : refs.faceBack;
+        if (target.disabled) return;
+        event.preventDefault(); target.focus(); target.click();
+      });
+    }
+    store.subscribe((event) => {
+      if (["command", "undo", "redo", "external_update", "active_face"].includes(event.type)) renderFaces();
+    });
+    renderFaces();
+
     refs.save.addEventListener("click", () => runAction(modules.CommandRegistry.ACTION_IDS.SAVE));
     refs.undo.addEventListener("click", () => runAction(modules.CommandRegistry.ACTION_IDS.UNDO));
     refs.redo.addEventListener("click", () => runAction(modules.CommandRegistry.ACTION_IDS.REDO));

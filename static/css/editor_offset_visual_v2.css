@@ -3039,3 +3039,10 @@ button[aria-pressed="true"],
 #ev2-preflight-issues, #ev2-output-findings { overflow-wrap: anywhere; }
 #ev2-preflight-issues small, #ev2-output-findings small { display: block; margin-top: .35rem; }
 #ev2-output-findings details p, #ev2-preflight-issues details p { font-size: .8rem; }
+
+.ev2-face-bar { display: flex; align-items: center; flex-wrap: wrap; gap: .6rem; padding: .5rem .75rem; border-bottom: 1px solid var(--ev2-border, #c8cdd3); }
+.ev2-face-tabs { display: inline-flex; gap: .25rem; }
+.ev2-face-tabs [role="tab"] { border: 1px solid currentColor; border-radius: .35rem; padding: .35rem .65rem; }
+.ev2-face-tabs [aria-selected="true"] { font-weight: 700; text-decoration: underline; text-underline-offset: .2em; }
+.ev2-face-tabs [role="tab"]:focus-visible, #ev2-enable-back:focus-visible, #ev2-back-flip:focus-visible { outline: 3px solid #1b66b1; outline-offset: 2px; }
+.ev2-face-note { margin: .25rem .75rem; font-size: .85rem; }

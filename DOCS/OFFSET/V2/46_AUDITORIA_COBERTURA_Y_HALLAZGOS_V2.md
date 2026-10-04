@@ -1,6 +1,6 @@
 # Auditoría de cobertura y hallazgos del Editor Offset Visual V2
 
-Corte de consolidación: 2026-10-04. Documento de auditoría y priorización; no constituye aceptación productiva ni cambia contratos.
+Corte de consolidación inicial: 2026-10-04, anterior a MVP Frente/Dorso. Actualización de cobertura del mismo día en §2 y §6. Documento de auditoría y priorización; no constituye aceptación productiva ni cambia contratos. Los conteos de §3 permanecen como evidencia histórica de su ejecución.
 
 ## 1. Propósito, alcance y tipos de evidencia
 
@@ -18,7 +18,7 @@ Fuentes principales: [41 — bitácora](41_TRABAJO_DIARIO_Y_BITACORA_V2.md), [44
 
 ## 2. Estado general del Editor V2
 
-El núcleo más maduro comprende Layout V2 y su validación, estructura de job, persistencia atómica del layout, revisión optimista CAS, geometría cardinal en milímetros, Repeat propio y multipágina, comandos reversibles, autosave, carga de PDF fuente con hash, preflight físico, Preview y PDF final nativo básico. Existen pruebas Python, Node y navegador para estos caminos; “maduro” significa mejor evidencia relativa, no certificación de imprenta.
+El núcleo más maduro comprende Layout V2 y su validación, estructura de job, persistencia atómica del layout, revisión optimista CAS, geometría cardinal en milímetros, Repeat propio y multipágina, comandos reversibles, autosave, carga de PDF fuente con hash, preflight físico, Preview y PDF final nativo básico. MVP 1 + MVP 2 añaden el recorrido de operador Frente/Dorso independiente **en un solo pliego**: habilitación reversible, tabs temporales, fuente explícita por slot, edición/guardado de ambas caras, preflight rotulado, Preview individual y PDF `both`. Existen pruebas Python, Node y navegador para estos caminos; “maduro” significa mejor evidencia relativa, no certificación de imprenta.
 
 Siguen en evolución la materialización de derivados como operación completa de UI a disco, política de huérfanos, paridad visual general entre canvas/Preview/PDF, salida raster estructural, concurrencia entre procesos, corpus de PDFs complejos y umbrales productivos finales. La UI actual es un editor de piezas sobre un pliego: la preparación multipágina y Repeat no implementan por sí mismos múltiples pliegos, firmas o imposición editorial completa.
 
@@ -33,7 +33,9 @@ Siguen en evolución la materialización de derivados como operación completa d
 | 500 colocaciones, corrida posterior aislada | Aproximadamente **21,86 s**, por debajo del umbral `elapsed < 60` del test. El test compone un pliego de 2000 × 1400 mm con 500 slots que comparten una fuente vectorial; verifica una página, 500 ocurrencias de texto y ausencia de imágenes. | Una medición aislada del caso sintético y de ese entorno; no demuestra latencia estable, consumo de memoria, posiciones de las 500 piezas ni rendimiento de trabajos heterogéneos. |
 | 500 colocaciones, 2026-09-27 histórico | **66,797 s**, fallo contra el mismo umbral de 60 s, con PDF de 500 textos generado. | Corte anterior, entorno/carga de ejecución no equiparados con la corrida aislada posterior. No declarar el problema universalmente resuelto ni elevar el umbral para ocultarlo. |
 
-La corrida posterior de 500 piezas y el fallo histórico no son una comparación controlada de rendimiento. Para afirmar una mejora estable harían falta repeticiones equivalentes, entorno medido y métricas de memoria/artefacto. Las cifras de tests son resultados de revisiones anteriores, no de la creación de 46.
+La corrida posterior de 500 piezas y el fallo histórico no son una comparación controlada de rendimiento. Para afirmar una mejora estable harían falta repeticiones equivalentes, entorno medido y métricas de memoria/artefacto. Las cifras de la tabla son resultados de revisiones anteriores, no de la creación de 46.
+
+**Evidencia posterior, MVP 1 + MVP 2 (2026-10-04):** Python V2 653 passed (84,75 s; 20 warnings de dependencias), Node V2 170 passed (0,61 s) y Playwright V2 38 passed en seis archivos (150,52 s; 5 warnings de dependencias). Se añadió aceptación con dos caras, PDF asimétrico de dos páginas, orden y flips `none`/`long_edge`/`short_edge`, además de recarga, CAS e issue exclusivo de Dorso. El baseline focalizado solo Frente previo a cambios fue 51 Python y 22 Node. Estas corridas no se suman a las de la tabla ni certifican registro industrial o PDFs reales complejos. Repeat Dorso continúa fuera del MVP; la política global de bloqueo de preflight no cambió.
 
 ## 4. Hallazgos arquitectónicos relevantes
 
@@ -86,6 +88,7 @@ Escala: **FUERTE** = assertions representativas en varias capas para el recorrid
 | Geometría y rotaciones | **FUERTE** | Kernel Python, paridad Node/fixtures y flujos de navegador para cardinales, locks y operaciones. Combinaciones con PDFs complejos siguen limitadas. |
 | CropBox, TrimBox, MediaBox y BleedBox | **PARCIAL** | Inspector, rutas y preparación con PDFs sintéticos de cajas presentes/ausentes; no corpus complejo de preprensa. |
 | Sangrado, espejo y transformaciones internas | **PARCIAL** | Decisiones y salidas puntuales probadas en Python/Node/navegador; falta matriz visual de bordes/cajas/giro/derived. |
+| Frente/Dorso manual, un pliego (MVP 1 + MVP 2) | **FUERTE** para el recorrido sintético; **PARCIAL** para aceptación industrial | Node prueba habilitación/undo, navegación temporal y limpieza, creación/paste/selección por cara e historial; Python cubre CAS, Preview, preflight y PDF `both` con contenido asimétrico, orden y flip; Playwright recorre edición, recarga y salida. No se probó registro de máquina, corpus real amplio ni Repeat Dorso. |
 | Repeat y Repeat multipágina | **FUERTE** | Propuesta temporal, add/replace, historial, cantidades, cuatro páginas y PDF físico; bordes exactos del packer y cargas extremas quedan fuera. |
 | Derivados: servicio y manifiesto | **PARCIAL** | Endpoint comprueba versionado, transformación y manifiesto; no fallo entre PDF y JSON. |
 | Derivados: UI → comando → autosave → CAS | **AUSENTE** como recorrido completo | Tests de endpoint y comando separados; Playwright no pulsa materializar. |
@@ -157,14 +160,14 @@ Estas preguntas **no se resuelven aquí** y no deben codificarse por accidente c
 7. ¿Se necesita un límite global entre procesos, cola o bloqueo por job para las salidas? ¿Cómo se recuperan publicaciones interrumpidas?
 8. ¿Cuáles serán los límites productivos finales de páginas, píxeles, bytes fuente, fuentes, colocaciones, memoria y tiempo? Los límites ejecutables actuales no son automáticamente un SLA.
 9. ¿Cómo evolucionará el producto desde un pliego con piezas hacia múltiples pliegos, firmas, secuencia editorial, imposición para encuadernación y creep?
-10. ¿Qué contrato operativo tendrán frente/dorso, flip y verificación de correspondencia entre caras?
+10. ¿Qué convención industrial de registro, pinza y volteo y qué tolerancias verificarán la correspondencia física frente/dorso? La edición independiente de un pliego y los flips geométricos ya son operativos; esa aceptación industrial sigue abierta.
 11. ¿Qué requisitos de CTP, marcas, separaciones, perfiles y aceptación física deberán cumplirse antes de describir una salida como apta para producción?
 
-## 12. Relación con documentos futuros
+## 12. Relación con documentos del producto
 
 - **44 — Mapa de conexiones:** ubicación de módulos, rutas, persistencia y dependencias observadas.
 - **46 — Este documento:** hallazgos, calidad de evidencia, cobertura, deuda y decisiones pendientes.
-- **47 — Objetivo funcional y roadmap del producto:** documento previsto para definir qué producto se desea y ordenar entregas; todavía no existe como decisión contractual en 46.
+- **47 — Objetivo funcional y roadmap del producto:** visión y entregas propuestas; refleja el MVP de un pliego sin convertir pendientes industriales en contrato.
 - **`GUIA_PARA_AGENTES_EDITOR_V2.md` futura:** guía operativa para agentes cuando arquitectura y objetivo funcional estén suficientemente estabilizados. No se crea ni se presupone su contenido aquí.
 
 El trabajo diario y las intervenciones verificadas se registran en [41](41_TRABAJO_DIARIO_Y_BITACORA_V2.md). Este documento preserva antecedentes útiles sin convertir resultados históricos en validación actual.

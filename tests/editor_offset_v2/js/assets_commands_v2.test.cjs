@@ -107,7 +107,9 @@ test("CreateSlotFromWorkCommand creates a real cardinal slot at visible center",
   command.execute(layout);
   assert.equal(layout.slots.at(-1).id, "slot_real_slot");
   assert.equal(layout.slots.at(-1).work_id, workId);
+  assert.equal(layout.slots.at(-1).face, "front");
   assert.deepEqual(layout.slots.at(-1).source, layout.works[0].front_source);
+  assert.deepEqual(layout.faces.enabled, ["front", "back"]);
   assert.deepEqual(layout.slots.at(-1).geometry.position_mm, {
     x_mm: 350.5,
     y_mm: 249.25,
