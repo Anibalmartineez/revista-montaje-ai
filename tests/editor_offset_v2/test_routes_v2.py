@@ -109,8 +109,9 @@ def test_shell_without_job_has_v2_assets_and_never_loads_v1_script(app_factory):
     assert 'id="ev2-create-slot"' not in html
     assert "Placeholder dev" not in html
     assert 'id="ev2-repeat-exact"' not in html
-    assert 'value="back" disabled' in html
-    assert "El cálculo de dorso estará disponible" in html
+    assert 'id="ev2-repeat-heading"' in html
+    assert 'id="ev2-repeat-face"' not in html
+    assert "Repeat actúa sobre la cara visible" in html
     assert "static/js/editor_offset_visual.js" not in html
     assert "data-editor-tab" not in html
 

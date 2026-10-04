@@ -55,7 +55,11 @@
       const existing = layout.slots.filter((slot) => slot.work_id === id && slot.face === context.face).length;
       const retained = context.mode === "add" ? existing : 0;
       const requested = count?.requested ?? work?.requested_forms ?? 0;
-      return { id, name: work?.name || id, page: work?.[context.face === "front" ? "front_source" : "back_source"]?.page,
+      const source = context.sourceOverrides?.[id]
+        || work?.[context.face === "front" ? "front_source" : "back_source"];
+      const asset = layout.assets.find((item) => item.id === source?.asset_id);
+      return { id, name: work?.name || id, page: source?.page,
+        sourceLabel: source ? `${asset?.original_filename || source.asset_id} · página ${source.page} · ${source.pdf_box}` : "Sin fuente",
         requested, placed, unplaced: Math.max(0, requested - placed), overproduced: Math.max(0, placed - requested),
         retained, removed: existing - retained, projected: retained + placed };
     });
@@ -74,11 +78,7 @@
       this.proposalContext = null;
       this.applied = false;
       this.requestSequence = 0;
-      for (const option of this.refs.repeatFace.options) {
-        option.disabled = option.value === "back"
-          || !this.store.layout.faces.enabled.includes(option.value);
-      }
-      this.refs.repeatFace.value = "front";
+      this.sourceChoices = new Map();
       this.bind();
       this.renderWorks();
       this.renderState();
@@ -92,7 +92,6 @@
       this.refs.repeatAlternative?.addEventListener("click", () => this.runAction("repeat.alternative"));
       this.refs.repeatDistribution?.addEventListener("change", () => this.invalidateProposal());
       for (const control of [
-        this.refs.repeatFace,
         this.refs.repeatGapX,
         this.refs.repeatGapY,
         this.refs.repeatPartial,
@@ -104,9 +103,15 @@
       for (const control of [this.refs.repeatGapX, this.refs.repeatGapY]) {
         control.addEventListener("input", () => this.invalidateProposal());
       }
-      this.refs.repeatWorks.addEventListener("change", () => this.invalidateProposal());
+      this.refs.repeatWorks.addEventListener("change", (event) => {
+        if (event.target?.dataset?.repeatSource) {
+          this.sourceChoices.set(event.target.dataset.repeatSource, event.target.value);
+        }
+        this.invalidateProposal();
+        this.renderState();
+      });
       this.unsubscribe = this.store.subscribe((event) => {
-        if (["command", "undo", "redo", "external_update"].includes(event.type)) {
+        if (["command", "undo", "redo", "external_update", "active_face"].includes(event.type)) {
           this.invalidateProposal();
           this.renderWorks();
           this.renderHistory();
@@ -139,8 +144,54 @@
         text.textContent = `${work.name} · ${work.requested_forms} formas · ${work.allowed_rotations_deg.join("° / ")}°`;
         label.append(input, text);
         this.refs.repeatWorks.append(label);
+        if (this.store.activeFace === "back") {
+          const sourceLabel = document.createElement("label");
+          sourceLabel.className = "ev2-repeat-source-label";
+          sourceLabel.textContent = `Fuente Dorso · ${work.name}`;
+          const select = document.createElement("select");
+          select.dataset.repeatSource = work.id;
+          select.setAttribute("aria-label", `Fuente Dorso para ${work.name}`);
+          const defaultOption = document.createElement("option");
+          defaultOption.value = "";
+          defaultOption.textContent = work.back_source
+            ? `Fuente del work · página ${work.back_source.page} · ${work.back_source.pdf_box}`
+            : "Elegí PDF, página y caja";
+          select.append(defaultOption);
+          for (const asset of this.store.layout.assets.filter((item) => item.status === "ready")) {
+            for (const page of asset.pages) {
+              for (const [box, bounds] of Object.entries(page.boxes_mm)) {
+                if (!bounds) continue;
+                const option = document.createElement("option");
+                option.value = JSON.stringify({ asset_id: asset.id, page: page.number, pdf_box: box });
+                option.textContent = `${asset.original_filename} · página ${page.number} · ${box}`;
+                select.append(option);
+              }
+            }
+          }
+          const choice = this.sourceChoices?.get(work.id) || "";
+          select.value = [...select.options].some((option) => option.value === choice) ? choice : "";
+          sourceLabel.append(select);
+          this.refs.repeatWorks.append(sourceLabel);
+        }
       }
-      this.refs.repeatCalculate.disabled = false;
+      this.renderState();
+    }
+
+    sourceOverrides(workIds, face) {
+      const overrides = {};
+      if (face !== "back") return overrides;
+      for (const id of workIds) {
+        const work = this.store.layout.works.find((item) => item.id === id);
+        if (!work) throw new Error(`El work ${id} ya no existe.`);
+        const choice = this.sourceChoices?.get(id);
+        const source = choice ? JSON.parse(choice) : work.back_source;
+        if (!source) throw new Error(`Elegí PDF, página y caja para el Dorso de ${work.name}.`);
+        const asset = this.store.layout.assets.find((item) => item.id === source.asset_id && item.status === "ready");
+        const page = asset?.pages.find((item) => item.number === source.page);
+        if (!page?.boxes_mm?.[source.pdf_box]) throw new Error(`La fuente Dorso de ${work.name} ya no está disponible.`);
+        if (choice) overrides[id] = source;
+      }
+      return overrides;
     }
 
     invalidateProposal() {
@@ -171,8 +222,12 @@
         this.store.setRepeatState("error", null, "Selecciona al menos un work.");
         return;
       }
-      if (this.refs.repeatFace.value !== "front") {
-        this.store.setRepeatState("error", null, "La interfaz Repeat solo permite frente por ahora.");
+      const face = this.store.activeFace;
+      let sourceOverrides;
+      try {
+        sourceOverrides = this.sourceOverrides(workIds, face);
+      } catch (error) {
+        this.store.setRepeatState("error", null, error.message);
         return;
       }
       if (![settings.horizontal_gap_mm, settings.vertical_gap_mm].every(
@@ -188,19 +243,24 @@
         if (this.store.saveState.status !== "clean") {
           throw new Error("Guarda o resuelve el conflicto antes de calcular Repeat.");
         }
-        if (sequence !== this.requestSequence) return;
+        if (sequence !== this.requestSequence || face !== this.store.activeFace) return;
         const changeVersion = this.store.changeVersion;
         const request = {
           base_revision: this.store.revision,
           work_ids: workIds,
-          face: this.refs.repeatFace.value,
+          face,
           settings,
+          source_overrides: sourceOverrides,
           apply_mode: this.selectedMode(),
           distribution: this.refs.repeatDistribution?.value || "auto",
         };
         const jobId = this.store.layout.job.id;
         const response = await this.api.proposeRepeat(this.context.repeat_api_url, request);
-        if (sequence !== this.requestSequence) return;
+        if (sequence !== this.requestSequence || request.face !== this.store.activeFace) return;
+        if (JSON.stringify(sourceOverrides) !== JSON.stringify(this.sourceOverrides(workIds, face))) {
+          this.invalidateProposal();
+          return;
+        }
         if (jobId !== this.store.layout.job.id || changeVersion !== this.store.changeVersion
             || request.base_revision !== this.store.revision || this.store.saveState.status !== "clean") {
           this.invalidateProposal();
@@ -213,6 +273,7 @@
           workIds: [...workIds],
           face: request.face,
           settings: { ...settings },
+          sourceOverrides: structuredClone(sourceOverrides),
           mode: request.apply_mode,
           distribution: request.distribution,
         };
@@ -237,14 +298,23 @@
       const result = this.store.repeatPanel.proposal;
       if (!result || !result.success || !this.proposalContext || this.applied) return;
       if (this.store.pointerSession) return;
+      let currentSources;
+      try {
+        currentSources = this.sourceOverrides(this.proposalContext.workIds, this.store.activeFace);
+      } catch (error) {
+        this.invalidateProposal();
+        this.store.setRepeatState("error", null, error.message);
+        return;
+      }
       if (this.proposalContext.jobId !== this.store.layout.job.id
           || this.proposalContext.revision !== this.store.revision
           || this.proposalContext.changeVersion !== this.store.changeVersion
           || this.store.saveState.status !== "clean"
-          || this.proposalContext.face !== this.refs.repeatFace.value
+          || this.proposalContext.face !== this.store.activeFace
           || this.proposalContext.mode !== this.selectedMode()
           || this.proposalContext.distribution !== (this.refs.repeatDistribution?.value || "auto")
           || JSON.stringify(this.proposalContext.settings) !== JSON.stringify(readSettings(this.refs))
+          || JSON.stringify(this.proposalContext.sourceOverrides) !== JSON.stringify(currentSources)
           || JSON.stringify(this.proposalContext.workIds) !== JSON.stringify(selectedWorkIds(this.refs.repeatWorks))) {
         this.invalidateProposal();
         this.store.setRepeatState("error", null, "El montaje cambió. Vuelve a calcular Repeat.");
@@ -268,11 +338,16 @@
     }
 
     renderState() {
+      if (this.refs.repeatHeading) this.refs.repeatHeading.textContent = `Repeat — ${this.store.activeFace === "back" ? "Dorso" : "Frente"}`;
       const state = this.store.repeatPanel;
       const proposal = state.proposal;
       if (this.refs.repeatAlternative) this.refs.repeatAlternative.disabled = !["ready", "error"].includes(state.status);
-      this.refs.repeatCalculate.disabled = state.status === "calculating" || !this.store.layout.works.length;
+      let sourceError = null;
+      try { this.sourceOverrides(selectedWorkIds(this.refs.repeatWorks), this.store.activeFace); }
+      catch (error) { sourceError = error.message; }
+      this.refs.repeatCalculate.disabled = state.status === "calculating" || !this.store.layout.works.length || Boolean(sourceError);
       this.refs.repeatStatus.textContent = state.error
+        || (state.status === "idle" ? sourceError : null)
         || ({ idle: "Configura y calcula una propuesta.", calculating: "Calculando…", ready: "Propuesta lista para aplicar.", applied: "Propuesta aplicada al layout." }[state.status] || "");
       this.refs.repeatStatus.dataset.state = state.status;
       const replaceIds = this.proposalContext?.mode === "replace_work_face"
@@ -325,13 +400,13 @@
       const total = this.store.layout.slots.filter((slot) => slot.face === this.proposalContext.face).length;
       this.refs.repeatReviewNote.textContent = this.proposalContext.mode === "add"
         ? `Añadir: se conservan ${total} piezas y se añaden ${state.proposal.placed}. Total en la cara: ${total + state.proposal.placed}.`
-        : `Reemplazar: se retiran ${removed} piezas, se conservan ${total - removed} y se colocan ${state.proposal.placed}. Total en la cara: ${total - removed + state.proposal.placed}.`;
+        : `Reemplazar: se retiran ${removed} piezas de los works elegidos en ${this.proposalContext.face === "back" ? "Dorso" : "Frente"}, incluidos slots manuales; se conservan ${total - removed} y se colocan ${state.proposal.placed}. Total en la cara: ${total - removed + state.proposal.placed}. IDs retirados: ${this.store.layout.slots.filter((slot) => slot.face === this.proposalContext.face && this.proposalContext.workIds.includes(slot.work_id)).map((slot) => slot.id).join(", ") || "ninguno"}.`;
       for (const row of rows) {
         const card = document.createElement("article");
         card.className = "ev2-repeat-work-detail";
         card.dataset.workId = row.id;
         const title = document.createElement("strong");
-        title.textContent = `${row.name}${row.page ? ` · Página ${row.page}` : ""}`;
+        title.textContent = `${row.name} · ${row.sourceLabel}`;
         const values = document.createElement("dl");
         for (const [label, value] of [["Solicitadas", row.requested], ["Propuestas", row.placed],
           ["Faltantes", row.unplaced], ["Extras", row.overproduced], ["Conservadas", row.retained], ["Total al aplicar", row.projected]]) {
@@ -351,7 +426,7 @@
         : "Resultado al aplicar la última imposición · todavía no existe.";
       const current = LayoutMetrics.currentSlotMetrics(
         this.store.layout,
-        this.refs.repeatFace.value,
+        this.store.activeFace,
       );
       this.refs.repeatCurrentFace.textContent = String(current.total);
       this.refs.repeatCurrentWorks.textContent = LayoutMetrics.workCountsLabel(

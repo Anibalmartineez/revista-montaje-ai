@@ -427,3 +427,37 @@ def test_adapter_is_pure_and_deterministic_for_same_arguments():
 
     assert layout == before
     assert first.as_dict() == second.as_dict()
+
+
+def test_back_override_and_obstacles_are_scoped_to_editing_face():
+    case = load_case("single_zero_bleed")
+    layout = make_layout(case, back=True)
+    override = {"asset_id": "asset_repeat", "page": 1, "pdf_box": "media"}
+    adapter = RepeatEngineAdapter()
+    baseline = adapter.propose(layout, ["work_repeat"], "back", settings(case),
+        operation_id=OPERATION_ID, generated_at=GENERATED_AT, apply_mode="add",
+        source_overrides={"work_repeat": override})
+    assert baseline.success
+    assert {slot["source"]["pdf_box"] for slot in baseline.slots} == {"media"}
+    front = copy.deepcopy(baseline.slots[0])
+    front.update({"id": "slot_front_untouched", "face": "front"})
+    layout["slots"].append(front)
+    before = copy.deepcopy(layout)
+    with_front = adapter.propose(layout, ["work_repeat"], "back", settings(case),
+        operation_id=OPERATION_ID, generated_at=GENERATED_AT, apply_mode="add",
+        source_overrides={"work_repeat": override})
+    assert [slot["geometry"] for slot in with_front.slots] == [slot["geometry"] for slot in baseline.slots]
+    assert layout == before
+    back = copy.deepcopy(front)
+    back.update({"id": "slot_back_obstacle", "face": "back"})
+    layout["slots"].append(back)
+    added = adapter.propose(layout, ["work_repeat"], "back", settings(case),
+        operation_id=OPERATION_ID, generated_at=GENERATED_AT, apply_mode="add",
+        source_overrides={"work_repeat": override})
+    replaced = adapter.propose(layout, ["work_repeat"], "back", settings(case),
+        operation_id=OPERATION_ID, generated_at=GENERATED_AT, apply_mode="replace_work_face",
+        source_overrides={"work_repeat": override})
+    assert added.success and replaced.success
+    assert added.slots[0]["geometry"] != baseline.slots[0]["geometry"]
+    assert [slot["geometry"] for slot in replaced.slots] == [slot["geometry"] for slot in baseline.slots]
+    assert layout["slots"][0] == front

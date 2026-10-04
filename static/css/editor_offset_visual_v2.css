@@ -1655,6 +1655,9 @@ button:disabled {
   margin-bottom: 10px;
 }
 
+.ev2-repeat-works .ev2-repeat-source-label { flex-direction: column; }
+.ev2-repeat-works .ev2-repeat-source-label select { max-width: 100%; width: 100%; }
+
 .ev2-repeat-works label,
 .ev2-repeat-panel > label,
 .ev2-repeat-mode label {

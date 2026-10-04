@@ -1,6 +1,20 @@
 # Análisis previo — MVP 3 Repeat Dorso en un pliego V2
 
-Estado: propuesta técnico-funcional, 2026-10-04. Contrastada con el código en la rama `codex/editor-offset-v2-montajes-revistas`, commit `a1743094c97dbc627983b294572bcede032f1e69`. **No es una implementación ni una aceptación productiva.** Se apoya en [44 — mapa](44_MAPA_CONEXIONES_EDITOR_OFFSET_V2.md), [46 — cobertura](46_AUDITORIA_COBERTURA_Y_HALLAZGOS_V2.md), [47 — objetivo](47_OBJETIVO_FUNCIONAL_EDITOR_OFFSET_V2.md) y [48 — Frente/Dorso MVP 1 + 2](48_ANALISIS_FRENTE_DORSO_MVP_V2.md). Las secciones históricas de 48 anteriores a su actualización inicial no describen el estado vigente.
+Estado: análisis previo del 2026-10-04, con actualización de implementación a continuación. El análisis original se contrastó con el código en la rama `codex/editor-offset-v2-montajes-revistas`, commit `a1743094c97dbc627983b294572bcede032f1e69`; los apartados numerados conservan ese corte y sus propuestas, no describen el estado vigente. **No constituye aceptación productiva.** Se apoya en [44 — mapa](44_MAPA_CONEXIONES_EDITOR_OFFSET_V2.md), [46 — cobertura](46_AUDITORIA_COBERTURA_Y_HALLAZGOS_V2.md), [47 — objetivo](47_OBJETIVO_FUNCIONAL_EDITOR_OFFSET_V2.md) y [48 — Frente/Dorso MVP 1 + 2](48_ANALISIS_FRENTE_DORSO_MVP_V2.md). Las secciones históricas de 48 anteriores a su actualización inicial no describen el estado vigente.
+
+## Estado de implementación
+
+**Corte 2026-10-04 — MVP 3 implementado en un pliego.** Repeat usa `store.activeFace` como fuente de verdad de cara; el panel rotula `Repeat — Frente` o `Repeat — Dorso` y la petición HTTP conserva `face` explícito. No hay selector de cara independiente ni persistencia de `activeFace`.
+
+`source_overrides` es un mapa temporal por `work_id`; cada valor contiene `asset_id`, `page` y `pdf_box`. El servicio valida la referencia y el adaptador usa la fuente efectiva para proponer y copiarla a `slot.source`; sin override se usa `back_source` cuando existe. El override entra en el hash/ID de operación cuando no está vacío. Proponer no cambia el work ni Layout V2; no hubo migración ni cambio de `layout_schema_version`.
+
+Add añade solo slots de la cara objetivo; `replace_work_face` retira solo slots de los works seleccionados en esa cara, incluidos manuales, con aviso en la revisión. Los slots Frente permanecen intactos al aplicar en Dorso; locks y dependencias conservan sus validaciones. La propuesta temporal está ligada a cara, revisión, versión local y fuentes; cambiar cara/fuente la invalida, y las respuestas tardías se descartan. Aplicar conserva undo/redo, dirty, autosave/CAS y recarga. Repeat empaqueta en coordenadas de edición; `flip` se aplica en la composición de salida.
+
+**QA final:** Python focalizado 40 passed, Node focalizado 26 passed y Playwright focalizado 2 passed. Suite Python V2 656 passed (20 warnings), Node V2 177 passed y Playwright V2 39 passed (5 warnings). La primera corrida Python completa detectó una assertion histórica que aún exigía Dorso deshabilitado; se actualizó y la corrida completa posterior pasó. Las pruebas inspeccionan Preview Dorso y PDF Ambas físicos con fuente/página distintas, incluido Dorso con página 2.
+
+**Límites:** Proposal valida metadatos de fuente `ready`, página y caja; la validación física completa de bytes/hash continúa en preflight/Preview/PDF. No hay Repeat sincronizado, parejas automáticas ni cantidades vinculadas. Permanecen fuera múltiples pliegos, revistas, firmas, creep, CTP y aceptación industrial de flip/registro.
+
+---
 
 ## 1. Alcance y estado ejecutable
 

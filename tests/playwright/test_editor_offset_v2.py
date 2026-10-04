@@ -351,9 +351,8 @@ def test_v2_visual_semantics_printable_output_and_approximate_artwork(v2_server,
             _open_job_with_repeat(page, v2_server, pdf_path, quantity=2)
             expect(page.locator("[data-printable-area='true']")).to_have_count(1)
             expect(page.locator("#ev2-create-slot")).to_have_count(0)
-            assert page.locator(
-                "#ev2-repeat-face option[value='back']"
-            ).evaluate("option => option.disabled") is True
+            expect(page.locator("#ev2-repeat-face")).to_have_count(0)
+            expect(page.locator("#ev2-repeat-heading")).to_have_text("Repeat — Frente")
             expect(page.locator(".ev2-approximate-artwork")).to_have_count(2)
             expect(page.locator("#ev2-repeat-history")).to_contain_text(
                 "Resultado al aplicar la última imposición"

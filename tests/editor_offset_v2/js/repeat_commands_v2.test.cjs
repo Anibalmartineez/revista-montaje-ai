@@ -277,3 +277,87 @@ test("proposal preview and projected work counts stay outside layout/history/sav
   store.changeVersion++;
   assert.equal(store.getState().repeatPreview, null);
 });
+
+
+test("front-only Repeat add and replace retain the original face and undo/redo", () => {
+  const layout = fixture();
+  layout.faces.enabled = ["front"];
+  layout.faces.duplex.enabled = false;
+  layout.slots = [structuredClone(layout.slots[0])];
+  const store = new Store.EditorStore(layout);
+  const original = structuredClone(store.layout.slots);
+  const added = proposal(store.layout, 1);
+  store.executeCommand(new Commands.ApplyRepeatCommand(store.layout, added, options("add")));
+  assert.equal(store.activeFace, "front");
+  assert.ok(store.layout.slots.every((slot) => slot.face === "front"));
+  assert.deepEqual(store.layout.slots[0], original[0]);
+  store.undo();
+  assert.deepEqual(store.layout.slots, original);
+  store.redo();
+  assert.equal(store.layout.slots.length, 2);
+  const replaced = proposal(store.layout, 2);
+  store.executeCommand(new Commands.ApplyRepeatCommand(store.layout, replaced, options("replace_work_face")));
+  assert.deepEqual(store.layout.slots.map((slot) => slot.id), replaced.slots.map((slot) => slot.id));
+  store.undo();
+  assert.equal(store.layout.slots.length, 2);
+  store.redo();
+  assert.ok(store.layout.slots.every((slot) => slot.face === "front"));
+});
+
+
+test("back Repeat add and replace preserve the exact front slots and undo/redo", () => {
+  const layout = fixture();
+  layout.faces.enabled = ["front", "back"];
+  layout.faces.duplex.enabled = true;
+  const front = structuredClone(layout.slots[0]);
+  const back = structuredClone(front);
+  back.id = "slot_back_manual"; back.face = "back"; back.generated_by = { type: "manual" };
+  layout.slots = [front, back];
+  const store = new Store.EditorStore(layout);
+  const beforeFront = structuredClone(store.layout.slots.filter((slot) => slot.face === "front"));
+  const beforeBack = structuredClone(store.layout.slots.filter((slot) => slot.face === "back"));
+  store.setActiveFace("back");
+  const opts = { ...options("add"), face: "back" };
+  const proposed = proposal(store.layout, 1);
+  proposed.slots.forEach((slot) => { slot.face = "back"; });
+  store.executeCommand(new Commands.ApplyRepeatCommand(store.layout, proposed, opts));
+  assert.deepEqual(store.layout.slots.filter((slot) => slot.face === "front"), beforeFront);
+  assert.equal(store.layout.slots.filter((slot) => slot.face === "back").length, 2);
+  store.undo();
+  assert.deepEqual(store.layout.slots.filter((slot) => slot.face === "back"), beforeBack);
+  store.redo();
+  assert.deepEqual(store.layout.slots.filter((slot) => slot.face === "front"), beforeFront);
+  const replacement = proposal(store.layout, 2);
+  replacement.slots.forEach((slot) => { slot.face = "back"; });
+  store.executeCommand(new Commands.ApplyRepeatCommand(store.layout, replacement, { ...opts, mode: "replace_work_face" }));
+  assert.deepEqual(store.layout.slots.filter((slot) => slot.face === "front"), beforeFront);
+  assert.deepEqual(store.layout.slots.filter((slot) => slot.face === "back").map((slot) => slot.id), replacement.slots.map((slot) => slot.id));
+  store.undo();
+  assert.equal(store.layout.slots.filter((slot) => slot.face === "back").length, 2);
+  store.redo();
+  assert.deepEqual(store.layout.slots.filter((slot) => slot.face === "front"), beforeFront);
+  const lockedLayout = fixture();
+  lockedLayout.faces.enabled = ["front", "back"];
+  lockedLayout.slots = [front, { ...structuredClone(back), locks: { ...back.locks, delete: ["user"] } }];
+  assert.throws(() => new Commands.ApplyRepeatCommand(lockedLayout, replacement, { ...opts, mode: "replace_work_face" }));
+  assert.deepEqual(lockedLayout.slots[0], front);
+});
+
+
+test("Repeat proposal is temporary and Store clears it on activeFace change without dirty/history", () => {
+  const layout = fixture();
+  layout.faces.enabled = ["front", "back"];
+  layout.faces.duplex.enabled = true;
+  const store = new Store.EditorStore(layout);
+  const result = proposal(store.layout, 1);
+  const context = { ...options(), jobId: store.layout.job.id, revision: store.revision, changeVersion: store.changeVersion };
+  store.setRepeatState("ready", result, null, context);
+  assert.ok(store.getRepeatPreview());
+  const before = structuredClone(store.layout);
+  store.setActiveFace("back");
+  assert.equal(store.getRepeatPreview(), null);
+  assert.equal(store.repeatPanel.status, "idle");
+  assert.equal(store.undoStack.length, 0);
+  assert.equal(store.hasUnsavedChanges(), false);
+  assert.deepEqual(store.layout, before);
+});

@@ -616,17 +616,11 @@
         </form>
       </section>
       <details id="ev2-stage-impose" class="ev2-repeat-panel" data-ev2-stage-panel="impose" role="tabpanel" aria-labelledby="ev2-stage-tab-impose" tabindex="-1" hidden open>
-        <summary>Imposición Repeat</summary>
+        <summary id="ev2-repeat-heading">Repeat — Frente</summary>
         <div id="ev2-repeat-works" class="ev2-repeat-works">
           <p class="ev2-list-empty">Crea un work real antes de calcular Repeat.</p>
         </div>
         <div class="ev2-repeat-grid">
-          <label>Cara
-            <select id="ev2-repeat-face">
-              <option value="front">Frente</option>
-              <option value="back" disabled>Dorso</option>
-            </select>
-          </label>
           <label>Gap horizontal
             <input id="ev2-repeat-gap-x" type="number" min="0" step="0.1" value="{{ repeat_settings.get('horizontal_gap_mm', 4) }}">
           </label>
@@ -643,8 +637,7 @@
           </select>
         </label>
         <p class="ev2-repeat-note">Puedes comparar distribuciones antes de aplicar. Se conservan cantidades, separaciones, zonas y giros permitidos; algunas opciones pueden dar el mismo resultado.</p>
-        <p class="ev2-repeat-note">Repeat utilizará la fuente predeterminada del work.</p>
-        <p class="ev2-repeat-note">El cálculo de dorso estará disponible cuando se incorpore la navegación de caras.</p>
+        <p class="ev2-repeat-note">Repeat actúa sobre la cara visible. En Dorso, elegí una fuente PDF por work si no tiene fuente predeterminada. La propuesta usa coordenadas de edición; el flip se aplica en la salida.</p>
         <label><input id="ev2-repeat-partial" type="checkbox"> Permitir parcial</label>
         <label><input id="ev2-repeat-fill" type="checkbox"> Completar espacio</label>
         <fieldset class="ev2-repeat-mode">

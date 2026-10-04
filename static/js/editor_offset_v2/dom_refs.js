@@ -231,7 +231,7 @@
       createRealSlot: byId("ev2-create-real-slot"),
       replaceSource: byId("ev2-replace-source"),
       repeatWorks: byId("ev2-repeat-works"),
-      repeatFace: byId("ev2-repeat-face"),
+      repeatHeading: byId("ev2-repeat-heading"),
       repeatGapX: byId("ev2-repeat-gap-x"),
       repeatGapY: byId("ev2-repeat-gap-y"),
       repeatPartial: byId("ev2-repeat-partial"),

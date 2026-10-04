@@ -262,3 +262,59 @@ def test_engine_version_participates_in_operation_identity(tmp_path):
     assert first.operation_id != second.operation_id
     assert second.engine_version == "test-next-version"
     assert repository.read_layout(JOB_ID) == before
+
+
+def duplex_repeat_layout(*, back_source=None):
+    layout = repeat_layout()
+    layout["faces"] = {"enabled": ["front", "back"], "duplex": {"enabled": True, "flip": "none"}}
+    layout["export"]["faces"].update({"back": True, "combine_in_single_pdf": True, "order": ["front", "back"]})
+    layout["works"][0]["back_source"] = back_source
+    second = copy.deepcopy(layout["assets"][0]["pages"][0])
+    second["number"] = 2
+    second["preview_key"] = "assets/asset_repeat/thumbnails/page_2.png"
+    layout["assets"][0]["pages"].append(second)
+    layout["assets"][0]["page_count"] = 2
+    assert validate_layout_v2(layout) == []
+    return layout
+
+
+def test_back_repeat_uses_default_or_temporary_page_two_override_without_layout_mutation(tmp_path):
+    repository = JobRepository(tmp_path / "jobs")
+    default_source = {"asset_id": "asset_repeat", "page": 1, "pdf_box": "trim"}
+    repository.create_job(JOB_ID, duplex_repeat_layout(back_source=default_source))
+    service = RepeatService(JobService(repository), clock=lambda: NOW)
+    before = repository.read_layout(JOB_ID)
+    ordinary = service.propose(JOB_ID, payload(face="back"))
+    override = {"asset_id": "asset_repeat", "page": 2, "pdf_box": "trim"}
+    changed = service.propose(JOB_ID, payload(face="back", source_overrides={"work_repeat": override}))
+    assert ordinary.success and changed.success
+    assert {slot["source"]["page"] for slot in ordinary.slots} == {1}
+    assert {slot["source"]["page"] for slot in changed.slots} == {2}
+    assert {slot["face"] for slot in changed.slots} == {"back"}
+    assert ordinary.operation_id != changed.operation_id
+    assert repository.read_layout(JOB_ID) == before
+
+
+def test_back_repeat_missing_or_invalid_override_keeps_layout_intact(tmp_path):
+    repository = JobRepository(tmp_path / "jobs")
+    repository.create_job(JOB_ID, duplex_repeat_layout())
+    service = RepeatService(JobService(repository), clock=lambda: NOW)
+    before = repository.read_layout(JOB_ID)
+    missing = service.propose(JOB_ID, payload(face="back"))
+    assert not missing.success and missing.issues[0].code == "SOURCE_NOT_FOUND"
+    for source, code in [
+        ({"asset_id": "missing", "page": 1, "pdf_box": "trim"}, "ASSET_NOT_FOUND"),
+        ({"asset_id": "asset_repeat", "page": 3, "pdf_box": "trim"}, "PAGE_NOT_FOUND"),
+        ({"asset_id": "asset_repeat", "page": 2, "pdf_box": "crop"}, "PDF_BOX_NOT_FOUND"),
+    ]:
+        result = service.propose(JOB_ID, payload(face="back", source_overrides={"work_repeat": source}))
+        assert not result.success and result.issues[0].code == code
+    for source_overrides in [
+        {"other_work": {"asset_id": "asset_repeat", "page": 2, "pdf_box": "trim"}},
+        {"work_repeat": {"asset_id": "asset_repeat", "page": True, "pdf_box": "trim"}},
+        {"work_repeat": {"asset_id": "asset_repeat", "page": 2, "pdf_box": {}}},
+    ]:
+        with pytest.raises(RepeatServiceError) as error:
+            service.propose(JOB_ID, payload(face="back", source_overrides=source_overrides))
+        assert error.value.code == "INVALID_REPEAT_SOURCE"
+    assert repository.read_layout(JOB_ID) == before

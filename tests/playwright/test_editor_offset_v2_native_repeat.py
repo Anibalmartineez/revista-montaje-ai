@@ -358,3 +358,101 @@ def test_repeat_review_add_replace_discard_invalidation_and_pdf_isolation(output
             assert not errors
         finally:
             browser.close()
+
+
+def test_repeat_back_uses_page_two_replace_preserves_front_and_outputs_both(output_server, tmp_path):
+    source = tmp_path / "repeat-duplex.pdf"
+    with fitz.open() as doc:
+        for label, color in (("FRONT-ONLY-MVP3", (0, 0, 1)), ("BACK-PAGE-TWO-MVP3", (1, 0, 0))):
+            art = doc.new_page(width=90 * 72 / 25.4, height=50 * 72 / 25.4)
+            art.insert_text((35, 45), label, fontsize=15, color=color)
+            art.draw_rect(fitz.Rect(10, 10, 30, 30), fill=color, color=color)
+            art.set_trimbox(art.rect)
+        doc.save(source)
+    with sync_playwright() as pw:
+        browser = pw.chromium.launch()
+        page = browser.new_page(viewport={"width": 1440, "height": 900}, accept_downloads=True)
+        errors = []
+        page.on("pageerror", lambda error: errors.append(str(error)))
+        try:
+            page.goto(output_server + "/editor_offset_visual_v2")
+            page.locator("#ev2-new-job").click()
+            page.wait_for_url("**/editor_offset_visual_v2/ev2_*")
+            page.locator("#ev2-asset-file").set_input_files(str(source))
+            with page.expect_response(lambda response: response.request.method == "POST" and response.url.endswith("/assets")):
+                page.locator("#ev2-asset-upload-button").click()
+            page.locator("#ev2-create-page-works").click()
+            page.wait_for_function("() => window.__EDITOR_OFFSET_V2__.store.layout.works.length === 1")
+            page.locator("#ev2-create-real-slot").click()
+            page.wait_for_function("() => window.__EDITOR_OFFSET_V2__.store.layout.slots.length === 1")
+            front = page.evaluate("() => structuredClone(window.__EDITOR_OFFSET_V2__.store.layout.slots.filter(s => s.face === 'front'))")
+            page.locator("#ev2-enable-back").click()
+            page.locator("#ev2-face-back").click()
+            _open_workflow_stage(page, "impose")
+            expect(page.locator("#ev2-repeat-heading")).to_have_text("Repeat — Dorso")
+            source_select = page.locator("#ev2-repeat-works select[data-repeat-source]")
+            expect(source_select).to_have_count(1)
+            expect(page.locator("#ev2-repeat-calculate")).to_be_disabled()
+            asset_id = page.evaluate("() => window.__EDITOR_OFFSET_V2__.store.layout.assets[0].id")
+            chosen = __import__("json").dumps({"asset_id": asset_id, "page": 2, "pdf_box": "trim"}, separators=(",", ":"))
+            source_select.select_option(chosen)
+            expect(page.locator("#ev2-repeat-calculate")).to_be_enabled()
+            with page.expect_response(lambda response: response.request.method == "POST" and response.url.endswith("/imposition/repeat")) as request:
+                page.locator("#ev2-repeat-calculate").click()
+            assert request.value.request.post_data_json["face"] == "back"
+            assert request.value.request.post_data_json["source_overrides"]
+            assert request.value.json()["result"]["success"]
+            expect(page.locator(".ev2-svg-repeat-proposal")).to_have_count(1)
+            expect(page.locator("#ev2-repeat-work-details")).to_contain_text("página 2")
+            page.locator("#ev2-repeat-apply").click()
+            page.wait_for_function("() => window.__EDITOR_OFFSET_V2__.store.layout.slots.some(s => s.face === 'back')")
+            assert page.evaluate("() => window.__EDITOR_OFFSET_V2__.store.layout.slots.find(s => s.face === 'back').source.page") == 2
+            page.locator("#ev2-face-front").click()
+            assert page.evaluate("() => structuredClone(window.__EDITOR_OFFSET_V2__.store.layout.slots.filter(s => s.face === 'front'))") == front
+            page.locator("#ev2-face-back").click()
+            page.locator("input[name=ev2-repeat-mode][value=replace_work_face]").check()
+            with page.expect_response(lambda response: response.request.method == "POST" and response.url.endswith("/imposition/repeat")):
+                page.locator("#ev2-repeat-calculate").click()
+            expect(page.locator("#ev2-repeat-review-note")).to_contain_text("incluidos slots manuales")
+            page.locator("#ev2-repeat-apply").click()
+            assert page.evaluate("() => structuredClone(window.__EDITOR_OFFSET_V2__.store.layout.slots.filter(s => s.face === 'front'))") == front
+            page.locator("#ev2-undo").click()
+            assert page.evaluate("() => structuredClone(window.__EDITOR_OFFSET_V2__.store.layout.slots.filter(s => s.face === 'front'))") == front
+            page.locator("#ev2-redo").click()
+            page.locator("#ev2-save").click()
+            page.wait_for_function("() => window.__EDITOR_OFFSET_V2__.store.saveState.status === 'clean'")
+            page.reload()
+            page.wait_for_function("() => window.__EDITOR_OFFSET_V2__?.store.layout.slots.length === 2")
+            assert page.evaluate("() => structuredClone(window.__EDITOR_OFFSET_V2__.store.layout.slots.filter(s => s.face === 'front'))") == front
+            page.locator("#ev2-face-back").click()
+            expect(page.locator(".ev2-svg-slot")).to_have_count(1)
+            _open_workflow_stage(page, "output")
+            page.locator("#ev2-output-dpi").select_option("72")
+            page.locator("#ev2-output-face").select_option("back")
+            page.locator("#ev2-output-preview").click()
+            expect(page.locator("#ev2-output-result")).to_contain_text("Dorso")
+            from PIL import Image
+            import io
+            job = page.url.rsplit("/", 1)[1]
+            api = f"{output_server}/api/editor-offset-v2/jobs/{job}"
+            preview = page.request.post(api + "/preview", data={"face": "back", "dpi": 72})
+            assert preview.status == 200, preview.text()
+            with Image.open(io.BytesIO(preview.body())) as image:
+                assert image.format == "PNG"
+                colors = image.convert("RGB").resize((350, 250)).getdata()
+                assert sum(r > 150 and g < 100 and b < 100 for r, g, b in colors) > 0
+            page.locator("#ev2-output-face").select_option("both")
+            with page.expect_download() as download:
+                page.locator("#ev2-output-pdf").click()
+            pdf_path = tmp_path / "repeat-back-both.pdf"
+            download.value.save_as(pdf_path)
+            with fitz.open(pdf_path) as pdf:
+                assert pdf.page_count == 2
+                assert "FRONT-ONLY-MVP3" in pdf[0].get_text()
+                assert "BACK-PAGE-TWO-MVP3" in pdf[1].get_text()
+                assert "BACK-PAGE-TWO-MVP3" not in pdf[0].get_text()
+                assert "FRONT-ONLY-MVP3" not in pdf[1].get_text()
+                assert pdf[0].rect == pdf[1].rect
+            assert not errors
+        finally:
+            browser.close()

@@ -1,6 +1,6 @@
 # Objetivo funcional del Editor Offset Visual V2
 
-Estado del documento: propuesta de visión y roadmap, 2026-10-04; estado funcional actualizado tras MVP 1 + MVP 2 Frente/Dorso de un pliego. No modifica el contrato Layout V2 ni decide políticas de producción pendientes.
+Estado del documento: propuesta de visión y roadmap, 2026-10-04; estado funcional actualizado tras MVP 1 + MVP 2 Frente/Dorso y MVP 3 Repeat Dorso de un pliego. No modifica el contrato Layout V2 ni decide políticas de producción pendientes.
 
 ## Cómo leer este documento
 
@@ -35,7 +35,7 @@ La clasificación se refiere al uso actual de V2, no a que una clase o campo exi
 | Alineación, distribución, guías y snap | FUNCIONAL PERO EN EVOLUCIÓN | Herramientas manuales existentes; precisiones y escenarios extremos requieren evolución propia. |
 | Locks, undo/redo y autosave | ESTABLE / NÚCLEO | Comandos reversibles y guardado coordinado; el recorrido de derivados con conflicto todavía requiere política y verificación integral. |
 | Configuración de tamaño y márgenes de un pliego | FUNCIONAL PERO EN EVOLUCIÓN | Configura el pliego actual sin redefinir varios pliegos. |
-| Repeat de piezas | FUNCIONAL PERO EN EVOLUCIÓN | Packer V2, propuesta temporal, add/replace, cantidades y aplicación reversible. No es imposición editorial. |
+| Repeat de piezas | FUNCIONAL PERO EN EVOLUCIÓN | Packer V2, propuesta temporal, add/replace por cara activa, cantidades y aplicación reversible. Repeat Frente y Dorso operan de modo independiente en un pliego; no es imposición editorial. |
 | Repeat con distintas páginas fuente | FUNCIONAL PERO EN EVOLUCIÓN | Varias páginas/piezas pueden proponerse y salir en el pliego actual; no implica varios pliegos ni firmas. |
 | Sangrado, espejo y marcas básicas | FUNCIONAL PERO EN EVOLUCIÓN | Estrategias por trabajo y marcas físicas acotadas; no son certificación de tinta útil, separaciones o CTP. |
 | Transformaciones internas del contenido | FUNCIONAL PERO EN EVOLUCIÓN | Escala, desplazamiento, giro y clipping definidos en recorridos actuales; falta paridad amplia con PDFs difíciles. |
@@ -44,7 +44,7 @@ La clasificación se refiere al uso actual de V2, no a que una clase o campo exi
 | Preview | FUNCIONAL PERO EN EVOLUCIÓN | PNG del pliego a DPI solicitado, bajo gate y presupuesto; representación de control, no artefacto productivo. |
 | PDF final vectorial habitual | FUNCIONAL PERO EN EVOLUCIÓN | Compositor nativo conserva contenido vectorial en los casos soportados; no certifica PDF/X ni CTP. |
 | PDF final raster explícito | EXPERIMENTAL | Rama implementada que inserta imágenes rasterizadas en PDF; faltan política funcional y validación estructural amplia. |
-| Frente/dorso manual y salida de un pliego (MVP 1 + MVP 2) | FUNCIONAL PERO EN EVOLUCIÓN | Habilitación explícita, navegación temporal, edición independiente, Preview por cara y PDF `both` con orden/flip verificados en fixture asimétrico; Repeat Dorso, registro industrial y correspondencia automática pendientes. |
+| Frente/dorso manual y salida de un pliego (MVP 1 + MVP 2) | FUNCIONAL PERO EN EVOLUCIÓN | Habilitación explícita, navegación temporal, edición independiente, Preview por cara y PDF `both` con orden/flip verificados en fixture asimétrico; Repeat Dorso por cara ya operativo; registro industrial y correspondencia automática pendientes. |
 | Múltiples pliegos de un job | NO IMPLEMENTADO | Layout actual contiene un único objeto sheet. |
 | Firmas, revistas e imposición editorial | NO IMPLEMENTADO | No hay secuencia editorial, asignación a firmas/pliegos ni plegado operativo. |
 | Creep | NO IMPLEMENTADO | No existe ajuste de encuadernación como flujo V2. |
@@ -64,7 +64,7 @@ El flujo siguiente es una **propuesta de experiencia**, no una secuencia obligat
 | 6 | Colocar y corregir piezas manualmente, con locks e historial. | Existente |
 | 7 | Elegir montaje manual, Repeat o futura imposición editorial. | Manual/Repeat existentes; imposición futura |
 | 8 | Configurar tamaño y márgenes del pliego; más adelante, pliegos por trabajo. | Un pliego existente; varios futuros |
-| 9 | Configurar, navegar y comprobar frente/dorso cuando corresponda. | Existente para edición manual de un pliego; registro industrial y Repeat Dorso pendientes |
+| 9 | Configurar, navegar y comprobar frente/dorso cuando corresponda. | Existente para edición manual y Repeat por cara de un pliego; registro industrial pendiente |
 | 10 | Revisar visualmente fuentes, colocaciones, marcas y caras. | Existente para un pliego; revisión editorial futura |
 | 11 | Ejecutar preflight de la revisión guardada. | Existente |
 | 12 | Resolver errores y volver a validar la revisión resultante. | Existente; diagnósticos futuros por ampliar |
@@ -92,7 +92,7 @@ El flujo siguiente es una **propuesta de experiencia**, no una secuencia obligat
 
 ### D. Frente/dorso
 
-**Existente para un pliego, MVP 1 + MVP 2:** el operador habilita Dorso mediante un comando reversible, navega con tabs sin persistir `activeFace`, coloca y edita fuentes distintas por cara, valida hallazgos rotulados, genera Preview individual y PDF de ambas caras. `slot.source` permite elegir página/PDF sin modificar silenciosamente `work.back_source`. El flip `none`/`long_edge`/`short_edge` se aplica en salida; el canvas Dorso conserva coordenadas de edición. **Pendiente:** Repeat Dorso, correspondencia automática y aceptación de registro, pinza y volteo por perfil productivo.
+**Existente para un pliego, MVP 1 + MVP 2:** el operador habilita Dorso mediante un comando reversible, navega con tabs sin persistir `activeFace`, coloca y edita fuentes distintas por cara, valida hallazgos rotulados, genera Preview individual y PDF de ambas caras. `slot.source` permite elegir página/PDF sin modificar silenciosamente `work.back_source`. El flip `none`/`long_edge`/`short_edge` se aplica en salida; el canvas Dorso conserva coordenadas de edición. **Existente tras MVP 3:** Repeat usa `store.activeFace`, envía `face` explícito y permite elegir fuente Dorso mediante `source_overrides` temporales por work (`asset_id`, `page`, `pdf_box`) sin modificarlo; Add y Replace operan por cara y los slots resultantes siguen editables. **Pendiente:** sincronización/correspondencia automática y aceptación de registro, pinza y volteo por perfil productivo.
 
 ### E. Revistas cosidas a caballo
 
@@ -118,9 +118,9 @@ Varios pliegos podrían permitir agrupar una revista o un trabajo que exceda un 
 
 ## 6. Frente y dorso
 
-**Existente para un pliego:** Layout y UI admiten edición manual separada de front/back, navegación temporal, fuente efectiva por slot, preflight rotulado, Preview individual y PDF `both` con orden y flips comprobados físicamente en un caso sintético asimétrico. Repeat Dorso sigue deshabilitado. Esta capacidad no equivale a una verificación física de registro industrial frente/dorso.
+**Existente para un pliego:** Layout y UI admiten edición manual separada de front/back, navegación temporal, fuente efectiva por slot, preflight rotulado, Preview individual y PDF `both` con orden y flips comprobados físicamente en un caso sintético asimétrico. Repeat Frente y Dorso ya proponen y aplican por separado sobre la cara activa; la fuente Dorso puede seleccionarse temporalmente y Add/Replace afectan solo esa cara. No hay sincronización automática entre caras. Esta capacidad no equivale a una verificación física de registro industrial frente/dorso.
 
-**Objetivo propuesto:** ampliar la experiencia del pliego actual con Repeat Dorso explícito (MVP 3), y más adelante seleccionar cada cara de varios pliegos, vincular fuentes cuando el operador lo requiera, validar coincidencia, márgenes, pinza y zonas de marcas, y generar salidas trazables conforme a un perfil industrial definido.
+**Objetivo propuesto para etapas futuras:** seleccionar cada cara de varios pliegos, vincular fuentes cuando el operador lo requiera, validar coincidencia, márgenes, pinza y zonas de marcas, y generar salidas trazables conforme a un perfil industrial definido.
 
 **Decisiones pendientes:** convención industrial de volteo y registro, referencia de pinza, política de salida Frente aislada ante error exclusivo de Dorso, tratamiento productivo de piezas sin dorso y tolerancias que debe medir preflight. La edición independiente y los ejes geométricos de flip ya están definidos para este MVP.
 
@@ -242,7 +242,7 @@ Estas son **candidatas**, no compromisos. “Schema” indica si parece necesari
 | 3. Diagnóstico de preparación PDF más claro | Explica caja elegida, bleed insuficiente, espejo y hash/capacidad antes de colocar. | Media; contratos de caja/bleed actuales. | Inspector, UI y preflight; schema: no necesariamente para primera entrega. Incremental: sí. |
 | 4. Revisión de Repeat y presets acotados al pliego actual | Hace comprensibles cantidades, zonas y alternativas; acelera trabajos repetidos. | Media; límites del packer y reglas de presets. | Repeat/UI; schema: posible si se persisten presets. Incremental: sí, sin varios pliegos. |
 | 5. Perfil explícito de PDF raster/vector | Aclara DPI, cajas y preservación de contenido antes de exportar. | Media; política de salida y pruebas estructurales. | PDF final/preflight/UI; schema: campos actuales pueden bastar para primera etapa, verificar. Incremental: sí. |
-| 6. Repeat Dorso en un pliego (MVP 3) | Automatiza propuestas y aplicación por cara sin alterar Frente. | Alta; fuente `back_source`, obstáculos, locks, cantidades y aceptación física. | Repeat/UI/servicio/packer, historial, persistencia y salida; reutilizar schema actual si el contrato lo permite. La navegación y edición manual de ambas caras ya están implementadas. |
+| 6. Aceptación industrial Frente/Dorso | Definiría registro, volteo y tolerancias verificables para un perfil de máquina. | Alta; perfil productivo y artefactos físicos de aceptación. | No forma parte del MVP 3 ya implementado por cara; no presupone sincronización automática ni cambio de schema. |
 | 7. Modelo de múltiples pliegos compatible con jobs existentes | Habilita trabajos extensos y base de imposición editorial. | Alta; contrato/versionado y migración segura. | Impacto transversal; schema: probablemente sí. Incremental: diseño/ensayo aislado antes de migrar jobs. |
 | 8. Flujo piloto de revista cosida a caballo | Convierte páginas de lectura en pliegos/caras revisables para un caso real. | Muy alta; múltiples pliegos, frente/dorso, firma/plegado y criterios industriales. | Nuevo dominio editorial y salida; schema: sí o contrato nuevo. Incremental: solo después de un caso acotado y decisiones del propietario. |
 

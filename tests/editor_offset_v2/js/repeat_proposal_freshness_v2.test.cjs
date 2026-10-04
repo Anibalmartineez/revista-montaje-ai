@@ -4,13 +4,13 @@ const {Panel} = require('../../../static/js/editor_offset_v2/repeat_panel.js');
 function harness() {
  const panel=Object.create(Panel.prototype), listeners=[];
  const node=(value)=>({value,checked:false,addEventListener(){}});
- const refs={repeatWorks:{...node(),querySelectorAll:()=>[{value:'work_a'}]},repeatGapX:node('0'),repeatGapY:node('0'),repeatFace:node('front'),repeatFill:node(),repeatPartial:node(),repeatModes:[{...node('add'),checked:true}],repeatApply:node(),repeatCalculate:node()};
- const store={revision:3,changeVersion:0,layout:{job:{id:"ev2_test"}},saveState:{status:'clean'},hasUnsavedChanges:()=>false,
+ const refs={repeatWorks:{...node(),querySelectorAll:()=>[{value:'work_a'}]},repeatGapX:node('0'),repeatGapY:node('0'),repeatFill:node(),repeatPartial:node(),repeatModes:[{...node('add'),checked:true}],repeatApply:node(),repeatCalculate:node()};
+ const store={revision:3,changeVersion:0,activeFace:'front',layout:{job:{id:"ev2_test"},works:[],assets:[]},saveState:{status:'clean'},hasUnsavedChanges:()=>false,
   subscribe(fn){listeners.push(fn);},setRepeatState(status,proposal,error){this.repeatPanel={status,proposal,error};},
   emit(type){listeners.forEach(fn=>fn({type}));}};
  const requests=[];
- Object.assign(panel,{store,refs,context:{repeat_api_url:'/repeat'},proposalContext:null,requestSequence:0,applied:false,
-  saver:{manualSave:async()=>{}},api:{proposeRepeat:()=>new Promise((resolve,reject)=>requests.push({resolve,reject}))},
+ Object.assign(panel,{store,refs,context:{repeat_api_url:'/repeat'},proposalContext:null,requestSequence:0,applied:false,sourceChoices:new Map(),
+  saver:{manualSave:async()=>{}},api:{proposeRepeat:(_url,request)=>new Promise((resolve,reject)=>requests.push({resolve,reject,request}))},
   renderWorks(){},renderHistory(){},renderState(){}});
  panel.bind(); return {panel,store,requests};
 }
@@ -75,4 +75,55 @@ test('alternative proposals remain temporary, warn on duplicates and reject a ch
  panel.refs.repeatDistribution.value='columns';panel.apply();
  assert.equal(store.repeatPanel.status,'error');
  assert.equal(store.repeatPanel.proposal,null);
+});
+
+
+test("Repeat Back sends activeFace and a temporary per-work source override", async () => {
+ const {panel,store,requests}=harness();
+ store.activeFace="back";
+ store.layout.works=[{id:"work_a",name:"A",back_source:null}];
+ store.layout.assets=[{id:"asset_a",status:"ready",pages:[{number:2,boxes_mm:{trim:{width:40,height:20}}}]}];
+ const source={asset_id:"asset_a",page:2,pdf_box:"trim"};
+ panel.sourceChoices.set("work_a",JSON.stringify(source));
+ const pending=panel.calculate();
+ assert.equal(requests[0].request.face,"back");
+ assert.deepEqual(requests[0].request.source_overrides,{work_a:source});
+ requests[0].resolve({result:{success:true,slots:[]}}); await pending;
+ assert.equal(panel.proposalContext.face,"back");
+ assert.deepEqual(panel.proposalContext.sourceOverrides,{work_a:source});
+ assert.equal(store.layout.works[0].back_source,null);
+});
+
+test("changing active face discards pending and ready Back proposals", async () => {
+ const {panel,store,requests}=harness();
+ store.activeFace="back";
+ store.layout.works=[{id:"work_a",name:"A",back_source:{asset_id:"asset_a",page:1,pdf_box:"trim"}}];
+ store.layout.assets=[{id:"asset_a",status:"ready",pages:[{number:1,boxes_mm:{trim:{width:40,height:20}}}]}];
+ const pending=panel.calculate();
+ store.activeFace="front"; store.emit("active_face");
+ requests[0].resolve({result:{success:true,slots:[]}}); await pending;
+ assert.equal(store.repeatPanel.proposal,null);
+ store.activeFace="back";
+ const next=panel.calculate(); requests[1].resolve({result:{success:true,slots:[]}}); await next;
+ store.activeFace="front"; panel.apply();
+ assert.equal(store.repeatPanel.status,"error");
+ assert.equal(store.repeatPanel.proposal,null);
+});
+
+test("Back without source blocks the request before any network call", async () => {
+ const {panel,store,requests}=harness();
+ store.activeFace="back"; store.layout.works=[{id:"work_a",name:"A",back_source:null}];
+ await panel.calculate();
+ assert.equal(requests.length,0);
+ assert.match(store.repeatPanel.error,/Elegí PDF/);
+});
+
+
+test("invalid default Back source blocks Repeat before requesting", async () => {
+ const {panel,store,requests}=harness();
+ store.activeFace="back";
+ store.layout.works=[{id:"work_a",name:"A",back_source:{asset_id:"missing",page:1,pdf_box:"trim"}}];
+ await panel.calculate();
+ assert.equal(requests.length,0);
+ assert.match(store.repeatPanel.error,/ya no está disponible/);
 });

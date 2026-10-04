@@ -305,6 +305,7 @@
       if (face === this.activeFace) return false;
       if (this.pointerSession) throw new Error("Cancela el gesto antes de cambiar de cara.");
       this.activeFace = face;
+      this.repeatPanel = { status: "idle", proposal: null, error: null, context: null };
       this.selection.clear();
       this.hoverId = null;
       this.arrangement = { ...this.arrangement, keySlotId: null };
@@ -730,7 +731,8 @@
       const context = state.context;
       if (state.status !== "ready" || !state.proposal?.success || !context
           || context.jobId !== this.layout.job.id || context.revision !== this.revision
-          || context.changeVersion !== this.changeVersion || this.saveState.status !== "clean"
+          || context.changeVersion !== this.changeVersion || context.face !== this.activeFace
+          || this.saveState.status !== "clean"
           || this.pointerSession) return null;
       return { proposal: state.proposal, context };
     }

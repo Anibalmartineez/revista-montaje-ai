@@ -34,11 +34,11 @@ class RepeatEngineAdapter:
     def __init__(self, engine: Callable[[PackingProblem], PackingResult] | None = None):
         self._engine = engine or pack
 
-    def propose(self, layout, work_ids, face, settings, *, operation_id, generated_at, apply_mode):
+    def propose(self, layout, work_ids, face, settings, *, operation_id, generated_at, apply_mode, source_overrides=None):
         layout = copy.deepcopy(dict(layout))
         printable = self._printable_bounds(layout)
         retained = self._retained_slots(layout,work_ids,face,apply_mode)
-        plans, source_issues = self._work_plans(layout,work_ids,face)
+        plans, source_issues = self._work_plans(layout,work_ids,face,source_overrides or {})
         requested = sum(int(p.work['requested_forms']) for p in plans)
         empty_metrics = self._metrics(printable,(),retained)
         def failure(issues):
@@ -126,6 +126,7 @@ class RepeatEngineAdapter:
         layout: Mapping[str, object],
         work_ids: Sequence[str],
         face: str,
+        source_overrides: Mapping[str, Mapping[str, object]] | None = None,
     ) -> tuple[list[_WorkPlan], tuple[RepeatIssueV2, ...]]:
         works = {item["id"]: item for item in layout["works"]}
         assets = {item["id"]: item for item in layout["assets"]}
@@ -145,7 +146,7 @@ class RepeatEngineAdapter:
                 )
                 continue
             source_name = "front_source" if face == "front" else "back_source"
-            source = work.get(source_name)
+            source = (source_overrides or {}).get(work_id, work.get(source_name))
             if not isinstance(source, dict):
                 issues.append(
                     RepeatIssueV2(

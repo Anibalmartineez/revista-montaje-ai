@@ -68,6 +68,8 @@ class RepeatService:
             "settings": settings,
             "apply_mode": request["apply_mode"],
         }
+        if request["source_overrides"]:
+            operation_payload["source_overrides"] = request["source_overrides"]
         digest = hashlib.sha256(
             json.dumps(
                 operation_payload,
@@ -85,6 +87,7 @@ class RepeatService:
             operation_id=f"repeat_{digest}",
             generated_at=self._clock(),
             apply_mode=request["apply_mode"],
+            source_overrides=request["source_overrides"],
         )
 
     @staticmethod
@@ -96,7 +99,7 @@ class RepeatService:
                 400,
             )
         request = dict(payload)
-        allowed = {"base_revision", "work_ids", "face", "settings", "apply_mode", "distribution"}
+        allowed = {"base_revision", "work_ids", "face", "settings", "apply_mode", "distribution", "source_overrides"}
         required = {"base_revision", "work_ids", "face", "settings"}
         if not required <= set(request) or set(request) - allowed:
             raise RepeatServiceError(
@@ -175,6 +178,21 @@ class RepeatService:
         distribution = request.get("distribution", "auto")
         if not isinstance(distribution, str) or distribution not in {"auto", "rows", "columns", "rotated"}:
             raise RepeatServiceError("INVALID_REPEAT_REQUEST", "Distribución Repeat no soportada.", 400)
+        source_overrides = request.get("source_overrides", {})
+        if not isinstance(source_overrides, Mapping) or any(
+            work_id not in work_ids or not isinstance(work_id, str)
+            or not isinstance(source, Mapping) or set(source) != {"asset_id", "page", "pdf_box"}
+            or not isinstance(source["asset_id"], str) or not source["asset_id"]
+            or isinstance(source["page"], bool) or not isinstance(source["page"], int) or source["page"] < 1
+            or not isinstance(source["pdf_box"], str)
+            or source["pdf_box"] not in {"media", "crop", "trim", "bleed"}
+            for work_id, source in source_overrides.items()
+        ):
+            raise RepeatServiceError(
+                "INVALID_REPEAT_SOURCE",
+                "source_overrides debe asociar works seleccionados a asset_id, page y pdf_box válidos.",
+                400,
+            )
         return {
             "base_revision": revision,
             "work_ids": list(work_ids),
@@ -182,6 +200,7 @@ class RepeatService:
             "settings": normalized_settings,
             "apply_mode": apply_mode,
             "distribution": distribution,
+            "source_overrides": {work_id: dict(source) for work_id, source in source_overrides.items()},
         }
 
 
