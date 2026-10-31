@@ -51,6 +51,12 @@
         "$ref": "#/$defs/slot"
       }
     },
+    "matrix_cells": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/matrixCell"
+      }
+    },
     "imposition": {
       "$ref": "#/$defs/imposition"
     },
@@ -88,6 +94,25 @@
         "height": {
           "$ref": "#/$defs/positiveNumber"
         }
+      }
+    },
+    "matrixCell": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "face", "position_mm", "trim_size_mm"],
+      "properties": {
+        "id": { "$ref": "#/$defs/nonEmptyString" },
+        "face": { "enum": ["front", "back"] },
+        "position_mm": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["x_mm", "y_mm"],
+          "properties": {
+            "x_mm": { "$ref": "#/$defs/finiteNumber" },
+            "y_mm": { "$ref": "#/$defs/finiteNumber" }
+          }
+        },
+        "trim_size_mm": { "$ref": "#/$defs/size" }
       }
     },
     "rect": {

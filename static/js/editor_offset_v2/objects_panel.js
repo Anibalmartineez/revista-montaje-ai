@@ -7,12 +7,6 @@
 })(typeof globalThis !== "undefined" ? globalThis : this, function () {
   "use strict";
 
-  const LOCK_LABELS = Object.freeze({
-    geometry: "Geometría",
-    content: "Contenido",
-    delete: "Eliminación",
-  });
-
   class Panel {
     constructor(store, refs, registry, contextProvider, actionIds, operations, runAction) {
       this.store = store;
@@ -44,23 +38,10 @@
       for (const [refName, actionId] of [
         ["objectDuplicate", this.actionIds.DUPLICATE],
         ["objectCopy", this.actionIds.COPY],
-        ["objectCut", this.actionIds.CUT],
         ["objectPaste", this.actionIds.PASTE],
         ["objectDelete", this.actionIds.DELETE],
-        ["objectSelectAll", this.actionIds.SELECT_ALL_FACE],
-        ["objectSelectWork", this.actionIds.SELECT_SAME_WORK],
-        ["objectSelectAsset", this.actionIds.SELECT_SAME_ASSET],
       ]) {
         this.refs[refName].addEventListener("click", () => this.runAction(actionId));
-      }
-      for (const button of this.refs.objectLockButtons) {
-        button.addEventListener("click", () => this.runAction(
-          this.actionIds.USER_LOCKS_SET,
-          {
-            surface: button.dataset.lockSurface,
-            locked: button.dataset.lockAction === "lock",
-          },
-        ));
       }
     }
 
@@ -90,12 +71,8 @@
       for (const [refName, actionId] of [
         ["objectDuplicate", this.actionIds.DUPLICATE],
         ["objectCopy", this.actionIds.COPY],
-        ["objectCut", this.actionIds.CUT],
         ["objectPaste", this.actionIds.PASTE],
         ["objectDelete", this.actionIds.DELETE],
-        ["objectSelectAll", this.actionIds.SELECT_ALL_FACE],
-        ["objectSelectWork", this.actionIds.SELECT_SAME_WORK],
-        ["objectSelectAsset", this.actionIds.SELECT_SAME_ASSET],
       ]) {
         this.refs[refName].disabled = !this.enabled(actionId);
       }
@@ -115,30 +92,6 @@
           : validation.reason;
       this.refs.objectClipboard.dataset.state = validation.ok ? "ready" : "warning";
 
-      for (const surface of this.operations.USER_LOCK_SURFACES) {
-        const state = this.operations.userLockState(slots, surface);
-        const status = this.refs.objectLockStatuses.find(
-          (element) => element.dataset.lockStatus === surface,
-        );
-        const remaining = this.operations.remainingLockSources(slots, surface);
-        const stateLabel = { none: "ninguno", all: "todos", mixed: "mixto" }[state];
-        status.textContent = `${LOCK_LABELS[surface]}: ${stateLabel}${
-          remaining.length ? ` · otras fuentes: ${remaining.join(", ")}` : ""
-        }`;
-        status.dataset.state = state;
-        status.setAttribute("aria-label", `${LOCK_LABELS[surface]}, estado ${stateLabel}`);
-        const lock = this.refs.objectLockButtons.find(
-          (button) => button.dataset.lockSurface === surface
-            && button.dataset.lockAction === "lock",
-        );
-        const unlock = this.refs.objectLockButtons.find(
-          (button) => button.dataset.lockSurface === surface
-            && button.dataset.lockAction === "unlock",
-        );
-        const actionEnabled = this.enabled(this.actionIds.USER_LOCKS_SET);
-        lock.disabled = !actionEnabled || state === "all";
-        unlock.disabled = !actionEnabled || state === "none";
-      }
     }
 
     dispose() {
@@ -146,5 +99,5 @@
     }
   }
 
-  return Object.freeze({ LOCK_LABELS, Panel });
+  return Object.freeze({ Panel });
 });

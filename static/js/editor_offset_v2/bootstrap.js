@@ -64,6 +64,7 @@
     let renderer = null;
     let interactions = null;
     let positionInspector = null;
+    let sizeInspector = null;
     let nudgeController = null;
     let shortcutHelp = null;
     let shortcutManager = null;
@@ -100,6 +101,7 @@
       renderer,
       interactions,
       positionInspector,
+      resizeInspector: sizeInspector,
       nudgeController,
       shortcutHelp,
       objectsPanel,
@@ -129,7 +131,7 @@
       modules.Commands,
       modules.EditPolicy,
     );
-    positionInspector = new modules.PositionInspector.Controller(
+    sizeInspector = new modules.SizeInspector.Controller(
       store,
       refs,
       actionRegistry,
@@ -357,6 +359,7 @@
       shortcutManager,
       shortcutHelp,
       positionInspector,
+      sizeInspector,
       nudgeController,
       workflowNavigation,
       responsivePanels,

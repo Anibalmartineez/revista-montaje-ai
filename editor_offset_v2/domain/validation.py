@@ -628,6 +628,30 @@ def _validate_slots(
     return by_id, sources
 
 
+def _validate_matrix_cells(value: Any, validator: _Validator) -> set[str]:
+    cells = validator.array(value, "$.matrix_cells")
+    ids: set[str] = set()
+    if cells is None:
+        return ids
+    for index, item in enumerate(cells):
+        path = f"$.matrix_cells[{index}]"
+        cell = validator.object(item, path, required={"id", "face", "position_mm", "trim_size_mm"})
+        if cell is None:
+            continue
+        cell_id = validator.string(cell.get("id"), f"{path}.id")
+        if cell_id:
+            if cell_id in ids:
+                validator.issue("DUPLICATE_ID", f"{path}.id", f"duplicate matrix cell id {cell_id!r}")
+            ids.add(cell_id)
+        validator.enum(cell.get("face"), f"{path}.face", VALID_FACES)
+        position = validator.object(cell.get("position_mm"), f"{path}.position_mm", required={"x_mm", "y_mm"})
+        if position is not None:
+            validator.number(position.get("x_mm"), f"{path}.position_mm.x_mm")
+            validator.number(position.get("y_mm"), f"{path}.position_mm.y_mm")
+        _validate_size(cell.get("trim_size_mm"), validator, f"{path}.trim_size_mm")
+    return ids
+
+
 def _validate_imposition(value: Any, validator: _Validator) -> None:
     path = "$.imposition"
     imposition = validator.object(
@@ -863,6 +887,7 @@ def validate_layout_v2(layout: Any) -> list[ValidationIssue]:
             "export",
             "ctp",
         },
+        optional={"matrix_cells"},
     )
     if root is None:
         return validator.issues
@@ -945,6 +970,12 @@ def validate_layout_v2(layout: Any) -> list[ValidationIssue]:
     assets, page_boxes = _validate_assets(root.get("assets"), validator)
     works, work_sources = _validate_works(root.get("works"), validator)
     slots, slot_sources = _validate_slots(root.get("slots"), validator)
+    matrix_cell_ids = _validate_matrix_cells(root.get("matrix_cells", []), validator)
+    for cell_id in matrix_cell_ids & set(slots):
+        validator.issue("DUPLICATE_ID", "$.matrix_cells", f"matrix cell id {cell_id!r} conflicts with a slot")
+    for index, cell in enumerate(root.get("matrix_cells", []) if isinstance(root.get("matrix_cells", []), list) else []):
+        if isinstance(cell, dict) and isinstance(cell.get("face"), str) and cell["face"] not in enabled_faces:
+            validator.issue("DISABLED_FACE", f"$.matrix_cells[{index}].face", "matrix cell face is not enabled by the layout")
     _validate_imposition(root.get("imposition"), validator)
     marks_profiles = _validate_export(root.get("export"), validator)
     _validate_ctp(root.get("ctp"), validator)

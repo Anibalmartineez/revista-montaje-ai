@@ -11,6 +11,8 @@
     return JSON.stringify([
       payload.rows,
       payload.columns,
+      payload.width,
+      payload.height,
       payload.gapX,
       payload.gapY,
     ]);
@@ -56,17 +58,6 @@
       this.refs.arrangementGeometry.addEventListener("change", () => {
         this.store.setArrangementGeometryReference(this.refs.arrangementGeometry.value);
       });
-      this.refs.arrangementTarget.addEventListener("change", () => {
-        this.store.setArrangementTarget(this.refs.arrangementTarget.value);
-      });
-      this.refs.arrangementKeySet.addEventListener("click", () => {
-        this.runAction(this.actionIds.KEY_SLOT_SET, {
-          slotId: this.refs.arrangementKeyCandidate.value,
-        });
-      });
-      this.refs.arrangementKeyClear.addEventListener("click", () => {
-        this.runAction(this.actionIds.KEY_SLOT_CLEAR);
-      });
       for (const button of this.refs.arrangementActionButtons) {
         button.addEventListener("click", () => this.runAction(button.dataset.arrangementAction));
       }
@@ -107,49 +98,17 @@
       return this.registry.isEnabled(actionId, this.contextProvider());
     }
 
-    keyLabel(slot) {
-      const ordinal = this.store.layout.slots.indexOf(slot) + 1;
-      return `#${ordinal} · ${slot.id}`;
-    }
-
-    renderKeyOptions() {
-      const currentValue = this.refs.arrangementKeyCandidate.value;
-      const slots = this.selectedSlots();
-      this.refs.arrangementKeyCandidate.replaceChildren();
-      for (const slot of slots) {
-        const option = document.createElement("option");
-        option.value = slot.id;
-        option.textContent = this.keyLabel(slot);
-        this.refs.arrangementKeyCandidate.append(option);
-      }
-      if (slots.some((slot) => slot.id === currentValue)) {
-        this.refs.arrangementKeyCandidate.value = currentValue;
-      } else if (this.store.arrangement.keySlotId
-          && slots.some((slot) => slot.id === this.store.arrangement.keySlotId)) {
-        this.refs.arrangementKeyCandidate.value = this.store.arrangement.keySlotId;
-      }
-      this.refs.arrangementKeyCandidate.disabled = slots.length === 0;
-      this.refs.arrangementKeySet.disabled = slots.length === 0
-        || !this.enabled(this.actionIds.KEY_SLOT_SET);
-      this.refs.arrangementKeyClear.disabled = !this.enabled(this.actionIds.KEY_SLOT_CLEAR);
-      const key = slots.find((slot) => slot.id === this.store.arrangement.keySlotId);
-      this.refs.arrangementKeyStatus.textContent = key
-        ? `Slot clave activo: ${this.keyLabel(key)}.`
-        : "Sin slot clave.";
-      this.refs.arrangementKeyStatus.dataset.state = key ? "ready" : "idle";
-    }
-
     render() {
       this.refs.arrangementGeometry.value = this.store.arrangement.geometryReference;
-      this.refs.arrangementTarget.value = this.store.arrangement.target;
-      const keyOption = this.refs.arrangementTarget.querySelector('option[value="key"]');
-      if (keyOption) keyOption.disabled = !this.store.arrangement.keySlotId;
-      if (!this.store.arrangement.keySlotId && this.store.arrangement.target === "key") {
-        this.store.setArrangementTarget("selection");
-        return;
-      }
-      this.refs.arrangementSelection.textContent = `${this.selectedSlots().length} slot(s) seleccionado(s)`;
-      this.renderKeyOptions();
+      const slots = this.selectedSlots();
+      const key = slots.length > 1
+        ? slots.find((slot) => slot.id === this.store.arrangement.keySlotId)
+        : null;
+      const keyLabel = key ? `#${this.store.layout.slots.indexOf(key) + 1}` : null;
+      const countLabel = slots.length === 0
+        ? "Sin selección"
+        : `${slots.length} slot${slots.length === 1 ? "" : "s"}`;
+      this.refs.arrangementSelection.textContent = `${countLabel} · Referencia: ${keyLabel || "pliego"}`;
       for (const button of this.refs.arrangementActionButtons) {
         button.disabled = !this.enabled(button.dataset.arrangementAction);
       }
@@ -162,13 +121,13 @@
       return axis === "horizontal"
         ? {
           value: this.refs.arrangementGapHorizontal,
-          anchor: this.refs.arrangementGapHorizontalAnchor,
+          anchor: null,
           error: this.refs.arrangementGapHorizontalError,
           apply: this.refs.arrangementGapHorizontalApply,
         }
         : {
           value: this.refs.arrangementGapVertical,
-          anchor: this.refs.arrangementGapVerticalAnchor,
+          anchor: null,
           error: this.refs.arrangementGapVerticalError,
           apply: this.refs.arrangementGapVerticalApply,
         };
@@ -177,34 +136,37 @@
     readGap(axis, showError) {
       const refs = this.gapRefs(axis);
       const parsed = this.operations.parseNonNegativeMillimetres(refs.value.value);
-      const keyInvalid = refs.anchor.value === "key" && !this.store.arrangement.keySlotId;
-      const error = !parsed.ok ? parsed.error : keyInvalid ? "El anclaje clave requiere un slot clave activo." : null;
+      const error = !parsed.ok ? parsed.error : null;
       refs.value.setAttribute("aria-invalid", String(Boolean(error)));
       refs.error.textContent = showError || error ? (error || "") : "";
       return error
         ? { ok: false, error }
-        : { ok: true, payload: { gapMm: parsed.value, anchor: refs.anchor.value } };
+        : { ok: true, payload: { gapMm: parsed.value, anchor: "start" } };
     }
 
     validateMatrix(showError) {
+      const width = this.operations.parsePositiveMillimetres(this.refs.arrangementMatrixWidth.value);
+      const height = this.operations.parsePositiveMillimetres(this.refs.arrangementMatrixHeight.value);
       const rows = this.operations.parsePositiveInteger(this.refs.arrangementMatrixRows.value, "Filas");
       const columns = this.operations.parsePositiveInteger(this.refs.arrangementMatrixColumns.value, "Columnas");
       const gapX = this.operations.parseNonNegativeMillimetres(this.refs.arrangementMatrixGapX.value);
       const gapY = this.operations.parseNonNegativeMillimetres(this.refs.arrangementMatrixGapY.value);
-      let error = rows.error || columns.error || gapX.error || gapY.error;
+      let error = width.error || height.error || rows.error || columns.error || gapX.error || gapY.error;
       let summary = null;
       if (!error) {
         try {
-          summary = this.operations.matrixSummary(
-            this.selectedSlots().length,
-            rows.value,
-            columns.value,
-          );
+          const payload = { rows: rows.value, columns: columns.value, gapX: gapX.value,
+            gapY: gapY.value, width: width.value, height: height.value,
+            activeFace: this.store.activeFace };
+          const placement = this.operations.findMatrixPlacement(this.store.layout, payload);
+          summary = { ...payload, placement, totalCells: rows.value * columns.value };
         } catch (matrixError) {
           error = matrixError.message;
         }
       }
       for (const [element, valid] of [
+        [this.refs.arrangementMatrixWidth, width.ok],
+        [this.refs.arrangementMatrixHeight, height.ok],
         [this.refs.arrangementMatrixRows, rows.ok],
         [this.refs.arrangementMatrixColumns, columns.ok],
         [this.refs.arrangementMatrixGapX, gapX.ok],
@@ -215,10 +177,13 @@
         ok: true,
         summary,
         payload: {
+          width: width.value,
+          height: height.value,
           rows: rows.value,
           columns: columns.value,
           gapX: gapX.value,
           gapY: gapY.value,
+          activeFace: this.store.activeFace,
         },
       };
     }
@@ -241,10 +206,10 @@
       if (!this.dirtyForms.size) return false;
       this.refs.arrangementGapHorizontal.value = "0";
       this.refs.arrangementGapVertical.value = "0";
-      this.refs.arrangementGapHorizontalAnchor.value = "start";
-      this.refs.arrangementGapVerticalAnchor.value = "start";
       this.refs.arrangementMatrixRows.value = "1";
       this.refs.arrangementMatrixColumns.value = "2";
+      this.refs.arrangementMatrixWidth.value = "150";
+      this.refs.arrangementMatrixHeight.value = "50";
       this.refs.arrangementMatrixGapX.value = "0";
       this.refs.arrangementMatrixGapY.value = "0";
       this.dirtyForms.clear();
@@ -271,24 +236,9 @@
     applyMatrix() {
       const result = this.validateMatrix(true);
       if (!result.ok) return false;
-      if (shouldBlockMatrixRepeat(
-        this.matrixRepeatGuard,
-        this.store.selection,
-        result.payload,
-      )) {
-        this.store.setFeedback(
-          "La matriz ya fue creada. Cambia un parámetro o vuelve a seleccionar las fuentes para repetirla.",
-        );
-        this.updateFormButtons();
-        return false;
-      }
       const executed = this.runAction(this.actionIds.MATRIX_CREATE, result.payload);
       if (executed !== false) {
         this.dirtyForms.delete("matrix");
-        const selectionAfter = Array.isArray(executed?.affectedIds)
-          ? executed.affectedIds
-          : [...this.store.selection];
-        this.matrixRepeatGuard = createMatrixRepeatGuard(selectionAfter, result.payload);
       }
       this.updateFormButtons();
       return executed;
@@ -297,8 +247,17 @@
     renderSummary() {
       const result = this.validateMatrix(false);
       this.refs.arrangementMatrixSummary.textContent = result.ok
-        ? `${result.summary.sourceCount} fuente(s) · ${result.summary.totalCells} celdas · ${result.summary.newSlots} slots nuevos.`
+        ? `${result.summary.totalCells} cuadros · ${result.summary.width} × ${result.summary.height} mm · ubicación X ${result.summary.placement.left.toFixed(1)}, Y ${result.summary.placement.bottom.toFixed(1)} mm.`
         : "Completa una matriz válida para ver el total.";
+      if (this.refs.matrixCellStatus) {
+        const count = (this.store.layout.matrix_cells || []).filter((cell) => cell.face === this.store.activeFace).length;
+        const selected = this.store.matrixCellSelectionIds.size;
+        this.refs.matrixCellStatus.textContent = selected
+          ? `${selected} cuadro(s) seleccionado(s). Elige un trabajo en Archivos PDF y pulsa “Asignar PDF a ${selected} cuadro(s)”.`
+          : count
+            ? `${count} cuadro(s) pendiente(s). Mayús o Ctrl + clic para seleccionar varios y asignarles el mismo PDF.`
+          : "La matriz se ubica en un espacio libre. Puedes crear otras con medidas distintas; los cuadros pendientes bloquean Preview y PDF hasta asignarlos.";
+      }
     }
 
     updateFormButtons() {

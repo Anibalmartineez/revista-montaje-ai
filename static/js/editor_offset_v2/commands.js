@@ -370,6 +370,46 @@
     }
   }
 
+  class ResizeSlotsCommand {
+    constructor(layout, slotIds, size, options) {
+      const requested = [...new Set(slotIds || [])];
+      const slots = layout.slots.filter((slot) => requested.includes(slot.id));
+      if (requested.length !== 1 || slots.length !== 1) {
+        throw new Error("Cambiar la medida requiere exactamente un slot existente.");
+      }
+      const width = Number(size?.width);
+      const height = Number(size?.height);
+      if (!Number.isFinite(width) || width <= 0 || !Number.isFinite(height) || height <= 0) {
+        throw new Error("El ancho y el alto deben ser números mayores que cero.");
+      }
+      this.description = options?.description || "Cambiar medida del slot";
+      this.affectedIds = Object.freeze(requested);
+      this.beforeSizes = Object.fromEntries(slots.map((slot) => [slot.id, clone(slot.geometry.trim_size_mm)]));
+      this.afterSizes = { [slots[0].id]: { width, height } };
+      if (this.beforeSizes[slots[0].id].width === width
+          && this.beforeSizes[slots[0].id].height === height) {
+        throw new Error("La medida no cambió.");
+      }
+    }
+
+    apply(layout, sizes) {
+      const slotsById = new Map(layout.slots.map((slot) => [slot.id, slot]));
+      for (const id of this.affectedIds) {
+        const slot = slotsById.get(id);
+        if (!slot) throw new Error(`El slot ${id} ya no existe.`);
+        slot.geometry.trim_size_mm = clone(sizes[id]);
+      }
+    }
+
+    execute(layout) {
+      EditPolicy.assertCan(layout, this.affectedIds, "resize");
+      this.apply(layout, this.afterSizes);
+    }
+
+    undo(layout) { this.apply(layout, this.beforeSizes); }
+    redo(layout) { this.execute(layout); }
+  }
+
   class DuplicateSlotsCommand {
     constructor(layout, slotIds, options) {
       this.description = options?.description || "Duplicar slots";
@@ -651,7 +691,7 @@
         next[key] = clone(validated[key]);
       }
       if (next.back_source) sourcePage(layout, next.back_source);
-      this.structural = allowed.filter((key) => !["name", "requested_forms", "bleed_strategy"].includes(key))
+      this.structural = allowed.filter((key) => !["name", "requested_forms", "trim_size_mm", "bleed_strategy"].includes(key))
         .some((key) => !UpdateWorkCommand.equal(work[key], next[key]));
       this.assertEditable(layout);
       if (UpdateWorkCommand.equal(work, next)) throw new Error("El trabajo no contiene cambios.");
@@ -664,7 +704,7 @@
         if (ids.length) EditPolicy.assertCan(layout, ids, "replace_content");
       }
       if (this.structural && layout.slots.some((slot) => slot.work_id === this.before.id)) {
-        throw new Error("Este trabajo ya tiene piezas colocadas. Cambia solo nombre/cantidad o crea una variante.");
+        throw new Error("Este trabajo ya tiene piezas colocadas. Puedes cambiar nombre, cantidad o tamaño para futuros Repeat; crea una variante para cambiar fuente, sangrado o giros.");
       }
     }
     execute(layout) {
@@ -749,6 +789,91 @@
     redo(layout) {
       this.execute(layout);
     }
+  }
+
+  class CreateMatrixCellsCommand {
+    constructor(cells) {
+      this.description = "Crear matriz de cuadros vacíos";
+      this.cells = clone(cells || []);
+      this.affectedIds = Object.freeze(this.cells.map((cell) => cell.id));
+    }
+    execute(layout) {
+      layout.matrix_cells = layout.matrix_cells || [];
+      const known = new Set([...layout.slots.map((item) => item.id), ...layout.matrix_cells.map((item) => item.id)]);
+      if (!this.cells.length || this.cells.some((cell) => known.has(cell.id))) throw new Error("La matriz contiene IDs duplicados o está vacía.");
+      layout.matrix_cells.push(...clone(this.cells));
+    }
+    undo(layout) { const ids = new Set(this.affectedIds); layout.matrix_cells = (layout.matrix_cells || []).filter((cell) => !ids.has(cell.id)); }
+    redo(layout) { this.execute(layout); }
+  }
+
+  class AssignMatrixCellCommand {
+    constructor(layout, cellId, slot) {
+      const index = (layout.matrix_cells || []).findIndex((cell) => cell.id === cellId);
+      if (index < 0) throw new Error("Selecciona un cuadro vacío.");
+      if (layout.slots.some((item) => item.id === slot.id)) throw new Error("El slot ya existe.");
+      this.description = "Asignar PDF al cuadro";
+      this.cell = clone(layout.matrix_cells[index]);
+      this.cellIndex = index;
+      this.slot = clone(slot);
+      this.affectedIds = Object.freeze([this.cell.id, this.slot.id]);
+      this.selectionBefore = Object.freeze([]);
+      this.selectionAfter = Object.freeze([this.slot.id]);
+      this.matrixCellSelectionBefore = cellId;
+      this.matrixCellSelectionAfter = null;
+    }
+    execute(layout) {
+      const index = (layout.matrix_cells || []).findIndex((cell) => cell.id === this.cell.id);
+      if (index < 0) throw new Error("El cuadro ya no existe.");
+      layout.matrix_cells.splice(index, 1);
+      layout.slots.push(clone(this.slot));
+    }
+    undo(layout) {
+      layout.slots = layout.slots.filter((item) => item.id !== this.slot.id);
+      layout.matrix_cells = layout.matrix_cells || [];
+      layout.matrix_cells.splice(Math.min(this.cellIndex, layout.matrix_cells.length), 0, clone(this.cell));
+    }
+    redo(layout) { this.execute(layout); }
+  }
+
+  class AssignMatrixCellsCommand {
+    constructor(layout, cellIds, slots) {
+      const requested = [...new Set(cellIds || [])];
+      const indexed = requested.map((id) => ({ index: (layout.matrix_cells || []).findIndex((cell) => cell.id === id), id }));
+      const slotList = clone(slots || []);
+      if (!requested.length || requested.some((_id, index) => indexed[index].index < 0) || slotList.length !== requested.length) {
+        throw new Error("Los cuadros y trabajos para asignar no coinciden.");
+      }
+      const slotIds = slotList.map((slot) => slot.id);
+      if (new Set(slotIds).size !== slotIds.length || slotIds.some((id) => layout.slots.some((slot) => slot.id === id))) {
+        throw new Error("La asignación contiene slots duplicados.");
+      }
+      this.description = slotList.length === 1 ? "Asignar PDF al cuadro" : `Asignar PDF a ${slotList.length} cuadros`;
+      this.entries = indexed.map(({ index, id }, order) => ({ index, cell: clone(layout.matrix_cells[index]), slot: slotList[order] }));
+      this.affectedIds = Object.freeze([...requested, ...slotIds]);
+      this.selectionBefore = Object.freeze([]);
+      this.selectionAfter = Object.freeze(slotIds);
+      this.matrixCellSelectionBefore = Object.freeze([...requested]);
+      this.matrixCellSelectionAfter = Object.freeze([]);
+    }
+    execute(layout) {
+      const ids = new Set(this.entries.map((entry) => entry.cell.id));
+      if (this.entries.some((entry) => !(layout.matrix_cells || []).some((cell) => cell.id === entry.cell.id))
+          || this.entries.some((entry) => layout.slots.some((slot) => slot.id === entry.slot.id))) {
+        throw new Error("Uno de los cuadros o slots de asignación ya cambió.");
+      }
+      layout.matrix_cells = (layout.matrix_cells || []).filter((cell) => !ids.has(cell.id));
+      layout.slots.push(...this.entries.map((entry) => clone(entry.slot)));
+    }
+    undo(layout) {
+      const slotIds = new Set(this.entries.map((entry) => entry.slot.id));
+      layout.slots = layout.slots.filter((slot) => !slotIds.has(slot.id));
+      layout.matrix_cells = layout.matrix_cells || [];
+      for (const entry of [...this.entries].sort((a, b) => a.index - b.index)) {
+        layout.matrix_cells.splice(Math.min(entry.index, layout.matrix_cells.length), 0, clone(entry.cell));
+      }
+    }
+    redo(layout) { this.execute(layout); }
   }
 
   class ReplaceSlotSourceCommand {
@@ -1208,6 +1333,7 @@
     CreateSlotCommand,
     MoveSlotsCommand,
     RotateSlotsCommand,
+    ResizeSlotsCommand,
     SetContentTransformCommand,
     DuplicateSlotsCommand,
     DeleteSlotsCommand,
@@ -1216,6 +1342,9 @@
     CreateWorksCommand,
     UpdateWorkCommand,
     CreateSlotFromWorkCommand,
+    CreateMatrixCellsCommand,
+    AssignMatrixCellCommand,
+    AssignMatrixCellsCommand,
     ReplaceSlotSourceCommand,
     SetSlotDerivedSourceCommand,
     ApplyRepeatCommand,

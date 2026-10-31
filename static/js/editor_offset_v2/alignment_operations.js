@@ -362,6 +362,103 @@
     });
   }
 
+  function parsePositiveMillimetres(rawValue) {
+    const parsed = parseNonNegativeMillimetres(rawValue);
+    if (!parsed.ok || parsed.value <= 0) return Object.freeze({ ok: false, value: null, error: "Introduce una medida mayor que 0 mm." });
+    return Object.freeze({ ok: true, value: parsed.value, error: null });
+  }
+
+  const MATRIX_CLEARANCE_MM = 0.5;
+
+  function rectsOverlap(left, right) {
+    return left.left < right.right - EPSILON_MM
+      && left.right > right.left + EPSILON_MM
+      && left.bottom < right.top - EPSILON_MM
+      && left.top > right.bottom + EPSILON_MM;
+  }
+
+  function matrixObstacles(layout, face) {
+    const slots = (layout.slots || []).filter((slot) => slot.face === face).map((slot) => {
+      const geometry = slot.geometry;
+      const rotation = ((Number(geometry.rotation_deg) % 360) + 360) % 360;
+      const width = [90, 270].includes(rotation) ? geometry.trim_size_mm.height : geometry.trim_size_mm.width;
+      const height = [90, 270].includes(rotation) ? geometry.trim_size_mm.width : geometry.trim_size_mm.height;
+      const bleed = Number(geometry.bleed_mm || 0) + MATRIX_CLEARANCE_MM;
+      return { left: geometry.position_mm.x_mm - width / 2 - bleed, right: geometry.position_mm.x_mm + width / 2 + bleed,
+        bottom: geometry.position_mm.y_mm - height / 2 - bleed, top: geometry.position_mm.y_mm + height / 2 + bleed };
+    });
+    const cells = (layout.matrix_cells || []).filter((cell) => cell.face === face).map((cell) => ({
+      left: cell.position_mm.x_mm - cell.trim_size_mm.width / 2 - MATRIX_CLEARANCE_MM,
+      right: cell.position_mm.x_mm + cell.trim_size_mm.width / 2 + MATRIX_CLEARANCE_MM,
+      bottom: cell.position_mm.y_mm - cell.trim_size_mm.height / 2 - MATRIX_CLEARANCE_MM,
+      top: cell.position_mm.y_mm + cell.trim_size_mm.height / 2 + MATRIX_CLEARANCE_MM,
+    }));
+    return [...slots, ...cells];
+  }
+
+  function findMatrixPlacement(layout, options) {
+    const rows = Number(options?.rows), columns = Number(options?.columns);
+    const width = Number(options?.width), height = Number(options?.height);
+    const gapX = Number(options?.gapX), gapY = Number(options?.gapY);
+    const face = options?.activeFace;
+    if (![rows, columns].every((value) => Number.isSafeInteger(value) && value > 0)) throw new Error("Filas y columnas deben ser enteros mayores que cero.");
+    if (rows * columns > MAX_MATRIX_NEW_SLOTS) throw new Error(`La matriz excede el límite de ${MAX_MATRIX_NEW_SLOTS} cuadros.`);
+    if (![width, height].every((value) => Number.isFinite(value) && value > 0)) throw new Error("El ancho y el alto deben ser mayores que cero.");
+    if (![gapX, gapY].every((value) => Number.isFinite(value) && value >= 0)) throw new Error("Las separaciones deben ser números no negativos.");
+    if (!layout.faces.enabled.includes(face)) throw new Error("La cara seleccionada no está habilitada.");
+    const margins = layout.sheet.printable_margins_mm, sheet = layout.sheet.size_mm;
+    const printable = { left: margins.left, right: sheet.width - margins.right,
+      bottom: margins.bottom, top: sheet.height - margins.top };
+    printable.width = printable.right - printable.left;
+    printable.height = printable.top - printable.bottom;
+    const totalWidth = columns * width + (columns - 1) * gapX;
+    const totalHeight = rows * height + (rows - 1) * gapY;
+    if (totalWidth > printable.width + EPSILON_MM || totalHeight > printable.height + EPSILON_MM) throw new Error("La matriz no cabe en el área imprimible del pliego.");
+    const centerX = (printable.left + printable.right - totalWidth) / 2;
+    const centerY = (printable.bottom + printable.top - totalHeight) / 2;
+    const obstacles = matrixObstacles(layout, face);
+    const candidates = (starts, extent, minimum, maximum, center) => [...new Set(starts.filter((value) => Number.isFinite(value)
+      && value >= minimum - EPSILON_MM && value + extent <= maximum + EPSILON_MM))]
+      .sort((a, b) => Math.abs(a - center) - Math.abs(b - center) || a - b);
+    const xStarts = candidates([centerX, printable.left, printable.right - totalWidth,
+      ...obstacles.flatMap((rect) => [rect.right, rect.left - totalWidth])], totalWidth,
+    printable.left, printable.right, centerX);
+    const yStarts = candidates([centerY, printable.bottom, printable.top - totalHeight,
+      ...obstacles.flatMap((rect) => [rect.top, rect.bottom - totalHeight])], totalHeight,
+    printable.bottom, printable.top, centerY);
+    for (const left of xStarts) for (const bottom of yStarts) {
+      const group = { left, right: left + totalWidth, bottom, top: bottom + totalHeight };
+      if (!obstacles.some((obstacle) => rectsOverlap(group, obstacle))) {
+        return Object.freeze({ left, bottom, right: group.right, top: group.top, width: totalWidth, height: totalHeight });
+      }
+    }
+    throw new Error("No hay espacio libre para esta matriz en la cara seleccionada. Reduce su tamaño o separaciones, o elige la otra cara.");
+  }
+
+  function buildEmptyMatrixCells(layout, options) {
+    const rows = Number(options?.rows), columns = Number(options?.columns);
+    const width = Number(options?.width), height = Number(options?.height);
+    const gapX = Number(options?.gapX), gapY = Number(options?.gapY);
+    const face = options?.activeFace;
+    const totalWidth = columns * width + (columns - 1) * gapX;
+    const totalHeight = rows * height + (rows - 1) * gapY;
+    const placement = findMatrixPlacement(layout, options);
+    const left = placement.left;
+    const top = placement.top;
+    const taken = new Set([...(layout.slots || []).map((item) => item.id), ...(layout.matrix_cells || []).map((item) => item.id)]);
+    const makeId = options?.idFactory || (() => `matrix_cell_${globalThis.crypto?.randomUUID?.().replace(/-/g, "") || Math.random().toString(36).slice(2)}`);
+    const cells = [];
+    for (let row = 0; row < rows; row += 1) for (let column = 0; column < columns; column += 1) {
+      let id = String(makeId());
+      if (!id || taken.has(id)) throw new Error("No se pudo generar un ID único para los cuadros.");
+      taken.add(id);
+      cells.push({ id, face, position_mm: { x_mm: left + column * (width + gapX) + width / 2, y_mm: top - row * (height + gapY) - height / 2 }, trim_size_mm: { width, height } });
+    }
+    if (new Set(cells.map((cell) => cell.id)).size !== cells.length) throw new Error("No se pudo generar IDs únicos para los cuadros.");
+    return Object.freeze({ rows, columns, width, height, gapX, gapY, placement,
+      cells: Object.freeze(cells) });
+  }
+
   return Object.freeze({
     EPSILON_MM,
     MAX_MATRIX_NEW_SLOTS,
@@ -372,9 +469,12 @@
     buildAlignmentPlan,
     buildDistributionPlan,
     buildExactGapPlan,
+    buildEmptyMatrixCells,
+    findMatrixPlacement,
     matrixSummary,
     parseNonNegativeMillimetres,
     parsePositiveInteger,
+    parsePositiveMillimetres,
     prepareMatrixCopies,
     sheetBounds,
     slotBounds,

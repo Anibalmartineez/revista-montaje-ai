@@ -50,6 +50,8 @@
       this.revision = this.layout.job.revision;
       this.activeFace = this.layout.faces.enabled[0];
       this.selection = new Set();
+      this.matrixCellSelectionIds = new Set();
+      this.matrixCellSelectionId = null;
       this.hoverId = null;
       this.activeTool = "select";
       this.zoom = 1;
@@ -146,6 +148,8 @@
         revision: this.revision,
         activeFace: this.activeFace,
         selection: [...this.selection],
+        matrixCellSelectionIds: [...this.matrixCellSelectionIds],
+        matrixCellSelectionId: this.matrixCellSelectionId,
         hoverId: this.hoverId,
         activeTool: this.activeTool,
         zoom: this.zoom,
@@ -246,9 +250,15 @@
 
     applyCommandSelection(command, phase) {
       const key = phase === "before" ? "selectionBefore" : "selectionAfter";
-      if (!Array.isArray(command?.[key])) return;
-      const validIds = new Set(this.layout.slots.map((slot) => slot.id));
-      this.selection = new Set(command[key].filter((id) => validIds.has(id)));
+      if (Array.isArray(command?.[key])) {
+        const validIds = new Set(this.layout.slots.map((slot) => slot.id));
+        this.selection = new Set(command[key].filter((id) => validIds.has(id)));
+      }
+      const cellKey = phase === "before" ? "matrixCellSelectionBefore" : "matrixCellSelectionAfter";
+      if (Object.prototype.hasOwnProperty.call(command || {}, cellKey)) {
+        this.matrixCellSelectionIds = new Set(Array.isArray(command[cellKey]) ? command[cellKey] : []);
+        this.matrixCellSelectionId = [...this.matrixCellSelectionIds].at(-1) || null;
+      }
     }
 
     markChanged() {
@@ -267,6 +277,9 @@
     }
 
     setSelection(ids, mode) {
+      const hadMatrixCellSelection = this.matrixCellSelectionIds.size > 0;
+      this.matrixCellSelectionIds.clear();
+      if (hadMatrixCellSelection) this.matrixCellSelectionId = null;
       const hidden = this.advancedSelection.hiddenSlotIds;
       const validIds = new Set(this.layout.slots
         .filter((slot) => slot.face === this.activeFace && !hidden.has(slot.id))
@@ -286,14 +299,17 @@
       } else {
         this.selection = new Set(incoming);
       }
-      if (!sameSet(previous, this.selection)) {
+      if (!sameSet(previous, this.selection) || hadMatrixCellSelection) {
         this.reconcileKeySlot();
         this.emit("selection");
       }
     }
 
     clearSelection() {
-      if (this.selection.size) {
+      const hadMatrixCellSelection = this.matrixCellSelectionIds.size > 0;
+      this.matrixCellSelectionIds.clear();
+      this.matrixCellSelectionId = null;
+      if (this.selection.size || hadMatrixCellSelection) {
         this.selection.clear();
         this.reconcileKeySlot();
         this.emit("selection");
@@ -328,6 +344,9 @@
         .filter((slot) => slot.face === this.activeFace && !this.advancedSelection.hiddenSlotIds.has(slot.id))
         .map((slot) => slot.id));
       this.selection = new Set([...this.selection].filter((id) => validIds.has(id)));
+      const validCells = new Set((this.layout.matrix_cells || []).filter((cell) => cell.face === this.activeFace).map((cell) => cell.id));
+      this.matrixCellSelectionIds = new Set([...this.matrixCellSelectionIds].filter((id) => validCells.has(id)));
+      this.matrixCellSelectionId = [...this.matrixCellSelectionIds].at(-1) || null;
       const existingIds = new Set(this.layout.slots.map((slot) => slot.id));
       this.advancedSelection.hiddenSlotIds = new Set(
         [...this.advancedSelection.hiddenSlotIds].filter((id) => existingIds.has(id)),
@@ -337,6 +356,28 @@
         this.advancedSelection.treeAnchorSlotId = null;
       }
       this.reconcileKeySlot();
+    }
+
+    setMatrixCellSelection(cellIds, mode = "replace") {
+      const requested = (Array.isArray(cellIds) ? cellIds : [cellIds]).filter(Boolean);
+      const validCells = new Set((this.layout.matrix_cells || []).filter((item) => item.face === this.activeFace).map((item) => item.id));
+      const incoming = requested.filter((id) => validCells.has(id));
+      const previous = new Set(this.matrixCellSelectionIds);
+      if (mode === "toggle") {
+        for (const id of incoming) this.matrixCellSelectionIds.has(id)
+          ? this.matrixCellSelectionIds.delete(id) : this.matrixCellSelectionIds.add(id);
+      } else if (mode === "add") incoming.forEach((id) => this.matrixCellSelectionIds.add(id));
+      else this.matrixCellSelectionIds = new Set(incoming);
+      this.matrixCellSelectionId = [...this.matrixCellSelectionIds].at(-1) || null;
+      const changed = previous.size !== this.matrixCellSelectionIds.size
+        || [...previous].some((id) => !this.matrixCellSelectionIds.has(id))
+        || this.selection.size > 0;
+      this.selection.clear();
+      if (changed) {
+        this.reconcileKeySlot();
+        this.emit("matrix_cell_selection", { ids: [...this.matrixCellSelectionIds] });
+      }
+      return this.matrixCellSelectionIds.size > 0;
     }
 
     syncNewTreeWorks() {
@@ -351,6 +392,10 @@
     reconcileKeySlot() {
       const keySlotId = this.arrangement?.keySlotId;
       if (!keySlotId) return false;
+      if (this.selection.size < 2) {
+        this.arrangement = { ...this.arrangement, keySlotId: null };
+        return true;
+      }
       const keySlot = this.layout.slots.find((slot) => slot.id === keySlotId);
       if (!keySlot || keySlot.face !== this.activeFace || !this.selection.has(keySlotId)
           || this.advancedSelection.hiddenSlotIds.has(keySlotId)) {
@@ -556,6 +601,9 @@
           this.emit("arrangement");
         }
         return;
+      }
+      if (this.selection.size < 2) {
+        throw new Error("Selecciona al menos dos slots para definir una referencia.");
       }
       const slot = this.layout.slots.find((item) => item.id === slotId);
       if (!slot || slot.face !== this.activeFace || !this.selection.has(slotId)

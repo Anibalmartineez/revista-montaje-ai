@@ -263,8 +263,9 @@ class PreviewService:
         source_height = selected["height"]
         if physical_page.intrinsic_rotation_deg in (90, 270):
             source_width, source_height = source_height, source_width
-        if not _same_number(source_width, trim["width"]) or not _same_number(source_height, trim["height"]):
-            raise PreviewServiceError("PREVIEW_SOURCE_SIZE_MISMATCH", "Source box size differs from slot trim size")
+        # Slot trim is independent from the nominal source dimensions. The
+        # compositor applies fit_mode (or clips at actual size); preflight
+        # reports an informational geometry warning for actual_size mismatches.
         derived = slot["source"].get("derived")
         if derived is not None:
             data = self._read_derived_source(job_id, asset, derived)
@@ -278,11 +279,8 @@ class PreviewService:
                                                slot["geometry"]["bleed_mm"], transform["clip_to"]))):
                 raise PreviewServiceError("BLEED_REQUIRES_EXPLICIT_MIRROR", "El trabajo requiere sangrado del archivo; el derivado no acredita esa cobertura.")
             with fitz.open(stream=data,filetype='pdf') as document:
-                bleed = slot['geometry']['bleed_mm'] if transform['clip_to']=='bleed_box' else 0
-                expected = (trim['width']+2*bleed, trim['height']+2*bleed)
-                actual = (document[0].rect.width / POINTS_PER_MM, document[0].rect.height / POINTS_PER_MM)
-                if any(abs(a-b)>0.01 for a,b in zip(actual,expected)):
-                    raise PreviewServiceError('DERIVED_SIZE_MISMATCH','Derived page dimensions do not match the selected trim and clipping')
+                if not len(document):
+                    raise PreviewServiceError('DERIVED_SIZE_MISMATCH','Derived source contains no page')
             return data
         try:
             prepared = prepare_source(

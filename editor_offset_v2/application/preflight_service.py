@@ -441,8 +441,12 @@ class PreflightService:
         printable = Bounds(margins["left"], size["width"] - margins["right"], margins["bottom"], size["height"] - margins["top"])
         if printable.width <= 0 or printable.height <= 0:
             issues.append(_issue(issue_id=self._next_issue("printable"), check_id="geometry", code="PRINTABLE_AREA_EMPTY", severity="error", message="Printable margins leave no usable area.", path="$.sheet.printable_margins_mm", blocks=list(PREFLIGHT_OPERATIONS)))
+        matrix_cells = layout.get("matrix_cells", [])
+        if matrix_cells:
+            issues.append(_issue(issue_id=self._next_issue("matrix-cells"), check_id="geometry", code="UNASSIGNED_MATRIX_CELLS", severity="error", message=f"{len(matrix_cells)} empty matrix cell(s) still need a work assigned before output.", path="$.matrix_cells", faces=sorted({cell.get("face") for cell in matrix_cells if isinstance(cell, dict) and cell.get("face") in {"front", "back"}}), blocks=list(PREFLIGHT_OPERATIONS)))
+        assets = {asset.get("id"): asset for asset in layout.get("assets", []) if isinstance(asset, dict)}
         face_polygons: dict[str, list[tuple[dict[str, Any], Any, Any]]] = defaultdict(list)
-        for slot in layout["slots"]:
+        for slot_index, slot in enumerate(layout["slots"]):
             geometry = slot["geometry"]
             slot_geometry = SlotGeometry(
                 Point(geometry["position_mm"]["x_mm"], geometry["position_mm"]["y_mm"]),
@@ -452,17 +456,28 @@ class PreflightService:
             trim = trim_polygon(slot_geometry)
             bleed = bleed_polygon(slot_geometry)
             face_polygons[slot["face"]].append((slot, trim, bleed))
+            if slot.get("content_transform", {}).get("fit_mode") == "actual_size" and not slot.get("source", {}).get("derived"):
+                asset = assets.get(slot.get("source", {}).get("asset_id"))
+                page = next((item for item in asset.get("pages", []) if item.get("number") == slot.get("source", {}).get("page")), None) if asset else None
+                source_box = page.get("boxes_mm", {}).get(slot["source"].get("pdf_box")) if page else None
+                if source_box:
+                    source_width, source_height = source_box["width"], source_box["height"]
+                    if page.get("intrinsic_rotation_deg") in {90, 270}:
+                        source_width, source_height = source_height, source_width
+                    trim_size = geometry["trim_size_mm"]
+                    if abs(source_width - trim_size["width"]) > 0.01 or abs(source_height - trim_size["height"]) > 0.01:
+                        issues.append(_issue(issue_id=self._next_issue("source-trim-size"), check_id="geometry", code="SOURCE_TRIM_SIZE_DIFFERS", severity="warning", message="The PDF source and slot trim sizes differ. At Actual size, content may be clipped; choose Contain, Cover or Stretch to control the fit.", path=f"$.slots[{slot_index}].geometry.trim_size_mm", slot_ids=[slot["id"]], work_ids=[slot["work_id"]], faces=[slot["face"]], blocks=[]))
             if not polygon_within_bounds(trim, sheet):
                 issues.append(_issue(issue_id=self._next_issue("trim-sheet"), check_id="geometry", code="TRIM_OUTSIDE_SHEET", severity="error", message="Trim extends outside the sheet.", path=f"$.slots[{layout['slots'].index(slot)}].geometry", slot_ids=[slot["id"]], work_ids=[slot["work_id"]], faces=[slot["face"]], blocks=list(PREFLIGHT_OPERATIONS)))
             if not polygon_within_bounds(bleed, printable):
-                issues.append(_issue(issue_id=self._next_issue("bleed-printable"), check_id="geometry", code="BLEED_OUTSIDE_PRINTABLE", severity="warning", message="Bleed extends outside the printable area.", path=f"$.slots[{layout['slots'].index(slot)}].geometry", slot_ids=[slot["id"]], work_ids=[slot["work_id"]], faces=[slot["face"]], blocks=["pdf_final", "ctp"]))
+                issues.append(_issue(issue_id=self._next_issue("bleed-printable"), check_id="geometry", code="BLEED_OUTSIDE_PRINTABLE", severity="warning", message="Bleed extends outside the printable area and may be clipped; review the sheet margins.", path=f"$.slots[{slot_index}].geometry", slot_ids=[slot["id"]], work_ids=[slot["work_id"]], faces=[slot["face"]], blocks=[]))
         for face, entries in face_polygons.items():
             for index, (left, left_trim, left_bleed) in enumerate(entries):
                 for right, right_trim, right_bleed in entries[index + 1:]:
                     if polygons_intersect(left_trim, right_trim):
                         issues.append(_issue(issue_id=self._next_issue("trim-overlap"), check_id="geometry", code="TRIM_OVERLAP", severity="error", message="Trim areas overlap on the same face.", path="$.slots", slot_ids=[left["id"], right["id"]], work_ids=sorted({left["work_id"], right["work_id"]}), faces=[face], blocks=["pdf_final", "ctp"]))
                     elif polygons_intersect(left_bleed, right_bleed):
-                        issues.append(_issue(issue_id=self._next_issue("bleed-overlap"), check_id="geometry", code="BLEED_OVERLAP", severity="warning", message="Bleed areas overlap on the same face.", path="$.slots", slot_ids=[left["id"], right["id"]], work_ids=sorted({left["work_id"], right["work_id"]}), faces=[face], blocks=["pdf_final", "ctp"]))
+                        issues.append(_issue(issue_id=self._next_issue("bleed-overlap"), check_id="geometry", code="BLEED_OVERLAP", severity="warning", message="Bleed areas overlap on this face. Review the artwork at shared cut edges.", path="$.slots", slot_ids=[left["id"], right["id"]], work_ids=sorted({left["work_id"], right["work_id"]}), faces=[face], blocks=[]))
         evidence.append({"sheet_mm": [sheet.width, sheet.height], "printable_mm": {"left": printable.left, "right": printable.right, "bottom": printable.bottom, "top": printable.top}})
         return issues, evidence
 

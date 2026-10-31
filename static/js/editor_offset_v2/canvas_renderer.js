@@ -209,6 +209,24 @@
       });
       svg.append(workspace, sheetRect, printableRect);
 
+      for (const cell of (state.layout.matrix_cells || []).filter((item) => item.face === state.activeFace)) {
+        const selected = (state.matrixCellSelectionIds || []).includes(cell.id);
+        const group = svgElement("g", {
+          class: `ev2-svg-matrix-cell${selected ? " is-selected" : ""}`,
+          "data-matrix-cell-id": cell.id,
+          tabindex: "0",
+          role: "button",
+          "aria-label": `Cuadro vacío ${cell.trim_size_mm.width} por ${cell.trim_size_mm.height} milímetros. Selecciona para asignar PDF.`,
+        });
+        const x = cell.position_mm.x_mm - cell.trim_size_mm.width / 2;
+        const y = this.geometry.mmToSvgY(cell.position_mm.y_mm + cell.trim_size_mm.height / 2, sheet.height);
+        group.append(
+          svgElement("rect", { x, y, width: cell.trim_size_mm.width, height: cell.trim_size_mm.height, class: "ev2-svg-matrix-cell-box" }),
+          svgElement("text", { x: cell.position_mm.x_mm, y: this.geometry.mmToSvgY(cell.position_mm.y_mm, sheet.height), "text-anchor": "middle", "dominant-baseline": "central", class: "ev2-svg-matrix-cell-label" }, "PDF pendiente"),
+        );
+        svg.append(group);
+      }
+
       const repeatPreview = state.repeatPreview?.context.face === state.activeFace ? state.repeatPreview : null;
       const repeatSlots = repeatPreview?.proposal.slots || [];
       const replacedIds = new Set(repeatPreview?.context.mode === "replace_work_face"

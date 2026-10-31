@@ -119,13 +119,6 @@
           trigger: this.refs.workspaceOpenAlign,
         });
       });
-      this.listen(this.refs.workspaceOpenDistribute, "click", () => {
-        this.selectStage("adjust", {
-          focusSelector: '[data-ev2-tool-anchor="distribute"]',
-          openResponsivePanel: true,
-          trigger: this.refs.workspaceOpenDistribute,
-        });
-      });
       this.listen(this.refs.workspaceOpenRepeat, "click", () => {
         this.selectStage("impose", {
           focusSelector: "#ev2-stage-impose",

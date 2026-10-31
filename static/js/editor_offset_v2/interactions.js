@@ -235,6 +235,14 @@
         this.measurementClick(point);
         return;
       }
+      const matrixCellId = dataFromTarget(event.target, "[data-matrix-cell-id]", "matrixCellId");
+      if (matrixCellId) {
+        event.preventDefault();
+        const additive = event.shiftKey || event.ctrlKey || event.metaKey;
+        this.store.setMatrixCellSelection(matrixCellId, additive ? "toggle" : "replace");
+        return;
+      }
+      if (this.store.matrixCellSelectionId) this.store.setMatrixCellSelection(null);
       const slotId = slotIdFromTarget(event.target);
       if (!slotId) {
         if (!this.advancedSelection) {
@@ -296,6 +304,8 @@
         return;
       }
       const selectionBefore = [...this.store.selection];
+      const keyCandidate = !modified && !event.altKey
+        && selectionBefore.length > 1 && selectionBefore.includes(slotId);
       const previewSlots = duplicateMove
         ? this.commands.prepareDuplicateSlots(
           this.store.layout,
@@ -316,6 +326,7 @@
         startClient: { x: event.clientX, y: event.clientY },
         beforePositions,
         selectionBefore,
+        keyCandidate,
         previewSlots,
         targetSlotId: slotId,
         cycleAdditive: Boolean(event.shiftKey),
@@ -521,7 +532,13 @@
         return before && after
           && (before.x_mm !== after.x_mm || before.y_mm !== after.y_mm);
       });
-      const moved = session.type === "duplicate_move"
+      const pointerDistance = Math.hypot(
+        event.clientX - session.startClient.x,
+        event.clientY - session.startClient.y,
+      );
+      const keyClick = Boolean(session.keyCandidate)
+        && pointerDistance < (this.advancedSelection?.MARQUEE_DRAG_THRESHOLD_PX || 4);
+      const moved = keyClick ? false : session.type === "duplicate_move"
         ? movedGeometry && Math.hypot(
           event.clientX - session.startClient.x,
           event.clientY - session.startClient.y,
@@ -560,6 +577,12 @@
           currentSlotId: session.targetSlotId,
           additive: session.cycleAdditive,
         });
+      } else if (keyClick) {
+        const clearKey = this.store.arrangement.keySlotId === session.targetSlotId;
+        this.store.setKeySlot(clearKey ? null : session.targetSlotId);
+        this.store.setFeedback(clearKey
+          ? "Alineación respecto al pliego."
+          : "Slot de referencia seleccionado; la selección se conserva.");
       }
     }
 

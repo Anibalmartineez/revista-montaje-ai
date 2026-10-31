@@ -77,6 +77,8 @@ oriented_size = Size(50, 90)
 
 La función `oriented_size()` devuelve una medida derivada. Nunca modifica ni intercambia las dimensiones persistidas.
 
+El editor permite cambiar `trim_size_mm.width` y `trim_size_mm.height` de forma independiente. La operación conserva el centro trim, la rotación cardinal, el bleed y `content_transform`; la medida introducida sigue siendo la medida trim antes del giro. El lock de geometría bloquea este cambio. El control numérico no aplica snap. La opción temporal de mantener proporción solo vincula el ancho y alto del borrador; no añade un campo al Layout V2. `contain` y `cover` se recalculan respecto del nuevo trim según el compositor existente; la operación no reescribe la transformación persistida del arte.
+
 ## 6. Rotaciones cardinales
 
 La API pública del kernel acepta exclusivamente:

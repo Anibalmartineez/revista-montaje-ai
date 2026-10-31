@@ -320,7 +320,7 @@ class RepeatEngineAdapter:
         apply_mode: str,
     ) -> tuple[Mapping[str, object], ...]:
         selected = set(work_ids)
-        return tuple(
+        retained = [
             slot
             for slot in layout["slots"]
             if slot["face"] == face
@@ -328,7 +328,26 @@ class RepeatEngineAdapter:
                 apply_mode == "replace_work_face"
                 and slot["work_id"] in selected
             )
-        )
+        ]
+        for index, cell in enumerate(layout.get("matrix_cells", [])):
+            if cell.get("face") != face:
+                continue
+            position = cell["position_mm"]
+            size = cell["trim_size_mm"]
+            # Unassigned matrix cells reserve sheet space during Repeat. They
+            # remain geometry-only and never become printable slots here.
+            retained.append({
+                "id": cell["id"],
+                "face": face,
+                "work_id": f"__matrix_cell_{index}",
+                "geometry": {
+                    "position_mm": {"x_mm": position["x_mm"], "y_mm": position["y_mm"]},
+                    "trim_size_mm": dict(size),
+                    "bleed_mm": 0.0,
+                    "rotation_deg": 0,
+                },
+            })
+        return tuple(retained)
 
     def _metrics(
         self,

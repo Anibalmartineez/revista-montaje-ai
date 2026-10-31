@@ -39,7 +39,7 @@
     TRIM_OUTSIDE_SHEET: "La pieza sale del pliego: mueve la pieza o revisa el tamaño del pliego",
     BLEED_OUTSIDE_PRINTABLE: "El sangrado sale del área imprimible: mueve la pieza o revisa los márgenes",
     TRIM_OVERLAP: "Las piezas se superponen: revisa su posición y separación",
-    BLEED_OVERLAP: "Los sangrados se superponen: aumenta la separación entre piezas",
+    BLEED_OVERLAP: "Los sangrados se superponen: revisa el borde compartido entre piezas",
     OUTPUT_FEATURE_UNSUPPORTED: "Función de salida no soportada todavía",
   });
 

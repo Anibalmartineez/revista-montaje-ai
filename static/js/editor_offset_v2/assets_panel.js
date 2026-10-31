@@ -84,7 +84,7 @@
         this.renderAssets(); this.renderPagePlanner(); this.renderSourceControls(); this.renderActionState();
       } else if (event.type === "work_selection") this.renderWorks();
       else if (event.type === "upload_state") this.renderUploadState();
-      else if (event.type === "selection") this.renderActionState();
+      else if (event.type === "selection" || event.type === "matrix_cell_selection") { this.renderActionState(); this.renderWorks(); }
     }
     renderAll() {
       this.renderAssets(); this.renderPagePlanner(); this.renderSourceControls();
@@ -236,7 +236,7 @@
             (covered ? "Las cajas cubren el sangrado; comprueba visualmente que el diseño llegue a los bordes."
               : draft.bleedStrategy === "mirror_if_missing" ? "Falta cobertura: se generará espejo autorizado. No es contenido original."
                 : "Falta cobertura: cambia el PDF o el sangrado, o autoriza espejo. La salida quedará bloqueada mientras falte.")) +
-        (mismatch ? " El tamaño final difiere de la fuente: la salida actual exige dimensiones coincidentes; cambiar este valor no escala el PDF." : "") +
+        (mismatch ? " El tamaño final difiere de la fuente. Con Ajuste real puede recortarse; usa Contener, Cubrir o Estirar en Corrección gráfica para decidir cómo encajarlo." : "") +
         (draft.bleedStrategy === undefined ? " Trabajo anterior: conserva el permiso temporal de Salida hasta que elijas una decisión aquí." : "");
     }
     renderSourceControls() {
@@ -257,7 +257,7 @@
       for (const node of [r.assetBox, r.workSizeMode, r.workBleed, r.workBack, ...r.workRotations]) node.disabled = !draft || Boolean(placed);
       for (const node of [r.workName, r.workQuantity]) node.disabled = !draft;
       r.workBleedStrategy.disabled = !draft;
-      r.workWidth.disabled = r.workHeight.disabled = !draft || Boolean(placed) || draft.sizeMode === "box";
+      r.workWidth.disabled = r.workHeight.disabled = !draft || draft.sizeMode === "box";
       r.preparationBulk.hidden = Boolean(this.editing);
       r.preparationEditActions.hidden = !this.editing;
       r.preparationTitle.textContent = this.editing ? `Editar: ${this.editing.before.name}` : `Configurar página ${draft?.page ?? ""}`;
@@ -284,13 +284,15 @@
         const body = el("div"); body.append(el("strong", work.name));
         body.append(el("p", `${asset?.original_filename ?? "Sin fuente"} · pág. ${source?.page ?? "—"} · Final: ${work.trim_size_mm.width} × ${work.trim_size_mm.height} mm`));
         body.append(el("small", WorkBleed.label(work.bleed_strategy)));
-        body.append(el("small", `${work.requested_forms} formas solicitadas · ${count} piezas colocadas (todas las caras) · sangrado ${work.bleed_mm} mm · ${work.allowed_rotations_deg.join("° / ")}°`));
+        body.append(el("small", `Cantidad por Repeat: ${work.requested_forms} · ${count} piezas ya colocadas · sangrado ${work.bleed_mm} mm · ${work.allowed_rotations_deg.join("° / ")}°`));
         const edit = el("button", "Editar"); edit.type = "button"; edit.dataset.editWork = work.id; edit.disabled = !asset || !source;
         edit.setAttribute("aria-label", `Editar trabajo ${work.name}`); card.append(body, edit); r.preparedWorks.append(card);
       }
       r.workSelect.value = this.store.assetPanel.selectedWorkId || "";
       r.createRealSlot.disabled = !r.workSelect.value;
-      r.createRealSlot.textContent = this.store.activeFace === "back" ? "Colocar en Dorso con página elegida" : "Colocar en Frente";
+      r.createRealSlot.textContent = this.store.matrixCellSelectionIds.size
+        ? `Asignar PDF a ${this.store.matrixCellSelectionIds.size} cuadro(s)`
+        : this.store.activeFace === "back" ? "Colocar en Dorso con página elegida" : "Colocar en Frente";
     }
     editWork(id) {
       if (this.editing) throw new Error("Guarda o cancela la edición actual.");
@@ -325,7 +327,8 @@
       const current = this.store.layout.works.find((w) => w.id === before.id);
       if (!this.commands.UpdateWorkCommand.equal(current, before)) throw new Error("El trabajo cambió. Cancela y vuelve a abrir la edición.");
       const placed = this.store.layout.slots.some((s) => s.work_id === before.id);
-      let patch = { name: draft.name.trim(), requested_forms: Number(draft.quantity) };
+      let patch = { name: draft.name.trim(), requested_forms: Number(draft.quantity),
+        trim_size_mm: { width: Number(draft.width), height: Number(draft.height) } };
       if (draft.bleedStrategy !== undefined) patch.bleed_strategy = draft.bleedStrategy;
       if (!placed) {
         const asset = this.store.layout.assets.find((a) => a.id === draft.assetId);
@@ -337,7 +340,7 @@
       }
       const command = new this.commands.UpdateWorkCommand(this.store.layout, before.id, patch);
       this.store.executeCommand(command); this.editing = null; this.renderAll();
-      this.message("Trabajo actualizado. Se conserva la geometría de las piezas; la decisión de sangrado rige para todas las del trabajo.");
+      this.message("Trabajo actualizado. El tamaño nuevo se usa en los próximos Repeat; las piezas existentes conservan su geometría y puedes ajustar cada caja por separado.");
     }
     createPageWorks() {
       const asset = this.asset(); if (!asset || this.editing) return;
@@ -450,6 +453,27 @@
 
     createSlot() {
       try {
+        const cellIds = [...this.store.matrixCellSelectionIds];
+        if (cellIds.length) {
+          const cells = cellIds.map((id) => (this.store.layout.matrix_cells || []).find((item) => item.id === id)).filter(Boolean);
+          const work = this.store.layout.works.find((item) => item.id === this.refs.workSelect.value);
+          if (!cells.length || cells.length !== cellIds.length || !work) throw new Error("Selecciona cuadros vacíos y un trabajo preparado.");
+          const source = cells[0].face === "back" ? this.selectedSource() : null;
+          if (cells.some((cell) => cell.face !== cells[0].face)) throw new Error("Selecciona cuadros de una sola cara.");
+          const slots = cells.map((cell) => this.commands.createSlotFromWork(this.store.layout, work.id, token(), cell.position_mm, cell.face, source));
+          for (let index = 0; index < slots.length; index += 1) {
+            const cell = cells[index], slot = slots[index];
+            const rotation = slot.geometry.rotation_deg;
+            slot.geometry.trim_size_mm = [90, 270].includes(rotation)
+              ? { width: cell.trim_size_mm.height, height: cell.trim_size_mm.width }
+              : { ...cell.trim_size_mm };
+            slot.content_transform.fit_mode = "contain";
+          }
+          this.store.executeCommand(new this.commands.AssignMatrixCellsCommand(this.store.layout, cellIds, slots));
+          this.store.setSelection(slots.map((slot) => slot.id), "replace");
+          this.store.setUploadState("success", `PDF asignado a ${slots.length} cuadro(s).`);
+          return;
+        }
         const sheet = this.store.layout.sheet.size_mm;
         const slot = this.commands.createSlotFromWork(
           this.store.layout,

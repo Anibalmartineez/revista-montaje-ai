@@ -141,7 +141,7 @@
         input.value = work.id;
         input.checked = checked.size ? checked.has(work.id) : work.front_source !== null;
         const text = document.createElement("span");
-        text.textContent = `${work.name} · ${work.requested_forms} formas · ${work.allowed_rotations_deg.join("° / ")}°`;
+        text.textContent = `${work.name} · ${work.requested_forms} por Repeat · ${work.allowed_rotations_deg.join("° / ")}°`;
         label.append(input, text);
         this.refs.repeatWorks.append(label);
         if (this.store.activeFace === "back") {

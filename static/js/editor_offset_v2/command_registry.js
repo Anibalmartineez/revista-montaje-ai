@@ -26,6 +26,7 @@
     FACE_SELECT: "face.select",
     MOVE_ABSOLUTE: "selection.move.absolute",
     MOVE_DELTA: "selection.move.delta",
+    RESIZE_SET: "selection.resize.set",
     NUDGE: "selection.nudge",
     ROTATE_CLOCKWISE: "selection.rotate.clockwise",
     ROTATE_COUNTERCLOCKWISE: "selection.rotate.counterclockwise",
@@ -221,6 +222,12 @@
     return "La selección actual no permite esta acción.";
   }
 
+  function hasPendingGeometryDraft(context) {
+    return Boolean(context.resizeInspector?.hasPendingDraft()
+      || context.positionInspector?.hasPendingDraft()
+      || context.arrangementPanel?.hasPendingDraft());
+  }
+
   function hasIncompatiblePointerSession(context) {
     const session = context.store.pointerSession;
     return Boolean(session && session.type !== "nudge");
@@ -314,11 +321,15 @@
     }
     for (const [id, operation] of [[ACTION_IDS.OUTPUT_PREVIEW,"preview"],[ACTION_IDS.OUTPUT_PDF,"pdf_final"]]) {
       registry.register({ id, label: operation === "preview" ? "Generar Preview" : "Descargar PDF",
-        enabled: (context) => Boolean(context.outputPanel && !context.outputPanel.generating && !context.outputPanel.checking),
+        enabled: (context) => Boolean(context.outputPanel && !context.outputPanel.generating
+          && !context.outputPanel.checking && !hasPendingGeometryDraft(context)),
+        disabledReason: () => "Aplica o cancela los cambios geométricos pendientes antes de generar la salida.",
         execute: (context) => context.outputPanel.generate(operation) });
     }
     registry.register({ id: ACTION_IDS.OUTPUT_PREFLIGHT, label: "Comprobar salida",
-      enabled: context => Boolean(context.outputPanel && !context.outputPanel.generating && !context.outputPanel.checking),
+      enabled: context => Boolean(context.outputPanel && !context.outputPanel.generating
+        && !context.outputPanel.checking && !hasPendingGeometryDraft(context)),
+      disabledReason: () => "Aplica o cancela los cambios geométricos pendientes antes de comprobar la salida.",
       execute: context => context.outputPanel.runPreflight() });
     registry.register({ id: ACTION_IDS.OUTPUT_OPTIONS, label: "Opciones de salida",
       execute: (context) => context.outputPanel?.changeOutputOptions() });
@@ -379,11 +390,17 @@
     }
 
     function alignmentPlan(context, alignment) {
+      const ids = selectedIds(context);
+      const keySlotId = context.store.arrangement.keySlotId;
+      const hasSelectedKey = ids.length > 1 && ids.includes(keySlotId);
       return context.alignmentOperations.buildAlignmentPlan(
         context.store.layout,
-        selectedIds(context),
+        ids,
         context.geometry,
-        arrangementOptions(context, { alignment }),
+        arrangementOptions(context, {
+          alignment,
+          target: hasSelectedKey ? "key" : "sheet",
+        }),
       );
     }
 
@@ -447,7 +464,7 @@
         id,
         label,
         category: "arrangement",
-        description: `${label} usando la referencia geométrica y el destino activos.`,
+        description: `${label} usando el pliego o el slot seleccionado como referencia.`,
         modifiesLayout: true,
         requiresSelection: true,
         enabled: (context) => planEnabled(context, () => alignmentPlan(context, alignment)),
@@ -473,6 +490,7 @@
       enabled: (context) => !["saving", "conflict"].includes(context.store.saveState.status)
         && !hasIncompatiblePointerSession(context)
         && !context.interactions?.hasPanSession()
+        && !context.resizeInspector?.hasPendingDraft()
         && !context.positionInspector?.hasPendingDraft()
         && !context.arrangementPanel?.hasPendingDraft(),
       disabledReason: (context) => {
@@ -510,9 +528,12 @@
       enabled: (context) => !["saving", "conflict"].includes(context.store.saveState.status)
         && !hasIncompatiblePointerSession(context)
         && !context.interactions?.hasPanSession()
+        && !context.resizeInspector?.hasPendingDraft()
         && (context.store.hasUnsavedChanges()
           || Boolean(context.positionInspector?.hasPendingDraft())),
-      disabledReason: (context) => context.positionInspector?.hasInvalidDraft()
+      disabledReason: (context) => context.resizeInspector?.hasPendingDraft()
+        ? "Aplica o cancela el tamaño pendiente antes de guardar."
+        : context.positionInspector?.hasInvalidDraft()
         ? "Corrige la posición inválida antes de guardar."
         : "No hay cambios confirmados para guardar.",
       execute: async (context) => {
@@ -533,10 +554,11 @@
       shortcuts: ["Mod+Z"],
       help: [{ keys: "Ctrl/Cmd+Z", label: "Deshacer" }],
       modifiesLayout: true,
-      enabled: (context) => Boolean(context.store.undoStack.length)
-        || Boolean(context.nudgeController?.isActive()),
+      enabled: (context) => !context.resizeInspector?.hasPendingDraft()
+        && (Boolean(context.store.undoStack.length) || Boolean(context.nudgeController?.isActive())),
       execute: (context) => {
         context.positionInspector?.cancelPending(false);
+        context.resizeInspector?.cancel();
         context.nudgeController?.finish();
         const command = context.store.undoStack.at(-1);
         const changed = context.store.undo();
@@ -553,10 +575,11 @@
       shortcuts: ["Mod+Shift+Z", "Ctrl+Y"],
       help: [{ keys: "Ctrl/Cmd+Shift+Z o Ctrl+Y", label: "Rehacer" }],
       modifiesLayout: true,
-      enabled: (context) => Boolean(context.store.redoStack.length)
-        || Boolean(context.nudgeController?.isActive()),
+      enabled: (context) => !context.resizeInspector?.hasPendingDraft()
+        && (Boolean(context.store.redoStack.length) || Boolean(context.nudgeController?.isActive())),
       execute: (context) => {
         context.positionInspector?.cancelPending(false);
+        context.resizeInspector?.cancel();
         context.nudgeController?.finish();
         const command = context.store.redoStack.at(-1);
         const changed = context.store.redo();
@@ -618,6 +641,32 @@
           new context.commands.MoveSlotsCommand(plan.beforePositions, plan.afterPositions),
         );
         return Object.freeze({ changed: true, affectedIds: plan.affectedIds });
+      },
+    });
+
+    registry.register({
+      id: ACTION_IDS.RESIZE_SET,
+      label: "Aplicar tamaño",
+      category: "selection",
+      description: "Cambia ancho y alto del trim, conservando centro, giro y sangrado.",
+      modifiesLayout: true,
+      requiresSelection: true,
+      enabled: (context) => selectedSlots(context).length === 1
+        && blockedIds(context, "resize").length === 0
+        && objectActionReady(context)
+        && !context.positionInspector?.hasPendingDraft()
+        && !context.arrangementPanel?.hasPendingDraft()
+        && !["saving", "conflict"].includes(context.store.saveState.status),
+      disabledReason: (context) => objectDisabledReason(context, "resize", "cambiar el tamaño"),
+      execute: (context, payload) => {
+        const command = new context.commands.ResizeSlotsCommand(
+          context.store.layout,
+          selectedIds(context),
+          payload,
+        );
+        context.store.executeCommand(command);
+        context.store.setFeedback("Medida del slot actualizada; centro, giro y sangrado conservados.");
+        return Object.freeze({ changed: true, affectedIds: command.affectedIds });
       },
     });
 
@@ -1308,32 +1357,20 @@
       id: ACTION_IDS.MATRIX_CREATE,
       label: "Crear matriz",
       category: "arrangement",
-      description: "Duplica la selección como celda fuente en una matriz determinista.",
+      description: "Crea cuadros vacíos para asignar PDFs después.",
       modifiesLayout: true,
-      requiresSelection: true,
-      enabled: (context) => selectedIds(context).length > 0 && arrangementReady(context),
-      disabledReason: () => "La matriz requiere una selección y una interacción libre.",
+      enabled: (context) => Boolean(context.alignmentOperations && context.geometry) && !context.interactions?.hasPointerActivity?.(),
+      disabledReason: () => "La matriz necesita una cara activa y una interacción libre.",
       execute: (context, payload) => {
         context.nudgeController?.finish();
-        const prepared = context.alignmentOperations.prepareMatrixCopies(
+        const prepared = context.alignmentOperations.buildEmptyMatrixCells(
           context.store.layout,
-          selectedIds(context),
-          context.geometry,
-          context.commands,
           arrangementOptions(context, payload),
         );
-        const command = new context.commands.DuplicateSlotsCommand(
-          context.store.layout,
-          prepared.sourceIds,
-          {
-            description: `Crear matriz ${prepared.rows}×${prepared.columns}`,
-            preparedSlots: prepared.copies,
-            selectionBefore: selectedIds(context),
-          },
-        );
+        const command = new context.commands.CreateMatrixCellsCommand(prepared.cells);
         context.store.executeCommand(command);
         context.store.setFeedback(
-          `Matriz ${prepared.rows}×${prepared.columns}: ${prepared.newSlots} slots nuevos.`,
+          `Matriz ${prepared.rows}×${prepared.columns}: ${prepared.cells.length} cuadros vacíos listos para asignar PDFs.`,
         );
         return Object.freeze({ changed: true, affectedIds: command.affectedIds, prepared });
       },
@@ -1498,7 +1535,7 @@
       allowDuringPan: true,
       allowInEditable: (context, event) => Boolean(context.shortcutHelp?.isOpen())
         || Boolean(context.responsivePanels?.isOpen())
-        || Boolean(event.target?.closest?.("#ev2-position-form, .ev2-arrangement-form, .ev2-precision-form")),
+        || Boolean(event.target?.closest?.("#ev2-position-form, #ev2-size-form, .ev2-arrangement-form, .ev2-precision-form")),
       enabled: () => true,
       execute: (context) => {
         if (context.shortcutHelp?.isOpen()) return context.shortcutHelp.close();
@@ -1514,6 +1551,7 @@
         if (context.positionInspector?.hasPendingDraft()) {
           return context.positionInspector.cancelPending(true);
         }
+        if (context.resizeInspector?.hasPendingDraft()) return context.resizeInspector.cancel();
         if (context.arrangementPanel?.hasPendingDraft()) {
           return context.arrangementPanel.cancelDraft(true);
         }

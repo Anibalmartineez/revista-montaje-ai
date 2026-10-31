@@ -2,6 +2,32 @@
 
 Fecha de apertura: 2026-09-19.
 
+## 2026-10-31 — Matriz de cuadros vacíos y asignación posterior
+
+- Se retiraron del panel avanzado los controles redundantes de centrar y distribuir; la alineación principal permanece en el panel de ajuste.
+- Se trasladó Matriz a Imponer. Ahora define ancho/alto del trabajo, filas, columnas y separaciones; centra los cuadros en el área imprimible y limita la operación a 500 cuadros.
+- Los cuadros se guardan en el campo opcional `matrix_cells` del Layout V2, se pueden seleccionar en el pliego y asignar a un work preparado. Crear/asignar usa comandos con undo/redo. La asignación exige tamaño coincidente y giro 0° permitido.
+- La cara donde se crea debe estar vacía; así se preservan slots existentes y se evita una matriz superpuesta. La matriz no fabrica referencias PDF ficticias.
+- Preflight bloquea Preview, PDF final y CTP mientras queden cuadros sin asignar. El campo opcional preserva compatibilidad con layouts previos; schema y validador runtime se actualizaron.
+- Verificado: `node --check` en los módulos JS afectados, `py_compile` de validación/preflight, parseo JSON de schema, `git diff --check`, cálculo geométrico de una matriz 2×3 y rechazo sobre una cara ocupada, validación runtime del layout con `matrix_cells` y emisión del bloqueo preflight para Preview/PDF/CTP.
+- Flask se reinició con el perfil local V2: host exclusivo confirmado, Preview/PDF activos, derivados y dev tools desactivados. La carga visual comprobó el panel de matriz en Imponer, resumen de 2 cuadros, botón inhabilitado cuando Frente ya contiene 35 piezas y consola limpia después de cargar. No se mutó ni guardó el job abierto; la asignación/undo queda pendiente de recorrido con una cara vacía en un job de QA.
+
+## 2026-10-31 — Selección múltiple de cuadros y panel de matriz responsive
+
+- La selección temporal de celdas admite clic normal para una celda y Ctrl/Mayús + clic para alternar varias celdas de la misma cara.
+- El control de asignación aplica el mismo work/PDF a todas las celdas seleccionadas mediante un solo comando reversible; undo restaura las celdas y su selección y redo repite la asignación.
+- El panel usa dos columnas fluidas, límites de ancho, entradas adaptables y texto envolvente para evitar que controles y etiquetas se corten en el inspector estrecho.
+- Verificado con `node --check`, comprobación directa de selección múltiple/asignación/undo/redo, carga visual del panel y `git diff --check`. El intento de automatizar clics modificadores en el canvas fue interceptado por el elemento raíz en Playwright CLI; por eso no se afirma que esa interacción se haya probado en navegador. El job `ev2_7731c09ab79bbd31369a0ea9` no se mutó ni guardó.
+
+## 2026-10-31 — Matrices múltiples, Repeat y flexibilidad geométrica
+
+- El antiguo requisito de cara vacía era una restricción de seguridad/implementación, no una exigencia del contrato V2. Ahora cada nueva matriz calcula un espacio libre en la misma cara y puede tener otro ancho/alto, filas, columnas y separaciones. Si no cabe, se explica y no se crea; celdas pendientes se reservan como obstáculos al calcular Repeat.
+- La caja de matriz define la geometría del slot. Un mismo work preparado puede asignarse a cuadros de medidas diferentes; se ajusta el contenido con `contain` y se conserva el tamaño de cada cuadro. Ajustar una pieza tampoco cambia el tamaño nominal del work. Ese tamaño queda disponible para los próximos cálculos Repeat, y la cantidad solicitada se etiqueta como cantidad por Repeat, no como límite total de piezas.
+- El preflight real del job `ev2_7731c09ab79bbd31369a0ea9` mostró 20 slots de dos tamaños/work y 21 avisos `BLEED_OVERLAP` por separaciones de 0–3 mm con sangrado de 3 mm. Las huellas de corte no se solapan. Se conservan las advertencias de sangrado y de sangrado fuera del imprimible pero dejan de bloquear Preview/PDF; el tamaño de fuente distinto a un slot con Ajuste real también avisa y no bloquea. `TRIM_OVERLAP`, `TRIM_OUTSIDE_SHEET` y cuadros vacíos siguen como condiciones bloqueantes.
+- Preview ya no rechaza una caja fuente cuyo tamaño difiera del trim del slot: aplica el ajuste/recorte definido en el slot. Editar tamaño nominal de un work con piezas conserva la geometría existente y afecta futuros Repeat.
+- Verificado en esta intervención: `node --check` para operaciones de matriz, paneles de matriz/asignación/Repeat y etiquetas de salida; `py_compile` para preflight, Preview y adaptador Repeat; `git diff --check`; reinicio exclusivo del PID V2 registrado por la skill local y respuesta de raíz HTTP 302, editor 200, health/identidad V2 200. Perfil confirmado: Preview/PDF activos, assets derivados y dev tools apagados.
+- No se ejecutaron suites ni un recorrido interactivo de matriz/Repeat/salida. El job abierto no se guardó ni se modificó durante la comprobación. Los avisos de bleed dejan de bloquear la salida pero siguen visibles para revisión: el PDF puede recortar bleed fuera del imprimible y el bleed compartido puede superponerse; no se certifica CTP.
+
 ## Decisión del usuario
 
 Continuar desde el código que ya existe, probando el editor, detectando problemas y mejorándolo en el trabajo diario. El agente conduce la investigación técnica, propone y ejecuta correcciones dentro de lo solicitado, verifica el resultado y deja registro de lo que realmente ocurrió.
@@ -460,3 +486,38 @@ Se actualizaron 44/46/47/48 contra la implementación y la aceptación registrad
 **Límites y documentación pendiente:** Repeat no sincroniza caras ni cantidades y no crea parejas. La propuesta valida metadatos de fuente ready; la verificación física de bytes/hash sigue en preflight/Preview/PDF. No hay múltiples pliegos, revistas, firmas, creep, CTP ni migración. Conviene actualizar 44/46/47/48/49 en una intervención documental posterior para reflejar MVP 3 implementado, sin reescribir sus cortes históricos.
 
 **Cierre documental, 2026-10-04:** se actualizaron 44/46/47/48/49 para distinguir el MVP 3 implementado de sus análisis previos; los conteos anteriores permanecen como cortes históricos. Esta intervención modificó solo documentación y no repitió las suites completas. El commit de código, tests y documentos se prepara como una única entrega, sin push.
+
+
+### 2026-10-31 — Medida directa del slot y simplificación del inspector
+
+**Observado:** en el job abierto por el usuario se podía seleccionar un slot y modificar posición, giro o contenido, pero no su trim. El panel de Ajustar presentaba simultáneamente controles de movimiento, distribución, precisión y arte; el ancho de objetos/inspector y las dos barras superiores reducían el área útil del canvas.
+
+**Cambiado:** se añadió el panel V2 “Tamaño del slot”, con ancho/alto trim en milímetros, proporción opcional y acción reversible. La operación conserva el centro trim, rotación, bleed y transformación persistida del arte; respeta `locks.geometry`, acepta solo dimensiones positivas y no aplica snap al control numérico. `contain`/`cover` se recalculan por el compositor con el nuevo trim. Escape cancela el borrador. El inspector agrupa las herramientas secundarias en disclosures plegables; el canvas gana ancho y altura al compactar columnas y barras. Se corrigieron también las columnas responsive para que topbar y workflow usen el viewport disponible. No cambian schema, Layout V2, assets fuente ni datos del job.
+
+**Verificado:** `node --check` en `commands.js`, `command_registry.js` y `size_inspector.js`, y `git diff --check`, sin errores. La QA Playwright CLI mostró la ruta V2 y el inspector en 1280×720 y 1024×720. Un click real de puntero en un slot del canvas seleccionó el objeto y abrió el formulario con sus dimensiones; el bloqueo de proporción ajustó la otra dimensión y Escape restauró el borrador. No se aplicó ni guardó ningún cambio en el job: `hasUnsavedChanges=false`. Una copia del Layout en memoria verificó resize, conservación de centro/rotación/bleed/content_transform y undo/redo. Flask exclusivo V2 quedó reiniciado con Preview/PDF activos, derivados y dev tools desactivados; raíz 302, editor 200, health con identidad V2 200.
+
+**Límites:** no se ejecutaron suites Python/Node/Playwright. La interacción manual del navegador se mantuvo en un borrador cancelado; el comando se probó en una copia en memoria y no se guardó una dimensión productiva. No se tocó el job, no se hizo commit ni push.
+
+### 2026-10-31 — Separación rápida y acciones de selección
+
+**Observado:** la operación V2 de gap exacto ya calculaba posiciones correctas, pero estaba dentro del panel avanzado junto a matriz, destino, geometría y slot clave. Para una separación simple había que desplegar opciones y entender el anclaje. El panel de operaciones mezclaba rotación, duplicar/copiar/pegar/eliminar con filtros de selección y locks manuales. No existe una entidad de grupo persistida; las acciones geométricas se aplican directamente a la selección múltiple.
+
+**Cambiado:** se hizo visible “Separación entre slots” en Ajustar con dos valores numéricos (horizontal y vertical) y Aplicar. Se conserva el primer slot del orden espacial actual y se ubican los demás con esa separación, manteniendo su coordenada del otro eje; se usa trim por defecto, con la misma validación, policy de edición y comando reversible existentes. La alineación avanzada conserva sus herramientas y ya no duplica los dos formularios de gap. “Acciones rápidas” queda visible con rotación, duplicar, copiar, pegar y eliminar; se retiraron cortar, filtros de selección y controles manuales de locks del panel. Las reglas de locks y los datos persistidos siguen vigentes. Se aclara la selección múltiple con Ctrl/Shift; no se añadió una agrupación persistente ni se cambió schema.
+
+**Verificado:** `node --check` para `arrangement_panel.js`, `objects_panel.js` y `dom_refs.js`; `git diff --check`; y skill QA confirmó raíz HTTP 302, editor 200 e identidad del host exclusivo V2 200. Tras reiniciar solo el PID V2 administrado, la revisión Playwright mostró la separación, sus campos y acciones en el panel. La selección interactiva de dos slots habilitó ambos botones; al escribir 3,5 mm el horizontal permaneció habilitado y el guardado siguió en “Guardado”. Se recargó la página sin aplicar la operación; no hubo mutación persistida. La consola no reportó errores. No se ejecutaron suites. Preview/PDF siguen activos y assets derivados/dev tools apagados.
+
+### 2026-10-31 — Alineación visible y retiro de posición precisa
+
+**Observado:** la posición numérica absoluta/desplazamiento duplicaba tareas que el operador puede hacer con selección, arrastre y nudges. Las seis acciones de alineación estaban ocultas con opciones avanzadas aunque son de uso frecuente.
+
+**Cambiado:** se retiró el panel de posición precisa y su controlador dejó de inicializarse en la UI; los nudges de teclado y el ajuste de tamaño independiente continúan disponibles. Los seis botones de alineación (izquierda/centro/derecha y arriba/centro/abajo) quedan en un bloque compacto y visible inmediatamente después de Separación. Mantienen las acciones registradas, selección múltiple, geometría de referencia predeterminada y comandos reversibles. Distribución, matriz, destino y slot clave siguen en opciones avanzadas. No cambian contrato, schema, geometría ni Layout persistido.
+
+**Verificado:** `node --check` en `bootstrap.js` y `dom_refs.js`, `git diff --check` y el perfil normal V2: raíz 302, editor 200, health/identidad exclusiva 200, Preview/PDF activos y dev tools/assets derivados apagados. El navegador mostró separación y los seis controles de alineación juntos y visibles; el panel “Posición precisa” ya no está en el DOM. La selección temporal de dos slots habilitó “Alinear a la izquierda” y el estado siguió “Guardado”; se recargó sin ejecutar la acción. Sin errores JavaScript; Chromium reportó solo 404 al pedir `/favicon.ico`. No se ejecutaron suites ni se guardó ningún cambio en el job.
+
+### 2026-10-31 — Destino de alineación por gesto de selección
+
+**Observado:** el operador debía escoger un destino y una clave desde controles separados antes de alinear. La selección múltiple en el canvas ya distingue clic simple de Ctrl/Shift, y el Layout guarda una clave solo en estado temporal, no en el contrato.
+
+**Cambiado:** se retiraron los selectores de destino y de clave. Alinear o centrar usa el pliego mientras no haya referencia activa; con varios slots seleccionados, un clic simple sobre un miembro fija ese slot como referencia sin perder la selección. Repetir el clic sobre la misma referencia vuelve al pliego; cambiar a una selección de un solo slot limpia la referencia. Con clave activa, la operación mantiene quieto el slot clave y transforma solo los demás. Se muestra el destino inferido junto al conteo. No cambian el contrato, la geometría del kernel ni la distribución uniforme.
+
+**Verificado:** `node --check` para `command_registry.js`, `interactions.js`, `store.js`, `arrangement_panel.js` y `dom_refs.js`; `git diff --check`; reinicio administrado y chequeo del host V2 (302/200/200, Preview/PDF activos, derivados/dev tools apagados). La interacción Playwright sobre dos slots mostró `Referencia: pliego`, segundo clic mostró `Referencia: #1` conservando ambos slots y otro clic volvió a pliego; no cambió Guardado. Los planes de alineación construidos en memoria reportaron destino `sheet` moviendo el grupo, y destino `key` dejando el slot clave fuera de los movimientos. Se recargó sin ejecutar ninguna alineación; job sin cambios persistidos. Sin suites.

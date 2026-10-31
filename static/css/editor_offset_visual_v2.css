@@ -232,6 +232,35 @@
   border-top: 1px solid var(--ev2-line);
 }
 
+.ev2-spacing-panel {
+  display: grid;
+  gap: 0.45rem;
+  margin: 0 10px 10px;
+  padding: 10px;
+  border: 1px solid var(--ev2-line);
+  border-radius: 7px;
+  background: #111923;
+}
+.ev2-spacing-panel { order: 1; margin-bottom: 6px; padding: 8px; }
+
+.ev2-spacing-panel h2,
+.ev2-spacing-panel p {
+  margin: 0;
+}
+
+.ev2-spacing-panel h2 { font-size: 12px; }
+.ev2-spacing-panel p { color: var(--ev2-muted); font-size: 10px; }
+.ev2-spacing-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 7px; }
+.ev2-spacing-grid .ev2-arrangement-form {
+  grid-template-columns: 1fr auto;
+  align-items: center;
+  gap: 5px;
+  padding: 7px;
+}
+.ev2-spacing-grid .ev2-position-input { grid-column: 1 / -1; }
+.ev2-spacing-grid button { grid-column: 1 / -1; min-height: 30px; }
+.ev2-spacing-grid [role="alert"] { grid-column: 1 / -1; }
+
 .ev2-arrangement-heading,
 .ev2-arrangement-inline-actions {
   display: flex;
@@ -708,6 +737,14 @@ button:disabled {
   border-radius: 7px;
   background: #111923;
 }
+
+#ev2-stage-adjust-operations { order: 1; }
+.ev2-object-operations { order: 2; padding: 7px 10px; }
+.ev2-object-action-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 5px; }
+.ev2-object-action-grid button { min-height: 28px; padding: 4px; font-size: 9px; }
+.ev2-inspector > .ev2-inspector-group[data-ev2-stage-panel="adjust"] { order: 5; }
+
+.ev2-object-note { margin: 0 0 7px; }
 
 .ev2-object-operations-heading {
   display: flex;
@@ -2695,13 +2732,11 @@ button[aria-pressed="true"],
   display: none !important;
 }
 
-#ev2-stage-adjust-position {
+#ev2-stage-adjust-operations {
   order: 1;
 }
 
-#ev2-stage-adjust-operations {
-  order: 2;
-}
+.ev2-spacing-panel { order: 2; }
 
 #ev2-inspector-values {
   order: 3;
@@ -2978,6 +3013,164 @@ button[aria-pressed="true"],
 .ev2-preparation-settings details { font-size: 12px; color: var(--ev2-muted); }
 .ev2-preparation-settings summary { cursor: pointer; padding: 6px 0; }
 .ev2-preparation-settings > label { display: grid; gap: 6px; font-size: 12px; }
+
+/* Ajuste V2: canvas prioritario y controles de geometría a la vista. */
+.ev2-shell {
+  grid-template-columns: 68px minmax(220px, 255px) minmax(0, 1fr) minmax(240px, 270px);
+  grid-template-rows: 58px 60px minmax(0, 1fr) 36px;
+  height: 100vh;
+  overflow: hidden;
+}
+
+.ev2-workspace {
+  grid-template-rows: auto min-content auto minmax(0, 1fr);
+}
+
+.ev2-face-note {
+  font-size: 11px;
+  line-height: 1.25;
+}
+
+.ev2-workflow {
+  padding: 4px 12px;
+}
+
+.ev2-workflow-step {
+  min-height: 44px;
+  padding: 4px 10px 4px 25px;
+}
+
+.ev2-workflow-step small {
+  font-size: 9px;
+}
+
+.ev2-size-panel {
+  display: grid;
+  gap: 8px;
+  margin: 8px;
+  padding: 12px;
+  border: 1px solid var(--ev2-line-strong);
+  border-radius: var(--ev2-radius-md);
+  background: var(--ev2-surface-soft);
+}
+
+.ev2-size-panel h2,
+.ev2-size-panel p {
+  margin: 0;
+}
+
+.ev2-size-panel h2 {
+  font-size: 14px;
+}
+
+.ev2-size-empty,
+.ev2-size-status,
+.ev2-size-note {
+  color: var(--ev2-muted);
+  font-size: 11px;
+  line-height: 1.4;
+}
+
+.ev2-size-note { font-size: 10px; }
+
+.ev2-size-grid {
+  display: grid;
+  grid-template-columns: 66px minmax(0, 1fr);
+  align-items: center;
+  gap: 7px;
+  margin-bottom: 8px;
+}
+
+.ev2-size-grid label,
+.ev2-size-ratio {
+  font-size: 11px;
+}
+
+.ev2-size-grid input {
+  width: 100%;
+  min-width: 0;
+}
+
+.ev2-size-ratio {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  margin-bottom: 8px;
+}
+
+.ev2-size-panel button {
+  width: 100%;
+  min-height: 36px;
+}
+
+.ev2-inspector-group {
+  margin: 4px 8px;
+  border: 1px solid var(--ev2-line);
+  border-radius: var(--ev2-radius-md);
+  background: rgb(17 25 35 / 76%);
+}
+
+.ev2-inspector-group > summary {
+  padding: 11px 12px;
+  color: var(--ev2-text);
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.ev2-inspector-group[open] > summary {
+  border-bottom: 1px solid var(--ev2-line);
+  color: var(--ev2-accent);
+}
+
+.ev2-inspector-group > section {
+  margin: 4px;
+}
+
+@media (max-width: 1180px) {
+  .ev2-shell {
+    grid-template-columns: 68px minmax(0, 1fr);
+    grid-template-rows: 58px 60px minmax(0, 1fr) 36px;
+    width: 100vw;
+    max-width: 100vw;
+  }
+
+  .ev2-brand {
+    flex: 0 0 auto;
+    gap: 8px;
+  }
+
+  .ev2-brand .ev2-eyebrow {
+    display: none;
+  }
+
+  .ev2-brand h1 {
+    max-width: 160px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: 13px;
+  }
+
+  .ev2-responsive-panel-backdrop:not([hidden]),
+  .ev2-objects,
+  .ev2-inspector {
+    top: 118px;
+  }
+}
+
+@media (max-width: 820px) {
+  .ev2-shell {
+    grid-template-columns: 64px minmax(0, 1fr);
+    grid-template-rows: 58px 60px minmax(0, 1fr) 36px;
+  }
+
+  .ev2-responsive-panel-backdrop:not([hidden]),
+  .ev2-objects,
+  .ev2-inspector {
+    top: 118px;
+  }
+}
 .ev2-prepared-work button { flex-shrink: 0; }
 .ev2-objects .ev2-slot-source-actions { grid-template-columns: minmax(0, 1fr); margin: 0; padding: 12px; }
 .ev2-objects > .ev2-assets-list { flex: 0 0 auto; }
@@ -3038,6 +3231,50 @@ button[aria-pressed="true"],
 
 .ev2-shell.is-preparing .ev2-repeat-canvas-note { display: none; }
 
+/* Compact primary Adjust controls: numeric spacing and common slot actions. */
+#ev2-stage-adjust-size { order: 0; }
+.ev2-spacing-panel { order: 1; gap: 4px; margin: 0 8px 5px; padding: 7px; }
+.ev2-spacing-panel h2 { font-size: 11px; }
+.ev2-spacing-panel p { font-size: 9px; line-height: 1.25; }
+.ev2-spacing-grid { gap: 5px; }
+.ev2-spacing-grid .ev2-arrangement-form { gap: 4px; padding: 5px; }
+.ev2-spacing-grid .ev2-position-input input { padding: 5px; }
+.ev2-spacing-grid button { min-height: 25px; padding: 4px; font-size: 9px; }
+#ev2-stage-adjust-operations { order: 3; }
+.ev2-object-operations { padding: 6px 10px; }
+.ev2-object-operations-heading { margin-bottom: 4px; }
+.ev2-object-note { margin: 0 0 4px; font-size: 9px; line-height: 1.25; }
+.ev2-object-action-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 4px; margin-top: 4px; }
+.ev2-object-action-grid button { min-height: 26px; padding: 4px; font-size: 9px; }
+.ev2-object-clipboard { margin: 4px 0 0; font-size: 9px; }
+.ev2-inspector > .ev2-inspector-group[data-ev2-stage-panel="adjust"] { order: 5; }
+.ev2-alignment-quick {
+  order: 2;
+  display: grid;
+  gap: 5px;
+  margin: 0 8px 5px;
+  padding: 7px;
+  border-bottom: 1px solid var(--ev2-line);
+}
+.ev2-alignment-quick .ev2-arrangement-heading { margin: 0; }
+.ev2-alignment-quick .ev2-arrangement-heading h2 { font-size: 11px; }
+.ev2-alignment-quick .ev2-arrangement-heading span { font-size: 9px; }
+.ev2-alignment-hint { margin: 0; color: var(--ev2-muted); font-size: 9px; line-height: 1.25; }
+.ev2-alignment-quick fieldset { margin: 0; padding: 0; border: 0; }
+.ev2-alignment-quick .ev2-arrangement-action-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 4px; }
+.ev2-alignment-quick button { min-height: 27px; padding: 4px; font-size: 9px; }
+.ev2-visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
 /* Native output diagnosis: readable work/page summaries and optional technical detail. */
 #ev2-preflight-issues, #ev2-output-findings { overflow-wrap: anywhere; }
 #ev2-preflight-issues small, #ev2-output-findings small { display: block; margin-top: .35rem; }
@@ -3049,3 +3286,14 @@ button[aria-pressed="true"],
 .ev2-face-tabs [aria-selected="true"] { font-weight: 700; text-decoration: underline; text-underline-offset: .2em; }
 .ev2-face-tabs [role="tab"]:focus-visible, #ev2-enable-back:focus-visible, #ev2-back-flip:focus-visible { outline: 3px solid #1b66b1; outline-offset: 2px; }
 .ev2-face-note { margin: .25rem .75rem; font-size: .85rem; }
+.ev2-matrix-panel { display: grid; gap: 0.65rem; width: 100%; min-width: 0; box-sizing: border-box; }
+.ev2-matrix-panel > *, .ev2-matrix-form, .ev2-matrix-fields { min-width: 0; max-width: 100%; box-sizing: border-box; }
+.ev2-matrix-fields { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.55rem 0.65rem; }
+.ev2-matrix-fields label { display: grid; grid-template-rows: minmax(2.2em, auto) auto; align-content: start; gap: 0.2rem; min-width: 0; overflow-wrap: anywhere; line-height: 1.25; }
+.ev2-matrix-fields input { width: 100%; min-width: 0; max-width: 100%; box-sizing: border-box; }
+.ev2-matrix-panel p { margin: 0; line-height: 1.4; overflow-wrap: anywhere; }
+.ev2-matrix-panel button { width: 100%; min-width: 0; white-space: normal; }
+.ev2-svg-matrix-cell { cursor: pointer; }
+.ev2-svg-matrix-cell-box { fill: #19374a; fill-opacity: .24; stroke: #46d6b0; stroke-width: 0.7; stroke-dasharray: 2 1.2; vector-effect: non-scaling-stroke; }
+.ev2-svg-matrix-cell.is-selected .ev2-svg-matrix-cell-box { fill-opacity: .5; stroke: #ffd166; stroke-width: 1.5; }
+.ev2-svg-matrix-cell-label { fill: #e7f4f2; font-size: 3.2px; pointer-events: none; }
