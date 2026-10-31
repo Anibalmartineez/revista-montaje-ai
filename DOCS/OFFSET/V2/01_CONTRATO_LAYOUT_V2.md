@@ -211,13 +211,16 @@ Los archivos derivados o corregidos deberán crear otra revisión de asset en un
 * prioridad;
 * zona y flujo preferidos;
 * fuente frontal;
-* fuente posterior opcional.
+* fuente posterior opcional;
+* preferencia opcional `crop_marks` para las piezas nuevas de este trabajo.
 
 Una fuente de trabajo puede ser `null` mientras el trabajo todavía no tenga PDF. Un slot, en cambio, siempre requiere una fuente válida.
 
 `work.front_source` y `work.back_source` son las fuentes predeterminadas para crear slots nuevos y calcular nuevas imposiciones. No describen necesariamente la fuente efectiva de cada instancia ya creada.
 
 `allowed_rotations_deg` solo puede contener valores de la enumeración cardinal `0`, `90`, `180` y `270`, sin duplicados.
+
+`crop_marks`, cuando está presente, es booleano y selecciona un perfil de marcas compatible al crear slots manuales o mediante Repeat. Los slots existentes conservan su `production.marks_profile_id`; si el campo falta en un trabajo histórico, se usa el perfil predeterminado del Layout.
 
 ## 11. Slots
 

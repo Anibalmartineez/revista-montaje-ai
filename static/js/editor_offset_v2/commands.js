@@ -22,6 +22,44 @@
       : JSON.parse(JSON.stringify(value));
   }
 
+  function workMarksProfileId(layout, work) {
+    const defaultId = layout.export?.default_marks_profile_id;
+    if (typeof work?.crop_marks !== "boolean") return defaultId;
+    const profiles = layout.export?.marks_profiles || [];
+    const defaultProfile = profiles.find((profile) => profile.id === defaultId);
+    const matching = profiles.find((profile) => profile.crop_marks === work.crop_marks
+      && profile.registration_marks === defaultProfile?.registration_marks
+      && profile.technical_text === defaultProfile?.technical_text
+      && profile.color_bar === defaultProfile?.color_bar);
+    if (!matching) throw new Error("No hay perfil de marcas para este trabajo. Vuelve a guardar su configuración en Preparar.");
+    return matching.id;
+  }
+
+  function ensureWorkMarksProfile(layout, cropMarks) {
+    const defaultId = layout.export?.default_marks_profile_id;
+    const profiles = layout.export?.marks_profiles;
+    const base = profiles?.find((profile) => profile.id === defaultId);
+    if (!base || typeof cropMarks !== "boolean") throw new Error("La configuración de marcas de corte no es válida.");
+    if (base.crop_marks === cropMarks) return base.id;
+    const matching = profiles.find((profile) => profile.crop_marks === cropMarks
+      && profile.registration_marks === base.registration_marks
+      && profile.technical_text === base.technical_text
+      && profile.color_bar === base.color_bar);
+    if (matching) return matching.id;
+    const stem = `${base.id}_${cropMarks ? "with" : "without"}_crop_marks`;
+    let id = stem, suffix = 2;
+    while (profiles.some((profile) => profile.id === id)) id = `${stem}_${suffix++}`;
+    profiles.push({ ...clone(base), id, crop_marks: cropMarks });
+    return id;
+  }
+
+  function restoreAddedMarksProfiles(layout, beforeProfiles) {
+    if (!beforeProfiles) return;
+    const beforeIds = new Set(beforeProfiles.map((profile) => profile.id));
+    const usedIds = new Set(layout.slots.map((slot) => slot.production?.marks_profile_id));
+    layout.export.marks_profiles = layout.export.marks_profiles.filter((profile) => beforeIds.has(profile.id) || usedIds.has(profile.id));
+  }
+
   function finitePosition(position) {
     return position
       && Number.isFinite(position.x_mm)
@@ -675,7 +713,7 @@
     constructor(layout, workId, patch) {
       const work = layout.works.find((item) => item.id === workId);
       if (!work) throw new Error("El trabajo ya no existe.");
-      const allowed = ["name", "requested_forms", "front_source", "back_source", "trim_size_mm", "bleed_mm", "allowed_rotations_deg", "bleed_strategy"];
+      const allowed = ["name", "requested_forms", "front_source", "back_source", "trim_size_mm", "bleed_mm", "allowed_rotations_deg", "bleed_strategy", "crop_marks"];
       if (Object.keys(patch).some((key) => !allowed.includes(key))) throw new Error("Cambio de trabajo no soportado.");
       this.before = clone(work);
       this.after = { ...clone(work), ...clone(patch) };
@@ -685,18 +723,21 @@
         name: next.name, width: next.trim_size_mm.width, height: next.trim_size_mm.height,
         bleed: next.bleed_mm, requestedForms: next.requested_forms,
         bleedStrategy: next.bleed_strategy,
+        cropMarks: next.crop_marks,
         allowedRotations: next.allowed_rotations_deg,
       }, "validate_work");
       for (const key of ["name", "trim_size_mm", "bleed_mm", "requested_forms", "allowed_rotations_deg"]) {
         next[key] = clone(validated[key]);
       }
       if (next.back_source) sourcePage(layout, next.back_source);
-      this.structural = allowed.filter((key) => !["name", "requested_forms", "trim_size_mm", "bleed_strategy"].includes(key))
+      if ("crop_marks" in next && typeof next.crop_marks !== "boolean") throw new Error("Las marcas de corte deben activarse o desactivarse.");
+      this.structural = allowed.filter((key) => !["name", "requested_forms", "trim_size_mm", "bleed_strategy", "crop_marks"].includes(key))
         .some((key) => !UpdateWorkCommand.equal(work[key], next[key]));
       this.assertEditable(layout);
       if (UpdateWorkCommand.equal(work, next)) throw new Error("El trabajo no contiene cambios.");
       this.description = "Editar trabajo preparado";
       this.affectedIds = Object.freeze([workId]);
+      this.beforeMarksProfiles = clone(layout.export.marks_profiles);
     }
     assertEditable(layout) {
       if (this.before.bleed_strategy !== this.after.bleed_strategy) {
@@ -715,12 +756,14 @@
       }
       sourcePage(layout, this.after.front_source);
       if (this.after.back_source) sourcePage(layout, this.after.back_source);
+      if (typeof this.after.crop_marks === "boolean") ensureWorkMarksProfile(layout, this.after.crop_marks);
       layout.works[index] = clone(this.after);
     }
     undo(layout) {
       const index = layout.works.findIndex((work) => work.id === this.before.id);
       if (index < 0) throw new Error("El trabajo ya no existe.");
       layout.works[index] = clone(this.before);
+      restoreAddedMarksProfiles(layout, this.beforeMarksProfiles);
     }
     redo(layout) { this.execute(layout); }
   }
@@ -737,6 +780,7 @@
       this.description = "Crear trabajos desde páginas PDF";
       this.works = clone(works);
       this.affectedIds = Object.freeze(ids);
+      this.beforeMarksProfiles = null;
     }
 
     execute(layout) {
@@ -748,6 +792,10 @@
         sourcePage(layout, work.front_source);
         if (work.back_source) sourcePage(layout, work.back_source);
       }
+      this.beforeMarksProfiles ??= clone(layout.export.marks_profiles);
+      for (const work of this.works) {
+        if (typeof work.crop_marks === "boolean") ensureWorkMarksProfile(layout, work.crop_marks);
+      }
       layout.works.push(...clone(this.works));
     }
 
@@ -757,6 +805,7 @@
         throw new Error("Undo the work slots before removing their works");
       }
       layout.works = layout.works.filter((work) => !ids.has(work.id));
+      restoreAddedMarksProfiles(layout, this.beforeMarksProfiles);
     }
 
     redo(layout) {
@@ -1086,12 +1135,16 @@
     if (values.bleedStrategy !== undefined && !["source_only", "mirror_if_missing"].includes(values.bleedStrategy)) {
       throw new Error("Elige cómo resolver el sangrado del trabajo.");
     }
+    if (values.cropMarks !== undefined && typeof values.cropMarks !== "boolean") {
+      throw new Error("Las marcas de corte deben activarse o desactivarse.");
+    }
     return {
       id,
       name,
       trim_size_mm: { width, height },
       bleed_mm: bleed,
       ...(values.bleedStrategy === undefined ? {} : { bleed_strategy: values.bleedStrategy }),
+      ...(values.cropMarks === undefined ? {} : { crop_marks: values.cropMarks }),
       requested_forms: requestedForms,
       allowed_rotations_deg: rotations,
       priority: 0,
@@ -1230,7 +1283,7 @@
         clip_to: source.pdf_box === "bleed" || (work.bleed_strategy !== undefined && work.bleed_mm > 0) ? "bleed_box" : "trim_box",
       },
       locks: { geometry: [], content: [], production: [], delete: [] },
-      production: { marks_profile_id: layout.export.default_marks_profile_id },
+      production: { marks_profile_id: workMarksProfileId(layout, work) },
       generated_by: { type: "manual" },
     };
   }

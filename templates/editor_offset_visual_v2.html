@@ -167,62 +167,14 @@
         <div class="ev2-preparation-heading"><div><span class="ev2-region-label">Preparar</span><h2>Páginas y trabajos</h2><p>Selecciona las páginas, configura sus formas y crea los trabajos una sola vez.</p></div></div>
         <div class="ev2-preparation-grid">
           <section class="ev2-page-planner" aria-label="Páginas del PDF">
-            <div class="ev2-page-planner-heading"><strong>Páginas del PDF</strong><button id="ev2-preparation-select-all" type="button">Seleccionar todas</button></div>
-            <p class="ev2-preparation-note">Borradores de esta sesión. Los trabajos guardados aparecen debajo.</p>
+            <div class="ev2-page-planner-heading"><div><strong>Páginas del PDF</strong><small>Define cantidad, sangrado, cortes y giros en cada página.</small></div><button id="ev2-preparation-select-all" type="button">Seleccionar todas</button></div>
             <div id="ev2-asset-page-planner" class="ev2-asset-page-planner"><p>Sube un PDF para preparar sus páginas.</p></div>
             <button id="ev2-create-page-works" class="ev2-primary-action" type="button" disabled>Crear trabajos</button>
-          </section>
-          <section id="ev2-preparation-settings" class="ev2-preparation-settings" aria-label="Configuración de página" tabindex="-1">
-            <h3 id="ev2-preparation-edit-title">Configurar página</h3>
-            <p id="ev2-preparation-edit-note" class="ev2-preparation-note"></p>
-        <div class="ev2-form-grid">
-          <label>Archivo PDF<select id="ev2-asset-select" disabled></select></label>
-          <label>Página<select id="ev2-asset-page" disabled></select></label>
-          <output id="ev2-box-dimensions">—</output>
-          <details class="ev2-field-wide"><summary>Opciones avanzadas del PDF</summary>
-            <label>Caja PDF<select id="ev2-asset-box" disabled></select></label>
-            <p>Solo se usan cajas presentes en el archivo. Cambiar la caja cambia el área fuente; no crea sangrado.</p>
-          </details>
-          <label class="ev2-field-wide">Nombre<input id="ev2-work-name" type="text" maxlength="160"></label>
-          <label>Tamaño final<select id="ev2-work-size-mode"><option value="box">Tamaño detectado</option><option value="custom">Personalizado</option></select></label>
-          <label>Ancho final (mm)<input id="ev2-work-width" type="number" min="0.001" step="0.001"></label>
-          <label>Alto final (mm)<input id="ev2-work-height" type="number" min="0.001" step="0.001"></label>
-          <label>Sangrado (mm)<input id="ev2-work-bleed" type="number" min="0" step="0.1" value="0"></label>
-          <label>Cantidad de formas<input id="ev2-work-quantity" type="number" min="1" step="1" value="1"></label>
-        </div>
-        <fieldset class="ev2-rotation-options">
-          <legend>Rotaciones permitidas</legend>
-          <label><input type="checkbox" name="ev2-work-rotation" value="0" checked>0°</label>
-          <label><input type="checkbox" name="ev2-work-rotation" value="90" checked>90°</label>
-          <label><input type="checkbox" name="ev2-work-rotation" value="180" checked>180°</label>
-          <label><input type="checkbox" name="ev2-work-rotation" value="270" checked>270°</label>
-        </fieldset>
-        <label class="ev2-back-source"><input id="ev2-work-back" type="checkbox"> Usar esta fuente también como dorso</label>
-
-            <p id="ev2-preparation-coverage" class="ev2-preparation-note"></p>
-            <label>Si falta sangrado del archivo
-              <select id="ev2-work-bleed-strategy">
-                <option value="source_only">Usar solo el archivo; resolver lo que falte antes de exportar</option>
-                <option value="mirror_if_missing">Autorizar espejo para este trabajo (sangrado generado)</option>
-                <option value="legacy" disabled>Trabajo anterior: conservar permiso temporal de Salida</option>
-              </select>
-            </label>
-            <p class="ev2-preparation-note">Puedes subir otro PDF, cambiar el sangrado solicitado o autorizar espejo. El espejo repite los bordes; revisa siempre el resultado.</p>
-            <div><button id="ev2-preparation-other-file" type="button">Usar otro PDF</button>
-              <button id="ev2-preparation-adjust-bleed" type="button">Cambiar sangrado</button></div>
-            <fieldset id="ev2-preparation-bulk" class="ev2-preparation-bulk"><legend>Aplicar valores a páginas seleccionadas</legend>
-              <label><input type="checkbox" data-preparation-field="box">Caja PDF</label>
-              <label><input type="checkbox" data-preparation-field="quantity">Cantidad</label>
-              <label><input type="checkbox" data-preparation-field="bleed" checked>Sangrado</label>
-              <label><input type="checkbox" data-preparation-field="bleedStrategy" checked>Decisión de sangrado</label>
-              <label><input type="checkbox" data-preparation-field="rotations" checked>Giros</label>
-              <label><input type="checkbox" data-preparation-field="back">Misma fuente en dorso</label>
-              <button id="ev2-preparation-apply-common" type="button">Aplicar a seleccionadas</button>
-            </fieldset>
-            <div id="ev2-preparation-edit-actions" hidden><button id="ev2-preparation-save-work" type="button">Guardar trabajo</button><button id="ev2-preparation-cancel-edit" type="button">Cancelar edición</button><button id="ev2-preparation-variant" type="button">Crear variante de este trabajo</button></div>
+            <div id="ev2-preparation-edit-actions" hidden><button id="ev2-preparation-save-work" type="button">Guardar trabajo</button><button id="ev2-preparation-cancel-edit" type="button">Cancelar edición</button><button id="ev2-preparation-variant" type="button">Crear variante</button></div>
           </section>
         </div>
-        <p id="ev2-preparation-status" role="status" aria-live="polite"></p>
+            <p class="ev2-preparation-note">Si indicas sangrado, se tomará del PDF cuando exista; si falta, se completará con espejo y quedará advertido para revisión.</p>
+            <p id="ev2-preparation-status" role="status" aria-live="polite"></p>
         <section aria-label="Trabajos preparados" class="ev2-prepared-section"><h3>Trabajos preparados</h3><div id="ev2-prepared-works"></div></section>
       </section>
       <p id="ev2-repeat-canvas-note" class="ev2-repeat-canvas-note" role="status" hidden></p>

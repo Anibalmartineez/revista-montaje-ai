@@ -138,6 +138,7 @@ work.trim_size_mm             → design.width_mm / height_mm temporales
 work.bleed_mm                 → design.bleed_mm
 work.requested_forms          → design.forms_per_plate
 work.allowed_rotations_deg    → orientación permitida
+work.crop_marks               → perfil de marcas de las piezas Repeat, si está configurado
 ```
 
 Los nombres `width_mm`, `height_mm`, `designs` y demás vocabulario legacy solo existen dentro del adaptador. Nunca se serializan en Layout V2.

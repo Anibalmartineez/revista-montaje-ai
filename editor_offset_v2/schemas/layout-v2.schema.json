@@ -516,6 +516,9 @@
         "bleed_strategy": {
           "enum": ["source_only", "mirror_if_missing"]
         },
+        "crop_marks": {
+          "type": "boolean"
+        },
         "allowed_rotations_deg": {
           "type": "array",
           "minItems": 1,

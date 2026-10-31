@@ -233,7 +233,9 @@ class RepeatEngineAdapter:
 
     def _normalize_slots(self, layout, plans, placements, face, operation_id, printable, retained, settings):
         by_work={plan.work['id']:plan for plan in plans}
-        marks_profile=layout['export']['default_marks_profile_id']
+        marks_profiles=layout['export']['marks_profiles']
+        default_marks_id=layout['export']['default_marks_profile_id']
+        default_marks=next((profile for profile in marks_profiles if profile['id']==default_marks_id),None)
         normalized=[]; issues=[]
         if len(placements)>MAX_PLACEMENTS:
             return [],(RepeatIssueV2('INVALID_ENGINE_COUNTS','error','El resultado excede el límite de slots.'),)
@@ -247,6 +249,17 @@ class RepeatEngineAdapter:
             if rotation not in plan.work['allowed_rotations_deg']:
                 issues.append(RepeatIssueV2('INVALID_ENGINE_ROTATION','error','El giro no está permitido por el trabajo.',work_id=work_id))
                 continue
+            marks_profile=default_marks_id
+            if isinstance(plan.work.get('crop_marks'),bool):
+                matching=next((profile for profile in marks_profiles
+                    if profile.get('crop_marks') is plan.work['crop_marks']
+                    and profile.get('registration_marks')==default_marks.get('registration_marks')
+                    and profile.get('technical_text')==default_marks.get('technical_text')
+                    and profile.get('color_bar')==default_marks.get('color_bar')),None)
+                if matching is None:
+                    issues.append(RepeatIssueV2('WORK_MARKS_PROFILE_MISSING','error','No se encontró el perfil de marcas elegido para el trabajo.',work_id=work_id))
+                    continue
+                marks_profile=matching['id']
             slot_id = f"slot_{operation_id}_{index + 1:04d}"
             source = copy.deepcopy(plan.source)
             slot = {

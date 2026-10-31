@@ -434,7 +434,7 @@ def _validate_works(
                 "front_source",
                 "back_source",
             },
-            optional={"bleed_strategy"},
+            optional={"bleed_strategy", "crop_marks"},
         )
         if work is None:
             continue
@@ -451,6 +451,8 @@ def _validate_works(
             strategy = validator.string(work["bleed_strategy"], f"{path}.bleed_strategy")
             if strategy is not None:
                 validator.enum(strategy, f"{path}.bleed_strategy", WORK_BLEED_STRATEGIES)
+        if "crop_marks" in work:
+            validator.boolean(work["crop_marks"], f"{path}.crop_marks")
         validator.integer(work.get("requested_forms"), f"{path}.requested_forms", minimum=1)
         rotations = validator.array(work.get("allowed_rotations_deg"), f"{path}.allowed_rotations_deg")
         if rotations is not None:
