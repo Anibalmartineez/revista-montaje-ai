@@ -428,7 +428,7 @@ def test_preview_supports_fit_modes_and_explicit_mirror_bleed(preview_app_factor
     ).get_json()["revision"]
 
 
-def test_preview_requires_explicit_mirror_for_missing_source_bleed(preview_app_factory):
+def test_positive_work_bleed_automatically_mirrors_when_source_bleed_is_missing(preview_app_factory):
     app = preview_app_factory()
     app.config[EDITOR_OFFSET_V2_PREVIEW_ENABLED] = True
     client = app.test_client()
@@ -448,17 +448,9 @@ def test_preview_requires_explicit_mirror_for_missing_source_bleed(preview_app_f
     layout["slots"][0]["content_transform"]["clip_to"] = "bleed_box"
     _save_preview_layout(client, upload.get_json(), layout)
 
-    blocked = client.post(
-        f"/api/editor-offset-v2/jobs/{created['job_id']}/preview",
-        json={},
-    )
-    assert blocked.status_code == 422
-    assert blocked.get_json()["error"]["code"] == "PREFLIGHT_BLOCKED"
-    assert any(i["code"] == "BLEED_REQUIRES_EXPLICIT_MIRROR" for i in blocked.get_json()["error"]["issues"])
-
     mirrored = client.post(
         f"/api/editor-offset-v2/jobs/{created['job_id']}/preview",
-        json={"allow_mirror_bleed": True},
+        json={},
     )
     assert mirrored.status_code == 200
     assert mirrored.mimetype == "image/png"

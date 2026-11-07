@@ -7,7 +7,13 @@
 })(typeof globalThis !== "undefined" ? globalThis : this, function () {
   "use strict";
   const clone = (value) => JSON.parse(JSON.stringify(value));
-  const BOXES = Object.freeze(["trim", "crop", "media", "bleed"]);
+  const BOXES = Object.freeze(["bleed", "media", "trim", "crop"]);
+  function detectedBox(page, bleed = 0) {
+    // With no requested bleed, use the PDF's existing outer artwork extent.
+    // A positive value asks V2 to start from trim and add/preserve that bleed.
+    const order = Number(bleed) > 0 ? ["trim", "media", "crop", "bleed"] : ["bleed", "media", "crop", "trim"];
+    return order.find((name) => page?.boxes_mm?.[name]) || null;
+  }
   function dimensions(page, boxName) {
     const box = page.boxes_mm[boxName];
     if (!box) return null;
@@ -16,7 +22,7 @@
       height: Number((rotated ? box.width : box.height).toFixed(3)) };
   }
   function makeDraft(asset, page) {
-    const box = BOXES.find((name) => page.boxes_mm[name]);
+    const box = detectedBox(page, 0);
     const size = dimensions(page, box);
     return { assetId: asset.id, page: page.number, box, selected: false,
       name: `${asset.original_filename.replace(/\.pdf$/i, "")} · pág. ${page.number}`.slice(0, 160),
@@ -29,6 +35,18 @@
     const size = dimensions(page, box);
     if (size && draft.sizeMode === "box") Object.assign(draft, size);
   }
+  function applyBleedIntent(draft, page, value) {
+    const empty = value === "" || value === null || value === undefined;
+    const bleed = empty ? 0 : Number(value);
+    draft.bleed = empty ? "" : value;
+    draft.bleedStrategy = bleed > 0 ? "mirror_if_missing" : "source_only";
+    const box = detectedBox(page, bleed);
+    if (!box) throw new Error(`Página ${page?.number}: la medida del PDF no está disponible.`);
+    // The operator changed bleed intent; restore the automatically detected
+    // source size rather than carrying an older box-based size forward.
+    draft.sizeMode = "box";
+    changeBox(draft, page, box);
+  }
   function source(draft, asset) {
     const page = asset?.pages.find((item) => item.number === draft.page);
     if (asset?.id !== draft.assetId || !page || !page.boxes_mm[draft.box]) throw new Error(`Página ${draft.page}: la caja ${draft.box} no existe. Elige otra caja.`);
@@ -40,11 +58,12 @@
     if (!String(draft.name || "").trim()) invalid("escribe un nombre para el trabajo.");
     if (!Number.isInteger(Number(draft.quantity)) || Number(draft.quantity) < 1) invalid("la cantidad debe ser un entero mayor que cero.");
     if (![draft.width, draft.height].every((value) => Number.isFinite(Number(value)) && Number(value) > 0)) invalid("las medidas finales deben ser mayores que cero.");
-    if (draft.bleed === "" || !Number.isFinite(Number(draft.bleed)) || Number(draft.bleed) < 0) invalid("indica un sangrado de cero o más milímetros.");
+    const bleed = draft.bleed === "" || draft.bleed === null || draft.bleed === undefined ? 0 : Number(draft.bleed);
+    if (!Number.isFinite(bleed) || bleed < 0) invalid("indica un sangrado de cero o más milímetros.");
     if (!draft.rotations.length || draft.rotations.some((value) => ![0, 90, 180, 270].includes(value))) invalid("elige al menos un giro cardinal.");
     return { source: selectedSource,
       values: { name: draft.name, width: draft.width, height: draft.height,
-        bleed: draft.bleed, requestedForms: Number(draft.quantity),
+        bleed, requestedForms: Number(draft.quantity),
         cropMarks: Boolean(draft.cropMarks),
         ...(draft.bleedStrategy === undefined ? {} : { bleedStrategy: draft.bleedStrategy }),
         allowedRotations: [...draft.rotations], useSameSourceForBack: draft.back } };
@@ -72,7 +91,9 @@
     apply(asset, reference, fields) {
       for (const draft of this.selected(asset)) {
         for (const field of fields) draft[field] = clone(reference[field]);
-        changeBox(draft, asset.pages.find((page) => page.number === draft.page), draft.box);
+        const page = asset.pages.find((page) => page.number === draft.page);
+        if (fields.includes("bleed")) applyBleedIntent(draft, page, draft.bleed);
+        else changeBox(draft, page, draft.box);
       }
     }
     entries(asset, works) {
@@ -88,5 +109,5 @@
       });
     }
   }
-  return Object.freeze({ Drafts, BOXES, dimensions, changeBox, source, entry, matches, uniqueName });
+  return Object.freeze({ Drafts, BOXES, detectedBox, dimensions, changeBox, applyBleedIntent, source, entry, matches, uniqueName });
 });

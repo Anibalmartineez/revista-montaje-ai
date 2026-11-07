@@ -51,9 +51,9 @@ def prepare_source(
 ) -> PreparedSource:
     """Normalize selected visible artwork and preserve real bleed when possible.
 
-    A positive bleed with trim clipping needs explicit mirror permission. With
-    bleed clipping, preserve the source's declared coverage; if insufficient,
-    only the explicit mirror option permits synthesis. No partial bleed fallback.
+    A positive numeric bleed is explicit operator intent: preserve source bleed
+    when sufficient, otherwise mirror automatically. Zero uses source extent.
+    No partial bleed fallback.
     """
     inspection = inspect_pdf(pdf_data)
     if isinstance(page_number, bool) or not isinstance(page_number, int) or not 1 <= page_number <= inspection.page_count:
@@ -76,7 +76,7 @@ def prepare_source(
                       selected.width + 2 * bleed_mm, selected.height + 2 * bleed_mm)
     preserve = bleed_mm > 0 and source_covers_bleed(info.boxes_as_layout(), pdf_box, bleed_mm, clip_to)
     if bleed_mm > 0 and not preserve and not allow_mirror_bleed:
-        raise SourcePreparationError("BLEED_REQUIRES_EXPLICIT_MIRROR", "No usable source bleed; mirror generation needs explicit permission")
+        raise SourcePreparationError("BLEED_REQUIRES_EXPLICIT_MIRROR", "No usable source bleed; enter a positive bleed value to generate mirror bands")
     if bleed_mm > min(trim_size.width, trim_size.height) and not preserve:
         raise SourcePreparationError("MIRROR_BLEED_EXCEEDS_TRIM", "Mirror strips cannot exceed the source dimensions")
     source_box = expanded if preserve else selected

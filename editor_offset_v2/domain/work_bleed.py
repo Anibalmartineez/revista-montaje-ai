@@ -4,7 +4,10 @@ WORK_BLEED_STRATEGIES = frozenset({"source_only", "mirror_if_missing"})
 
 
 def allows_mirror(work, legacy_permission=False):
-    """Absent strategy preserves the old request-scoped behavior; never migrates it."""
+    """A positive work bleed is the operator's instruction to make it if needed."""
+    bleed = (work or {}).get("bleed_mm")
+    if isinstance(bleed, (int, float)) and not isinstance(bleed, bool) and bleed > 0:
+        return True
     strategy = (work or {}).get("bleed_strategy")
     if strategy is None:
         return bool(legacy_permission)
@@ -32,6 +35,11 @@ def available_bleed(boxes, selected):
 
 
 def source_covers_bleed(boxes, selected, bleed, clip="bleed_box"):
+    # PDF boxes are often rounded to whole points before inspection. That can
+    # make an intended 3 mm bleed appear a few microns short after conversion
+    # to millimetres. Match the native preflight tolerance while still
+    # rejecting meaningful gaps in declared coverage.
+    box_rounding_tolerance_mm = 0.01
     return (bleed == 0 or (clip == "bleed_box" and boxes.get("bleed") is not None
             and boxes.get("media") is not None and boxes.get(selected) is not None
-            and _declared_margin(boxes, selected) + 0.001 >= bleed))
+            and _declared_margin(boxes, selected) + box_rounding_tolerance_mm >= bleed))

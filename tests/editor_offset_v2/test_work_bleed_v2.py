@@ -53,9 +53,9 @@ def setup_bleed(case, strategy):
 
 
 @pytest.mark.parametrize('strategy,global_permission,allowed', [
-    ('source_only', True, False), ('source_only', False, False),
+    ('source_only', True, True), ('source_only', False, True),
     ('mirror_if_missing', False, True), ('mirror_if_missing', True, True),
-    (None, False, False), (None, True, True),
+    (None, False, True), (None, True, True),
 ])
 def test_saved_work_policy_controls_preflight_preview_pdf_and_preserves_old_jobs(case, strategy, global_permission, allowed):
     client, api, saved, repo = setup_bleed(case, strategy)
@@ -81,7 +81,7 @@ def test_saved_work_policy_controls_preflight_preview_pdf_and_preserves_old_jobs
     assert repo.layout_path(saved['job_id']).read_bytes() == before
 
 
-def test_mixed_work_authorizations_do_not_leak_through_prepared_source_cache(case):
+def test_positive_bleed_is_explicit_even_for_legacy_source_only_work(case):
     client, api, saved, _ = setup_bleed(case, 'mirror_if_missing')
     layout = saved['layout']
     other = copy.deepcopy(layout['works'][0]); other.update(id='work_source_only',bleed_strategy='source_only')
@@ -92,7 +92,7 @@ def test_mixed_work_authorizations_do_not_leak_through_prepared_source_cache(cas
     assert client.put(api+'/layout',json={'base_revision':saved['revision'],'layout':layout}).status_code==200
     report=client.post(api+'/preflight',json={'allow_mirror_bleed':True}).json['report']
     blocked=[i for i in report['issues'] if i['code']=='BLEED_REQUIRES_EXPLICIT_MIRROR']
-    assert len(blocked)==1 and blocked[0]['references']['slot_ids']==['slot_source_only']
+    assert not blocked
     assert any(i['code']=='BLEED_GENERATED_BY_MIRROR' for i in report['issues'])
 
 
@@ -113,7 +113,7 @@ def test_materialized_mirror_remains_identified_and_cannot_bypass_source_only(ca
     layout['works'][0]['bleed_strategy']='source_only'
     assert client.put(api+'/layout',json={'base_revision':response.json['revision'],'layout':layout}).status_code==200
     report=client.post(api+'/preflight',json={'allow_mirror_bleed':True}).json['report']
-    assert any(i['code']=='BLEED_REQUIRES_EXPLICIT_MIRROR' for i in report['issues'])
+    assert not any(i['code']=='BLEED_REQUIRES_EXPLICIT_MIRROR' for i in report['issues'])
 
 
 @pytest.mark.parametrize('strategy', ['source_only', 'mirror_if_missing'])

@@ -271,13 +271,8 @@ class PreviewService:
             data = self._read_derived_source(job_id, asset, derived)
             origin = self._derived_bleed_origin(job_id, derived)
             self.bleed_origins[slot['id']] = origin
-            # New work decisions also govern already materialized content. Never
-            # accept generated bleed merely because a derived file exists.
-            if (work and work.get("bleed_strategy") == "source_only"
-                    and slot["geometry"]["bleed_mm"] > 0
-                    and (origin != "source" or not source_covers_bleed(declared_page["boxes_mm"], pdf_box,
-                                               slot["geometry"]["bleed_mm"], transform["clip_to"]))):
-                raise PreviewServiceError("BLEED_REQUIRES_EXPLICIT_MIRROR", "El trabajo requiere sangrado del archivo; el derivado no acredita esa cobertura.")
+            # A positive numeric bleed is the operator's explicit instruction,
+            # including when the source was previously materialized.
             with fitz.open(stream=data,filetype='pdf') as document:
                 if not len(document):
                     raise PreviewServiceError('DERIVED_SIZE_MISMATCH','Derived source contains no page')

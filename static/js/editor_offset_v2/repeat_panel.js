@@ -3,14 +3,17 @@
   const layoutMetrics = typeof module === "object" && module.exports
     ? require("./layout_metrics.js")
     : root.EditorOffsetV2?.LayoutMetrics;
-  const api = factory(layoutMetrics);
+  const preparation = typeof module === "object" && module.exports
+    ? require("./preparation.js")
+    : root.EditorOffsetV2?.Preparation;
+  const api = factory(layoutMetrics, preparation);
   if (typeof module === "object" && module.exports) module.exports = api;
   root.EditorOffsetV2 = root.EditorOffsetV2 || {};
   root.EditorOffsetV2.RepeatPanel = api;
-})(typeof globalThis !== "undefined" ? globalThis : this, function (LayoutMetrics) {
+})(typeof globalThis !== "undefined" ? globalThis : this, function (LayoutMetrics, Preparation) {
   "use strict";
 
-  if (!LayoutMetrics) throw new Error("Editor V2 layout metrics are required");
+  if (!LayoutMetrics || !Preparation) throw new Error("Editor V2 layout metrics and PDF preparation are required");
 
   function selectedWorkIds(container) {
     return [...container.querySelectorAll('input[type="checkbox"]:checked')]
@@ -59,7 +62,7 @@
         || work?.[context.face === "front" ? "front_source" : "back_source"];
       const asset = layout.assets.find((item) => item.id === source?.asset_id);
       return { id, name: work?.name || id, page: source?.page,
-        sourceLabel: source ? `${asset?.original_filename || source.asset_id} · página ${source.page} · ${source.pdf_box}` : "Sin fuente",
+        sourceLabel: source ? `${asset?.original_filename || source.asset_id} · página ${source.page}` : "Sin fuente",
         requested, placed, unplaced: Math.max(0, requested - placed), overproduced: Math.max(0, placed - requested),
         retained, removed: existing - retained, projected: retained + placed };
     });
@@ -154,18 +157,17 @@
           const defaultOption = document.createElement("option");
           defaultOption.value = "";
           defaultOption.textContent = work.back_source
-            ? `Fuente del work · página ${work.back_source.page} · ${work.back_source.pdf_box}`
-            : "Elegí PDF, página y caja";
+            ? `Fuente del work · página ${work.back_source.page}`
+            : "Elegí PDF y página";
           select.append(defaultOption);
           for (const asset of this.store.layout.assets.filter((item) => item.status === "ready")) {
             for (const page of asset.pages) {
-              for (const [box, bounds] of Object.entries(page.boxes_mm)) {
-                if (!bounds) continue;
-                const option = document.createElement("option");
-                option.value = JSON.stringify({ asset_id: asset.id, page: page.number, pdf_box: box });
-                option.textContent = `${asset.original_filename} · página ${page.number} · ${box}`;
-                select.append(option);
-              }
+              const box = Preparation.detectedBox(page, work.bleed_mm);
+              if (!box) continue;
+              const option = document.createElement("option");
+              option.value = JSON.stringify({ asset_id: asset.id, page: page.number, pdf_box: box });
+              option.textContent = `${asset.original_filename} · página ${page.number}`;
+              select.append(option);
             }
           }
           const choice = this.sourceChoices?.get(work.id) || "";

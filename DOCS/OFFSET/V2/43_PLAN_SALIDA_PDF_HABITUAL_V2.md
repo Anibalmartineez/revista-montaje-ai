@@ -10,6 +10,8 @@ El usuario autorizó las entregas 1, 2 y 3 de forma sucesiva, y después las ent
 
 Flujo esperado: preparar páginas/tamaño/sangrado → montar → preflight nativo V2 → Preview/PDF. La preparación decide el contenido; el montaje decide posiciones y marcas; el preflight decide qué operaciones son admisibles; el generador utiliza esas mismas decisiones; el arranque habilita las funciones habituales.
 
+**Regla operativa vigente (actualización 2026-10-31, ver 41):** el operador solo decide la medida detectada y el número de sangrado. No elige nombres de cajas PDF. Sangrado vacío o 0 conserva el arte en la extensión detectada del archivo; un número positivo solicita esa medida, preservando la cobertura física del PDF y completando automáticamente con espejo cuando sea insuficiente. No hay una autorización separada. `pdf_box` sigue siendo un detalle interno requerido por el Layout V2; las reglas previas de estrategia descritas debajo quedan subordinadas a esta instrucción actual.
+
 ## Seguimiento
 
 | Entrega | Problema que resuelve | Estado |

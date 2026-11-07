@@ -15,7 +15,7 @@ test('physical coverage shares Python fixtures and never invents absent boxes', 
   }
 });
 test('work authorization overrides global permission; old work is not migrated', () => {
-  assert.equal(B.allowsMirror({bleed_strategy:'source_only'},true),false);
+  assert.equal(B.allowsMirror({bleed_strategy:'source_only',bleed_mm:3},false),true);
   assert.equal(B.allowsMirror({bleed_strategy:'mirror_if_missing'},false),true);
   const work={}; assert.equal(B.allowsMirror(work,true),true); assert.equal(B.allowsMirror(work,false),false);
   assert.deepEqual(work,{});

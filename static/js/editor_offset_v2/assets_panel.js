@@ -18,7 +18,6 @@
     const node = document.createElement(tag); if (text) node.textContent = text; if (className) node.className = className; return node;
   }
   function isReadyAsset(asset) { return Boolean(asset && asset.status === "ready" && asset.pages?.length); }
-  const boxLabel = (box) => `${box[0].toUpperCase()}${box.slice(1)}Box`;
   class AssetsPanel {
     constructor(store, refs, api, saver, context, commands, editPolicy, runAction) {
       Object.assign(this, { store, refs, api, saver, context, commands, editPolicy, runAction });
@@ -96,7 +95,7 @@
       }
       if (this.editing) {
         const draft = this.editing.draft;
-        const selectedBox = Preparation.BOXES.find((box) => sourcePage.boxes_mm[box]);
+        const selectedBox = Preparation.detectedBox(sourcePage, this.editing.draft.bleed);
         if (!selectedBox) throw new Error("La página no declara una medida utilizable.");
         draft.assetId = asset.id; draft.page = sourcePage.number; draft.box = selectedBox; draft.sizeMode = "box";
         Preparation.changeBox(draft, sourcePage, selectedBox);
@@ -106,7 +105,8 @@
         return;
       }
       const draft = this.drafts.get(asset, sourcePage);
-      const selectedBox = sourcePage.boxes_mm[draft.box] ? draft.box : Preparation.BOXES.find((box) => sourcePage.boxes_mm[box]);
+      const selectedBox = Preparation.detectedBox(sourcePage, draft.bleed);
+      if (selectedBox && draft.box !== selectedBox) Preparation.changeBox(draft, sourcePage, selectedBox);
       this.store.setAssetSelection(asset.id, page, selectedBox);
       this.refs.assetPagePlanner.querySelector(`[data-page="${page}"]`)?.scrollIntoView({ block: "nearest" });
     }
@@ -123,8 +123,7 @@
         draft.rotations = target.checked ? [...new Set([...draft.rotations, rotation])]
           : draft.rotations.filter((value) => value !== rotation);
       } else if (field === "bleed") {
-        draft.bleed = target.value;
-        draft.bleedStrategy = Number(target.value) > 0 ? "mirror_if_missing" : "source_only";
+        Preparation.applyBleedIntent(draft, page, target.value);
       } else if (field === "cropMarks" || field === "back" || field === "selected" || field === "variant") draft[field] = target.checked;
       else draft[field] = target.value;
       this.renderSummary();
@@ -244,17 +243,18 @@
       const asset = this.store.layout.assets.find((a) => a.id === work?.front_source?.asset_id);
       const page = asset?.pages.find((p) => p.number === work.front_source.page);
       if (!page) throw new Error("La fuente de este trabajo no está disponible.");
-      const selectedBox = page.boxes_mm[work.front_source.pdf_box] ? work.front_source.pdf_box : Preparation.BOXES.find((box) => page.boxes_mm[box]);
+      const selectedBox = Preparation.detectedBox(page, work.bleed_mm);
+      const detectedSize = Preparation.dimensions(page, selectedBox);
       const defaultMarks = this.store.layout.export.marks_profiles.find((profile) => profile.id === this.store.layout.export.default_marks_profile_id);
       const draft = { ...clone(this.drafts.get(asset, page)),
-        selected: false, name: work.name, box: work.front_source.pdf_box,
-        width: work.trim_size_mm.width, height: work.trim_size_mm.height, sizeMode: "custom",
+        selected: false, name: work.name, box: selectedBox,
+        width: detectedSize?.width ?? work.trim_size_mm.width, height: detectedSize?.height ?? work.trim_size_mm.height, sizeMode: "box",
         quantity: work.requested_forms, bleed: work.bleed_mm, rotations: [...work.allowed_rotations_deg],
         bleedStrategy: work.bleed_strategy ?? (Number(work.bleed_mm) > 0 ? "mirror_if_missing" : "source_only"),
         cropMarks: work.crop_marks ?? defaultMarks?.crop_marks ?? true,
         back: this.commands.UpdateWorkCommand.equal(work.back_source, work.front_source), variant: false };
       this.editing = { before: clone(work), draft, initialBack: draft.back };
-      const selectedBoxForStore = page.boxes_mm[selectedBox] ? selectedBox : Preparation.BOXES.find((box) => page.boxes_mm[box]);
+      const selectedBoxForStore = Preparation.detectedBox(page, work.bleed_mm);
       this.store.setAssetSelection(asset.id, page.number, selectedBoxForStore);
       this.renderAll(); this.refs.assetPagePlanner.querySelector(`[data-page="${page.number}"]`)?.scrollIntoView({ block: "nearest" });
     }
@@ -310,7 +310,12 @@
       try { source = this.selectedSource(); } catch (_) { source = null; }
       this.refs.replaceSource.disabled = ids.length !== 1 || !source || Boolean(this.editing)
         || !this.editPolicy.can(this.store.layout, ids, "replace_content");
-      this.refs.replaceSourceLabel.textContent = source ? `Fuente preparada: página ${source.page} · ${boxLabel(source.pdf_box)}. Sustituir afecta solo al slot seleccionado.` : "Elige una fuente válida en Preparar.";
+      const asset = source && this.store.layout.assets.find((item) => item.id === source.asset_id);
+      const page = asset?.pages.find((item) => item.number === source.page);
+      const size = page && Preparation.dimensions(page, source.pdf_box);
+      this.refs.replaceSourceLabel.textContent = source
+        ? `Fuente preparada: página ${source.page} · medida detectada ${size ? `${size.width} × ${size.height} mm` : "disponible"}. Sustituir afecta solo al slot seleccionado.`
+        : "Elige una fuente válida en Preparar.";
     }
     selectedSource() {
       const draft = this.current(); if (!draft) throw new Error("Selecciona una página PDF.");

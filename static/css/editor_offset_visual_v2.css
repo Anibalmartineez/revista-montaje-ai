@@ -3042,8 +3042,10 @@ button[aria-pressed="true"],
 }
 
 .ev2-face-note {
-  font-size: 11px;
-  line-height: 1.25;
+  margin: 6px 12px;
+  color: var(--ev2-muted);
+  font-size: 12px;
+  line-height: 1.45;
 }
 
 .ev2-workflow {
@@ -3217,8 +3219,9 @@ button[aria-pressed="true"],
 
 /* Repeat proposals are a temporary review layer, never editable slots. */
 .ev2-repeat-canvas-note {
-  position: absolute; z-index: 2; top: 58px; left: 12px; right: 12px;
-  margin: 0; padding: 8px 12px; border: 1px solid #59c9ef;
+  position: absolute; z-index: 4; grid-row: 4; grid-column: 1;
+  align-self: start; top: auto; bottom: auto; left: 12px; right: 12px;
+  height: auto; margin: 8px 0 0; padding: 8px 12px; border: 1px solid #59c9ef;
   border-radius: 6px; background: #102936; color: #d5f4ff;
   font-size: 12px; line-height: 1.4; pointer-events: none;
 }
@@ -3300,7 +3303,7 @@ button[aria-pressed="true"],
 .ev2-face-tabs [role="tab"] { border: 1px solid currentColor; border-radius: .35rem; padding: .35rem .65rem; }
 .ev2-face-tabs [aria-selected="true"] { font-weight: 700; text-decoration: underline; text-underline-offset: .2em; }
 .ev2-face-tabs [role="tab"]:focus-visible, #ev2-enable-back:focus-visible, #ev2-back-flip:focus-visible { outline: 3px solid #1b66b1; outline-offset: 2px; }
-.ev2-face-note { margin: .25rem .75rem; font-size: .85rem; }
+.ev2-face-note { margin: 6px 12px; font-size: 12px; line-height: 1.45; }
 .ev2-matrix-panel { display: grid; gap: 0.65rem; width: 100%; min-width: 0; box-sizing: border-box; }
 .ev2-matrix-panel > *, .ev2-matrix-form, .ev2-matrix-fields { min-width: 0; max-width: 100%; box-sizing: border-box; }
 .ev2-matrix-fields { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.55rem 0.65rem; }

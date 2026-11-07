@@ -29,7 +29,7 @@ test('bulk changes only chosen fields and reports missing boxes without fallback
  const a=asset(), d=new P.Drafts(), one=d.get(a,a.pages[0]), two=d.get(a,a.pages[1]);
  Object.assign(one,{selected:true,bleed:3,quantity:7}); Object.assign(two,{selected:true,quantity:2});
  d.apply(a,structuredClone(one),['bleed','rotations']);
- assert.equal(two.quantity,2); assert.equal(two.bleed,3); assert.equal(two.box,'crop');
+ assert.equal(two.quantity,2); assert.equal(two.bleed,3); assert.equal(two.box,'media');
  assert.notEqual(two.rotations,one.rotations);
  d.apply(a,structuredClone(one),['box']);
  assert.equal(two.box,'trim'); assert.throws(()=>d.entries(a,[]),/Página 2.*no existe/);
@@ -39,6 +39,24 @@ test('rotated PDF page uses oriented box size', () => {
  const a=asset(), p=a.pages[1], size=P.dimensions(p,'crop');
  assert.equal(size.width,Number(p.boxes_mm.crop.height.toFixed(3)));
  assert.equal(size.height,Number(p.boxes_mm.crop.width.toFixed(3)));
+});
+test('detected page size uses existing bleed by default and trim only for an explicit bleed value', () => {
+ const a=asset(), page=a.pages[0], d=new P.Drafts(), work=d.get(a,page);
+ assert.equal(work.box,'bleed');
+ assert.deepEqual([work.width,work.height], [
+  Number(page.boxes_mm.bleed.width.toFixed(3)), Number(page.boxes_mm.bleed.height.toFixed(3)),
+ ]);
+ P.applyBleedIntent(work,page,'3');
+ assert.equal(work.box,'trim'); assert.equal(Number(work.bleed),3); assert.equal(work.bleedStrategy,'mirror_if_missing');
+ assert.deepEqual([work.width,work.height], [
+  Number(page.boxes_mm.trim.width.toFixed(3)), Number(page.boxes_mm.trim.height.toFixed(3)),
+ ]);
+ P.applyBleedIntent(work,page,'');
+ assert.equal(work.box,'bleed'); assert.equal(work.bleed,''); assert.equal(work.bleedStrategy,'source_only');
+ assert.equal(P.entry(work,a).values.bleed,0);
+ const noBleed={...structuredClone(page),boxes_mm:{...structuredClone(page.boxes_mm),bleed:null}};
+ assert.equal(P.detectedBox(noBleed,0),'media');
+ assert.equal(P.detectedBox(noBleed,3),'trim');
 });
 test('existing page requires explicit variant with distinct name', () => {
  const a=asset(), d=new P.Drafts(), one=d.get(a,a.pages[0]); one.selected=true;
@@ -88,7 +106,7 @@ test('server key ordering does not turn a quantity edit into a structural change
 test('page validation identifies invalid quantities, sizes, bleed and rotations before creating any work', () => {
  const a=asset(), d=new P.Drafts(), one=d.get(a,a.pages[0]);
  one.selected=true;
- for (const patch of [{quantity:0},{quantity:1.5},{bleed:''},{bleed:-1},{width:0},{rotations:[]},{name:' '}]) {
+ for (const patch of [{quantity:0},{quantity:1.5},{bleed:-1},{width:0},{rotations:[]},{name:' '}]) {
   const invalid={...one,...patch};
   assert.throws(()=>P.entry(invalid,a),/Página 1:/);
   assert.deepEqual(P.source(invalid,a),{asset_id:a.id,page:1,pdf_box:one.box});
